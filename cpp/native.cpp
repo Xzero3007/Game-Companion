@@ -9,6 +9,8 @@
 #include <QtGui/QRegion>
 #include <QtGui/QScreen>
 #include <QtQml/QQmlApplicationEngine>
+
+#include "icons.h"
 #include <QtQml/QQmlContext>
 #include <QtQml/QQmlNetworkAccessManagerFactory>
 #include <QtNetwork/QNetworkAccessManager>
@@ -184,6 +186,7 @@ int32_t gc_run()
     QQmlApplicationEngine engine;
     PictureNetworkFactory pictures;
     engine.setNetworkAccessManagerFactory(&pictures);
+    gc_register_icons(&engine);
     engine.rootContext()->setContextProperty(QStringLiteral("nativeWindow"), &native);
     engine.load(QUrl(QStringLiteral("qrc:/qt/qml/GameCompanion/qml/Main.qml")));
     if (engine.rootObjects().isEmpty()) {

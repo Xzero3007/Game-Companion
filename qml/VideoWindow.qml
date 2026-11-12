@@ -267,11 +267,34 @@ Item {
         color: "#0e0d11"
         opacity: win.videoOpacity
     }
-    MpvVideo {
-        id: video
+    // The player exists only while something plays: closed, mpv and all
+    // its video memory (decoder, frames) are let go.
+    Loader {
+        id: videoLoader
         anchors.fill: parent
-        opacity: win.videoOpacity
-        visible: drawable
+        active: win.active
+        sourceComponent: Component {
+            MpvVideo {
+                opacity: win.videoOpacity
+                visible: drawable
+            }
+        }
+    }
+    readonly property var video: videoLoader.item || idleVideo
+    QtObject {
+        id: idleVideo
+        property string state: "idle"
+        property string error: ""
+        property string title: ""
+        property bool paused: false
+        property bool muted: false
+        property real volume: 0
+        property real position: 0
+        property real duration: 0
+        property bool drawable: true
+        function play(url, format, start) { return false }
+        function stop() {}
+        function seek(seconds, relative) {}
     }
     // Where frames can't be drawn (screenshots), or while it loads.
     Text {

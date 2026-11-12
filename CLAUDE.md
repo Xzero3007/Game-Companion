@@ -159,8 +159,18 @@ learnt, so nothing has to be asked or worked out again.
   `Streams.loadSegments`. Under xvfb (llvmpipe) a large video shows
   stripes after some seconds (also without resizing): most likely a
   software-GL artifact; to be checked on the person's GPU. `GC_SCREENSHOT_DELAY` sets the screenshot's moment.
-- `HudIcon` draws into a layer (texture): plain shapes were not clipped by
-  a list's clip in the software renderer.
+- `HudIcon` is a picture from the icon provider (`cpp/icons.cpp`,
+  `image://icon/<path>|<colour>|<line width>|<filled>`, QSvgRenderer at
+  twice the size): one small texture per look, shared and cached. It was a
+  multisampled layer per icon (shapes alone were not clipped by a list's
+  clip in the software renderer), which cost video memory. Needs qt6-svg
+  (sandbox: `apt install qt6-svg-dev`).
+- The video player (`MpvVideo`) exists only while something plays (a
+  Loader in `VideoWindow`; `idleVideo` stands in): closing frees mpv and
+  its video memory.
+- Video checks under xvfb are flaky: the picture sometimes goes black or
+  striped after a few seconds in one run and not the next (llvmpipe under
+  load). Repeat a run before believing a regression.
 
 ## Checking a change
 

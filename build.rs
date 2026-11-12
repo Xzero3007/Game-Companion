@@ -34,11 +34,14 @@ fn main() {
         .qt_module("Quick")
         .qt_module("OpenGL")
         .qt_module("Network")
+        .qt_module("Svg")
         .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/streams_object.rs", "src/native.rs"])
         .cpp_file("cpp/native.h")
         .cpp_file("cpp/native.cpp")
         .cpp_file("cpp/mpvvideo.h")
         .cpp_file("cpp/mpvvideo.cpp")
+        .cpp_file("cpp/icons.h")
+        .cpp_file("cpp/icons.cpp")
         .qrc_resources([
             "assets/fonts/Rajdhani-Bold.ttf",
             "assets/fonts/Rajdhani-SemiBold.ttf",

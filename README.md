@@ -121,7 +121,7 @@ release package (`sudo pacman -U game-companion-*.pkg.tar.zst`) works too;
 after that the app updates itself.
 
 Needs: `qt6-base`, `qt6-declarative`, `qt6-wayland`, `layer-shell-qt`,
-`xdg-desktop-portal`, `polkit`, `curl`; `mpv` for the radio and the videos, `yt-dlp` for YouTube, `streamlink` for Twitch without ad breaks (and to build: `rust`, `clang`,
+`qt6-svg`, `xdg-desktop-portal`, `polkit`, `curl`; `mpv` for the radio and the videos, `yt-dlp` for YouTube, `streamlink` for Twitch without ad breaks (and to build: `rust`, `clang`,
 `base-devel`).
 
 ### Development

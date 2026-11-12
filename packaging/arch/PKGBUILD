@@ -1,12 +1,12 @@
 # Builds Game Companion from this checkout: `cd packaging/arch && makepkg -si`
 pkgname=game-companion
-pkgver=0.3.3
+pkgver=0.3.4
 pkgrel=1
 pkgdesc="One overlay for every game on Linux (KDE Plasma, Wayland)"
 arch=(x86_64)
 url="https://github.com/Xzero3007/Game-Companion"
 license=(GPL-3.0-or-later)
-depends=(qt6-base qt6-declarative qt6-wayland layer-shell-qt xdg-desktop-portal polkit curl)
+depends=(qt6-base qt6-declarative qt6-svg qt6-wayland layer-shell-qt xdg-desktop-portal polkit curl)
 optdepends=('mpv: the radio and videos (libmpv)'
             'yt-dlp: YouTube, and Twitch without Streamlink'
             'streamlink: Twitch without the ad breaks')

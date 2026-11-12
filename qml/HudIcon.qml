@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Shapes
 import "theme.js" as Theme
 
 // A line icon on a 24 px grid, drawn in the given colour (stroke only).
@@ -46,24 +45,19 @@ Item {
 
     implicitWidth: size
     implicitHeight: size
-    // Drawn into a texture: clipped like any picture inside a list (a
-    // shape alone is not clipped by every renderer), and smoother when small.
-    layer.enabled: true
-    layer.samples: 4
-    layer.smooth: true
 
-    Shape {
+    // Drawn once per look by the icon provider (cpp/icons.cpp) at twice the
+    // size, shared by every icon alike: smooth, clipped like any picture,
+    // and light on video memory.
+    Image {
         anchors.centerIn: parent
-        width: 24
-        height: 24
-        scale: icon.size / 24
-        ShapePath {
-            strokeColor: icon.color
-            strokeWidth: icon.lineWidth
-            fillColor: icon.filled ? icon.color : "transparent"
-            capStyle: ShapePath.RoundCap
-            joinStyle: ShapePath.RoundJoin
-            PathSvg { path: icon.paths[icon.name] || "" }
-        }
+        width: icon.size
+        height: icon.size
+        sourceSize: Qt.size(Math.ceil(icon.size * 2), Math.ceil(icon.size * 2))
+        smooth: true
+        mipmap: true
+        source: icon.paths[icon.name]
+            ? "image://icon/" + encodeURIComponent([icon.paths[icon.name], String(icon.color), icon.lineWidth, icon.filled ? 1 : 0].join("|"))
+            : ""
     }
 }
