@@ -37,7 +37,7 @@ fn single_instance() -> Option<std::fs::File> {
     let dir = std::env::var_os("XDG_RUNTIME_DIR")
         .map(std::path::PathBuf::from)
         .filter(|p| p.is_absolute())
-        .unwrap_or_else(|| updater::cache_dir());
+        .unwrap_or_else(updater::cache_dir);
     let _ = std::fs::create_dir_all(&dir);
     let path = dir.join("game-companion.lock");
     // Opened close-on-exec (Rust's default): mpv and the installer never
