@@ -1,0 +1,44 @@
+use cxx_qt_build::{CxxQtBuilder, QmlFile, QmlModule};
+
+fn main() {
+    let qml = QmlModule::new("GameCompanion").qml_files([
+        QmlFile::from("qml/Main.qml"),
+        QmlFile::from("qml/HudBar.qml"),
+        QmlFile::from("qml/HudButton.qml"),
+        QmlFile::from("qml/HudIcon.qml"),
+        QmlFile::from("qml/Panel.qml"),
+        QmlFile::from("qml/WelcomePanel.qml"),
+        QmlFile::from("qml/SettingsPanel.qml"),
+        QmlFile::from("qml/UnlockedFrame.qml"),
+        QmlFile::from("qml/TextButton.qml"),
+        QmlFile::from("qml/HudSlider.qml"),
+    ]);
+
+    let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();
+    if layer_shell {
+        println!("cargo::rustc-link-lib=LayerShellQtInterface");
+    }
+
+    let builder = CxxQtBuilder::new_qml_module(qml)
+        .qt_module("Gui")
+        .qt_module("Quick")
+        .files(["src/companion.rs", "src/native.rs"])
+        .cpp_file("cpp/native.h")
+        .cpp_file("cpp/native.cpp")
+        .qrc_resources([
+            "assets/fonts/Rajdhani-Bold.ttf",
+            "assets/fonts/Rajdhani-SemiBold.ttf",
+            "assets/fonts/Inter.ttf",
+            "qml/theme.js",
+        ]);
+    // SAFETY: only adds include paths and a define to the C++ build.
+    let builder = unsafe {
+        builder.cc_builder(move |cc| {
+            cc.include("cpp");
+            if layer_shell {
+                cc.define("GC_LAYER_SHELL", "1");
+            }
+        })
+    };
+    builder.build();
+}

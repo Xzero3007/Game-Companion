@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Game Companion
+GenericName=Game overlay
+Comment=One overlay for every game: lock it and clicks go through to the game
+Exec=game-companion
+Icon=input-gaming
+Terminal=false
+Categories=Game;Utility;
+Keywords=overlay;game;hud;
+StartupNotify=false

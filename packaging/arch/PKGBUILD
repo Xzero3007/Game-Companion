@@ -1,0 +1,40 @@
+# Builds Game Companion from this checkout: `cd packaging/arch && makepkg -si`
+pkgname=game-companion
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="One overlay for every game on Linux (KDE Plasma, Wayland)"
+arch=(x86_64)
+url="https://github.com/Xzero3007/Game-Companion"
+license=(GPL-3.0-or-later)
+depends=(qt6-base qt6-declarative qt6-wayland layer-shell-qt xdg-desktop-portal)
+makedepends=(rust clang)
+options=(!lto !debug)
+
+_root() { cd "$startdir/../.."; }
+
+pkgver() {
+    _root
+    sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1
+}
+
+build() {
+    _root
+    export CARGO_TARGET_DIR="$startdir/target"
+    cargo build --release --locked
+}
+
+check() {
+    _root
+    export CARGO_TARGET_DIR="$startdir/target"
+    cargo test --release --locked
+}
+
+package() {
+    _root
+    install -Dm755 "$startdir/target/release/game-companion" "$pkgdir/usr/bin/game-companion"
+    install -Dm644 packaging/io.github.xzero3007.GameCompanion.desktop \
+        "$pkgdir/usr/share/applications/io.github.xzero3007.GameCompanion.desktop"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 assets/fonts/OFL-Rajdhani.txt "$pkgdir/usr/share/licenses/$pkgname/OFL-Rajdhani.txt"
+    install -Dm644 assets/fonts/OFL-Inter.txt "$pkgdir/usr/share/licenses/$pkgname/OFL-Inter.txt"
+}

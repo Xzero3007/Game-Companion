@@ -1,0 +1,40 @@
+name: Build
+
+# Builds, tests and packages Game Companion on Arch Linux, as the person runs
+# it (Qt 6 with KDE's layer-shell-qt). The package is kept as the run's
+# artifact; releases come later.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install build tools and Qt
+        run: |
+          pacman -Syu --noconfirm --needed base-devel git rust clang \
+            qt6-base qt6-declarative qt6-wayland layer-shell-qt xdg-desktop-portal
+      - uses: actions/checkout@v4
+      - name: Tests
+        run: cargo test --locked
+      - name: Lint
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Package
+        env:
+          GC_BUILD: ${{ github.run_number }}
+        run: |
+          useradd -m builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          cd packaging/arch
+          su builder -c "GC_BUILD=$GC_BUILD makepkg --noconfirm --nocheck"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: game-companion-arch-package
+          path: packaging/arch/*.pkg.tar.zst
