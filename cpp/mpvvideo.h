@@ -33,6 +33,11 @@ class MpvVideo : public QQuickFramebufferObject
     Q_PROPERTY(double duration READ duration NOTIFY durationChanged)
     /// Whether frames can be drawn here (OpenGL; not the software renderer).
     Q_PROPERTY(bool drawable READ drawable NOTIFY drawableChanged)
+    /// Videos decoded by the graphics card (Settings → Streams).
+    Q_PROPERTY(bool hwdec READ hwdec WRITE setHwdec NOTIFY hwdecChanged)
+    /// For the home network's server (Jellyfin): set before the first video.
+    /// No yt-dlp, no mpv scripts, no proxy: mpv goes straight to the address.
+    Q_PROPERTY(bool local READ local WRITE setLocal NOTIFY localChanged)
 
 public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
@@ -49,14 +54,24 @@ public:
     double position() const { return m_position; }
     double duration() const { return m_duration; }
     bool drawable() const;
+    bool hwdec() const { return m_hwdec; }
+    bool local() const { return m_local; }
+    void setHwdec(bool on);
+    void setLocal(bool on);
 
     void setPaused(bool paused);
     void setMuted(bool muted);
     void setVolume(double volume);
 
     /// Plays an address (https, or fdclose:// for Streamlink's pipe). `format`
-    /// is yt-dlp's format ("" lets mpv pick); `start` seconds in.
-    Q_INVOKABLE bool play(const QString &url, const QString &format, double start = 0);
+    /// is yt-dlp's format ("" lets mpv pick); `start` seconds in; `header` an
+    /// HTTP header sent along (the Jellyfin server's key), or "".
+    Q_INVOKABLE bool play(const QString &url, const QString &format, double start = 0, const QString &header = QString());
+    /// Picks a track: kind "audio" or "subtitle", `id` mpv's number for it
+    /// (1, 2, ...), 0 for none.
+    Q_INVOKABLE void setTrack(const QString &kind, int id);
+    /// Adds a subtitle file (an address of the server playing) and shows it.
+    Q_INVOKABLE void addSubtitle(const QString &url);
     Q_INVOKABLE void stop();
     /// Jumps to `seconds` (absolute) or by `seconds` (relative).
     Q_INVOKABLE void seek(double seconds, bool relative);
@@ -74,6 +89,8 @@ signals:
     void ended();
     void frameReady();
     void drawableChanged();
+    void hwdecChanged();
+    void localChanged();
 
 private slots:
     void readEvents();
@@ -88,6 +105,7 @@ private:
         QString url;
         QString format;
         double start = 0;
+        QString header;
     };
     Pending m_pending;
     bool m_rendering = false;
@@ -106,6 +124,8 @@ private:
     double m_volume = 70;
     double m_position = 0;
     double m_duration = 0;
+    bool m_hwdec = true;
+    bool m_local = false;
 };
 
 /// Registers MpvVideo for QML.

@@ -26,6 +26,28 @@ pub struct Settings {
     /// Saved arrangements, by the name the user gave them.
     pub layouts: BTreeMap<String, Layout>,
     pub streams: StreamsSettings,
+    /// The Jellyfin tab's choices (the server and its key are kept apart,
+    /// in `jellyfin.json`).
+    pub jellyfin: JellyfinSettings,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct JellyfinSettings {
+    /// "continue", "nextup", "libraries" or "search".
+    pub view: String,
+    /// "original" (the file as it is), "1080" down to "360", or "audio".
+    pub quality: String,
+    /// Skip intros and credits by themselves.
+    pub auto_skip: bool,
+    /// Play a show's next episode when one ends.
+    pub auto_next: bool,
+}
+
+impl Default for JellyfinSettings {
+    fn default() -> Self {
+        Self { view: "continue".into(), quality: "original".into(), auto_skip: false, auto_next: true }
+    }
 }
 
 /// What a game brings to the Streams panel: its Twitch category and its
@@ -67,6 +89,9 @@ pub struct StreamsSettings {
     pub video_opacity: BTreeMap<String, u8>,
     /// SponsorBlock: off until switched on.
     pub sponsorblock: crate::sponsorblock::SponsorSettings,
+    /// Videos decoded by the graphics card (less work for the processor,
+    /// more video memory).
+    pub hwdec: bool,
 }
 
 impl Default for StreamsSettings {
@@ -83,6 +108,7 @@ impl Default for StreamsSettings {
             grid: true,
             video_opacity: BTreeMap::new(),
             sponsorblock: Default::default(),
+            hwdec: true,
         }
     }
 }
@@ -181,6 +207,7 @@ impl Default for Settings {
             radio: RadioSettings::default(),
             layouts: BTreeMap::new(),
             streams: StreamsSettings::default(),
+            jellyfin: JellyfinSettings::default(),
         }
     }
 }

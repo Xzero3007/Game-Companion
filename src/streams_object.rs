@@ -29,7 +29,7 @@ pub mod qobject {
         #[qml_singleton]
         /// The running game's preset, JSON `{"name","twitch","youtube"}`.
         #[qproperty(QString, game)]
-        /// "twitch" or "youtube".
+        /// "twitch", "youtube" or "jellyfin".
         #[qproperty(QString, tab)]
         #[qproperty(QString, twitch_view)]
         #[qproperty(QString, youtube_view)]
@@ -53,6 +53,8 @@ pub mod qobject {
         #[qproperty(bool, grid)]
         /// SponsorBlock: JSON `{"enabled", "categories": {category: "skip"|"show"|"off"}}`.
         #[qproperty(QString, sponsorblock)]
+        /// Videos decoded by the graphics card.
+        #[qproperty(bool, hwdec)]
         type Streams = super::StreamsRust;
 
         /// Loads a Twitch list: "game", "following", "favourites", "live" or "search" (with `text`).
@@ -96,6 +98,9 @@ pub mod qobject {
 
         #[qinvokable]
         fn save_grid(self: Pin<&mut Streams>, grid: bool);
+
+        #[qinvokable]
+        fn save_hwdec(self: Pin<&mut Streams>, on: bool);
 
         /// How much of a video window shows, in percent (50 to 100).
         #[qinvokable]
@@ -166,6 +171,7 @@ pub struct StreamsRust {
     volume: i32,
     grid: bool,
     sponsorblock: QString,
+    hwdec: bool,
     twitch_request: u64,
     youtube_request: u64,
 }
@@ -277,6 +283,7 @@ impl Default for StreamsRust {
             volume: i32::from(s.volume),
             grid: s.grid,
             sponsorblock: q(&serde_json::to_string(&s.sponsorblock).unwrap_or_default()),
+            hwdec: s.hwdec,
             twitch_request: 0,
             youtube_request: 0,
         };
@@ -310,6 +317,9 @@ impl StreamsRust {
         self.account = q(&json!({ "streamlink": true, "user": "" }).to_string());
         if demo.contains("youtube") {
             self.tab = q("youtube");
+        }
+        if demo.contains("jellyfin") {
+            self.tab = q("jellyfin");
         }
     }
 }
@@ -504,7 +514,7 @@ impl qobject::Streams {
 
     fn choose_tab(self: Pin<&mut Self>, tab: &QString) {
         let tab = tab.to_string();
-        if tab == "twitch" || tab == "youtube" {
+        if tab == "twitch" || tab == "youtube" || tab == "jellyfin" {
             settings::change(|s| s.streams.tab = tab.clone());
             self.set_tab(q(&tab));
         }
@@ -610,6 +620,11 @@ impl qobject::Streams {
     fn save_grid(self: Pin<&mut Self>, grid: bool) {
         settings::change(|s| s.streams.grid = grid);
         self.set_grid(grid);
+    }
+
+    fn save_hwdec(self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.streams.hwdec = on);
+        self.set_hwdec(on);
     }
 
     fn opacity_of(&self, slot: &QString) -> i32 {

@@ -4,23 +4,26 @@ import GameCompanion
 import GameCompanion.Video
 import "theme.js" as Theme
 
-// A video over the game: Twitch's or YouTube's, each in its own window.
+// A video over the game: Twitch's, YouTube's or the Jellyfin server's, each
+// in its own window.
 // Unlocked, the pointer on it shows its bars (name, pin, quality, close;
 // pause, volume, time line); it moves by dragging and changes size by the
 // corner. Locked, it takes no clicks: they go to the game.
 Item {
     id: win
-    /// "twitch" or "youtube": the player's slot, remembered under "video-<slot>".
+    /// "twitch", "youtube" or "jellyfin": the player's slot, remembered under "video-<slot>".
     property string slot
     readonly property string panelId: "video-" + slot
-    readonly property string label: slot === "twitch" ? "Twitch" : "YouTube"
-    /// What plays: { kind, id, name, title }.
+    readonly property bool jelly: slot === "jellyfin"
+    readonly property string label: slot === "twitch" ? "Twitch" : jelly ? "Jellyfin" : "YouTube"
+    /// What plays: { kind, id, name, title } (Jellyfin: and `item`, the
+    /// panel's item, and `start`, where to begin).
     property var item: null
     readonly property bool active: item !== null
     readonly property bool pinned: Companion.pins.indexOf('"' + panelId + '"') >= 0
     /// Where it starts: bottom left (Twitch) or bottom right (YouTube).
     property bool rightSide: slot === "youtube"
-    property string quality: Streams.quality
+    property string quality: jelly ? Jellyfin.quality : Streams.quality
     /// 0 to 100, as the bars show it.
     property int volume: Streams.volume
     /// How much of the video shows (0.5 to 1), kept for each window.
@@ -29,7 +32,11 @@ Item {
         videoOpacity = Math.max(0.5, Math.min(1, Math.round(o * 10) / 10))
         Streams.saveOpacity(slot, Math.round(videoOpacity * 100))
     }
-    readonly property var qualities: [
+    // Jellyfin: the file as it is, or the server's conversion down to a height.
+    readonly property var qualities: jelly ? [
+        { id: "original", name: "ORIGINAL" }, { id: "1080", name: "1080P" }, { id: "720", name: "720P" },
+        { id: "480", name: "480P" }, { id: "360", name: "360P" }, { id: "audio", name: "SOUND ONLY" }
+    ] : [
         { id: "best", name: "SOURCE" }, { id: "1080", name: "1080P" }, { id: "720", name: "720P" },
         { id: "480", name: "480P" }, { id: "360", name: "360P" }, { id: "audio", name: "SOUND ONLY" }
     ]
@@ -57,16 +64,35 @@ Item {
     readonly property string playState: !active ? "idle" : video.state
 
     function play(what) {
+        if (jelly && item && jf.started) jfStopped()
         item = what
         tries = 0
         segments = []
         skipped = ({})
         skipNote = ""
+        nextNote = ""
+        nextTimer.stop()
+        if (jelly) {
+            jf = { source: "", session: "", transcode: false, tracks: null, started: false, audioIndex: -1, subIndex: -2 }
+            jfSegs = []
+            jfSegment = null
+            jfSkipped = ({})
+            load(what.start || 0)
+            return
+        }
         load(0)
         if (what.kind === "youtube") Streams.loadSegments(slot, what.id)
     }
     function load(start) {
         if (!item) return
+        if (jelly) {
+            // The server's file and tracks first (prepared), then mpv.
+            failure = ""
+            pendingStart = start || 0
+            preparing = true
+            Jellyfin.prepare(slot, item.id, quality, jf.audioIndex >= 0 ? jf.audioIndex : -1)
+            return
+        }
         const src = JSON.parse(Streams.source(slot, item.kind, item.id, quality))
         if (src.error) {
             failure = src.error
@@ -77,19 +103,30 @@ Item {
         video.volume = mpvVolume(volume)
         video.play(src.url, src.format, start || 0)
     }
+    // Screenshots (GC_DEMO=jellyvideo): an episode with its tracks, in its intro.
+    function demo() {
+        item = { kind: "jellyfin", id: "0".repeat(32), title: "Episode title", name: "Series name · S2 E5", item: null, start: 0 }
+        jf = { source: "", session: "", transcode: false, started: false, audioIndex: 1, subIndex: -1,
+               tracks: { audio: [{ index: 1, ord: 1, label: "English - AAC - Stereo" }, { index: 2, ord: 2, label: "Deutsch - AC3 - 5.1" }],
+                         subs: [{ index: 3, ord: 1, external: false, format: "srt", label: "English" }] } }
+        jfSegment = { kind: "intro", start: 0, end: 60 }
+    }
     // Development only (GC_TEST_VIDEO): a local file, to check the drawing.
     function playFile(path) {
         item = { kind: "file", id: path, name: "test", title: path }
         video.play(path, "", 0)
     }
     function stop() {
+        if (jelly && jf.started) jfStopped()
+        nextTimer.stop()
+        nextNote = ""
         video.stop()
         Streams.stopSource(slot)
         item = null
         failure = ""
     }
     function togglePause() {
-        if (video.state === "ended" || video.state === "failed" || video.state === "idle") load(0)
+        if (video.state === "ended" || video.state === "failed" || video.state === "idle") load(jelly && video.state !== "ended" ? jf.last || 0 : 0)
         else video.paused = !video.paused
     }
     function setVolume(v) {
@@ -136,8 +173,152 @@ Item {
         }
         tries++
         reconnecting = true
-        const at = item.kind === "youtube" ? Math.max(0, video.position) : 0
+        const at = item.kind === "youtube" || jelly ? Math.max(0, video.position) : 0
         load(at)
+    }
+
+    // ---------- Jellyfin ----------
+    // What plays on the server: its file and play session, the tracks, the
+    // parts to skip; the server hears what plays and how far.
+    property var jf: ({})
+    property real pendingStart: 0
+    property bool preparing: false
+    property var jfSegs: []
+    property var jfSegment: null
+    property var jfSkipped: ({})
+    property string nextNote: ""
+    property var nextItem: null
+    readonly property var skipNames: ({ intro: "SKIP INTRO", recap: "SKIP RECAP", credits: "SKIP CREDITS", preview: "SKIP PREVIEW" })
+    Connections {
+        target: Jellyfin
+        enabled: win.jelly
+        function onPrepared(slot, id, answer) {
+            if (slot !== win.slot || !win.item || win.item.id !== id) return
+            win.preparing = false
+            const a = JSON.parse(answer)
+            if (a.error) { win.failure = a.error; return }
+            const keep = win.jf
+            win.jf = { source: a.source, session: a.session, transcode: a.transcode, tracks: a.tracks, started: false,
+                       audioIndex: keep.audioIndex >= 0 ? keep.audioIndex : a.tracks.audioIndex,
+                       subIndex: keep.subIndex !== undefined && keep.subIndex > -2 ? keep.subIndex : a.tracks.subIndex,
+                       last: win.pendingStart }
+            video.volume = win.mpvVolume(win.volume)
+            video.play(a.url, "", win.pendingStart, a.header)
+        }
+        function onSegmentsLoaded(slot, id, list) {
+            if (slot !== win.slot || !win.item || win.item.id !== id) return
+            win.jfSegs = JSON.parse(list)
+        }
+        function onNextFound(slot, after, next) {
+            if (slot !== win.slot || !win.item || win.item.id !== after || next.length === 0) return
+            const it = JSON.parse(next)
+            win.nextItem = it
+            win.nextNote = "NEXT: " + (it.code ? it.code + " · " : "") + it.name
+            nextTimer.restart()
+        }
+    }
+    Timer {
+        id: nextTimer
+        interval: 5000
+        onTriggered: {
+            const it = win.nextItem
+            win.nextNote = ""
+            if (it) win.play({ kind: "jellyfin", id: it.id, title: it.name, name: it.sub, item: it, start: 0 })
+        }
+    }
+    function jfReport(kind) {
+        if (!jelly || !item) return
+        Jellyfin.report(kind, JSON.stringify({ item: item.id, source: jf.source || "", session: jf.session || "",
+                                               position: jf.last || 0, paused: video.paused, transcode: !!jf.transcode }))
+    }
+    function jfStopped() {
+        const j = jf
+        j.started = false
+        jf = j
+        jfReport("stopped")
+        listsAgain.restart()
+    }
+    // Continue watching and Next up as the server has them now.
+    Timer {
+        id: listsAgain
+        interval: 1200
+        onTriggered: if (Jellyfin.view === "continue" || Jellyfin.view === "nextup") Jellyfin.load(Jellyfin.view, "")
+    }
+    // Tracks as chosen: the file's own straight in mpv; with the server's
+    // conversion, sound comes in the stream and subtitles from the server.
+    function jfApplyTracks() {
+        const t = jf.tracks
+        if (!t) return
+        if (!jf.transcode) {
+            const a = t.audio.find((x) => x.index === jf.audioIndex)
+            if (a) video.setTrack("audio", a.ord)
+        }
+        const s = t.subs.find((x) => x.index === jf.subIndex)
+        if (!s) video.setTrack("subtitle", 0)
+        else if (!s.external && !jf.transcode) video.setTrack("subtitle", s.ord)
+        else if (s.format) {
+            const u = JSON.parse(Jellyfin.subtitle(item.id, jf.source, s.index, s.format))
+            if (u.url) video.addSubtitle(u.url)
+        }
+    }
+    function chooseAudio(index) {
+        const j = jf
+        j.audioIndex = index
+        jf = j
+        if (jf.transcode) load(video.position)
+        else jfApplyTracks()
+    }
+    function chooseSubtitle(index) {
+        const j = jf
+        j.subIndex = index
+        jf = j
+        jfApplyTracks()
+    }
+    function jfSkip() {
+        const seg = jfSegment
+        if (!seg) return
+        const done = jfSkipped
+        done[seg.start] = true
+        jfSkipped = done
+        jfSegment = null
+        video.seek(seg.end, false)
+    }
+    Timer {
+        // Every 10 seconds while it plays: how far (Continue watching).
+        interval: 10000
+        repeat: true
+        running: win.jelly && win.active && !!win.jf.started && !video.paused
+        onTriggered: win.jfReport("progress")
+    }
+    Connections {
+        target: win.jelly ? video : null
+        function onStateChanged() {
+            if (video.state === "playing" && !win.jf.started) {
+                const j = win.jf
+                j.started = true
+                win.jf = j
+                win.jfApplyTracks()
+                win.jfReport("start")
+            } else if (video.state === "ended" && win.jf.started) {
+                const j = win.jf
+                j.last = video.duration || j.last
+                win.jf = j
+                win.jfStopped()
+                const it = win.item.item
+                if (Jellyfin.autoNext && it && it.type === "Episode" && it.seriesId) Jellyfin.findNext(win.slot, it.seriesId, win.item.id)
+            }
+        }
+        function onPausedChanged() { if (win.jf.started) win.jfReport("progress") }
+        function onPositionChanged() {
+            const at = video.position
+            if (at > 0) { const j = win.jf; j.last = at }
+            let seg = null
+            for (const s of win.jfSegs) if (at >= s.start && at < s.end - 1) { seg = s; break }
+            if (seg !== win.jfSegment) {
+                win.jfSegment = seg
+                if (seg && Jellyfin.autoSkip && !win.jfSkipped[seg.start]) win.jfSkip()
+            }
+        }
     }
 
     // SponsorBlock (when on in Settings): its parts marked on the time line,
@@ -208,9 +389,10 @@ Item {
     }
 
     function setQuality(q) {
-        Streams.saveQuality(q)
+        if (jelly) Jellyfin.saveQuality(q)
+        else Streams.saveQuality(q)
         quality = q
-        const at = item && item.kind === "youtube" ? video.position : 0
+        const at = item && (item.kind === "youtube" || jelly) ? video.position : 0
         load(at)
     }
 
@@ -232,7 +414,7 @@ Item {
             x = p.x
             y = p.y
         } else {
-            x = rightSide ? parent.width - width - 40 : 40
+            x = jelly ? (parent.width - width) / 2 : rightSide ? parent.width - width - 40 : 40
             y = parent.height - height - 120
         }
         x = Math.max(0, Math.min(x, parent.width - width))
@@ -277,6 +459,9 @@ Item {
             MpvVideo {
                 opacity: win.videoOpacity
                 visible: drawable
+                hwdec: Streams.hwdec
+                // Jellyfin: the home network's server, nothing else.
+                local: win.jelly
             }
         }
     }
@@ -292,21 +477,23 @@ Item {
         property real position: 0
         property real duration: 0
         property bool drawable: true
-        function play(url, format, start) { return false }
+        function play(url, format, start, header) { return false }
+        function setTrack(kind, id) {}
+        function addSubtitle(url) {}
         function stop() {}
         function seek(seconds, relative) {}
     }
     // Where frames can't be drawn (screenshots), or while it loads.
     Text {
         anchors.centerIn: parent
-        visible: !video.drawable || win.playState === "loading" || win.reconnecting || win.playState === "failed" || win.failure.length > 0
+        visible: !video.drawable || win.preparing || win.playState === "loading" || win.reconnecting || win.playState === "failed" || win.failure.length > 0
         width: parent.width - 40
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
         text: win.failure.length > 0 ? win.failure
             : win.playState === "failed" ? "Doesn't play: " + video.error
             : win.reconnecting ? "RECONNECTING…"
-            : win.playState === "loading" ? "LOADING…"
+            : win.playState === "loading" || win.preparing ? "LOADING…"
             : win.label.toUpperCase() + " VIDEO"
         color: win.failure.length > 0 || win.playState === "failed" ? Theme.red : "#5b5866"
         font.family: Theme.display
@@ -328,7 +515,7 @@ Item {
         id: pointerOn
         enabled: !Companion.locked
     }
-    readonly property bool barsWanted: pointerOn.hovered || qualityPicker.open || opacityPicker.open
+    readonly property bool barsWanted: pointerOn.hovered || qualityPicker.open || opacityPicker.open || audioPicker.open || subtitlePicker.open
     onBarsWantedChanged: if (!barsWanted) barsLinger.restart()
     Timer { id: barsLinger; interval: 700 }
 
@@ -349,7 +536,8 @@ Item {
         onDoubleClicked: win.togglePause()
     }
     readonly property bool showBars: !Companion.locked && (barsWanted || barsLinger.running || nativeWindow.demo.indexOf("video") >= 0)
-    onShowBarsChanged: if (!showBars) { qualityPicker.open = false; opacityPicker.open = false }
+    onShowBarsChanged: if (!showBars) { qualityPicker.open = false; opacityPicker.open = false; audioPicker.open = false; subtitlePicker.open = false }
+    function closePickers() { qualityPicker.open = false; opacityPicker.open = false; audioPicker.open = false; subtitlePicker.open = false }
 
     // Top bar: name, pin, quality, close.
     Rectangle {
@@ -384,7 +572,9 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width - 90
                 elide: Text.ElideRight
-                text: win.item ? (win.item.kind === "twitch" ? win.item.name + (win.item.game ? " · " + win.item.game : "") : (win.item.title || video.title)) : ""
+                text: win.item ? (win.item.kind === "twitch" ? win.item.name + (win.item.game ? " · " + win.item.game : "")
+                    : win.jelly ? [win.item.title, win.item.name].filter((t) => t).join(" · ")
+                    : (win.item.title || video.title)) : ""
                 color: Theme.textSoft
                 font.family: Theme.body
                 font.pixelSize: 12
@@ -443,10 +633,20 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: { opacityPicker.open = false; qualityPicker.open = !qualityPicker.open }
+                    onClicked: { const o = !qualityPicker.open; win.closePickers(); qualityPicker.open = o }
                 }
                 Accessible.role: Accessible.ComboBox
                 Accessible.name: "Quality: " + win.qualityName(win.quality)
+            }
+            TrackButton {
+                visible: win.jelly && !!win.jf.tracks && win.jf.tracks.audio.length > 1
+                text: "SOUND"
+                picker: audioPicker
+            }
+            TrackButton {
+                visible: win.jelly && !!win.jf.tracks && win.jf.tracks.subs.length > 0
+                text: "SUBS"
+                picker: subtitlePicker
             }
             IconButton {
                 anchors.verticalCenter: parent.verticalCenter
@@ -527,7 +727,7 @@ Item {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 // A list of 100 to 50 %; the wheel steps by 10 too.
-                onClicked: { qualityPicker.open = false; opacityPicker.open = !opacityPicker.open }
+                onClicked: { const o = !opacityPicker.open; win.closePickers(); opacityPicker.open = o }
                 onWheel: (w) => win.setOpacity(win.videoOpacity + (w.angleDelta.y > 0 ? 0.1 : -0.1))
             }
             Accessible.role: Accessible.ComboBox
@@ -606,6 +806,33 @@ Item {
         }
         Accessible.role: Accessible.Slider
         Accessible.name: "Time line"
+    }
+
+    component TrackButton: Item {
+        property string text
+        property Item picker
+        anchors.verticalCenter: parent.verticalCenter
+        width: trackText.implicitWidth + 14
+        height: 26
+        Text {
+            id: trackText
+            anchors.centerIn: parent
+            text: parent.text + " ▾"
+            color: parent.picker.open ? Theme.accent : trackMouse.containsMouse ? Theme.text : Theme.muted
+            font.family: Theme.display
+            font.pixelSize: 12
+            font.weight: Font.Bold
+            font.letterSpacing: 1
+        }
+        MouseArea {
+            id: trackMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: { const o = !parent.picker.open; win.closePickers(); parent.picker.open = o }
+        }
+        Accessible.role: Accessible.ComboBox
+        Accessible.name: text === "SOUND" ? "Sound track" : "Subtitles"
     }
 
     component SeekButton: Item {
@@ -715,6 +942,96 @@ Item {
         current: win.quality
         onChosen: (id) => win.setQuality(id)
     }
+    Picker {
+        id: audioPicker
+        anchors.right: parent.right
+        anchors.rightMargin: 36
+        y: 36
+        width: 220
+        maxHeight: win.height - y - 4
+        options: win.jf.tracks ? win.jf.tracks.audio.map((a) => ({ id: String(a.index), name: a.label })) : []
+        current: String(win.jf.audioIndex)
+        onChosen: (id) => win.chooseAudio(Number(id))
+    }
+    Picker {
+        id: subtitlePicker
+        anchors.right: parent.right
+        anchors.rightMargin: 36
+        y: 36
+        width: 220
+        maxHeight: win.height - y - 4
+        options: win.jf.tracks ? [{ id: "-1", name: "Off" }].concat(win.jf.tracks.subs
+            .filter((s) => !(s.external || win.jf.transcode) || s.format)
+            .map((s) => ({ id: String(s.index), name: s.label }))) : []
+        current: String(win.jf.subIndex)
+        onChosen: (id) => win.chooseSubtitle(Number(id))
+    }
+
+    // Jellyfin: skip the intro or the credits (by itself when set so), and
+    // what plays next.
+    Rectangle {
+        visible: win.jelly && !!win.jfSegment && !Companion.locked
+        anchors.right: parent.right
+        anchors.rightMargin: 12
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: win.showBars ? 64 : 14
+        width: skipText.implicitWidth + 28
+        height: 34
+        color: skipMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.25) : Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.85)
+        border.color: Theme.accent
+        Text {
+            id: skipText
+            anchors.centerIn: parent
+            text: win.jfSegment ? (win.skipNames[win.jfSegment.kind] || "SKIP") : ""
+            color: Theme.accent
+            font.family: Theme.display
+            font.pixelSize: 13
+            font.weight: Font.Bold
+            font.letterSpacing: 1.5
+        }
+        MouseArea {
+            id: skipMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: win.jfSkip()
+        }
+        Accessible.role: Accessible.Button
+        Accessible.name: skipText.text
+    }
+    Rectangle {
+        visible: win.nextNote.length > 0
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 40, nextColumn.implicitWidth + 32)
+        height: nextColumn.implicitHeight + 24
+        color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.9)
+        Rectangle { width: parent.width; height: 2; color: Theme.accent }
+        Column {
+            id: nextColumn
+            anchors.centerIn: parent
+            width: parent.width - 32
+            spacing: 8
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                text: win.nextNote
+                color: Theme.text
+                font.family: Theme.display
+                font.pixelSize: 13
+                font.weight: Font.Bold
+                font.letterSpacing: 1
+            }
+            Row {
+                visible: !Companion.locked
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 8
+                TextButton { text: "Play now"; onClicked: { nextTimer.stop(); nextTimer.triggered() } }
+                TextButton { text: "Cancel"; onClicked: { nextTimer.stop(); win.nextNote = "" } }
+            }
+        }
+    }
+
     Picker {
         id: opacityPicker
         anchors.right: parent.right

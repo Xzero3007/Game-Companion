@@ -484,7 +484,7 @@ fn finish(child: Child, limit: Duration) -> Result<std::process::Output, String>
 }
 
 /// A string for curl's config file (between double quotes).
-fn curl_quote(s: &str) -> String {
+pub(crate) fn curl_quote(s: &str) -> String {
     let mut out = String::from("\"");
     for c in s.chars() {
         match c {
@@ -503,7 +503,13 @@ fn curl_quote(s: &str) -> String {
 /// curl, its settings (headers, body, address) on stdin: a token never
 /// shows in the process list.
 fn curl(config: &str, limit: Duration) -> Result<Vec<u8>, String> {
+    curl_with(&[], config, limit)
+}
+
+/// curl with some first arguments (`-q`: no `~/.curlrc`), its settings on stdin.
+pub(crate) fn curl_with(first: &[&str], config: &str, limit: Duration) -> Result<Vec<u8>, String> {
     let mut child = Command::new("curl")
+        .args(first)
         .args(["--config", "-"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

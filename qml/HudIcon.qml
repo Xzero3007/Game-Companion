@@ -32,6 +32,7 @@ Item {
         "expand": "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
         "shrink": "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5",
         "minus": "M5 12h14",
+        "check": "M5 12.5l4.5 4.5L19 7",
         "plus": "M12 5v14M5 12h14",
         "volume": "M11 5 6 9H2v6h4l5 4z M15.5 8.5a5 5 0 0 1 0 7",
         "prev": "M19 5 9 12l10 7z M5 5v14",

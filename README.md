@@ -56,8 +56,8 @@ to the game.
   channels. Subscriptions load several channels at once, show while they
   come, and are kept 15 minutes (the refresh button asks again). Moved over from the Clicktrough meter's Streams
   plugin (`Xzero3007/A2Tools-Clicktrough-Plugins`, GPL-3.0).
-- **Videos over the game**: a click plays it in Twitch's or YouTube's own
-  window (both at once if you like), drawn by your **libmpv** into the
+- **Videos over the game**: a click plays it in Twitch's, YouTube's or
+  Jellyfin's own window (all at once if you like), drawn by your **libmpv** into the
   overlay. Locked, clicks go through it; unlocked, the pointer on it shows
   its bars (pin, quality from a list: source, 1080p to 360p or sound only;
   full screen (Esc leaves it); close; pause, 10 seconds back and on, a time
@@ -78,8 +78,34 @@ to the game.
   yt-dlp, and the thumbnails of static-cdn.jtvnw.net, i.ytimg.com and
   yt3.ggpht.com (the app's image loader refuses every other host), and
   SponsorBlock (sponsor.ajay.app) when switched on in Settings → Streams,
-  asked with only the first four characters of the video id's SHA-256.
-  Nothing else.
+  asked with only the first four characters of the video id's SHA-256;
+  and your own Jellyfin server in your home network. Nothing else.
+- **Jellyfin, your own server, in your home network only.** Sign in once
+  (Settings → Streams → Jellyfin, or the Streams panel's Jellyfin tab) with
+  the server's address, your name and password: only a home network's
+  address is taken (192.168.x.x, 10.x.x.x, 172.16-31.x.x, localhost,
+  fe80::/fc00:: or a name like `nas.local` that leads only to such
+  addresses); anything else is refused before it is tried. The password is
+  never kept; the server's key is, in `~/.config/game-companion/jellyfin.json`,
+  readable by you only. Every request goes through curl with the checked
+  address pinned, no proxy, no redirects and no `~/.curlrc`; the key goes in
+  a header on stdin, never in an address or the process list. The tab
+  shows Continue, Next up, your libraries (films, shows, seasons; more as
+  you scroll) and a search, with the server's pictures (fetched by the app,
+  kept in memory only) and how far each one is watched; a check mark marks
+  it watched or not. It plays in its own video window: the file as it is
+  (ORIGINAL) or the server's conversion down to 1080p to 360p, from where
+  you left it, with its sound tracks and subtitles (also the server's own
+  subtitle files), SKIP INTRO / SKIP CREDITS where the server knows them
+  (Media Segments or the Intro Skipper plugin; by themselves if you like),
+  and the next episode of a show after five seconds. mpv plays it without
+  yt-dlp, without scripts and without a proxy. Your server hears what plays
+  and how far every 10 seconds, so Continue watching is right in every
+  Jellyfin app. Sign out tells the server to forget the key and deletes it
+  here. Ported from the Clicktrough meter (patch 0053) and its Streams plugin.
+- **Hardware decoding** (Settings → Streams → Videos, on by default): the
+  graphics card unpacks videos (less work for the processor, a few hundred
+  MB of video memory for a stream); off, the processor does it.
 - **SponsorBlock** (off until switched on): the parts of YouTube videos
   viewers flagged are marked on the time line in their colour; each
   category skips, shows or is off (FreeTube's choices can be taken over).
@@ -94,13 +120,12 @@ to the game.
 - **Turn off** in Settings → General closes the whole app, with the radio.
 - **Nothing else goes online.** The fonts ship with the app, the shortcuts
   are local D-Bus; the only network use is the radio stream you pick, the
-  streams you open, and the update check on GitHub.
+  streams you open, your Jellyfin server at home, and the update check on GitHub.
 
 ## Coming next
 
 1. ~~Core: overlay, lock, shortcuts, bar, settings~~
-2. ~~Radio~~, ~~streams (Twitch, YouTube)~~ with a preset search per game,
-   then Jellyfin
+2. ~~Radio~~, ~~streams (Twitch, YouTube, Jellyfin)~~ with a preset search per game
 3. Brave Origin and Legcord (on hold)
 4. Game detection: start and close with a game (AION 2, Path of Exile 2),
    and a Games tab that lists the Steam, Lutris and Heroic games and starts them

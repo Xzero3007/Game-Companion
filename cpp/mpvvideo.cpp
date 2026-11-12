@@ -265,7 +265,6 @@ bool MpvVideo::ensureStarted()
         {"config", "no"},
         {"terminal", "no"},
         {"vo", "libmpv"},
-        {"hwdec", "auto-safe"},
         {"input-default-bindings", "no"},
         {"input-vo-keyboard", "no"},
         {"osc", "no"},
@@ -283,6 +282,14 @@ bool MpvVideo::ensureStarted()
     };
     for (const auto &o : options) {
         mpv().set_option_string(m_mpv, o[0], o[1]);
+    }
+    mpv().set_option_string(m_mpv, "hwdec", m_hwdec ? "auto-safe" : "no");
+    if (m_local) {
+        // The home network's server: mpv itself, nothing else. No yt-dlp
+        // (it would try an address mpv can't open), no scripts of the
+        // user's, and ffmpeg ignores http_proxy (stream-lavf-o, per video).
+        mpv().set_option_string(m_mpv, "ytdl", "no");
+        mpv().set_option_string(m_mpv, "load-scripts", "no");
     }
     if (!drawable()) {
         // No OpenGL here: the sound alone.
@@ -333,12 +340,12 @@ void MpvVideo::setMpv(const char *name, const QString &value)
     }
 }
 
-bool MpvVideo::play(const QString &url, const QString &format, double start)
+bool MpvVideo::play(const QString &url, const QString &format, double start, const QString &header)
 {
     if (!ensureStarted()) {
         return false;
     }
-    m_pending = Pending{url, format, start};
+    m_pending = Pending{url, format, start, header};
     setState(QStringLiteral("loading"));
     if (m_rendering || !drawable()) {
         return loadPending();
@@ -370,7 +377,22 @@ bool MpvVideo::loadPending()
     // again, for YouTube alone (on Twitch's live segments it stalled the
     // picture), as the meter's patch 0058.
     const bool youtube = url.startsWith(QLatin1String("https://www.youtube.com/"));
-    setMpv("stream-lavf-o", youtube ? QStringLiteral("reconnect=1,reconnect_on_http_error=4xx,reconnect_delay_max=10") : QString());
+    // The home network's server: straight there, never through a proxy
+    // (an empty http_proxy wins over the environment's).
+    setMpv("stream-lavf-o", m_local ? QStringLiteral("http_proxy=")
+                           : youtube ? QStringLiteral("reconnect=1,reconnect_on_http_error=4xx,reconnect_delay_max=10")
+                                     : QString());
+    // Each video's own header: emptied with "clr" (a plain set to "" leaves
+    // one empty field), then the one field added whole, commas and all.
+    {
+        const char *clr[] = {"change-list", "http-header-fields", "clr", "", nullptr};
+        mpv().command(m_mpv, clr);
+        if (!p.header.isEmpty()) {
+            const QByteArray h = p.header.toUtf8();
+            const char *add[] = {"change-list", "http-header-fields", "append", h.constData(), nullptr};
+            mpv().command(m_mpv, add);
+        }
+    }
     setMpv("start", start > 0 ? QString::number(start, 'f', 1) : QStringLiteral("none"));
     setMpv("pause", QStringLiteral("no"));
     const QByteArray u = url.toUtf8();
@@ -404,6 +426,42 @@ void MpvVideo::seek(double seconds, bool relative)
     }
     const QByteArray s = QByteArray::number(seconds, 'f', 1);
     const char *args[] = {"seek", s.constData(), relative ? "relative" : "absolute", nullptr};
+    mpv().command(m_mpv, args);
+}
+
+void MpvVideo::setHwdec(bool on)
+{
+    if (m_hwdec == on) {
+        return;
+    }
+    m_hwdec = on;
+    setMpv("hwdec", on ? QStringLiteral("auto-safe") : QStringLiteral("no"));
+    emit hwdecChanged();
+}
+
+void MpvVideo::setLocal(bool on)
+{
+    // Only before mpv starts: its options are set once.
+    if (m_local == on || m_mpv) {
+        return;
+    }
+    m_local = on;
+    emit localChanged();
+}
+
+void MpvVideo::setTrack(const QString &kind, int id)
+{
+    const char *name = kind == QLatin1String("audio") ? "aid" : "sid";
+    setMpv(name, id > 0 ? QString::number(id) : QStringLiteral("no"));
+}
+
+void MpvVideo::addSubtitle(const QString &url)
+{
+    if (!m_mpv || url.isEmpty()) {
+        return;
+    }
+    const QByteArray u = url.toUtf8();
+    const char *args[] = {"sub-add", u.constData(), "select", nullptr};
     mpv().command(m_mpv, args);
 }
 
@@ -478,7 +536,7 @@ void MpvVideo::readEvents()
                 if (!m_why.isEmpty()) {
                     why += QStringLiteral(" (") + m_why + QStringLiteral(")");
                 }
-                setState(QStringLiteral("failed"), why + hintFor(m_why));
+                setState(QStringLiteral("failed"), why + (m_local ? QString() : hintFor(m_why)));
             } else if (end && end->reason == MPV_END_FILE_REASON_EOF) {
                 setState(QStringLiteral("ended"));
                 emit ended();

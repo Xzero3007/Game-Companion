@@ -22,6 +22,7 @@ fn main() {
         QmlFile::from("qml/VideoWindow.qml"),
         QmlFile::from("qml/Picker.qml"),
         QmlFile::from("qml/WheelScroll.qml"),
+        QmlFile::from("qml/JellyfinSignIn.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();
@@ -35,13 +36,15 @@ fn main() {
         .qt_module("OpenGL")
         .qt_module("Network")
         .qt_module("Svg")
-        .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/streams_object.rs", "src/native.rs"])
+        .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/streams_object.rs", "src/jellyfin_object.rs", "src/native.rs"])
         .cpp_file("cpp/native.h")
         .cpp_file("cpp/native.cpp")
         .cpp_file("cpp/mpvvideo.h")
         .cpp_file("cpp/mpvvideo.cpp")
         .cpp_file("cpp/icons.h")
         .cpp_file("cpp/icons.cpp")
+        .cpp_file("cpp/jellyfinpictures.h")
+        .cpp_file("cpp/jellyfinpictures.cpp")
         .qrc_resources([
             "assets/fonts/Rajdhani-Bold.ttf",
             "assets/fonts/Rajdhani-SemiBold.ttf",

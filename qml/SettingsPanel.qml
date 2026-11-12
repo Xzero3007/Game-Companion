@@ -9,7 +9,7 @@ Panel {
     title: "Settings"
     width: 440
 
-    property string tab: "general"
+    property string tab: nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0 ? "streams" : "general"
     property real previewAlpha: Companion.alpha
     property var keys: JSON.parse(Companion.shortcuts)
     readonly property var layouts: JSON.parse(Companion.layouts)
@@ -245,12 +245,14 @@ Panel {
             readonly property var account: JSON.parse(Streams.account)
             readonly property var game: JSON.parse(Streams.game)
             onVisibleChanged: if (visible) Streams.refreshAccount()
-            property string part: nativeWindow.demo.indexOf("sponsor") >= 0 ? "sponsorblock" : "twitch"
+            property string part: nativeWindow.demo.indexOf("sponsor") >= 0 ? "sponsorblock"
+                : nativeWindow.demo.indexOf("jellyfin") >= 0 ? "jellyfin"
+                : nativeWindow.demo.indexOf("hwdec") >= 0 ? "videos" : "twitch"
 
             Row {
                 spacing: 16
                 Repeater {
-                    model: [["twitch", "Twitch"], ["sponsorblock", "SponsorBlock"], ["jellyfin", "Jellyfin"]]
+                    model: [["twitch", "Twitch"], ["sponsorblock", "SponsorBlock"], ["jellyfin", "Jellyfin"], ["videos", "Videos"]]
                     delegate: Item {
                         required property var modelData
                         readonly property bool chosen: parent.parent.part === modelData[0]
@@ -441,8 +443,61 @@ Panel {
             visible: parent.part === "jellyfin"
             width: parent.width
             spacing: 10
-            Label { text: "Jellyfin" }
-            Hint { text: "Your own server, in your home network only: comes next." }
+            readonly property var jf: Jellyfin.account.length > 0 ? JSON.parse(Jellyfin.account) : null
+            Label { text: "Jellyfin server" }
+            JellyfinSignIn { visible: !parent.jf; width: parent.width }
+            Item {
+                visible: !!parent.jf
+                width: parent.width
+                height: 34
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        text: parent.parent.parent.jf ? "Signed in as " + parent.parent.parent.jf.user + " on " + parent.parent.parent.jf.serverName : ""
+                        color: Theme.accent
+                        font.family: Theme.body
+                        font.pixelSize: 13
+                    }
+                    Text {
+                        text: parent.parent.parent.jf ? parent.parent.parent.jf.server : ""
+                        color: Theme.dim
+                        font.family: Theme.body
+                        font.pixelSize: 11
+                    }
+                }
+                TextButton { anchors.right: parent.right; text: "Sign out"; danger: true; onClicked: Jellyfin.signOut() }
+            }
+            Hint {
+                visible: !!parent.jf
+                text: "Signing out tells your server to forget this PC's key, and deletes it here."
+            }
+            Item { width: 1; height: 4 }
+            OnOff {
+                width: parent.width
+                text: "Skip intros and credits by themselves"
+                on: Jellyfin.autoSkip
+                onToggled: Jellyfin.saveAutoSkip(!Jellyfin.autoSkip)
+            }
+            OnOff {
+                width: parent.width
+                text: "Play a show's next episode"
+                on: Jellyfin.autoNext
+                onToggled: Jellyfin.saveAutoNext(!Jellyfin.autoNext)
+            }
+            Hint { text: "Only a server in your home network (192.168.x.x, 10.x.x.x, 172.16-31.x.x, localhost, nas.local) is ever asked; anything else is refused before it is tried, and nothing goes through a proxy. Your server learns what plays and how far, so Continue watching is right in every Jellyfin app." }
+            }
+
+            Column {
+            visible: parent.part === "videos"
+            width: parent.width
+            spacing: 10
+            OnOff {
+                width: parent.width
+                text: "Hardware decoding"
+                on: Streams.hwdec
+                onToggled: Streams.saveHwdec(!Streams.hwdec)
+            }
+            Hint { text: "On: the graphics card unpacks the videos. The processor has less to do, and the video takes some video memory (a few hundred MB for a stream). Off: the processor does it, which leaves the video memory to the game but costs processor time. Changes take hold at once." }
             }
         }
 
@@ -600,6 +655,50 @@ Panel {
             }
             Accessible.name: parent.placeholder
         }
+    }
+    // A choice that is on or off: its name, ON/OFF in the accent, a click switches.
+    component OnOff: Item {
+        id: onOff
+        property string text
+        property bool on: false
+        signal toggled
+        height: 30
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width - 70
+            elide: Text.ElideRight
+            text: onOff.text
+            color: Theme.textSoft
+            font.family: Theme.body
+            font.pixelSize: 13
+        }
+        Rectangle {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: 56
+            height: 26
+            color: onOffMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.12) : "transparent"
+            border.color: onOff.on ? Theme.accent : Theme.track
+            Text {
+                anchors.centerIn: parent
+                text: onOff.on ? "ON" : "OFF"
+                color: onOff.on ? Theme.accent : Theme.dim
+                font.family: Theme.display
+                font.pixelSize: 12
+                font.weight: Font.Bold
+                font.letterSpacing: 1.5
+            }
+        }
+        MouseArea {
+            id: onOffMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: onOff.toggled()
+        }
+        Accessible.role: Accessible.CheckBox
+        Accessible.name: onOff.text
+        Accessible.checked: onOff.on
     }
     component Hint: Text {
         width: parent ? parent.width : 300

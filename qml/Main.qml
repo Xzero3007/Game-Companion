@@ -37,7 +37,7 @@ Window {
         if (Companion.locked) {
             if (bar.visible) rects.push(rectOf(bar.lockButton))
         } else {
-            for (const item of [bar, playerRow, welcome, settings, radio, streams, twitchVideo, youtubeVideo]) {
+            for (const item of [bar, playerRow, welcome, settings, radio, streams, twitchVideo, youtubeVideo, jellyfinVideo]) {
                 if (item.visible) rects.push(rectOf(item))
             }
         }
@@ -65,6 +65,7 @@ Window {
         if (demo.indexOf("radio") >= 0) radioOpen = true
         if (demo.indexOf("streams") >= 0) streamsOpen = true
         if (demo.indexOf("video") >= 0) twitchVideo.item = { kind: "twitch", id: "streamer_one", name: "streamer_one", game: "AION 2", title: "" }
+        if (demo.indexOf("jellyvideo") >= 0) jellyfinVideo.demo()
         if (nativeWindow.testVideo.length > 0) twitchVideo.playFile(nativeWindow.testVideo)
         if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
         requestInput()
@@ -138,10 +139,17 @@ Window {
             visible: active && root.onScreen(panelId)
             onAreaChanged: root.requestInput()
         }
+        VideoWindow {
+            id: jellyfinVideo
+            z: fullScreen ? 100 : 0
+            slot: "jellyfin"
+            visible: active && root.onScreen(panelId)
+            onAreaChanged: root.requestInput()
+        }
 
         PlayerRow {
             id: playerRow
-            videos: [twitchVideo, youtubeVideo]
+            videos: [twitchVideo, youtubeVideo, jellyfinVideo]
             visible: active && root.onScreen("player-row")
             anchors.horizontalCenter: parent.horizontalCenter
             y: Companion.shown ? bar.height : 0
@@ -182,9 +190,10 @@ Window {
             defaultY: 120
             playingTwitch: twitchVideo.item && twitchVideo.item.kind === "twitch" ? twitchVideo.item.id : ""
             playingYoutube: youtubeVideo.item && youtubeVideo.item.kind === "youtube" ? youtubeVideo.item.id : ""
+            playingJellyfin: jellyfinVideo.item ? jellyfinVideo.item.id : ""
             onCloseClicked: root.streamsOpen = false
             onAreaChanged: root.requestInput()
-            onPlayRequested: (what) => (what.kind === "twitch" ? twitchVideo : youtubeVideo).play(what)
+            onPlayRequested: (what) => (what.kind === "twitch" ? twitchVideo : what.kind === "jellyfin" ? jellyfinVideo : youtubeVideo).play(what)
         }
 
         SettingsPanel {

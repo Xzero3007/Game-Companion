@@ -2,9 +2,9 @@ import QtQuick
 import GameCompanion
 import "theme.js" as Theme
 
-// Streams: Twitch and YouTube (Jellyfin next). The running game's lists
-// come first, under its purple tag; a click plays in that site's video
-// window over the game.
+// Streams: Twitch, YouTube and the user's own Jellyfin server (home network
+// only). The running game's lists come first, under its purple tag; a click
+// plays in that site's video window over the game.
 Panel {
     id: panel
     panelId: "streams"
@@ -18,6 +18,7 @@ Panel {
     /// What plays now in each window (to mark its row).
     property string playingTwitch: ""
     property string playingYoutube: ""
+    property string playingJellyfin: ""
 
     readonly property var game: JSON.parse(Streams.game)
     readonly property var twitchList: JSON.parse(Streams.twitch)
@@ -26,15 +27,22 @@ Panel {
     readonly property var channels: JSON.parse(Streams.channels)
     readonly property var account: JSON.parse(Streams.account)
     readonly property bool onTwitch: Streams.tab === "twitch"
+    readonly property bool onJelly: Streams.tab === "jellyfin"
+    readonly property var jellyList: JSON.parse(Jellyfin.items)
+    readonly property var jfAccount: Jellyfin.account.length > 0 ? JSON.parse(Jellyfin.account) : null
+    /// Jellyfin's libraries: the way in (library, show, season), each
+    /// `{ id, type, collection, seriesId, name }`.
+    property var jfPath: []
     property bool editingGame: false
     /// YouTube: the channel whose videos show ("" for none).
     property var channel: null
 
     // The count, or how far a long load is (YouTube's subscriptions).
-    badge: onTwitch ? (Streams.twitchState === "ready" ? Streams.twitchMessage.toUpperCase() : "")
+    badge: onJelly ? (Jellyfin.state === "ready" && jfAccount ? Jellyfin.message.toUpperCase() : "")
+        : onTwitch ? (Streams.twitchState === "ready" ? Streams.twitchMessage.toUpperCase() : "")
         : (Streams.youtubeState === "ready" || Streams.youtubeState === "loading" ? Streams.youtubeMessage.toUpperCase() : "")
     readonly property bool tiles: Streams.grid
-    readonly property bool channelsView: !onTwitch && Streams.youtubeView === "channels"
+    readonly property bool channelsView: Streams.tab === "youtube" && Streams.youtubeView === "channels"
 
     // Back and forth through tabs, lists, searches and channels, as in a
     // browser: { tab, view, text, channel }.
@@ -43,7 +51,8 @@ Panel {
     readonly property bool canBack: at > 0
     readonly property bool canForward: at < history.length - 1
     function stateNow() {
-        return { tab: Streams.tab, view: onTwitch ? Streams.twitchView : Streams.youtubeView, text: search.text, channel: channel }
+        return { tab: Streams.tab, view: onJelly ? Jellyfin.view : onTwitch ? Streams.twitchView : Streams.youtubeView,
+                 text: search.text, channel: channel, path: jfPath }
     }
     function go(s) {
         let h = history.slice(0, at + 1)
@@ -60,7 +69,11 @@ Panel {
         if (Streams.tab !== s.tab) Streams.chooseTab(s.tab)
         search.text = s.text || ""
         channel = s.channel || null
-        if (s.tab === "twitch") {
+        if (s.tab === "jellyfin") {
+            jfPath = s.path || []
+            if (s.view === "folder" && jfPath.length > 0) Jellyfin.load("folder", JSON.stringify(jfPath[jfPath.length - 1]))
+            else Jellyfin.load(s.view === "folder" ? "libraries" : s.view, s.view === "search" ? search.text : "")
+        } else if (s.tab === "twitch") {
             Streams.loadTwitch(s.view, s.view === "search" ? search.text : "")
         } else if (s.view === "channel" && channel) {
             Streams.loadYoutube("channel", channel.id)
@@ -84,7 +97,7 @@ Panel {
 
     property bool loadedOnce: false
     onVisibleChanged: if (visible && !loadedOnce) firstLoad()
-    Component.onCompleted: if (visible) firstLoad()
+    Component.onCompleted: if (visible && !loadedOnce) firstLoad()
     function firstLoad() {
         loadedOnce = true
         Streams.refreshAccount()
@@ -94,7 +107,12 @@ Panel {
         reload()
     }
     function reload() {
-        if (onTwitch) {
+        if (onJelly) {
+            if (!jfAccount) return
+            if (Jellyfin.view === "search") { if (search.text.trim().length > 0) Jellyfin.load("search", search.text) }
+            else if (Jellyfin.view === "folder" && jfPath.length > 0) Jellyfin.load("folder", JSON.stringify(jfPath[jfPath.length - 1]))
+            else Jellyfin.load(Jellyfin.view === "folder" ? "libraries" : Jellyfin.view, "")
+        } else if (onTwitch) {
             if (Streams.twitchView === "search") { if (search.text.trim().length > 0) Streams.loadTwitch("search", search.text) }
             else Streams.loadTwitch(Streams.twitchView, "")
         } else {
@@ -107,7 +125,7 @@ Panel {
     function runSearch() {
         const text = search.text.trim()
         if (text.length === 0) return
-        if (!onTwitch) {
+        if (Streams.tab === "youtube") {
             // A pasted link plays at once.
             const id = Streams.videoId(text)
             if (id.length > 0) { panel.playRequested({ kind: "youtube", id: id, title: "", name: "" }); return }
@@ -130,6 +148,24 @@ Panel {
         const two = (n) => (n < 10 ? "0" : "") + n
         return h > 0 ? h + ":" + two(m) + ":" + two(s) : m + ":" + two(s)
     }
+    // Jellyfin: into a library, a show or a season; or play.
+    function jfOpen(it) {
+        if (it.openable) {
+            const at = jfPath.length > 0 ? jfPath[jfPath.length - 1] : null
+            const step = { id: it.id, type: it.type, collection: it.collection || (at ? at.collection : ""),
+                           seriesId: it.seriesId || (at && at.type === "Series" ? at.id : ""), name: it.name }
+            go({ tab: "jellyfin", view: "folder", text: "", channel: null, path: jfPath.concat([step]) })
+        } else if (it.playable) {
+            panel.playRequested({ kind: "jellyfin", id: it.id, title: it.name, name: it.sub, item: it, start: it.position || 0 })
+        }
+    }
+    function timeLeft(it) {
+        const s = Math.max(0, (it.runtime || 0) - (it.position || 0))
+        if (!(it.position > 0) || s <= 0) return ""
+        const m = Math.round(s / 60)
+        if (m < 1) return "under a minute left"
+        return (m >= 60 ? Math.floor(m / 60) + " h " + (m % 60) + " min" : m + " min") + " left"
+    }
     function since(iso) {
         if (!iso) return ""
         const m = Math.round((Date.now() - Date.parse(iso)) / 60000)
@@ -150,7 +186,7 @@ Panel {
                 height: 30
                 SiteTab { name: "twitch"; label: "Twitch" }
                 SiteTab { name: "youtube"; label: "YouTube" }
-                SiteTab { name: "jellyfin"; label: "Jellyfin"; enabled: false }
+                SiteTab { name: "jellyfin"; label: "Jellyfin" }
             }
             Row {
                 anchors.right: parent.right
@@ -191,8 +227,68 @@ Panel {
             }
         }
 
+        // Jellyfin: the home network, or signing in.
+        Rectangle {
+            visible: panel.onJelly
+            width: parent.width
+            height: panel.jfAccount ? 36 : signInColumn.implicitHeight + 24
+            color: Qt.rgba(1, 1, 1, 0.04)
+            Rectangle { width: 2; height: parent.height; color: panel.jfAccount ? Theme.accent : Theme.track }
+            Row {
+                visible: !!panel.jfAccount
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.right: parent.right
+                anchors.rightMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 10
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 7; height: 7
+                    color: Jellyfin.state === "failed" ? Theme.track : Theme.accent
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - homeOnly.implicitWidth - 37
+                    elide: Text.ElideRight
+                    text: panel.jfAccount ? "Home network · " + panel.jfAccount.serverName + " · " + panel.jfAccount.user : ""
+                    color: "#d8d4e0"
+                    font.family: Theme.body
+                    font.pixelSize: 12
+                }
+                Text {
+                    id: homeOnly
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "HOME ONLY"
+                    color: Theme.dim
+                    font.family: Theme.display
+                    font.pixelSize: 11
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1.5
+                }
+            }
+            Column {
+                id: signInColumn
+                visible: !panel.jfAccount
+                x: 12
+                y: 12
+                width: parent.width - 24
+                spacing: 8
+                Text {
+                    text: "SIGN IN TO YOUR JELLYFIN SERVER"
+                    color: Theme.text
+                    font.family: Theme.display
+                    font.pixelSize: 13
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1.5
+                }
+                JellyfinSignIn { id: signIn; width: parent.width }
+            }
+        }
+
         // The game's preset, in purple.
         Rectangle {
+            visible: !panel.onJelly
             width: parent.width
             height: panel.editingGame ? gameEdit.implicitHeight + 20 : 44
             color: Qt.rgba(155 / 255, 107 / 255, 232 / 255, 0.14)
@@ -296,6 +392,7 @@ Panel {
 
         // The lists
         Item {
+            visible: !panel.onJelly || !!panel.jfAccount
             width: parent.width
             height: 36
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
@@ -310,7 +407,16 @@ Panel {
                 ListTab { name: "search"; label: ""; searchIcon: true; twitch: true }
             }
             Row {
-                visible: !panel.onTwitch
+                visible: panel.onJelly
+                height: parent.height
+                spacing: 16
+                ListTab { name: "continue"; label: "Continue"; site: "jellyfin" }
+                ListTab { name: "nextup"; label: "Next up"; site: "jellyfin" }
+                ListTab { name: "libraries"; label: "Libraries"; site: "jellyfin" }
+                ListTab { name: "search"; label: ""; searchIcon: true; site: "jellyfin" }
+            }
+            Row {
+                visible: Streams.tab === "youtube"
                 height: parent.height
                 spacing: 16
                 ListTab { name: "game"; label: panel.game.name + " new"; purple: true }
@@ -322,7 +428,7 @@ Panel {
 
         // Search
         Rectangle {
-            visible: (panel.onTwitch ? Streams.twitchView : Streams.youtubeView) === "search"
+            visible: (panel.onJelly ? (!!panel.jfAccount && Jellyfin.view) : panel.onTwitch ? Streams.twitchView : Streams.youtubeView) === "search"
             width: parent.width
             height: 36
             color: "#1b1a20"
@@ -354,17 +460,49 @@ Panel {
                 onAccepted: panel.runSearch()
                 Text {
                     visible: search.text.length === 0
-                    text: panel.onTwitch ? "A channel's name, then Enter" : "Search words or a video's link, then Enter"
+                    text: panel.onJelly ? "A film, a show or an episode, then Enter"
+                        : panel.onTwitch ? "A channel's name, then Enter" : "Search words or a video's link, then Enter"
                     color: Theme.dim
                     font: search.font
                 }
-                Accessible.name: panel.onTwitch ? "Search Twitch" : "Search YouTube"
+                Accessible.name: panel.onJelly ? "Search Jellyfin" : panel.onTwitch ? "Search Twitch" : "Search YouTube"
+            }
+        }
+
+        // Jellyfin: where in the libraries (a click goes back there).
+        Flow {
+            visible: panel.onJelly && Jellyfin.view === "folder" && panel.jfPath.length > 0
+            width: parent.width
+            spacing: 6
+            TextButton { text: "‹ Libraries"; onClicked: panel.go({ tab: "jellyfin", view: "libraries", text: "", channel: null, path: [] }) }
+            Repeater {
+                model: panel.jfPath
+                delegate: Text {
+                    required property var modelData
+                    required property int index
+                    readonly property bool last: index === panel.jfPath.length - 1
+                    height: 34
+                    verticalAlignment: Text.AlignVCenter
+                    text: "/  " + modelData.name
+                    color: last ? Theme.text : (crumbMouse.containsMouse ? Theme.accent : Theme.muted)
+                    font.family: Theme.body
+                    font.pixelSize: 13
+                    font.weight: last ? Font.DemiBold : Font.Normal
+                    MouseArea {
+                        id: crumbMouse
+                        anchors.fill: parent
+                        enabled: !parent.last
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: panel.go({ tab: "jellyfin", view: "folder", text: "", channel: null, path: panel.jfPath.slice(0, parent.index + 1) })
+                    }
+                }
             }
         }
 
         // The channel whose videos show (My channels → one).
         Row {
-            visible: !panel.onTwitch && Streams.youtubeView === "channel" && panel.channel !== null
+            visible: Streams.tab === "youtube" && Streams.youtubeView === "channel" && panel.channel !== null
             spacing: 10
             TextButton { text: "‹ Channels"; onClicked: panel.go({ tab: "youtube", view: "channels", text: "", channel: null }) }
             Text {
@@ -379,6 +517,7 @@ Panel {
 
         Item {
             id: listArea
+            visible: !panel.onJelly || !!panel.jfAccount
             x: -14
             width: parent.width + 28
             // Rows: four; tiles: two rows of them.
@@ -399,8 +538,9 @@ Panel {
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 visible: !panel.channelsView && !panel.tiles
-                model: visible ? (panel.onTwitch ? panel.twitchList : panel.youtubeList) : []
-                delegate: panel.onTwitch ? twitchRow : videoRow
+                model: visible ? (panel.onJelly ? panel.jellyList : panel.onTwitch ? panel.twitchList : panel.youtubeList) : []
+                delegate: panel.onJelly ? jellyRow : panel.onTwitch ? twitchRow : videoRow
+                onAtYEndChanged: if (atYEnd && panel.onJelly && Jellyfin.hasMore) Jellyfin.more()
             }
             GridView {
                 id: grid
@@ -411,9 +551,10 @@ Panel {
                 boundsBehavior: Flickable.StopAtBounds
                 visible: !panel.channelsView && panel.tiles
                 cellWidth: Math.floor(width / listArea.columns)
-                cellHeight: Math.round((cellWidth - 12) * 9 / 16) + 78
-                model: visible ? (panel.onTwitch ? panel.twitchList : panel.youtubeList) : []
-                delegate: panel.onTwitch ? twitchTile : videoTile
+                cellHeight: Math.round((cellWidth - 12) * 9 / 16) + (panel.onJelly ? 58 : 78)
+                model: visible ? (panel.onJelly ? panel.jellyList : panel.onTwitch ? panel.twitchList : panel.youtubeList) : []
+                delegate: panel.onJelly ? jellyTile : panel.onTwitch ? twitchTile : videoTile
+                onAtYEndChanged: if (atYEnd && panel.onJelly && Jellyfin.hasMore) Jellyfin.more()
             }
             ListView {
                 id: channelList
@@ -446,11 +587,15 @@ Panel {
                 width: parent.width - 60
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                readonly property string st: panel.onTwitch ? Streams.twitchState : Streams.youtubeState
+                readonly property string st: panel.onJelly ? Jellyfin.state : panel.onTwitch ? Streams.twitchState : Streams.youtubeState
                 readonly property int count: listArea.shown.count
                 visible: (st === "loading" && count === 0) || st === "failed" || (st !== "loading" && count === 0)
                 text: st === "loading" ? "Loading…"
-                    : st === "failed" ? (panel.onTwitch ? Streams.twitchMessage : Streams.youtubeMessage)
+                    : st === "failed" ? (panel.onJelly ? Jellyfin.message : panel.onTwitch ? Streams.twitchMessage : Streams.youtubeMessage)
+                    : panel.onJelly ? (Jellyfin.view === "search" ? "Type, then Enter."
+                        : Jellyfin.view === "continue" ? "Nothing half watched right now."
+                        : Jellyfin.view === "nextup" ? "No next episodes right now."
+                        : st === "idle" ? "" : "Nothing in here.")
                     : panel.channelsView ? "No channels yet: FreeTube's subscriptions show here, and channels you keep with the star beside a video."
                     : (panel.onTwitch ? Streams.twitchView : Streams.youtubeView) === "search" ? "Type, then Enter."
                     : panel.onTwitch && Streams.twitchView === "favourites" ? "No favorites yet: the star beside a channel keeps it."
@@ -476,7 +621,8 @@ Panel {
                 Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; color: Theme.accent }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: panel.onTwitch
+                    text: panel.onJelly ? "Your own server, in your home network only · nothing goes out"
+                        : panel.onTwitch
                         ? (panel.account.streamlink ? "Ad-free via Streamlink" : "Through yt-dlp (install streamlink for no ad breaks)")
                           + (panel.account.user && panel.account.user !== "?" && panel.account.user !== "…" ? " · signed in as " + panel.account.user : "")
                         : "Subscriptions read from FreeTube · search via yt-dlp"
@@ -493,7 +639,7 @@ Panel {
                 iconSize: 13
                 color: Theme.dim
                 tip: "Load again"
-                onClicked: { Streams.forget(); panel.reload() }
+                onClicked: { if (!panel.onJelly) Streams.forget(); panel.reload() }
             }
         }
     }
@@ -1053,6 +1199,159 @@ Panel {
         }
     }
 
+    Component {
+        id: jellyRow
+        Item {
+            id: row
+            required property var modelData
+            width: ListView.view.width
+            height: 79
+            readonly property bool current: panel.playingJellyfin === modelData.id
+            Rectangle {
+                anchors.fill: parent
+                color: row.current ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.10) : (rowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.03) : "transparent")
+            }
+            Rectangle { visible: row.current; width: 2; height: parent.height; color: Theme.accent }
+            Rectangle { visible: !row.current; anchors.bottom: parent.bottom; x: 14; width: parent.width - 28; height: 1; color: Theme.rowLine }
+            MouseArea {
+                id: rowMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: panel.jfOpen(row.modelData)
+            }
+            Thumb {
+                id: thumb
+                x: 14
+                anchors.verticalCenter: parent.verticalCenter
+                source: row.modelData.picture
+                Progress { item: row.modelData }
+            }
+            Column {
+                anchors.left: thumb.right
+                anchors.leftMargin: 12
+                anchors.right: watched.left
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                Text {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: row.modelData.name
+                    color: row.current ? Theme.accent : Theme.text
+                    font.family: Theme.body
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: [row.modelData.sub, panel.timeLeft(row.modelData)].filter((t) => t).join(" · ")
+                    color: Theme.dim
+                    font.family: Theme.body
+                    font.pixelSize: 11
+                }
+            }
+            WatchedButton { id: watched; item: row.modelData; anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter }
+        }
+    }
+
+    Component {
+        id: jellyTile
+        Tile {
+            id: tile
+            required property var modelData
+            current: panel.playingJellyfin === modelData.id
+            picture: modelData.picture
+            onClicked: panel.jfOpen(modelData)
+            Progress { parent: tile.thumb; item: tile.modelData }
+            Text {
+                parent: tile.thumb
+                visible: tile.current
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                anchors.margins: 6
+                text: "PLAYING"
+                color: Theme.accent
+                font.family: Theme.display
+                font.pixelSize: 11
+                font.weight: Font.Bold
+                font.letterSpacing: 1
+            }
+            Column {
+                anchors.left: parent.left
+                anchors.right: tileWatched.left
+                anchors.rightMargin: 2
+                spacing: 1
+                Text {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: tile.modelData.name
+                    color: tile.current ? Theme.accent : Theme.text
+                    font.family: Theme.body
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: [tile.modelData.sub, panel.timeLeft(tile.modelData)].filter((t) => t).join(" · ")
+                    color: Theme.muted
+                    font.family: Theme.body
+                    font.pixelSize: 11
+                }
+            }
+            WatchedButton { id: tileWatched; item: tile.modelData; anchors.right: parent.right; anchors.rightMargin: -6; y: -6 }
+        }
+    }
+
+    // How far an item is watched: a thin gold line along the picture's foot;
+    // a watched one gets a check mark.
+    component Progress: Item {
+        property var item
+        anchors.fill: parent
+        Rectangle {
+            visible: !!item && item.percent > 0 && !item.played
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 3
+            color: "#3a3842"
+            Rectangle { width: parent.width * (item ? item.percent : 0) / 100; height: 3; color: Theme.accent }
+        }
+        Rectangle {
+            visible: !!item && (item.played || item.unplayed > 0)
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 4
+            width: Math.max(18, unplayedText.implicitWidth + 8)
+            height: 18
+            color: item && item.played ? Theme.accent : Qt.rgba(0, 0, 0, 0.75)
+            HudIcon { visible: !!item && item.played; anchors.centerIn: parent; name: "check"; size: 12; lineWidth: 2.6; color: "#0c0c0f" }
+            Text {
+                id: unplayedText
+                visible: !!item && !item.played && item.unplayed > 0
+                anchors.centerIn: parent
+                text: item ? String(item.unplayed) : ""
+                color: Theme.text
+                font.family: Theme.body
+                font.pixelSize: 10
+                font.weight: Font.DemiBold
+            }
+        }
+    }
+
+    // Marks an item watched or not (films and episodes).
+    component WatchedButton: IconButton {
+        property var item
+        visible: !!item && item.playable
+        width: visible ? 30 : 0
+        height: 30
+        icon: "check"
+        iconSize: 15
+        color: item && item.played ? Theme.accent : Theme.dim
+        tip: item && item.played ? "Mark as not watched" : "Mark as watched"
+        onClicked: Jellyfin.setPlayed(item.id, !item.played)
+    }
+
     component Thumb: Rectangle {
         property alias source: img.source
         property bool dimmed: false
@@ -1113,8 +1412,10 @@ Panel {
             cursorShape: Qt.PointingHandCursor
             onClicked: {
                 if (Streams.tab === parent.name) return
-                const view = parent.name === "twitch" ? Streams.twitchView : (Streams.youtubeView === "channel" ? "channels" : Streams.youtubeView)
-                panel.go({ tab: parent.name, view: view, text: "", channel: null })
+                const view = parent.name === "twitch" ? Streams.twitchView
+                    : parent.name === "jellyfin" ? (Jellyfin.view === "folder" || Jellyfin.view === "search" ? "libraries" : Jellyfin.view)
+                    : (Streams.youtubeView === "channel" ? "channels" : Streams.youtubeView)
+                panel.go({ tab: parent.name, view: view, text: "", channel: null, path: [] })
             }
         }
         Accessible.role: Accessible.PageTab
@@ -1127,7 +1428,10 @@ Panel {
         property bool purple: false
         property bool searchIcon: false
         property bool twitch: false
-        readonly property bool current: (twitch ? Streams.twitchView : (Streams.youtubeView === "channel" ? "channels" : Streams.youtubeView)) === name
+        /// "twitch", "youtube" or "jellyfin" (twitch: true says "twitch").
+        property string site: twitch ? "twitch" : "youtube"
+        readonly property bool current: (site === "jellyfin" ? (Jellyfin.view === "folder" ? "libraries" : Jellyfin.view)
+            : site === "twitch" ? Streams.twitchView : (Streams.youtubeView === "channel" ? "channels" : Streams.youtubeView)) === name
         width: searchIcon ? 20 : tabRow.implicitWidth
         height: parent.height
         Row {
@@ -1165,7 +1469,7 @@ Panel {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: panel.go({ tab: twitch ? "twitch" : "youtube", view: name, text: "", channel: null })
+            onClicked: panel.go({ tab: site, view: name, text: "", channel: null, path: [] })
         }
         Accessible.role: Accessible.PageTab
         Accessible.name: searchIcon ? "Search" : label
