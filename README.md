@@ -23,8 +23,13 @@ to the game.
   Keyboard → Shortcuts → Game Companion.
 - **The bar** at the top centre (the "Edge HUD" design): the name, the game
   module (none yet), lock, settings, hide.
-- **Panels remember where they were left**; one opacity for the bar and all
-  panels (Settings → General).
+- **Panels remember where they were left and their size**: unlocked, the
+  gold corner at a panel's bottom right makes it wider or narrower (the
+  radio's list also taller); a double-click on it gives back its own size.
+  One opacity for the bar and all panels (Settings → General).
+- **Layouts** (Settings → Layouts): save the arrangement under a name (which
+  panels are open, where, how big, what is pinned, the opacity), load it
+  again with one click, rename or delete it.
 - **Hide the hub, keep what you pin.** `Alt+Y` (or the eye in the bar)
   hides the bar and the panels; anything pinned (the pin in a panel's header,
   or at the end of the player row) stays on screen.

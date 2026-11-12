@@ -10,6 +10,8 @@ Panel {
     title: "Radio"
     icon: "radio"
     width: 480
+    stretchy: true
+    minWidth: 400
 
     readonly property var cat: JSON.parse(Radio.catalog())
     readonly property var favs: JSON.parse(Radio.favourites)
@@ -141,7 +143,7 @@ Panel {
         Item {
             x: -14
             width: parent.width + 28
-            height: 46 * 6
+            height: 46 * 6 + panel.grow
             clip: true
             ListView {
                 id: stations

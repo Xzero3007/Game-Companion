@@ -12,8 +12,15 @@ Panel {
     property string tab: "general"
     property real previewAlpha: Companion.alpha
     property var keys: JSON.parse(Companion.shortcuts)
+    readonly property var layouts: JSON.parse(Companion.layouts)
+    /// The layout being renamed ("" for none).
+    property string renaming: ""
+    property string layoutMessage: ""
+    minWidth: 400
+    signal saveLayoutRequested(string name)
+    signal loadLayoutRequested(string name)
     Component.onCompleted: {
-        for (const t of ["shortcuts", "about"]) if (nativeWindow.demo.indexOf(t) >= 0) tab = t
+        for (const t of ["layouts", "shortcuts", "about"]) if (nativeWindow.demo.indexOf(t) >= 0) tab = t
     }
 
     Column {
@@ -23,6 +30,7 @@ Panel {
         Row {
             spacing: 18
             Tab { name: "general"; label: "General" }
+            Tab { name: "layouts"; label: "Layouts" }
             Tab { name: "shortcuts"; label: "Shortcuts" }
             Tab { name: "about"; label: "About" }
         }
@@ -101,6 +109,131 @@ Panel {
                 danger: true
                 onClicked: Qt.quit()
             }
+        }
+
+        // Layouts
+        Column {
+            visible: settings.tab === "layouts"
+            width: parent.width
+            spacing: 10
+
+            Label { text: "Save this arrangement" }
+            Row {
+                width: parent.width
+                spacing: 10
+                NameField {
+                    id: newName
+                    width: parent.width - saveButton.width - 10
+                    placeholder: "Name, e.g. Raid or Farming"
+                    onAccepted: saveButton.clicked()
+                }
+                TextButton {
+                    id: saveButton
+                    text: "Save"
+                    onClicked: {
+                        const name = newName.text.trim()
+                        if (name.length === 0) { settings.layoutMessage = "Give it a name first."; return }
+                        const replaced = settings.layouts.indexOf(name) >= 0
+                        settings.saveLayoutRequested(name)
+                        settings.layoutMessage = (replaced ? "Replaced " : "Saved ") + "\u201c" + name + "\u201d."
+                        newName.text = ""
+                    }
+                }
+            }
+            Hint { text: "Keeps which panels are open, where they are, their size, what is pinned and the opacity. A name that exists is replaced." }
+            Hint {
+                visible: settings.layoutMessage.length > 0
+                text: settings.layoutMessage
+                color: Theme.accent
+            }
+
+            Item { width: 1; height: 4 }
+            Label { text: "Saved layouts" }
+            Hint {
+                visible: settings.layouts.length === 0
+                text: "None yet."
+            }
+            Repeater {
+                model: settings.layouts
+                delegate: Item {
+                    id: layoutRow
+                    required property string modelData
+                    readonly property bool editing: settings.renaming === modelData
+                    width: parent.width
+                    height: 46
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
+                    Text {
+                        visible: !layoutRow.editing
+                        anchors.left: parent.left
+                        anchors.right: rowButtons.left
+                        anchors.rightMargin: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        elide: Text.ElideRight
+                        text: layoutRow.modelData
+                        color: Theme.text
+                        font.family: Theme.body
+                        font.pixelSize: 13
+                    }
+                    NameField {
+                        id: renameField
+                        visible: layoutRow.editing
+                        anchors.left: parent.left
+                        anchors.right: rowButtons.left
+                        anchors.rightMargin: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        onVisibleChanged: if (visible) { text = layoutRow.modelData; forceActiveFocus() }
+                        onAccepted: renameOk.clicked()
+                    }
+                    Row {
+                        id: rowButtons
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 6
+                        TextButton {
+                            visible: !layoutRow.editing
+                            text: "Load"
+                            onClicked: {
+                                settings.loadLayoutRequested(layoutRow.modelData)
+                                settings.layoutMessage = "Loaded \u201c" + layoutRow.modelData + "\u201d."
+                            }
+                        }
+                        TextButton {
+                            visible: !layoutRow.editing
+                            text: "Rename"
+                            onClicked: settings.renaming = layoutRow.modelData
+                        }
+                        TextButton {
+                            id: renameOk
+                            visible: layoutRow.editing
+                            text: "OK"
+                            onClicked: {
+                                const name = renameField.text.trim()
+                                if (name === layoutRow.modelData) { settings.renaming = ""; return }
+                                if (Companion.renameLayout(layoutRow.modelData, name)) settings.renaming = ""
+                                else settings.layoutMessage = name.length === 0 ? "A layout needs a name." : "\u201c" + name + "\u201d exists already."
+                            }
+                        }
+                        TextButton {
+                            visible: layoutRow.editing
+                            text: "Cancel"
+                            onClicked: settings.renaming = ""
+                        }
+                        IconButton {
+                            visible: !layoutRow.editing
+                            anchors.verticalCenter: parent.verticalCenter
+                            icon: "close"
+                            tip: "Delete " + layoutRow.modelData
+                            color: Theme.dim
+                            hoverColor: Theme.red
+                            onClicked: {
+                                Companion.deleteLayout(layoutRow.modelData)
+                                settings.layoutMessage = "Deleted \u201c" + layoutRow.modelData + "\u201d."
+                            }
+                        }
+                    }
+                }
+            }
+            Hint { text: "Later, each game can bring its own layout, loaded when it starts." }
         }
 
         // Shortcuts
@@ -222,6 +355,38 @@ Panel {
         font.weight: Font.Bold
         font.letterSpacing: 1.5
         Component.onCompleted: text = text.toUpperCase()
+    }
+    component NameField: Rectangle {
+        property alias text: input.text
+        property string placeholder: ""
+        signal accepted
+        function forceActiveFocus() { input.forceActiveFocus() }
+        height: 34
+        color: "#1b1a20"
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: input.activeFocus ? Theme.accent : "#3a3842" }
+        TextInput {
+            id: input
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            verticalAlignment: TextInput.AlignVCenter
+            color: Theme.text
+            selectionColor: Theme.accent
+            selectedTextColor: "#0c0c0f"
+            font.family: Theme.body
+            font.pixelSize: 13
+            maximumLength: 40
+            clip: true
+            onAccepted: parent.accepted()
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: input.text.length === 0
+                text: parent.parent.placeholder
+                color: Theme.dim
+                font: input.font
+            }
+            Accessible.name: parent.placeholder
+        }
     }
     component Hint: Text {
         width: parent ? parent.width : 300

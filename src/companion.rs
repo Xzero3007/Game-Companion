@@ -36,6 +36,10 @@ pub mod qobject {
         #[qproperty(QString, shortcuts)]
         /// What stays while the hub is hidden, as a JSON list of ids.
         #[qproperty(QString, pins)]
+        /// The saved layouts' names, as a JSON list.
+        #[qproperty(QString, layouts)]
+        /// Goes up when a layout is loaded: panels then take their places again.
+        #[qproperty(i32, layout_revision)]
         type Companion = super::CompanionRust;
 
         /// Pins or unpins something (a panel, the player row) by its id.
@@ -56,13 +60,30 @@ pub mod qobject {
         #[qinvokable]
         fn close_welcome(self: Pin<&mut Companion>);
 
-        /// Where a panel was left, as JSON `{"x":..,"y":..}`, or "" if never moved.
+        /// Where a panel was left and its size, as JSON
+        /// `{"x","y","w","grow"}`, or "" if never moved.
         #[qinvokable]
         fn place_of(self: &Companion, id: &QString) -> QString;
 
-        /// Keeps where a panel was left.
+        /// Keeps where a panel was left and its size (0: its own).
         #[qinvokable]
-        fn save_place(self: Pin<&mut Companion>, id: &QString, x: f64, y: f64);
+        fn save_place(self: Pin<&mut Companion>, id: &QString, x: f64, y: f64, w: f64, grow: f64);
+
+        /// Saves the arrangement as it is under a name (replacing one of
+        /// that name); `open` is the open panels' ids as a JSON list.
+        #[qinvokable]
+        fn save_layout(self: Pin<&mut Companion>, name: &QString, open: &QString) -> bool;
+
+        /// Takes a layout's places, sizes, pins and opacity; returns the
+        /// panels to open as a JSON list ("" if there is no such layout).
+        #[qinvokable]
+        fn load_layout(self: Pin<&mut Companion>, name: &QString) -> QString;
+
+        #[qinvokable]
+        fn rename_layout(self: Pin<&mut Companion>, name: &QString, new_name: &QString) -> bool;
+
+        #[qinvokable]
+        fn delete_layout(self: Pin<&mut Companion>, name: &QString);
 
         /// Opens KDE's shortcut settings, to change the keys.
         #[qinvokable]
@@ -84,12 +105,15 @@ pub struct CompanionRust {
     welcome: bool,
     shortcuts: QString,
     pins: QString,
+    layouts: QString,
+    layout_revision: i32,
     shortcut_state: Vec<(&'static str, shortcuts::Status)>,
 }
 
 impl Default for CompanionRust {
     fn default() -> Self {
-        let (alpha, welcome, pins) = settings::read(|s| (s.alpha, s.welcome, pins_json(&s.pins)));
+        let (alpha, welcome, pins, layouts) =
+            settings::read(|s| (s.alpha, s.welcome, pins_json(&s.pins), layouts_json(&s.layouts)));
         let shortcut_state: Vec<_> = shortcuts::ALL.iter().map(|s| (s.id, shortcuts::Status::Bound(None))).collect();
         Self {
             // Always start locked: the game gets every click until the user
@@ -100,9 +124,15 @@ impl Default for CompanionRust {
             welcome,
             shortcuts: QString::from(&shortcuts_json(&shortcut_state)),
             pins: QString::from(&pins),
+            layouts: QString::from(&layouts),
+            layout_revision: 0,
             shortcut_state,
         }
     }
+}
+
+fn layouts_json(layouts: &std::collections::BTreeMap<String, settings::Layout>) -> String {
+    serde_json::to_string(&layouts.keys().collect::<Vec<_>>()).unwrap_or_else(|_| "[]".into())
 }
 
 fn pins_json(pins: &std::collections::BTreeSet<String>) -> String {
@@ -214,16 +244,16 @@ impl qobject::Companion {
 
     fn place_of(&self, id: &QString) -> QString {
         match settings::read(|s| s.places.get(&id.to_string()).copied()) {
-            Some(p) => QString::from(&serde_json::json!({ "x": p.x, "y": p.y }).to_string()),
+            Some(p) => QString::from(&serde_json::json!({ "x": p.x, "y": p.y, "w": p.w, "grow": p.grow }).to_string()),
             None => QString::default(),
         }
     }
 
-    fn save_place(self: Pin<&mut Self>, id: &QString, x: f64, y: f64) {
-        if !(x.is_finite() && y.is_finite()) {
+    fn save_place(self: Pin<&mut Self>, id: &QString, x: f64, y: f64, w: f64, grow: f64) {
+        if ![x, y, w, grow].iter().all(|v| v.is_finite()) {
             return;
         }
-        let place = Place { x: x.round(), y: y.round() };
+        let place = Place { x: x.round(), y: y.round(), w: w.max(0.0).round(), grow: grow.max(0.0).round() };
         let id = id.to_string();
         if settings::read(|s| s.places.get(&id) == Some(&place)) {
             return;
@@ -231,6 +261,64 @@ impl qobject::Companion {
         settings::change(|s| {
             s.places.insert(id, place);
         });
+    }
+
+    fn save_layout(self: Pin<&mut Self>, name: &QString, open: &QString) -> bool {
+        let Some(name) = settings::layout_name(&name.to_string()) else { return false };
+        let open: Vec<String> = serde_json::from_str(&open.to_string()).unwrap_or_default();
+        let json = settings::change(|s| {
+            let layout = settings::Layout { open, places: s.places.clone(), pins: s.pins.clone(), alpha: s.alpha };
+            s.layouts.insert(name, layout);
+            layouts_json(&s.layouts)
+        });
+        self.set_layouts(QString::from(&json));
+        true
+    }
+
+    fn load_layout(mut self: Pin<&mut Self>, name: &QString) -> QString {
+        let name = name.to_string();
+        let loaded = settings::change(|s| {
+            let layout = s.layouts.get(&name)?.clone();
+            s.places = layout.places;
+            s.pins = layout.pins;
+            s.alpha = settings::clamp_alpha(layout.alpha);
+            Some((layout.open, s.alpha, pins_json(&s.pins)))
+        });
+        let Some((open, alpha, pins)) = loaded else { return QString::default() };
+        self.as_mut().set_alpha(alpha);
+        self.as_mut().set_pins(QString::from(&pins));
+        let revision = self.layout_revision().wrapping_add(1);
+        self.as_mut().set_layout_revision(revision);
+        QString::from(&serde_json::to_string(&open).unwrap_or_else(|_| "[]".into()))
+    }
+
+    fn rename_layout(self: Pin<&mut Self>, name: &QString, new_name: &QString) -> bool {
+        let name = name.to_string();
+        let Some(new_name) = settings::layout_name(&new_name.to_string()) else { return false };
+        let json = settings::change(|s| {
+            if name == new_name || s.layouts.contains_key(&new_name) {
+                return None;
+            }
+            let layout = s.layouts.remove(&name)?;
+            s.layouts.insert(new_name, layout);
+            Some(layouts_json(&s.layouts))
+        });
+        match json {
+            Some(json) => {
+                self.set_layouts(QString::from(&json));
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn delete_layout(self: Pin<&mut Self>, name: &QString) {
+        let name = name.to_string();
+        let json = settings::change(|s| {
+            s.layouts.remove(&name);
+            layouts_json(&s.layouts)
+        });
+        self.set_layouts(QString::from(&json));
     }
 
     fn open_shortcut_settings(&self) -> bool {

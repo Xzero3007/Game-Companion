@@ -120,6 +120,13 @@ learnt, so nothing has to be asked or worked out again.
   without a password; the script re-reads the checksum as root) or
   `pkexec pacman -U`, then starts the app again. `GC_NO_UPDATES=1` turns the
   check off; `GC_DEMO=update` shows an update.
+- Panels (`qml/Panel.qml`) keep place and size in `settings.places`
+  (`x`, `y`, `w` = 0 for its own width, `grow` = height added to a
+  `stretchy` panel's list or video, which the panel's content adds to its
+  own height). Layouts (`settings.layouts`, the person, 2026-11-12) copy
+  places, pins, alpha and the open panels (`Main.openPanels()`); loading one
+  raises `Companion.layoutRevision`, and every panel places itself again.
+  Planned: a game can bring its own layout (step 4).
 - `HudIcon` draws into a layer (texture): plain shapes were not clipped by
   a list's clip in the software renderer.
 

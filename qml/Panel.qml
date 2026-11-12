@@ -1,10 +1,12 @@
 import QtQuick
+import QtQuick.Shapes
 import GameCompanion
 import "theme.js" as Theme
 
 // A window of the overlay: square corners, a 2 px gold line on top, a
-// header in capitals. Unlocked, it moves by its header and remembers where
-// it was left; locked, clicks go through it to the game.
+// header in capitals. Unlocked, it moves by its header, changes size by the
+// gold corner at its bottom right, and remembers both; locked, clicks go
+// through it to the game.
 Item {
     id: panel
     /// Remembered under this id.
@@ -19,6 +21,17 @@ Item {
     readonly property bool pinned: Companion.pins.indexOf('"' + panelId + '"') >= 0
     property real defaultX: 24
     property real defaultY: 120
+    /// Whether the corner changes its size.
+    property bool resizable: true
+    property real minWidth: 340
+    property real maxWidth: 1000
+    /// Whether it also grows downwards: its list or video takes `grow`.
+    property bool stretchy: false
+    /// The height the user added (for the panel's list or video to use).
+    property real grow: 0
+    property real maxGrow: 700
+    /// Its own width, before the user changed it.
+    property real ownWidth: 0
     default property alias content: body.data
     signal closeClicked
     /// Emitted when it moves, resizes, shows or hides: the input region changes.
@@ -32,12 +45,17 @@ Item {
     property bool placed: false
     function place() {
         if (placed || !parent || parent.width <= 0) return
+        if (ownWidth <= 0) ownWidth = width
         const saved = panelId.length > 0 ? Companion.placeOf(panelId) : ""
         if (saved.length > 0) {
             const p = JSON.parse(saved)
+            width = resizable && p.w > 0 ? Math.max(minWidth, Math.min(p.w, maxWidth)) : ownWidth
+            grow = resizable && stretchy ? Math.max(0, Math.min(p.grow || 0, maxGrow)) : 0
             x = p.x
             y = p.y
         } else {
+            width = ownWidth
+            grow = 0
             x = defaultX
             y = defaultY
         }
@@ -48,6 +66,14 @@ Item {
     Connections {
         target: panel.parent
         function onWidthChanged() { panel.place() }
+    }
+    // A layout was loaded: take its place and size.
+    Connections {
+        target: Companion
+        function onLayoutRevisionChanged() { panel.placed = false; panel.place() }
+    }
+    function remember() {
+        Companion.savePlace(panelId, x, y, width !== ownWidth ? width : 0, grow)
     }
     onXChanged: areaChanged()
     onYChanged: areaChanged()
@@ -88,7 +114,7 @@ Item {
             drag.minimumY: 0
             drag.maximumX: panel.parent ? panel.parent.width - panel.width : 0
             drag.maximumY: panel.parent ? panel.parent.height - 40 : 0
-            onReleased: Companion.savePlace(panel.panelId, panel.x, panel.y)
+            onReleased: panel.remember()
         }
 
         HudIcon {
@@ -181,5 +207,55 @@ Item {
         anchors.margins: 14
         anchors.topMargin: 12
         height: childrenRect.height
+    }
+
+    // The corner that changes the size (unlocked only).
+    Item {
+        id: grip
+        visible: panel.resizable && !Companion.locked
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: 18
+        height: 18
+        Shape {
+            anchors.fill: parent
+            ShapePath {
+                strokeColor: "transparent"
+                fillColor: gripMouse.containsMouse || gripMouse.pressed ? Theme.accent : Qt.rgba(0.878, 0.647, 0.149, 0.55)
+                startX: grip.width; startY: 4
+                PathLine { x: grip.width; y: grip.height }
+                PathLine { x: 4; y: grip.height }
+                PathLine { x: grip.width; y: 4 }
+            }
+        }
+        MouseArea {
+            id: gripMouse
+            anchors.fill: parent
+            anchors.margins: -4
+            hoverEnabled: true
+            cursorShape: panel.stretchy ? Qt.SizeFDiagCursor : Qt.SizeHorCursor
+            property point start
+            property real startWidth
+            property real startGrow
+            onPressed: (mouse) => {
+                start = mapToItem(null, mouse.x, mouse.y)
+                startWidth = panel.width
+                startGrow = panel.grow
+            }
+            onPositionChanged: (mouse) => {
+                if (!pressed) return
+                const p = mapToItem(null, mouse.x, mouse.y)
+                const room = panel.parent ? panel.parent.width - panel.x : panel.maxWidth
+                panel.width = Math.max(panel.minWidth, Math.min(startWidth + p.x - start.x, panel.maxWidth, room))
+                if (panel.stretchy) {
+                    const below = panel.parent ? panel.parent.height - panel.y - panel.height + panel.grow : panel.maxGrow
+                    panel.grow = Math.max(0, Math.min(startGrow + p.y - start.y, panel.maxGrow, below))
+                }
+            }
+            onReleased: panel.remember()
+            onDoubleClicked: { panel.width = panel.ownWidth; panel.grow = 0; panel.remember() }
+        }
+        Accessible.role: Accessible.Grip
+        Accessible.name: "Resize " + panel.title + " (double-click: back to its size)"
     }
 }

@@ -23,6 +23,25 @@ pub struct Settings {
     /// player row).
     pub pins: BTreeSet<String>,
     pub radio: RadioSettings,
+    /// Saved arrangements, by the name the user gave them.
+    pub layouts: BTreeMap<String, Layout>,
+}
+
+/// An arrangement to come back to: which panels are open, where and how
+/// big they are, what is pinned, how solid the panels are.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Layout {
+    pub open: Vec<String>,
+    pub places: BTreeMap<String, Place>,
+    pub pins: BTreeSet<String>,
+    pub alpha: f64,
+}
+
+/// A layout's name: trimmed, at most 40 characters, not empty.
+pub fn layout_name(name: &str) -> Option<String> {
+    let name: String = name.trim().chars().filter(|c| !c.is_control()).take(40).collect();
+    (!name.is_empty()).then_some(name)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -76,10 +95,20 @@ pub fn change<T>(f: impl FnOnce(&mut Settings) -> T) -> T {
     out
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct Place {
     pub x: f64,
     pub y: f64,
+    /// The width the user gave it; 0 for its own.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub w: f64,
+    /// The height the user added to its list or video; 0 for none.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub grow: f64,
+}
+
+fn is_zero(v: &f64) -> bool {
+    *v == 0.0
 }
 
 impl Default for Settings {
@@ -90,6 +119,7 @@ impl Default for Settings {
             welcome: true,
             pins: BTreeSet::new(),
             radio: RadioSettings::default(),
+            layouts: BTreeMap::new(),
         }
     }
 }
@@ -165,12 +195,28 @@ mod tests {
     fn saves_and_loads_places() {
         let path = temp_file("roundtrip");
         let mut s = Settings { alpha: 0.7, ..Default::default() };
-        s.places.insert("welcome".into(), Place { x: 24.0, y: 120.0 });
+        s.places.insert("welcome".into(), Place { x: 24.0, y: 120.0, ..Default::default() });
+        s.places.insert("radio".into(), Place { x: 30.0, y: 140.0, w: 520.0, grow: 90.0 });
+        s.layouts.insert(
+            "Raid".into(),
+            Layout { open: vec!["radio".into()], places: s.places.clone(), pins: s.pins.clone(), alpha: 0.8 },
+        );
         s.pins.insert("radio".into());
         s.radio.favourites.push("best-fm".into());
         s.radio.volume = 45;
         s.save_to(&path).unwrap();
         assert_eq!(Settings::load_from(&path), s);
+    }
+
+    #[test]
+    fn old_places_still_load_and_names_are_tidied() {
+        let path = temp_file("old");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, r#"{"places": {"radio": {"x": 10, "y": 20}}}"#).unwrap();
+        assert_eq!(Settings::load_from(&path).places["radio"], Place { x: 10.0, y: 20.0, w: 0.0, grow: 0.0 });
+        assert_eq!(layout_name("  Raid night \n"), Some("Raid night".into()));
+        assert_eq!(layout_name("   "), None);
+        assert_eq!(layout_name(&"x".repeat(80)).unwrap().len(), 40);
     }
 
     #[test]

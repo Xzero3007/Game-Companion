@@ -45,6 +45,16 @@ Window {
     }
     function requestInput() { Qt.callLater(updateInput) }
 
+    // Layouts: which panels are open (Settings itself is not part of one).
+    function openPanels() {
+        const ids = []
+        if (radioOpen) ids.push("radio")
+        return ids
+    }
+    function openFrom(ids) {
+        radioOpen = ids.indexOf("radio") >= 0
+    }
+
     Component.onCompleted: {
         const demo = nativeWindow.demo.split(",")
         if (demo.indexOf("unlocked") >= 0 && Companion.locked) Companion.toggleLocked()
@@ -148,6 +158,11 @@ Window {
             defaultY: 120
             onCloseClicked: root.settingsOpen = false
             onAreaChanged: root.requestInput()
+            onSaveLayoutRequested: (name) => Companion.saveLayout(name, JSON.stringify(root.openPanels()))
+            onLoadLayoutRequested: (name) => {
+                const open = Companion.loadLayout(name)
+                if (open.length > 0) root.openFrom(JSON.parse(open))
+            }
         }
     }
 }
