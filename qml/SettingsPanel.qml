@@ -111,7 +111,7 @@ Panel {
             Hint { text: "How much of the game shows through the bar and the panels. Under half, text gets a thin shadow to stay readable." }
 
             Item { width: 1; height: 6 }
-            Label { text: "Text brightness" }
+            Label { text: "Bar text brightness" }
             Level {
                 from: 0.4
                 value: Companion.textLevel
@@ -124,7 +124,23 @@ Panel {
                 current: Companion.textLevel
                 onPicked: (v) => Companion.saveTextLevel(v)
             }
-            Hint { text: "Darkens the white and grey text. Gold, red, purple and the game's colours stay." }
+            Hint { text: "Darkens the white and grey text of the bar and the player row. Panels stay as they are." }
+
+            Item { width: 1; height: 6 }
+            Label { text: "Bar accent brightness" }
+            Level {
+                from: 0.4
+                value: Companion.accentLevel
+                onChanging: (v) => Companion.accentLevel = v
+                onMoved: (v) => Companion.saveAccentLevel(v)
+            }
+            Presets {
+                kind: "accent"
+                values: JSON.parse(Companion.accentPresets)
+                current: Companion.accentLevel
+                onPicked: (v) => Companion.saveAccentLevel(v)
+            }
+            Hint { text: "Darkens the gold of the bar and the player row." }
 
             Item { width: 1; height: 6 }
             Label { text: "Bar size" }

@@ -21,12 +21,17 @@ pub const MIN_BAR_SCALE: f64 = 0.6;
 pub struct Settings {
     /// How solid the panels are, 0.05 (almost see-through) to 1 (solid).
     pub alpha: f64,
-    /// How bright the white and grey text is, 0.4 to 1 (as designed).
+    /// How bright the white and grey text of the bar and the player row
+    /// is, 0.4 to 1 (as designed; panels stay as designed).
     pub text_level: f64,
+    /// How bright the gold of the bar and the player row is, 0.4 to 1.
+    pub accent_level: f64,
     /// The three opacity values the buttons P1 to P3 jump to.
     pub alpha_presets: Vec<f64>,
     /// The three text brightness values the buttons P1 to P3 jump to.
     pub text_presets: Vec<f64>,
+    /// The three gold brightness values the buttons P1 to P3 jump to.
+    pub accent_presets: Vec<f64>,
     /// Where the bar sits and how big it is.
     pub bar: BarSettings,
     /// Where each panel was left, by its id: its top-left corner in pixels.
@@ -163,6 +168,8 @@ pub struct Layout {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_level: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub accent_level: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bar: Option<BarSettings>,
 }
 
@@ -244,6 +251,8 @@ impl Default for Settings {
         Self {
             alpha: DEFAULT_ALPHA,
             text_level: 1.0,
+            accent_level: 1.0,
+            accent_presets: DEFAULT_TEXT_PRESETS.to_vec(),
             alpha_presets: DEFAULT_ALPHA_PRESETS.to_vec(),
             text_presets: DEFAULT_TEXT_PRESETS.to_vec(),
             bar: BarSettings::default(),
@@ -282,6 +291,8 @@ impl Settings {
         settings.text_level = clamp_text_level(settings.text_level);
         settings.alpha_presets = presets(&settings.alpha_presets, &DEFAULT_ALPHA_PRESETS, clamp_alpha);
         settings.text_presets = presets(&settings.text_presets, &DEFAULT_TEXT_PRESETS, clamp_text_level);
+        settings.accent_level = clamp_text_level(settings.accent_level);
+        settings.accent_presets = presets(&settings.accent_presets, &DEFAULT_TEXT_PRESETS, clamp_text_level);
         settings.bar = settings.bar.tidy();
         settings.radio.volume = settings.radio.volume.min(100);
         settings.streams.volume = settings.streams.volume.min(100);
@@ -361,6 +372,7 @@ mod tests {
                 pins: s.pins.clone(),
                 alpha: 0.8,
                 text_level: Some(0.7),
+                accent_level: Some(0.8),
                 bar: Some(BarSettings { offset: -300.0, scale: 0.8 }),
             },
         );
@@ -412,6 +424,7 @@ mod tests {
         std::fs::write(&path, r#"{"layouts": {"Raid": {"open": ["radio"], "alpha": 0.7}}}"#).unwrap();
         let layout = &Settings::load_from(&path).layouts["Raid"];
         assert_eq!(layout.text_level, None);
+        assert_eq!(layout.accent_level, None);
         assert_eq!(layout.bar, None);
     }
 }

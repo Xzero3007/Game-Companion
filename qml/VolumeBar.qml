@@ -5,6 +5,8 @@ import "theme.js" as Theme
 // bar sets it, the wheel over it steps too; the number beside it.
 Item {
     id: vol
+    /// In the player row: darkened as the user set it.
+    property bool hud: false
     property int value: 0
     property int step: 5
     /// Narrower, for the player row.
@@ -34,7 +36,7 @@ Item {
                 Rectangle {
                     width: parent.width * vol.value / 100
                     height: parent.height
-                    color: Theme.accent
+                    color: Theme.accentFor(vol.hud)
                 }
             }
             Rectangle {
@@ -42,7 +44,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 3
                 height: 13
-                color: Theme.text()
+                color: Theme.text(vol.hud)
             }
             MouseArea {
                 anchors.fill: parent
@@ -62,7 +64,7 @@ Item {
             width: 24
             horizontalAlignment: Text.AlignRight
             text: vol.value
-            color: Theme.muted()
+            color: Theme.muted(vol.hud)
             font.family: Theme.body
             font.pixelSize: 11
         }
@@ -85,7 +87,7 @@ Item {
             name: sb.icon
             size: 12
             lineWidth: 2.4
-            color: sbMouse.containsMouse ? Theme.accent : Theme.muted()
+            color: sbMouse.containsMouse ? Theme.accentFor(vol.hud) : Theme.muted(vol.hud)
         }
         MouseArea {
             id: sbMouse

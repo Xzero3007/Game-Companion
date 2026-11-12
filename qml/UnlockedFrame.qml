@@ -2,25 +2,17 @@ import QtQuick
 import GameCompanion
 import "theme.js" as Theme
 
-// Shows that the overlay is unlocked: a thin gold frame around the screen
-// and a note at the bottom with the key that locks it again. Never takes
-// clicks.
+// Shows that the overlay is unlocked: a note at the bottom of the screen
+// with the key that locks it again (Main draws the gold frame around the
+// screen). Never takes clicks.
 Item {
     id: frame
     property string lockKey: ""
+    width: note.implicitWidth + 28
+    height: 26
 
     Rectangle {
         anchors.fill: parent
-        color: "transparent"
-        border.color: Theme.accent
-        border.width: 2
-    }
-    Rectangle {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 2
-        width: note.implicitWidth + 28
-        height: 26
         color: Theme.panel(0.92)
         Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.accent }
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;

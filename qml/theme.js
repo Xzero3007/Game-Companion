@@ -9,17 +9,20 @@ var red = "#d6453d"
 var purple = "#9b6be8"
 var purpleText = "#c4a8f0"
 
-// White and grey text, darkened by the user's text brightness (Settings →
-// General): functions, so that bindings follow the setting.
-function shade(hex) {
-    const level = GC.Companion.textLevel
+// White and grey text: functions taking `hud` (true in the bar and the
+// player row under it, which the user may darken: Settings → Display;
+// panels stay as designed), so that bindings follow the setting.
+function shade(hex, level) {
     const c = Qt.color(hex)
     return Qt.rgba(c.r * level, c.g * level, c.b * level, c.a)
 }
-function text() { return shade("#f2f1f4") }
-function textSoft() { return shade("#c9c6d0") }
-function muted() { return shade("#a9a6b2") }
-function dim() { return shade("#8d8996") }
+function textShade(hex, hud) { return hud ? shade(hex, GC.Companion.textLevel) : hex }
+function text(hud) { return textShade("#f2f1f4", hud) }
+function textSoft(hud) { return textShade("#c9c6d0", hud) }
+function muted(hud) { return textShade("#a9a6b2", hud) }
+function dim(hud) { return textShade("#8d8996", hud) }
+// The gold in the bar and the player row, darkened as the user set it.
+function accentFor(hud) { return hud ? shade(accent, GC.Companion.accentLevel) : accent }
 
 // Almost see-through panels: text gets a thin dark shadow (Text.Raised)
 // so it stays readable over the game.

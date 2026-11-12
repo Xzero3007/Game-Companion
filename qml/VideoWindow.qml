@@ -433,6 +433,7 @@ Item {
             skipNote = "SKIPPED: SPONSOR"
         }
     }
+    onParentChanged: place()
     Connections {
         target: win.parent
         function onWidthChanged() { win.place(); if (win.fullScreen) win.fitScreen() }
@@ -521,16 +522,13 @@ Item {
 
     // Dragging, and a double click pauses (unlocked only; locked, nothing
     // here takes the pointer).
-    MouseArea {
+    MoveArea {
         id: hover
         anchors.fill: parent
         enabled: !Companion.locked
         hoverEnabled: true
-        drag.target: win.fullScreen ? null : win
-        drag.minimumX: 0
-        drag.minimumY: 0
-        drag.maximumX: win.parent ? win.parent.width - win.width : 0
-        drag.maximumY: win.parent ? win.parent.height - 40 : 0
+        target: win
+        moves: !win.fullScreen
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         onReleased: if (!win.fullScreen) win.remember()
         onDoubleClicked: win.togglePause()
@@ -1075,10 +1073,10 @@ Item {
             cursorShape: Qt.SizeFDiagCursor
             property point start
             property real startWidth
-            onPressed: (m) => { start = mapToItem(null, m.x, m.y); startWidth = win.width }
+            onPressed: (m) => { start = mapToItem(win.parent, m.x, m.y); startWidth = win.width }
             onPositionChanged: (m) => {
                 if (!pressed) return
-                const p = mapToItem(null, m.x, m.y)
+                const p = mapToItem(win.parent, m.x, m.y)
                 const room = win.parent ? Math.min(win.parent.width - win.x, (win.parent.height - win.y) * 16 / 9) : 1920
                 win.width = Math.max(240, Math.min(startWidth + p.x - start.x, room))
                 win.height = Math.round(win.width * 9 / 16)

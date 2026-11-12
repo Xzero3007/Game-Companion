@@ -14,7 +14,7 @@ Item {
     implicitWidth: label.length > 0 ? 56 : 48
     implicitHeight: 52
 
-    readonly property color tint: active ? Theme.accent : (mouse.containsMouse ? Theme.text() : Theme.muted())
+    readonly property color tint: active ? Theme.accentFor(true) : (mouse.containsMouse ? Theme.text(true) : Theme.muted(true))
 
     Column {
         anchors.centerIn: parent
@@ -42,7 +42,7 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: 2
-        color: Theme.accent
+        color: Theme.accentFor(true)
     }
 
     MouseArea {

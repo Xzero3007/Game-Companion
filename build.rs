@@ -23,6 +23,8 @@ fn main() {
         QmlFile::from("qml/Picker.qml"),
         QmlFile::from("qml/WheelScroll.qml"),
         QmlFile::from("qml/JellyfinSignIn.qml"),
+        QmlFile::from("qml/Surface.qml"),
+        QmlFile::from("qml/MoveArea.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();

@@ -92,6 +92,11 @@ signals:
     void hwdecChanged();
     void localChanged();
 
+protected:
+    /// Moved to another window: draw there (a video waiting for its render
+    /// context asks again).
+    void itemChange(ItemChange change, const ItemChangeData &value) override;
+
 private slots:
     void readEvents();
     /// The renderer made mpv's render context: a video can load now.

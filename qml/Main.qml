@@ -1,16 +1,15 @@
 import QtQuick
 import GameCompanion
+import "theme.js" as Theme
 
-// The overlay: one transparent window over the whole screen. Only the bar
-// and the panels take clicks (the input region); everywhere else clicks go
-// to the game. Locked, only the lock button takes them.
-Window {
+// The overlay: every part (the bar, the player row, each panel, each
+// video) in a small window of its own on the overlay layer (Surface), as
+// big as the part; the rest of the screen is the game's. Locked, only the
+// lock button takes clicks. Parts are placed in screen coordinates.
+Item {
     id: root
-    visible: false          // shown by the native side once it is on the overlay layer
-    color: "transparent"
-    title: "Game Companion"
-    width: 1280
-    height: 720
+    width: nativeWindow.screenWidth
+    height: nativeWindow.screenHeight
 
     property bool settingsOpen: false
     property bool radioOpen: false
@@ -25,26 +24,6 @@ Window {
         for (const k of keys) if (k.id === id) return k.key
         return ""
     }
-
-    // On screen, with any scale (the bar and the player row can be smaller).
-    function rectOf(item) {
-        return item.mapToItem(null, 0, 0, item.width, item.height)
-    }
-
-    // The input region: what takes clicks right now.
-    function updateInput() {
-        const rects = []
-        if (Companion.locked) {
-            if (bar.visible) rects.push(rectOf(bar.lockButton))
-        } else {
-            for (const item of [bar, playerRow, welcome, settings, radio, streams, twitchVideo, youtubeVideo, jellyfinVideo]) {
-                if (item.visible) rects.push(rectOf(item))
-            }
-        }
-        nativeWindow.setInputRects(rects)
-        nativeWindow.setKeyboard(!Companion.locked && rects.length > 0)
-    }
-    function requestInput() { Qt.callLater(updateInput) }
 
     // Layouts: which panels are open (Settings itself is not part of one).
     function openPanels() {
@@ -66,29 +45,40 @@ Window {
         if (demo.indexOf("streams") >= 0) streamsOpen = true
         if (demo.indexOf("video") >= 0) twitchVideo.item = { kind: "twitch", id: "streamer_one", name: "streamer_one", game: "AION 2", title: "" }
         if (demo.indexOf("jellyvideo") >= 0) jellyfinVideo.demo()
-        if (nativeWindow.testVideo.length > 0) twitchVideo.playFile(nativeWindow.testVideo)
+        if (nativeWindow.testVideo.length > 0) Qt.callLater(() => twitchVideo.playFile(nativeWindow.testVideo))
         if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
-        requestInput()
     }
-    onWidthChanged: requestInput()
-    onHeightChanged: requestInput()
+
 
     Connections {
         target: Companion
-        function onLockedChanged() { root.requestInput() }
-        function onWelcomeChanged() { root.requestInput() }
-        function onPinsChanged() { root.requestInput() }
-        function onShownChanged() { root.requestInput(); if (!Companion.shown) hubHint.flash() }
+        function onShownChanged() { if (!Companion.shown) hubHint.flash() }
     }
 
-    Item {
-        id: scene
-        anchors.fill: parent
+    readonly property bool unlockedShown: !Companion.locked && (Companion.shown || root.pins.length > 0)
 
-        // Screenshots only (GC_DEMO=backdrop): a stand-in for the game.
-        Rectangle {
+    // Screenshots (GC_SCREENSHOT): every part in one window, grabbed whole.
+    Window {
+        visible: nativeWindow.screenshotMode
+        width: root.width
+        height: root.height
+        color: "transparent"
+        title: "Game Companion screenshot"
+        Item {
+            id: shotScene
             anchors.fill: parent
-            visible: nativeWindow.demo.indexOf("backdrop") >= 0
+            Component.onCompleted: nativeWindow.shotScene = shotScene
+        }
+    }
+
+    // Screenshots only (GC_DEMO=backdrop): a stand-in for the game.
+    Surface {
+        wanted: nativeWindow.demo.indexOf("backdrop") >= 0
+        clickable: false
+        stack: -1
+        part: Rectangle {
+            width: root.width
+            height: root.height
             color: "#262a2e"
             Text {
                 anchors.centerIn: parent
@@ -99,27 +89,38 @@ Window {
                 font.letterSpacing: 6
             }
         }
+    }
 
-        UnlockedFrame {
-            anchors.fill: parent
-            visible: !Companion.locked && (Companion.shown || root.pins.length > 0)
+    // Unlocked: a thin gold frame around the screen, as four strips (no
+    // window over the whole screen), and a note at the bottom.
+    Surface { wanted: root.unlockedShown; clickable: false; stack: 1; part: Edge { width: root.width; height: 2 } }
+    Surface { wanted: root.unlockedShown; clickable: false; stack: 1; part: Edge { y: root.height - 2; width: root.width; height: 2 } }
+    Surface { wanted: root.unlockedShown; clickable: false; stack: 1; part: Edge { width: 2; height: root.height } }
+    Surface { wanted: root.unlockedShown; clickable: false; stack: 1; part: Edge { x: root.width - 2; width: 2; height: root.height } }
+    Surface {
+        wanted: root.unlockedShown
+        clickable: false
+        stack: 1
+        part: UnlockedFrame {
+            x: (root.width - width) / 2
+            y: root.height - height - 2
             lockKey: root.keyOf("lock")
         }
+    }
 
-        HudBar {
+    Surface {
+        wanted: Companion.shown
+        stack: 5
+        lockItem: bar.lockButton
+        extra: bar.tipShown ? Qt.rect(0, 0, bar.width, bar.height + 40) : Qt.rect(0, 0, 0, 0)
+        part: HudBar {
             id: bar
-            visible: Companion.shown
             // Sideways where the user left it, never off the screen.
             transformOrigin: Item.TopLeft
             scale: Companion.barScale
             readonly property real shownWidth: width * scale
-            x: Math.max(0, Math.min(scene.width - shownWidth, (scene.width - shownWidth) / 2 + Companion.barOffset + dragShift))
+            x: Math.max(0, Math.min(root.width - shownWidth, (root.width - shownWidth) / 2 + Companion.barOffset + dragShift))
             y: 0
-            onDropped: {
-                Companion.saveBarOffset(x - (scene.width - shownWidth) / 2)
-                dragShift = 0
-            }
-            onScaleChanged: root.requestInput()
             settingsOpen: root.settingsOpen
             radioOpen: root.radioOpen
             streamsOpen: root.streamsOpen
@@ -128,95 +129,103 @@ Window {
             onUpdateClicked: { root.settingsOpen = true; Updates.install() }
             onRadioClicked: root.radioOpen = !root.radioOpen
             onHideClicked: Companion.toggleShown()
-            onWidthChanged: root.requestInput()
-            onXChanged: root.requestInput()
-            onVisibleChanged: root.requestInput()
+            onDropped: {
+                Companion.saveBarOffset(x - (root.width - shownWidth) / 2)
+                dragShift = 0
+            }
         }
+    }
 
-        // Videos sit under the panels, over the game.
-        VideoWindow {
-            id: twitchVideo
-            z: fullScreen ? 100 : 0
-            slot: "twitch"
-            visible: active && root.onScreen(panelId)
-            onAreaChanged: root.requestInput()
-        }
-        VideoWindow {
-            id: youtubeVideo
-            z: fullScreen ? 100 : 0
-            slot: "youtube"
-            visible: active && root.onScreen(panelId)
-            onAreaChanged: root.requestInput()
-        }
-        VideoWindow {
-            id: jellyfinVideo
-            z: fullScreen ? 100 : 0
-            slot: "jellyfin"
-            visible: active && root.onScreen(panelId)
-            onAreaChanged: root.requestInput()
-        }
+    // Videos sit under the panels, over the game; full screen, the video's
+    // window covers the screen.
+    Surface {
+        wanted: twitchVideo.active && root.onScreen(twitchVideo.panelId)
+        stack: twitchVideo.fullScreen ? 100 : 2
+        part: VideoWindow { id: twitchVideo; slot: "twitch" }
+    }
+    Surface {
+        wanted: youtubeVideo.active && root.onScreen(youtubeVideo.panelId)
+        stack: youtubeVideo.fullScreen ? 100 : 2
+        part: VideoWindow { id: youtubeVideo; slot: "youtube" }
+    }
+    Surface {
+        wanted: jellyfinVideo.active && root.onScreen(jellyfinVideo.panelId)
+        stack: jellyfinVideo.fullScreen ? 100 : 2
+        part: VideoWindow { id: jellyfinVideo; slot: "jellyfin" }
+    }
 
-        PlayerRow {
+    Surface {
+        wanted: playerRow.active && root.onScreen("player-row")
+        stack: 5
+        part: PlayerRow {
             id: playerRow
             videos: [twitchVideo, youtubeVideo, jellyfinVideo]
-            visible: active && root.onScreen("player-row")
             // Under the bar, as big as it, following it sideways.
             transformOrigin: Item.TopLeft
             scale: Companion.barScale
-            x: Math.max(0, Math.min(scene.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
+            x: Math.max(0, Math.min(root.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
             y: Companion.shown ? bar.height * bar.scale : 0
-            onScaleChanged: root.requestInput()
-            onWidthChanged: root.requestInput()
-            onXChanged: root.requestInput()
-            onYChanged: root.requestInput()
-            onVisibleChanged: root.requestInput()
         }
+    }
 
-        HubHint {
+    Surface {
+        wanted: hubHint.opacity > 0
+        clickable: false
+        stack: 6
+        part: HubHint {
             id: hubHint
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: playerRow.visible ? playerRow.y + playerRow.height * playerRow.scale + 6 : 6
+            x: (root.width - width) / 2
+            y: playerRowShown ? playerRow.y + playerRow.height * playerRow.scale + 6 : 6
+            readonly property bool playerRowShown: playerRow.active && root.onScreen("player-row")
             key: root.keyOf("toggle")
         }
+    }
 
-        WelcomePanel {
+    Surface {
+        wanted: Companion.welcome && Companion.shown
+        stack: 3
+        part: WelcomePanel {
             id: welcome
-            visible: Companion.welcome && Companion.shown
             defaultX: 24
             defaultY: 120
-            onAreaChanged: root.requestInput()
         }
+    }
 
-        RadioPanel {
+    Surface {
+        wanted: root.radioOpen && root.onScreen("radio")
+        stack: 3
+        part: RadioPanel {
             id: radio
-            visible: root.radioOpen && root.onScreen("radio")
             defaultX: 24
             defaultY: 120
             onCloseClicked: root.radioOpen = false
-            onAreaChanged: root.requestInput()
         }
+    }
 
-        StreamsPanel {
+    Surface {
+        wanted: root.streamsOpen && root.onScreen("streams")
+        stack: 3
+        part: StreamsPanel {
             id: streams
-            visible: root.streamsOpen && root.onScreen("streams")
             defaultX: 520
             defaultY: 120
             playingTwitch: twitchVideo.item && twitchVideo.item.kind === "twitch" ? twitchVideo.item.id : ""
             playingYoutube: youtubeVideo.item && youtubeVideo.item.kind === "youtube" ? youtubeVideo.item.id : ""
             playingJellyfin: jellyfinVideo.item ? jellyfinVideo.item.id : ""
             onCloseClicked: root.streamsOpen = false
-            onAreaChanged: root.requestInput()
             onPlayRequested: (what) => (what.kind === "twitch" ? twitchVideo : what.kind === "jellyfin" ? jellyfinVideo : youtubeVideo).play(what)
         }
+    }
 
-        SettingsPanel {
+    Surface {
+        wanted: root.settingsOpen && Companion.shown
+        stack: 4
+        part: SettingsPanel {
             id: settings
             pinnable: false
-            visible: root.settingsOpen && Companion.shown
-            defaultX: scene.width - width - 24
+            defaultX: root.width - width - 24
             defaultY: 120
             onCloseClicked: root.settingsOpen = false
-            onAreaChanged: root.requestInput()
             onSaveLayoutRequested: (name) => Companion.saveLayout(name, JSON.stringify(root.openPanels()))
             onLoadLayoutRequested: (name) => {
                 const open = Companion.loadLayout(name)
@@ -224,4 +233,6 @@ Window {
             }
         }
     }
+
+    component Edge: Rectangle { color: Theme.accent }
 }

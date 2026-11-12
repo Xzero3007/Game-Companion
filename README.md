@@ -27,16 +27,20 @@ to the game.
   gold corner at a panel's bottom right makes it wider or narrower (the
   radio's list also taller); a double-click on it gives back its own size.
 - **Display** (Settings → Display): one opacity for the bar and all panels,
-  from solid down to 5 % (under half, text gets a thin shadow); the
-  brightness of the white and grey text, 100 down to 40 % (gold, red,
-  purple and the game's colours stay); the bar's size, 100 down to 60 %
-  (with the player row). Each slider of opacity and text has three
-  presets, P1 to P3: a click uses one, holding it or a right click keeps
+  from solid down to 5 % (under half, text gets a thin shadow); for the
+  bar and the player row under it (panels stay as designed), the
+  brightness of the white and grey text and of the gold, 100 down to
+  40 %; the bar's size, 100 down to 60 % (with the player row). Opacity,
+  text and gold each have three presets, P1 to P3: a click uses one, holding it or a right click keeps
   the current value there. Unlocked, the bar moves sideways when dragged
   by its name or its slanted ends; "Center bar" puts it back.
+- **Light on the game.** Every part (the bar, the player row, each panel,
+  each video) is a small window of its own on KDE's overlay layer, just as
+  big as the part: nothing covers the rest of the screen, a playing video
+  redraws only its own area, and nothing redraws while idle.
 - **Layouts** (Settings → Layouts): save the arrangement under a name (which
   panels are open, where, how big, what is pinned, the opacity, the text
-  brightness, the bar's place and size), load it
+  and gold brightness, the bar's place and size), load it
   again with one click, rename or delete it.
 - **Hide the hub, keep what you pin.** `Alt+Y` (or the eye in the bar)
   hides the bar and the panels; anything pinned (the pin in a panel's header,
@@ -187,7 +191,8 @@ Qt 6 / QML for the interface, Rust for the logic, joined by
 | `src/shortcuts.rs` | Global shortcuts through the GlobalShortcuts portal |
 | `src/radio.rs`, `src/radio_object.rs` | Stations, the radio's network guard, the mpv player, the `Radio` QML singleton |
 | `data/stations.json` | The station list |
-| `cpp/native.cpp` | The Qt app, KDE's overlay layer, the input region |
+| `cpp/native.cpp` | The Qt app; each part's window on KDE's overlay layer, its place and where it takes clicks |
+| `qml/Surface.qml` | One part of the overlay in a window of its own, as big as the part |
 | `qml/` | The interface (Edge HUD design, colours in `qml/theme.js`) |
 | `packaging/` | Desktop file and the Arch package |
 

@@ -25,6 +25,8 @@ Item {
     property real dragShift: 0
     /// Let go after dragging: the window keeps the new place.
     signal dropped
+    /// The title's tooltip shows (under the bar: its window grows for it).
+    readonly property bool tipShown: titleDrag.containsMouse && !titleDrag.pressed
 
     implicitWidth: row.implicitWidth + 44
     implicitHeight: 52
@@ -46,7 +48,7 @@ Item {
         width: bar.width - 36
         anchors.bottom: parent.bottom
         height: 1
-        color: Theme.accent
+        color: Theme.accentFor(true)
     }
 
     // The slanted ends move the bar (the name does too).
@@ -67,7 +69,7 @@ Item {
                 x: 6
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     text: "GAME COMPANION"
-                    color: Theme.accent
+                    color: Theme.accentFor(true)
                     font.family: Theme.display
                     font.pixelSize: 16
                     font.weight: Font.Bold
@@ -75,7 +77,7 @@ Item {
                 }
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     text: bar.gameName.length > 0 ? "MODULE · " + bar.gameName.toUpperCase() : "NO GAME RUNNING"
-                    color: bar.gameName.length > 0 ? Theme.purpleText : Theme.dim()
+                    color: bar.gameName.length > 0 ? Theme.purpleText : Theme.dim(true)
                     font.family: Theme.display
                     font.pixelSize: 11
                     font.weight: Font.DemiBold
@@ -93,7 +95,7 @@ Item {
                 id: titleDrag
                 anchors.fill: parent
                 // The version, as a tooltip would show it.
-                ToolTipText { visible: titleDrag.containsMouse && !titleDrag.pressed; text: "Game Companion " + Companion.version() + " · drag to move the bar" }
+                ToolTipText { visible: bar.tipShown; text: "Game Companion " + Companion.version() + " · drag to move the bar" }
             }
         }
 
@@ -145,14 +147,14 @@ Item {
         }
     }
 
-    // Dragging moves the bar sideways (measured on the screen, so the
-    // bar's own scale does not matter).
+    // Dragging moves the bar sideways (measured on the screen: the bar's
+    // window moves along, and its own scale does not matter).
     component DragArea: MouseArea {
         property real startX: 0
         hoverEnabled: true
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-        onPressed: (mouse) => startX = mapToItem(null, mouse.x, mouse.y).x
-        onPositionChanged: (mouse) => { if (pressed) bar.dragShift = mapToItem(null, mouse.x, mouse.y).x - startX }
+        onPressed: (mouse) => startX = mapToItem(bar.parent, mouse.x, mouse.y).x
+        onPositionChanged: (mouse) => { if (pressed) bar.dragShift = mapToItem(bar.parent, mouse.x, mouse.y).x - startX }
         onReleased: bar.dropped()
         onCanceled: bar.dragShift = 0
     }
@@ -168,7 +170,7 @@ Item {
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: label
             anchors.centerIn: parent
-            color: Theme.textSoft()
+            color: Theme.textSoft(true)
             font.family: Theme.body
             font.pixelSize: 12
         }

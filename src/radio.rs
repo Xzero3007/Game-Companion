@@ -147,6 +147,15 @@ impl Player {
             .arg("--load-unsafe-playlists=no")
             .arg("--audio-display=no")
             .arg("--network-timeout=15")
+            // Room for short hangs of the system: a second of sound ready
+            // at the sound card, and the stream read a few seconds ahead
+            // (mpv waits for 4 s of it before it starts, and again after a
+            // gap in the stream).
+            .arg("--audio-buffer=1")
+            .arg("--cache=yes")
+            .arg("--cache-pause-initial=yes")
+            .arg("--cache-pause-wait=4")
+            .arg("--demuxer-readahead-secs=20")
             .arg(format!("--volume={}", mpv_volume(volume)))
             .arg("--volume-max=100")
             .arg(format!("--input-ipc-server={}", socket.display()))

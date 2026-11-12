@@ -14,6 +14,15 @@ learnt, so nothing has to be asked or worked out again.
 
 ## Hard rules
 
+- **As light as possible** (the person, 2026-11-12): the overlay runs over
+  a game and must never make it or the desktop stutter. Nothing redraws
+  while idle (no running animations, timers only while needed); every part
+  is its own small overlay surface (never one window over the whole
+  screen); a video redraws only its own surface; background work (mpv,
+  curl) stays out of the UI thread. Before a release, measure the load
+  (idle and with a stream): CPU of the app and its mpv, and that idle
+  frames are zero.
+
 - **Write down the plan before changing anything**, in plain words, and wait
   for the person's yes. They decide; don't take features away on your own.
 - **Colours:** white, grey, gold, red, purple. **No blue** for buttons,
@@ -87,28 +96,50 @@ learnt, so nothing has to be asked or worked out again.
 
 ## How it works
 
-- `cpp/native.cpp`: `gc_run()` starts Qt, loads `qml/Main.qml`, puts the
-  window on the layer-shell overlay layer (anchored to all edges, exclusive
-  zone -1, keyboard none; on-demand while unlocked) and shows it. The input
-  region is `QWindow::setMask` (on Wayland, Qt sets the surface's input
-  region from it); QML sends the rectangles that take clicks
-  (`nativeWindow.setInputRects`): locked, only the lock button.
+- One surface per part (0.4.0, the person, 2026-11-12, after stutters
+  with a stream over the game): `qml/Surface.qml` is a `Window` holding one
+  part (bar, player row, each panel, each video, the unlocked frame's four
+  edges and note, the hub hint). The part keeps x/y in **screen
+  coordinates**: it lives in `Surface.scene` (screen-sized, shifted by the
+  surface's place), its parent. `nativeWindow.attach` makes the window a
+  layer-shell surface (overlay layer, anchored top and left, exclusive
+  zone -1, keyboard none; on-demand while unlocked), `place` sets the
+  margins (x, y) and size, `setInput` the input region (`QWindow::setMask`:
+  unlocked everything, locked only the lock button or one pixel). X11:
+  frameless on-top windows at that geometry. Dragging (`MoveArea`, the
+  bar's `DragArea`, resize corners) measures in `target.parent` (screen
+  coordinates), never `mapToItem(null)` (the window moves along). Popups
+  must stay inside their part, or the part's surface must grow (`extra`,
+  as the bar's tooltip). Stacking between surfaces is KWin's (no z across
+  parts); `stack` only orders screenshots. Root of `Main.qml` is an Item
+  (no window). Screenshots (`GC_SCREENSHOT`): every part moves into one
+  screen-sized window (`nativeWindow.shotScene`), grabbed whole (a
+  software window's own grab has no alpha). Under `xvfb-run` with xcb, each
+  part is its own X window (`xdotool search --onlyvisible --name "^Game
+  Companion$"`, `getwindowgeometry`): good for checking places and drags.
+  The radio's mpv: `--audio-buffer=1`, cache with `cache-pause-wait=4`
+  (stutters when the system hangs briefly).
 - `src/companion.rs`: the `Companion` QML singleton (CXX-Qt). The shortcut
   thread queues onto the Qt thread (`qt_thread().queue`).
 - `src/shortcuts.rs`: the GlobalShortcuts portal, adapted from the meter's
   `hotkeys.rs`; ids `lock` (Alt+Q) and `toggle` (Alt+Y, hides the hub),
   the person's own KDE keys (2026-11-12). App id
   `io.github.xzero3007.GameCompanion` (the desktop file's name).
-- Display settings (the person, 2026-11-12): `alpha` 0.05 to 1,
-  `text_level` 0.4 to 1, `bar` {offset px from the centre, scale 0.6 to
-  1}, three presets each (`alpha_presets`, `text_presets`); all in layouts
-  (old layouts lack text and bar: kept as they are). `Theme.text()`,
-  `textSoft()`, `muted()`, `dim()` are **functions** (theme.js imports
-  `GameCompanion` and reads `Companion.textLevel`, so bindings follow);
+- Display settings (the person, 2026-11-12): `alpha` 0.05 to 1 (all
+  parts); `text_level` and `accent_level` 0.4 to 1 for **the bar and the
+  player row only** (the person: panels like Settings or YouTube stay as
+  designed); `bar` {offset px from the centre, scale 0.6 to
+  1}, three presets each (`alpha_presets`, `text_presets`,
+  `accent_presets`); all in layouts (old layouts lack them: kept as they
+  are). `Theme.text(hud)`, `textSoft(hud)`, `muted(hud)`, `dim(hud)` and
+  `accentFor(hud)` are **functions** (theme.js imports `GameCompanion` and
+  reads `Companion.textLevel`/`accentLevel` when `hud` is true, so
+  bindings follow): HudBar, HudButton and PlayerRow pass true, IconButton
+  and VolumeBar take a `hud` property; elsewhere `Theme.text()`;
   every `Text` has `style: Theme.textStyle(); styleColor: Theme.shadow`
   (a 1 px shadow under half opacity): keep both for new text. The bar and
-  the player row scale from their top left; `Main.rectOf` maps the scaled
-  rectangle for the input region.
+  the player row scale from their top left; the surface takes the scaled
+  size.
 - `qml/theme.js`: the design's colours and fonts (a JS library, not a QML
   singleton: files in `qml/` would otherwise see the implicit directory
   import's non-singleton type).

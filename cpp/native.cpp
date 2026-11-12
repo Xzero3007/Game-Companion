@@ -2,10 +2,13 @@
 #include "mpvvideo.h"
 
 #include <QtCore/QMetaObject>
+#include <QtCore/QMargins>
+
 #include <QtCore/QTimer>
 #include <QtCore/QUrl>
 #include <QtGui/QFontDatabase>
 #include <QtGui/QGuiApplication>
+#include <QtGui/QSurfaceFormat>
 #include <QtGui/QRegion>
 #include <QtGui/QScreen>
 #include <QtQml/QQmlApplicationEngine>
@@ -16,6 +19,7 @@
 #include <QtQml/QQmlNetworkAccessManagerFactory>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkRequest>
+#include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QSGRendererInterface>
 
@@ -26,92 +30,147 @@
 NativeWindow::NativeWindow(QObject *parent)
     : QObject(parent)
     , m_demo(qEnvironmentVariable("GC_DEMO"))
+    , m_screenshotMode(!qEnvironmentVariableIsEmpty("GC_SCREENSHOT"))
 {
     // A local file only: never an address.
     const QString file = qEnvironmentVariable("GC_TEST_VIDEO");
     if (file.startsWith(QLatin1Char('/'))) {
         m_testVideo = file;
     }
+#ifdef GC_LAYER_SHELL
+    m_layerShell = QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
+#endif
+    if (QScreen *s = screen()) {
+        connect(s, &QScreen::geometryChanged, this, &NativeWindow::screenChanged);
+    }
+}
+
+QScreen *NativeWindow::screen() const
+{
+    return QGuiApplication::primaryScreen();
+}
+
+int NativeWindow::screenWidth() const
+{
+    return screen() ? screen()->geometry().width() : 1280;
+}
+
+int NativeWindow::screenHeight() const
+{
+    return screen() ? screen()->geometry().height() : 720;
 }
 
 void NativeWindow::attach(QQuickWindow *window)
 {
-    m_window = window;
     if (!window) {
         return;
     }
     window->setColor(Qt::transparent);
-    QScreen *screen = window->screen() ? window->screen() : QGuiApplication::primaryScreen();
-    if (screen) {
-        window->setGeometry(screen->geometry());
+    QSurfaceFormat format = window->format();
+    format.setAlphaBufferSize(8);
+    window->setFormat(format);
+    if (QScreen *s = screen()) {
+        window->setScreen(s);
     }
-
 #ifdef GC_LAYER_SHELL
-    if (QGuiApplication::platformName().startsWith(QLatin1String("wayland"))) {
+    if (m_layerShell) {
         // Must happen before the window is shown.
         if (auto *layer = LayerShellQt::Window::get(window)) {
             layer->setLayer(LayerShellQt::Window::LayerOverlay);
-            layer->setAnchors(LayerShellQt::Window::Anchors(
-                LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorBottom
-                | LayerShellQt::Window::AnchorLeft | LayerShellQt::Window::AnchorRight));
-            // Covers the whole screen, panels too, and pushes nothing aside.
+            // Placed from the top left corner by margins: KWin puts it there.
+            layer->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorLeft));
+            // Measured from the screen's edge, not pushed aside by panels.
             layer->setExclusiveZone(-1);
             layer->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
             layer->setScope(QStringLiteral("game-companion"));
-            m_layerShell = true;
+            return;
         }
     }
 #endif
-    if (!m_layerShell) {
-        // X11 or another desktop: a frameless window over the others. Above a
-        // fullscreen game only where the desktop allows it.
-        window->setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
-    }
-    window->show();
-    connect(window, &QWindow::visibleChanged, this, &NativeWindow::applyInputRegion);
-    QTimer::singleShot(0, this, &NativeWindow::applyInputRegion);
-    QTimer::singleShot(500, this, &NativeWindow::applyInputRegion);
+    // X11 or another desktop: frameless windows over the others. Above a
+    // fullscreen game only where the desktop allows it.
+    window->setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool | Qt::WindowDoesNotAcceptFocus);
 }
 
-void NativeWindow::setInputRects(const QVariantList &rects)
+void NativeWindow::place(QQuickWindow *window, const QRectF &area)
 {
-    QRegion region;
-    for (const QVariant &value : rects) {
-        const QRect rect = value.toRectF().toAlignedRect();
-        if (rect.isValid()) {
-            region += rect;
+    if (!window) {
+        return;
+    }
+    const QRect r = area.toAlignedRect();
+    const QSize size(qMax(1, r.width()), qMax(1, r.height()));
+    window->setProperty("gcArea", QRect(r.topLeft(), size));
+#ifdef GC_LAYER_SHELL
+    if (m_layerShell) {
+        if (auto *layer = LayerShellQt::Window::get(window)) {
+            layer->setMargins(QMargins(r.x(), r.y(), 0, 0));
+            if (window->size() != size) {
+                window->resize(size);
+            }
+            window->requestUpdate();
+            return;
         }
     }
-    if (region.isEmpty()) {
-        // An empty mask means "the whole window" to Qt: one pixel instead.
-        region = QRect(0, 0, 1, 1);
-    }
-    m_inputRegion = region;
-    applyInputRegion();
+#endif
+    window->setGeometry(QRect(r.topLeft(), size));
 }
 
-void NativeWindow::applyInputRegion()
+void NativeWindow::setInput(QQuickWindow *window, bool all, const QVariantList &rects)
 {
-    if (m_window && m_window->isVisible()) {
-        // Reset first: Qt skips a mask equal to the one it holds, even when
-        // it could not give that one to the surface yet.
-        m_window->setMask(QRegion());
-        m_window->setMask(m_inputRegion);
+    if (!window) {
+        return;
     }
+    QRegion region;
+    if (!all) {
+        for (const QVariant &value : rects) {
+            const QRect rect = value.toRectF().toAlignedRect();
+            if (rect.isValid()) {
+                region += rect;
+            }
+        }
+        if (region.isEmpty()) {
+            // An empty mask means "the whole window" to Qt: one pixel instead.
+            region = QRect(0, 0, 1, 1);
+        }
+    }
+    // Reset first: Qt skips a mask equal to the one it holds, even when it
+    // could not give that one to the surface yet.
+    window->setMask(QRegion());
+    if (!all) {
+        window->setMask(region);
+    }
+    window->setProperty("gcMask", region);
 }
 
-void NativeWindow::setKeyboard(bool wanted)
+void NativeWindow::setKeyboard(QQuickWindow *window, bool wanted)
 {
 #ifdef GC_LAYER_SHELL
-    if (m_layerShell && m_window) {
-        if (auto *layer = LayerShellQt::Window::get(m_window)) {
+    if (m_layerShell && window) {
+        if (auto *layer = LayerShellQt::Window::get(window)) {
             layer->setKeyboardInteractivity(wanted ? LayerShellQt::Window::KeyboardInteractivityOnDemand
                                                    : LayerShellQt::Window::KeyboardInteractivityNone);
         }
     }
 #else
+    Q_UNUSED(window);
     Q_UNUSED(wanted);
 #endif
+}
+
+bool NativeWindow::screenshot(const QString &file) const
+{
+    // In screenshot mode every part sits in one window (Main's shotWindow),
+    // as on the screen: grabbed whole.
+    auto *window = m_shotScene ? m_shotScene->window() : nullptr;
+    return window && window->grabWindow().save(file);
+}
+
+void NativeWindow::setShotScene(QQuickItem *scene)
+{
+    if (m_shotScene != scene) {
+        m_shotScene = scene;
+        emit shotSceneChanged();
+    }
 }
 
 namespace {
@@ -167,7 +226,6 @@ int32_t gc_run()
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("Game Companion"));
     QGuiApplication::setDesktopFileName(QStringLiteral("io.github.xzero3007.GameCompanion"));
-    QGuiApplication::setQuitOnLastWindowClosed(true);
 
     // The fonts ship with the app: nothing is fetched.
     for (const char *font : {":/qt/qml/GameCompanion/assets/fonts/Rajdhani-Bold.ttf", ":/qt/qml/GameCompanion/assets/fonts/Rajdhani-SemiBold.ttf",
@@ -182,6 +240,8 @@ int32_t gc_run()
         QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     }
     gc_register_video();
+    // The parts' windows are see-through where nothing is drawn.
+    QQuickWindow::setDefaultAlphaBuffer(true);
 
     NativeWindow native;
     QQmlApplicationEngine engine;
@@ -194,19 +254,17 @@ int32_t gc_run()
     if (engine.rootObjects().isEmpty()) {
         return 1;
     }
-    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
-    if (!window) {
-        return 1;
-    }
-    native.attach(window);
+    // The parts' windows: when the last one closes, so does the app (none
+    // is closed by the user; Settings' "Turn off" quits).
+    QGuiApplication::setQuitOnLastWindowClosed(false);
 
     // For screenshots during development: GC_SCREENSHOT=<file.png>.
     const QString shot = qEnvironmentVariable("GC_SCREENSHOT");
     if (!shot.isEmpty()) {
         // GC_SCREENSHOT_DELAY: milliseconds before it is taken (1500).
         const int delay = qEnvironmentVariableIntValue("GC_SCREENSHOT_DELAY") > 0 ? qEnvironmentVariableIntValue("GC_SCREENSHOT_DELAY") : 1500;
-        QTimer::singleShot(delay, window, [window, shot]() {
-            window->grabWindow().save(shot);
+        QTimer::singleShot(delay, &app, [&native, shot]() {
+            native.screenshot(shot);
             QGuiApplication::quit();
         });
     }

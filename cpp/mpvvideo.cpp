@@ -355,6 +355,14 @@ bool MpvVideo::play(const QString &url, const QString &format, double start, con
     return true;
 }
 
+void MpvVideo::itemChange(ItemChange change, const ItemChangeData &value)
+{
+    QQuickFramebufferObject::itemChange(change, value);
+    if (change == ItemSceneChange && value.window) {
+        update();
+    }
+}
+
 void MpvVideo::renderReady()
 {
     m_rendering = true;

@@ -4,11 +4,13 @@ import "theme.js" as Theme
 // A small square button with one icon.
 Item {
     id: b
+    /// In the bar or the player row: darkened as the user set it.
+    property bool hud: false
     property string icon
     property string tip
     property bool filled: false
-    property color color: Theme.text()
-    property color hoverColor: Theme.accent
+    property color color: Theme.text(b.hud)
+    property color hoverColor: Theme.accentFor(b.hud)
     property real iconSize: 13
     property bool framed: false
     signal clicked

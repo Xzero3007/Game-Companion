@@ -46,12 +46,12 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 7
                 height: 7
-                color: Radio.status === "playing" ? Theme.accent : Radio.status === "failed" ? Theme.red : Theme.dim()
+                color: Radio.status === "playing" ? Theme.accentFor(true) : Radio.status === "failed" ? Theme.red : Theme.dim(true)
             }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 text: "RADIO"
-                color: Theme.accent
+                color: Theme.accentFor(true)
                 font.family: Theme.display
                 font.pixelSize: 12
                 font.weight: Font.Bold
@@ -62,11 +62,12 @@ Item {
                 width: Math.min(implicitWidth, 180)
                 elide: Text.ElideRight
                 text: Radio.status === "failed" ? Radio.why : Radio.name
-                color: Radio.status === "failed" ? Theme.red : Theme.textSoft()
+                color: Radio.status === "failed" ? Theme.red : Theme.textSoft(true)
                 font.family: Theme.body
                 font.pixelSize: 12
             }
             IconButton {
+                hud: true
                 anchors.verticalCenter: parent.verticalCenter
                 readonly property bool on: ["connecting", "playing", "buffering"].indexOf(Radio.status) >= 0
                 icon: on ? "pause" : "play"
@@ -75,6 +76,7 @@ Item {
                 onClicked: Radio.togglePause()
             }
             VolumeBar {
+                hud: true
                 anchors.verticalCenter: parent.verticalCenter
                 compact: true
                 value: Radio.volume
@@ -82,10 +84,11 @@ Item {
                 onPicked: (v) => Radio.setVolumeTo(v)
             }
             IconButton {
+                hud: true
                 anchors.verticalCenter: parent.verticalCenter
                 icon: "close"
                 iconSize: 12
-                color: Theme.dim()
+                color: Theme.dim(true)
                 tip: "Stop the radio"
                 onClicked: Radio.stop()
             }
@@ -108,12 +111,12 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 7
                     height: 7
-                    color: part.v.playState === "playing" ? Theme.red : part.v.playState === "failed" ? Theme.red : Theme.dim()
+                    color: part.v.playState === "playing" ? Theme.red : part.v.playState === "failed" ? Theme.red : Theme.dim(true)
                 }
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     anchors.verticalCenter: parent.verticalCenter
                     text: part.v.label.toUpperCase()
-                    color: Theme.accent
+                    color: Theme.accentFor(true)
                     font.family: Theme.display
                     font.pixelSize: 12
                     font.weight: Font.Bold
@@ -124,11 +127,12 @@ Item {
                     width: Math.min(implicitWidth, 160)
                     elide: Text.ElideRight
                     text: part.v.item ? (part.v.item.kind === "twitch" ? part.v.item.name : (part.v.item.title || part.v.item.name)) : ""
-                    color: Theme.textSoft()
+                    color: Theme.textSoft(true)
                     font.family: Theme.body
                     font.pixelSize: 12
                 }
                 IconButton {
+                hud: true
                     anchors.verticalCenter: parent.verticalCenter
                     readonly property bool on: part.v.playing && !part.v.paused
                     icon: on ? "pause" : "play"
@@ -137,6 +141,7 @@ Item {
                     onClicked: part.v.togglePause()
                 }
                 VolumeBar {
+                hud: true
                     anchors.verticalCenter: parent.verticalCenter
                     compact: true
                     value: part.v.volume
@@ -144,10 +149,11 @@ Item {
                     onPicked: (x) => part.v.setVolume(x)
                 }
                 IconButton {
+                hud: true
                     anchors.verticalCenter: parent.verticalCenter
                     icon: "close"
                     iconSize: 12
-                    color: Theme.dim()
+                    color: Theme.dim(true)
                     tip: "Stop " + part.v.label
                     onClicked: part.v.stop()
                 }
@@ -156,12 +162,13 @@ Item {
         }
 
         IconButton {
+                hud: true
             anchors.verticalCenter: parent.verticalCenter
             width: 32
             icon: "pin"
             iconSize: 14
             filled: strip.pinned
-            color: strip.pinned ? Theme.accent : Theme.dim()
+            color: strip.pinned ? Theme.accentFor(true) : Theme.dim(true)
             tip: strip.pinned ? "Unpin: hide with the hub" : "Pin: stay when the hub is hidden"
             onClicked: Companion.togglePin("player-row")
         }

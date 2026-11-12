@@ -63,6 +63,8 @@ Item {
         placed = true
     }
     Component.onCompleted: place()
+    // Its window (Surface) takes it in after it was made.
+    onParentChanged: place()
     Connections {
         target: panel.parent
         function onWidthChanged() { panel.place() }
@@ -105,15 +107,11 @@ Item {
         height: 40
         color: Theme.headerTint
 
-        MouseArea {
+        MoveArea {
             anchors.fill: parent
             enabled: !Companion.locked
             cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-            drag.target: panel
-            drag.minimumX: 0
-            drag.minimumY: 0
-            drag.maximumX: panel.parent ? panel.parent.width - panel.width : 0
-            drag.maximumY: panel.parent ? panel.parent.height - 40 : 0
+            target: panel
             onReleased: panel.remember()
         }
 
@@ -238,13 +236,13 @@ Item {
             property real startWidth
             property real startGrow
             onPressed: (mouse) => {
-                start = mapToItem(null, mouse.x, mouse.y)
+                start = mapToItem(panel.parent, mouse.x, mouse.y)
                 startWidth = panel.width
                 startGrow = panel.grow
             }
             onPositionChanged: (mouse) => {
                 if (!pressed) return
-                const p = mapToItem(null, mouse.x, mouse.y)
+                const p = mapToItem(panel.parent, mouse.x, mouse.y)
                 const room = panel.parent ? panel.parent.width - panel.x : panel.maxWidth
                 panel.width = Math.max(panel.minWidth, Math.min(startWidth + p.x - start.x, panel.maxWidth, room))
                 if (panel.stretchy) {
