@@ -49,3 +49,4 @@ private:
 };
 
 int32_t gc_run();
+void gc_quit();

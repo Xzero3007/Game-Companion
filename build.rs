@@ -28,7 +28,7 @@ fn main() {
     let builder = CxxQtBuilder::new_qml_module(qml)
         .qt_module("Gui")
         .qt_module("Quick")
-        .files(["src/companion.rs", "src/radio_object.rs", "src/native.rs"])
+        .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/native.rs"])
         .cpp_file("cpp/native.h")
         .cpp_file("cpp/native.cpp")
         .qrc_resources([

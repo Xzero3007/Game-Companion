@@ -6,6 +6,8 @@ mod radio;
 mod radio_object;
 mod settings;
 mod shortcuts;
+mod updater;
+mod updates_object;
 
 fn main() {
     if std::env::args().any(|a| a == "--version") {

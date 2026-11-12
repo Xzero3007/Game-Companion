@@ -35,7 +35,8 @@ learnt, so nothing has to be asked or worked out again.
   person's twitch.tv token (to Twitch only); YouTube's feeds and search
   through yt-dlp; Twitch's and YouTube's thumbnails; videos through mpv; the
   person's Jellyfin server, home network only (no server data in the repo);
-  FreeTube's subscriptions file, read only. Brave Origin and Legcord are the
+  FreeTube's subscriptions file, read only; the update check (this repo's
+  own GitHub releases only, the person, 2026-11-12). Brave Origin and Legcord are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
 - **Game modules only read** (like the AION 2 meter): never send anything to
@@ -103,6 +104,17 @@ learnt, so nothing has to be asked or worked out again.
 - Hub hidden (`Companion.shown` false): the bar, the welcome and settings go;
   panels and the player row stay if their id is in `pins`. Locked with the
   hub hidden, nothing takes clicks (Alt+Q / Alt+Y still work).
+- Updates (`src/updater.rs`, `src/updates_object.rs`, like meter patch
+  0040): the workflow publishes every push to main as release
+  `v{version}-{run}` with `latest.json` (`version`, `build`, `archUrl`,
+  `archSha256`, written compact: the root script reads it with sed). The app
+  compares `build` with its `GC_BUILD` (0 by hand), downloads with curl
+  (https, this repo's release downloads only), checks the SHA-256, and a
+  detached sh waits for the app to close, runs
+  `pkexec /usr/lib/game-companion-update < pkg` (the polkit policy allows it
+  without a password; the script re-reads the checksum as root) or
+  `pkexec pacman -U`, then starts the app again. `GC_NO_UPDATES=1` turns the
+  check off; `GC_DEMO=update` shows an update.
 - `HudIcon` draws into a layer (texture): plain shapes were not clipped by
   a list's clip in the software renderer.
 

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  Game Companion's update button installs its update without a password,
+  through /usr/lib/game-companion-update only (pkexec runs nothing else under
+  this action). That script installs nothing but the latest Game Companion
+  release, checked against its checksum on GitHub (see the script). Allowed to
+  the person at the desktop's active local session; any other session, remote
+  or inactive, gets nothing.
+-->
+<policyconfig>
+  <vendor>Game Companion</vendor>
+  <action id="io.github.xzero3007.GameCompanion.update">
+    <description>Update Game Companion</description>
+    <message>Installing the latest Game Companion release</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/game-companion-update</annotate>
+  </action>
+</policyconfig>

@@ -38,8 +38,17 @@ to the game.
 - **Player row** under the bar while the radio plays: state, pause, volume
   as one bar (− and + step by 5, a click on the bar sets it, the wheel
   steps), stop.
+- **Updates from its own releases.** At the start, every 20 minutes and with
+  Settings → General → Check for updates, it reads `latest.json` of this
+  repo's latest GitHub release. A newer one shows a gold **Update** button in
+  the bar: it downloads the package, checks its SHA-256, installs it (through
+  pkexec, without a password by the package's own root script, which checks
+  the checksum again itself; with the password if that is missing) and starts
+  again. Only a copy installed by pacman updates itself this way.
+- **Turn off** in Settings → General closes the whole app, with the radio.
 - **Nothing else goes online.** The fonts ship with the app, the shortcuts
-  are local D-Bus; the only network use is the radio stream you pick.
+  are local D-Bus; the only network use is the radio stream you pick and the
+  update check on GitHub.
 
 ## Coming next
 
@@ -59,11 +68,13 @@ makepkg -si
 ```
 
 Then start **Game Companion** from the application menu, or `game-companion`.
-Each push to `main` also builds the package on GitHub (Actions → Build →
-the run's artifact).
+Each push to `main` also builds the package on GitHub and publishes it as a
+release (with `latest.json`, the update check's manifest). Installing a
+release package (`sudo pacman -U game-companion-*.pkg.tar.zst`) works too;
+after that the app updates itself.
 
 Needs: `qt6-base`, `qt6-declarative`, `qt6-wayland`, `layer-shell-qt`,
-`xdg-desktop-portal`; `mpv` for the radio (and to build: `rust`, `clang`,
+`xdg-desktop-portal`, `polkit`, `curl`; `mpv` for the radio (and to build: `rust`, `clang`,
 `base-devel`).
 
 ### Development

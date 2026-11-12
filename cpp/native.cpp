@@ -1,5 +1,6 @@
 #include "native.h"
 
+#include <QtCore/QMetaObject>
 #include <QtCore/QTimer>
 #include <QtCore/QUrl>
 #include <QtGui/QFontDatabase>
@@ -141,4 +142,9 @@ int32_t gc_run()
         });
     }
     return app.exec();
+}
+
+void gc_quit()
+{
+    QMetaObject::invokeMethod(qApp, &QCoreApplication::quit, Qt::QueuedConnection);
 }

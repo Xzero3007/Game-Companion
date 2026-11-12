@@ -1,0 +1,64 @@
+#!/bin/sh
+# Installs an update of Game Companion as root, through pkexec, without
+# asking for the password (game-companion-update.policy allows it to the
+# person at the desktop's active session only). Adapted from the Clicktrough
+# meter's a2tools-dps-meter-update (GPL-3.0).
+#
+# It trusts nothing it is given. It takes no arguments and no environment
+# (pkexec passes none); the package comes on stdin and is installed only when:
+#   - the installed Game Companion is pacman's package game-companion,
+#   - its SHA-256 is the one this script reads itself, as root and over HTTPS,
+#     from the latest release of Xzero3007/Game-Companion on GitHub,
+#   - the package file names itself game-companion.
+# So whatever runs as the user can at most have the newest official release
+# installed, which the user could install anyway. Anything else: nothing is
+# installed, and the app asks for the password instead.
+set -eu
+umask 077
+PATH=/usr/bin
+LC_ALL=C
+export PATH LC_ALL
+
+MANIFEST=https://github.com/Xzero3007/Game-Companion/releases/latest/download/latest.json
+PACKAGE=game-companion
+MAX_BYTES=268435456 # 256 MiB; a package is a few MiB
+
+fail() {
+  echo "game-companion-update: $*" >&2
+  exit 1
+}
+
+[ "$(id -u)" = 0 ] || fail "must run as root (through pkexec)"
+[ "$#" -eq 0 ] || fail "takes no arguments"
+pacman -Qqo /usr/bin/game-companion 2>/dev/null | grep -qx "$PACKAGE" \
+  || fail "Game Companion is not pacman's package $PACKAGE"
+
+# One update at a time.
+exec 9>/run/game-companion-update.lock
+flock -n 9 || fail "another update is running"
+
+dir=$(mktemp -d /var/tmp/game-companion-update.XXXXXXXX)
+trap 'rm -rf -- "$dir"' EXIT HUP INT TERM
+pkg="$dir/$PACKAGE.pkg.tar.zst"
+
+# The package, from stdin into root's own folder: no path of the user's is
+# ever opened. At most MAX_BYTES, within two minutes.
+timeout 120 head -c "$((MAX_BYTES + 1))" >"$pkg" || fail "could not read the package"
+size=$(stat -c %s -- "$pkg")
+[ "$size" -gt 0 ] && [ "$size" -le "$MAX_BYTES" ] || fail "the package is empty or too large"
+
+# The checksum, read by root itself from the releases (HTTPS only, redirects
+# too, a small answer within a minute).
+curl --fail --silent --show-error --location \
+  --proto =https --proto-redir =https --tlsv1.2 \
+  --max-time 60 --max-filesize 65536 --max-redirs 5 \
+  --output "$dir/latest.json" -- "$MANIFEST" || fail "could not read the release manifest"
+sha=$(sed -n 's/.*"archSha256":"\([0-9a-f]\{64\}\)".*/\1/p' "$dir/latest.json" | head -n1)
+[ "${#sha}" -eq 64 ] || fail "the release manifest has no checksum"
+printf '%s  %s\n' "$sha" "$pkg" | sha256sum -c --status \
+  || fail "the package is not the latest Game Companion release"
+
+name=$(pacman -Qqp -- "$pkg" 2>/dev/null) || fail "not a pacman package"
+[ "$name" = "$PACKAGE" ] || fail "the package is not $PACKAGE"
+
+pacman -U --noconfirm -- "$pkg"

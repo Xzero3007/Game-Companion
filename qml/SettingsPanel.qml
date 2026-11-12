@@ -61,15 +61,45 @@ Panel {
             Hint { text: nativeWindow.layerShell
                 ? "On KDE's overlay layer: above games in fullscreen, borderless or windowed mode."
                 : "Not on KDE's overlay layer (no Wayland, or built without it): above other windows where the desktop allows it." }
-            Item {
+
+            Item { width: 1; height: 6 }
+            Label { text: "Updates" }
+            Text {
                 width: parent.width
-                height: 40
+                wrapMode: Text.WordWrap
+                text: "This is " + Companion.version() + "."
+                    + (Updates.latest.length > 0 ? " Latest release: " + Updates.latest + "." : "")
+                color: Theme.textSoft
+                font.family: Theme.body
+                font.pixelSize: 13
+            }
+            Hint {
+                visible: Updates.message.length > 0
+                text: Updates.message
+                color: Updates.state === "failed" ? Theme.red
+                    : Updates.state === "available" || Updates.state === "installing" ? Theme.accent : Theme.dim
+            }
+            Row {
+                spacing: 10
                 TextButton {
-                    anchors.bottom: parent.bottom
-                    text: "Quit Game Companion"
-                    danger: true
-                    onClicked: Qt.quit()
+                    text: Updates.state === "checking" ? "Checking…" : "Check for updates"
+                    onClicked: Updates.check()
                 }
+                TextButton {
+                    visible: Updates.state === "available"
+                    text: "Install update"
+                    onClicked: Updates.install()
+                }
+            }
+            Hint { text: "Looks at Game Companion's own releases on GitHub when it starts and every 20 minutes. Nothing else is sent." }
+
+            Item { width: 1; height: 6 }
+            Label { text: "Turn off" }
+            Hint { text: "Closes the hub completely, with the radio. Start it again from the application menu." }
+            TextButton {
+                text: "Turn off Game Companion"
+                danger: true
+                onClicked: Qt.quit()
             }
         }
 
@@ -146,7 +176,7 @@ Panel {
                 font.letterSpacing: 2
             }
             Hint { text: "One overlay for every game on Linux. Free software under the GNU GPL 3.0." }
-            Hint { text: "Nothing is sent: the overlay works without the internet. Anything that will go online (radio, videos) comes only with your yes." }
+            Hint { text: "Nothing is sent: the overlay works without the internet. It goes online only for the radio you play and to look for its own updates on GitHub." }
             Hint { text: "Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project Authors, both under the SIL Open Font License 1.1." }
         }
     }

@@ -1,12 +1,12 @@
 # Builds Game Companion from this checkout: `cd packaging/arch && makepkg -si`
 pkgname=game-companion
-pkgver=0.1.0
+pkgver=0.2.1
 pkgrel=1
 pkgdesc="One overlay for every game on Linux (KDE Plasma, Wayland)"
 arch=(x86_64)
 url="https://github.com/Xzero3007/Game-Companion"
 license=(GPL-3.0-or-later)
-depends=(qt6-base qt6-declarative qt6-wayland layer-shell-qt xdg-desktop-portal)
+depends=(qt6-base qt6-declarative qt6-wayland layer-shell-qt xdg-desktop-portal polkit curl)
 optdepends=('mpv: the radio')
 makedepends=(rust clang)
 options=(!lto !debug)
@@ -36,6 +36,11 @@ package() {
     install -Dm644 packaging/io.github.xzero3007.GameCompanion.desktop \
         "$pkgdir/usr/share/applications/io.github.xzero3007.GameCompanion.desktop"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    # The update button installs without a password: this script, run as root
+    # through pkexec, installs nothing but the latest release (see it).
+    install -Dm755 packaging/arch/game-companion-update "$pkgdir/usr/lib/game-companion-update"
+    install -Dm644 packaging/arch/game-companion-update.policy \
+        "$pkgdir/usr/share/polkit-1/actions/io.github.xzero3007.GameCompanion.update.policy"
     install -Dm644 assets/fonts/OFL-Rajdhani.txt "$pkgdir/usr/share/licenses/$pkgname/OFL-Rajdhani.txt"
     install -Dm644 assets/fonts/OFL-Inter.txt "$pkgdir/usr/share/licenses/$pkgname/OFL-Inter.txt"
 }

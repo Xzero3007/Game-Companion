@@ -97,6 +97,7 @@ Window {
             settingsOpen: root.settingsOpen
             radioOpen: root.radioOpen
             onSettingsClicked: root.settingsOpen = !root.settingsOpen
+            onUpdateClicked: { root.settingsOpen = true; Updates.install() }
             onRadioClicked: root.radioOpen = !root.radioOpen
             onHideClicked: Companion.toggleShown()
             onWidthChanged: root.requestInput()

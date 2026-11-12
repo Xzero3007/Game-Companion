@@ -14,6 +14,7 @@ Item {
     property string gameName: ""
     signal settingsClicked
     signal hideClicked
+    signal updateClicked
 
     // Where the lock button is, for the input region while locked.
     readonly property Item lockButton: lockButton
@@ -98,6 +99,14 @@ Item {
         Rectangle { width: 1; height: 28; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }
         Item { width: 6; height: 1 }
 
+        HudButton {
+            visible: Updates.state === "available" || Updates.state === "downloading" || Updates.state === "installing"
+            icon: "update"
+            label: Updates.state === "available" ? "Update" : "Wait"
+            active: true
+            tip: "Install update " + Updates.latest
+            onClicked: bar.updateClicked()
+        }
         HudButton {
             id: lockButton
             icon: Companion.locked ? "lock" : "unlock"
