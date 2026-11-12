@@ -21,7 +21,7 @@ jobs:
       - name: Install build tools and Qt
         run: |
           pacman -Syu --noconfirm --needed base-devel git rust clang \
-            qt6-base qt6-declarative qt6-wayland layer-shell-qt xdg-desktop-portal
+            qt6-base qt6-declarative qt6-wayland layer-shell-qt xdg-desktop-portal polkit curl
       - uses: actions/checkout@v4
       - name: Tests
         run: cargo test --locked
