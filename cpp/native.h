@@ -18,6 +18,9 @@ class NativeWindow : public QObject
     Q_PROPERTY(bool layerShell READ layerShell CONSTANT)
     /// GC_DEMO for screenshots: "unlocked", "settings", comma-separated.
     Q_PROPERTY(QString demo READ demo CONSTANT)
+    /// GC_TEST_VIDEO for checking the video's drawing: a local file (an
+    /// absolute path) that the Twitch window plays at start.
+    Q_PROPERTY(QString testVideo READ testVideo CONSTANT)
 
 public:
     explicit NativeWindow(QObject *parent = nullptr);
@@ -28,6 +31,7 @@ public:
 
     bool layerShell() const { return m_layerShell; }
     QString demo() const { return m_demo; }
+    QString testVideo() const { return m_testVideo; }
 
     /// The rectangles (window coordinates) that take clicks. Everything else
     /// lets clicks through to the game.
@@ -46,6 +50,7 @@ private:
     QRegion m_inputRegion = QRegion(0, 0, 1, 1);
     bool m_layerShell = false;
     QString m_demo;
+    QString m_testVideo;
 };
 
 int32_t gc_run();

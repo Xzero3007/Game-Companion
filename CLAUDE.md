@@ -139,7 +139,17 @@ learnt, so nothing has to be asked or worked out again.
   (`cpp/native.cpp`): https, three hosts, no redirects. Check video drawing
   in the sandbox with `xvfb-run` and `QT_QPA_PLATFORM=xcb` (llvmpipe GL);
   the sandbox's network blocks Twitch and YouTube (`--ignored` test).
-  `GC_DEMO=streams[,youtube],video` for screenshots.
+  `GC_DEMO=streams[,youtube],video[,quality|,opacity]` for screenshots.
+  Video orientation: mpv renders with FLIP_Y 0 and the item does **not**
+  mirror (it stood on its head with mirroring); check with
+  `GC_TEST_VIDEO=/abs/file.mp4` (a local file plays in the Twitch window)
+  under xvfb, using a test video whose top is marked (`ffmpeg -f lavfi`
+  with drawbox/drawtext): testsrc looks alike both ways up.
+  Following: followedLiveUsers plus twitch.tv's ChannelFollows persisted
+  query and `users(ids:)` (meter patch 0068); Twitch's partial errors ride
+  along as `_errors`. Subscriptions: 8 feeds at once, kept 15 minutes
+  (`Streams.forget()` on refresh). Lists scroll by `WheelScroll` (Qt's own
+  wheel crept); history in `StreamsPanel` (`go`, `back`, `forward`).
 - `HudIcon` draws into a layer (texture): plain shapes were not clipped by
   a list's clip in the software renderer.
 

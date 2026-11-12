@@ -23,8 +23,24 @@ Item {
     property string quality: Streams.quality
     /// 0 to 100, as the bars show it.
     property int volume: Streams.volume
-    /// How much of the video shows (0.2 to 1).
-    property real videoOpacity: 1
+    /// How much of the video shows (0.5 to 1), kept for each window.
+    property real videoOpacity: Streams.opacityOf(slot) / 100
+    function setOpacity(o) {
+        videoOpacity = Math.max(0.5, Math.min(1, Math.round(o * 10) / 10))
+        Streams.saveOpacity(slot, Math.round(videoOpacity * 100))
+    }
+    readonly property var qualities: [
+        { id: "best", name: "SOURCE" }, { id: "1080", name: "1080P" }, { id: "720", name: "720P" },
+        { id: "480", name: "480P" }, { id: "360", name: "360P" }, { id: "audio", name: "SOUND ONLY" }
+    ]
+    readonly property var opacities: [
+        { id: "100", name: "100 %" }, { id: "90", name: "90 %" }, { id: "80", name: "80 %" },
+        { id: "70", name: "70 %" }, { id: "60", name: "60 %" }, { id: "50", name: "50 %" }
+    ]
+    function qualityName(q) {
+        for (const o of qualities) if (o.id === q) return o.name
+        return q + "P"
+    }
     property string via: ""
     signal areaChanged
 
@@ -55,6 +71,11 @@ Item {
         via = src.via
         video.volume = mpvVolume(volume)
         video.play(src.url, src.format, start || 0)
+    }
+    // Development only (GC_TEST_VIDEO): a local file, to check the drawing.
+    function playFile(path) {
+        item = { kind: "file", id: path, name: "test", title: path }
+        video.play(path, "", 0)
     }
     function stop() {
         video.stop()
@@ -105,7 +126,12 @@ Item {
         y = Math.max(0, Math.min(y, parent.height - 40))
         placed = true
     }
-    Component.onCompleted: place()
+    Component.onCompleted: {
+        place()
+        // Screenshots: GC_DEMO=video,quality or video,opacity opens that list.
+        if (nativeWindow.demo.indexOf("quality") >= 0) qualityPicker.open = true
+        if (nativeWindow.demo.indexOf("opacity") >= 0) opacityPicker.open = true
+    }
     Connections {
         target: win.parent
         function onWidthChanged() { win.place() }
@@ -153,7 +179,18 @@ Item {
         color: Theme.accent
     }
 
-    // Hover: the bars (unlocked only; locked, nothing here takes the pointer).
+    // The pointer anywhere on the window, its buttons too, keeps the bars;
+    // they go a moment after it leaves (no flicker between the buttons).
+    HoverHandler {
+        id: pointerOn
+        enabled: !Companion.locked
+    }
+    readonly property bool barsWanted: pointerOn.hovered || qualityPicker.open || opacityPicker.open
+    onBarsWantedChanged: if (!barsWanted) barsLinger.restart()
+    Timer { id: barsLinger; interval: 700 }
+
+    // Dragging, and a double click pauses (unlocked only; locked, nothing
+    // here takes the pointer).
     MouseArea {
         id: hover
         anchors.fill: parent
@@ -168,7 +205,8 @@ Item {
         onReleased: win.remember()
         onDoubleClicked: win.togglePause()
     }
-    readonly property bool showBars: !Companion.locked && (hover.containsMouse || nativeWindow.demo.indexOf("video") >= 0)
+    readonly property bool showBars: !Companion.locked && (barsWanted || barsLinger.running || nativeWindow.demo.indexOf("video") >= 0)
+    onShowBarsChanged: if (!showBars) { qualityPicker.open = false; opacityPicker.open = false }
 
     // Top bar: name, pin, quality, close.
     Rectangle {
@@ -250,8 +288,8 @@ Item {
                 Text {
                     id: qualityText
                     anchors.centerIn: parent
-                    text: win.quality === "audio" ? "SOUND" : win.quality + "P"
-                    color: qualityMouse.containsMouse ? Theme.text : Theme.muted
+                    text: win.qualityName(win.quality) + " ▾"
+                    color: qualityPicker.open ? Theme.accent : qualityMouse.containsMouse ? Theme.text : Theme.muted
                     font.family: Theme.display
                     font.pixelSize: 12
                     font.weight: Font.Bold
@@ -262,14 +300,10 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    // Steps through the qualities.
-                    onClicked: {
-                        const all = ["1080", "720", "480", "360", "audio"]
-                        win.setQuality(all[(all.indexOf(win.quality) + 1) % all.length])
-                    }
+                    onClicked: { opacityPicker.open = false; qualityPicker.open = !qualityPicker.open }
                 }
-                Accessible.role: Accessible.Button
-                Accessible.name: "Quality " + qualityText.text + " (click: the next one)"
+                Accessible.role: Accessible.ComboBox
+                Accessible.name: "Quality: " + win.qualityName(win.quality)
             }
             IconButton {
                 anchors.verticalCenter: parent.verticalCenter
@@ -343,8 +377,8 @@ Item {
             Text {
                 id: opacityText
                 anchors.centerIn: parent
-                text: "◐ " + Math.round(win.videoOpacity * 100) + "%"
-                color: opacityMouse.containsMouse ? Theme.text : Theme.muted
+                text: "◐ " + Math.round(win.videoOpacity * 100) + " % ▾"
+                color: opacityPicker.open ? Theme.accent : opacityMouse.containsMouse ? Theme.text : Theme.muted
                 font.family: Theme.display
                 font.pixelSize: 12
                 font.weight: Font.Bold
@@ -354,11 +388,11 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                // 100, 80, 60, 40, 20, then 100 again; the wheel steps by 10.
-                onClicked: win.videoOpacity = win.videoOpacity <= 0.21 ? 1 : Math.round((win.videoOpacity - 0.2) * 10) / 10
-                onWheel: (w) => win.videoOpacity = Math.max(0.2, Math.min(1, Math.round((win.videoOpacity + (w.angleDelta.y > 0 ? 0.1 : -0.1)) * 10) / 10))
+                // A list of 100 to 50 %; the wheel steps by 10 too.
+                onClicked: { qualityPicker.open = false; opacityPicker.open = !opacityPicker.open }
+                onWheel: (w) => win.setOpacity(win.videoOpacity + (w.angleDelta.y > 0 ? 0.1 : -0.1))
             }
-            Accessible.role: Accessible.Button
+            Accessible.role: Accessible.ComboBox
             Accessible.name: "How much of the video shows: " + opacityText.text
         }
     }
@@ -380,6 +414,29 @@ Item {
             cursorShape: Qt.PointingHandCursor
             onClicked: (m) => video.seek(video.duration * m.x / width, false)
         }
+    }
+
+    // The lists: quality under the top bar, opacity over the bottom bar.
+    Picker {
+        id: qualityPicker
+        anchors.right: parent.right
+        anchors.rightMargin: 36
+        y: 36
+        maxHeight: win.height - y - 4
+        options: win.qualities
+        current: win.quality
+        onChosen: (id) => win.setQuality(id)
+    }
+    Picker {
+        id: opacityPicker
+        anchors.right: parent.right
+        anchors.rightMargin: 22
+        anchors.bottom: bottomBar.top
+        anchors.bottomMargin: 6
+        maxHeight: win.height - 48
+        options: win.opacities
+        current: String(Math.round(win.videoOpacity * 100))
+        onChosen: (id) => win.setOpacity(Number(id) / 100)
     }
 
     function clock(s) {

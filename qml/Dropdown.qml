@@ -106,5 +106,6 @@ Item {
                 }
             }
         }
+        WheelScroll { flick: list; step: 30 * 3 }
     }
 }

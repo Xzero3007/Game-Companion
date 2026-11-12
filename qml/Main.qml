@@ -65,6 +65,7 @@ Window {
         if (demo.indexOf("radio") >= 0) radioOpen = true
         if (demo.indexOf("streams") >= 0) streamsOpen = true
         if (demo.indexOf("video") >= 0) twitchVideo.item = { kind: "twitch", id: "streamer_one", name: "streamer_one", game: "AION 2", title: "" }
+        if (nativeWindow.testVideo.length > 0) twitchVideo.playFile(nativeWindow.testVideo)
         if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
         requestInput()
     }

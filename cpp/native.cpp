@@ -24,6 +24,11 @@ NativeWindow::NativeWindow(QObject *parent)
     : QObject(parent)
     , m_demo(qEnvironmentVariable("GC_DEMO"))
 {
+    // A local file only: never an address.
+    const QString file = qEnvironmentVariable("GC_TEST_VIDEO");
+    if (file.startsWith(QLatin1Char('/'))) {
+        m_testVideo = file;
+    }
 }
 
 void NativeWindow::attach(QQuickWindow *window)

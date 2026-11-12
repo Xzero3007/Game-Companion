@@ -98,6 +98,8 @@ private:
     mpv_handle *m_mpv = nullptr;
     QString m_state = QStringLiteral("idle");
     QString m_error;
+    /// mpv's or yt-dlp's last warning about the file playing now.
+    QString m_why;
     QString m_title;
     bool m_paused = false;
     bool m_muted = false;

@@ -3,6 +3,9 @@
 //! Twitch sign-in; and the address a video player plays.
 
 use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{mpsc, Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::QString;
@@ -45,6 +48,8 @@ pub mod qobject {
         #[qproperty(QString, account)]
         #[qproperty(QString, quality)]
         #[qproperty(i32, volume)]
+        /// The lists as tiles side by side.
+        #[qproperty(bool, grid)]
         type Streams = super::StreamsRust;
 
         /// Loads a Twitch list: "game", "following", "favourites", "live" or "search" (with `text`).
@@ -86,6 +91,20 @@ pub mod qobject {
         #[qinvokable]
         fn save_volume(self: Pin<&mut Streams>, volume: i32);
 
+        #[qinvokable]
+        fn save_grid(self: Pin<&mut Streams>, grid: bool);
+
+        /// How much of a video window shows, in percent (50 to 100).
+        #[qinvokable]
+        fn opacity_of(self: &Streams, slot: &QString) -> i32;
+
+        #[qinvokable]
+        fn save_opacity(self: Pin<&mut Streams>, slot: &QString, percent: i32);
+
+        /// Forgets the subscriptions kept for a while: the next load asks again.
+        #[qinvokable]
+        fn forget(self: Pin<&mut Streams>);
+
         /// What a player plays: JSON `{"url","format","via"}` or `{"error"}`.
         /// Twitch goes through Streamlink when it is installed.
         #[qinvokable]
@@ -123,6 +142,7 @@ pub struct StreamsRust {
     account: QString,
     quality: QString,
     volume: i32,
+    grid: bool,
     twitch_request: u64,
     youtube_request: u64,
 }
@@ -139,6 +159,72 @@ fn channels_json(own: &[Channel]) -> String {
         }
     }
     Value::Array(list).to_string()
+}
+
+/// At most this many channels' feeds make the subscriptions.
+const MAX_CHANNELS: usize = 120;
+/// Feeds asked at once.
+const FEEDS_AT_ONCE: usize = 8;
+/// How long loaded subscriptions are kept (the refresh button asks again).
+const KEEP_SUBSCRIPTIONS: Duration = Duration::from_secs(15 * 60);
+
+type Kept = Option<(Instant, Vec<String>, Vec<Value>)>;
+
+fn subscriptions_kept() -> &'static Mutex<Kept> {
+    static KEPT: OnceLock<Mutex<Kept>> = OnceLock::new();
+    KEPT.get_or_init(|| Mutex::new(None))
+}
+
+/// The subscriptions loaded a little earlier for the same channels.
+fn kept_subscriptions(ids: &[String]) -> Option<Vec<Value>> {
+    let kept = subscriptions_kept().lock().unwrap_or_else(|p| p.into_inner());
+    kept.as_ref().filter(|(at, kept_ids, _)| at.elapsed() < KEEP_SUBSCRIPTIONS && kept_ids == ids).map(|(_, _, v)| v.clone())
+}
+
+fn keep_subscriptions(ids: &[String], videos: &[Value]) {
+    *subscriptions_kept().lock().unwrap_or_else(|p| p.into_inner()) = Some((Instant::now(), ids.to_vec(), videos.to_vec()));
+}
+
+/// The newest 60 videos, newest first.
+fn newest(mut all: Vec<Value>) -> Vec<Value> {
+    all.sort_by(|a, b| b["published"].as_str().cmp(&a["published"].as_str()));
+    all.truncate(60);
+    all
+}
+
+/// The channels' feeds, several at once (each channel's newest five).
+/// `progress` hears how many are done and what came so far, now and then.
+fn fetch_feeds(ids: Vec<String>, progress: impl Fn(usize, &[Value])) -> (Vec<Value>, Option<String>) {
+    let ids = Arc::new(ids);
+    let next = Arc::new(AtomicUsize::new(0));
+    let (tx, rx) = mpsc::channel();
+    for _ in 0..FEEDS_AT_ONCE.min(ids.len()) {
+        let (ids, next, tx) = (ids.clone(), next.clone(), tx.clone());
+        std::thread::spawn(move || loop {
+            let i = next.fetch_add(1, Ordering::Relaxed);
+            let Some(id) = ids.get(i) else { break };
+            if tx.send(streams::youtube_feed(id)).is_err() {
+                break;
+            }
+        });
+    }
+    drop(tx);
+    let mut all = Vec::new();
+    let mut failed = None;
+    let mut done = 0;
+    let mut told = Instant::now();
+    for result in rx {
+        done += 1;
+        match result {
+            Ok(v) => all.extend(v.into_iter().take(5)),
+            Err(e) => failed = Some(e),
+        }
+        if told.elapsed() > Duration::from_millis(700) && done < ids.len() {
+            progress(done, &all);
+            told = Instant::now();
+        }
+    }
+    (all, failed)
 }
 
 fn account_json(user: &str) -> String {
@@ -166,6 +252,7 @@ impl Default for StreamsRust {
             account: q(&account_json(if streams::twitch_token().is_some() { "…" } else { "" })),
             quality: q(&s.quality),
             volume: i32::from(s.volume),
+            grid: s.grid,
             twitch_request: 0,
             youtube_request: 0,
         };
@@ -252,7 +339,7 @@ impl qobject::Streams {
                     "live" => (streams::twitch_query("live", &Value::Null)?, None),
                     "favourites" if favourites.is_empty() => return Ok(Vec::new()),
                     "favourites" => (streams::twitch_query("channels", &json!(favourites))?, None),
-                    "following" => (streams::twitch_query("followedLive", &Value::Null)?, token.as_deref()),
+                    "following" => return streams::twitch_followed(token.as_deref().unwrap_or_default()),
                     _ => {
                         // An exact name finds that channel too, first.
                         let mut cards = Vec::new();
@@ -279,9 +366,10 @@ impl qobject::Streams {
                 match result {
                     Ok(cards) => {
                         let live = cards.iter().filter(|c| c["live"] == true).count();
+                        let message = if view == "following" { format!("{live} live · {} followed", cards.len()) } else { format!("{live} live") };
                         obj.as_mut().set_twitch(q(&Value::Array(cards).to_string()));
                         obj.as_mut().set_twitch_state(q("ready"));
-                        obj.set_twitch_message(q(&format!("{live} live")));
+                        obj.set_twitch_message(q(&message));
                     }
                     Err(why) => {
                         obj.as_mut().set_twitch(q("[]"));
@@ -343,19 +431,28 @@ impl qobject::Streams {
                         if ids.is_empty() {
                             return Err("No channels yet: FreeTube's subscriptions show here, and channels you add with the star.".into());
                         }
-                        let mut all = Vec::new();
-                        let mut failed = None;
-                        for id in ids.iter().take(80) {
-                            match streams::youtube_feed(id) {
-                                Ok(v) => all.extend(v.into_iter().take(5)),
-                                Err(e) => failed = Some(e),
-                            }
+                        ids.truncate(MAX_CHANNELS);
+                        if let Some(kept) = kept_subscriptions(&ids) {
+                            return Ok(kept);
                         }
+                        let total = ids.len();
+                        let progress = thread.clone();
+                        let (all, failed) = fetch_feeds(ids.clone(), move |done, so_far| {
+                            // What came so far shows while the rest loads.
+                            let so_far = newest(so_far.to_vec());
+                            let _ = progress.queue(move |mut obj: Pin<&mut qobject::Streams>| {
+                                if obj.rust().youtube_request != request {
+                                    return;
+                                }
+                                obj.as_mut().set_youtube(q(&Value::Array(so_far).to_string()));
+                                obj.set_youtube_message(q(&format!("{done} of {total} channels")));
+                            });
+                        });
                         if all.is_empty() {
                             return Err(failed.unwrap_or_else(|| "Nothing new.".into()));
                         }
-                        all.sort_by(|a, b| b["published"].as_str().cmp(&a["published"].as_str()));
-                        all.truncate(60);
+                        let all = newest(all);
+                        keep_subscriptions(&ids, &all);
                         Ok(all)
                     }
                 }
@@ -480,10 +577,32 @@ impl qobject::Streams {
 
     fn save_quality(self: Pin<&mut Self>, quality: &QString) {
         let quality = quality.to_string();
-        if quality == "audio" || quality.parse::<u32>().is_ok_and(|h| (144..=2160).contains(&h)) {
+        if quality == "audio" || quality == "best" || quality.parse::<u32>().is_ok_and(|h| (144..=2160).contains(&h)) {
             settings::change(|s| s.streams.quality = quality.clone());
             self.set_quality(q(&quality));
         }
+    }
+
+    fn save_grid(self: Pin<&mut Self>, grid: bool) {
+        settings::change(|s| s.streams.grid = grid);
+        self.set_grid(grid);
+    }
+
+    fn opacity_of(&self, slot: &QString) -> i32 {
+        let slot = slot.to_string();
+        settings::read(|s| s.streams.video_opacity.get(&slot).copied()).map_or(100, |p| i32::from(p.clamp(50, 100)))
+    }
+
+    fn save_opacity(self: Pin<&mut Self>, slot: &QString, percent: i32) {
+        let slot = slot.to_string();
+        if slot == "twitch" || slot == "youtube" {
+            let p = percent.clamp(50, 100) as u8;
+            settings::change(|s| s.streams.video_opacity.insert(slot.clone(), p));
+        }
+    }
+
+    fn forget(self: Pin<&mut Self>) {
+        *subscriptions_kept().lock().unwrap_or_else(|p| p.into_inner()) = None;
     }
 
     fn save_volume(self: Pin<&mut Self>, volume: i32) {

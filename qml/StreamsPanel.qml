@@ -30,8 +30,57 @@ Panel {
     /// YouTube: the channel whose videos show ("" for none).
     property var channel: null
 
+    // The count, or how far a long load is (YouTube's subscriptions).
     badge: onTwitch ? (Streams.twitchState === "ready" ? Streams.twitchMessage.toUpperCase() : "")
-        : (Streams.youtubeState === "ready" ? Streams.youtubeMessage.toUpperCase() : "")
+        : (Streams.youtubeState === "ready" || Streams.youtubeState === "loading" ? Streams.youtubeMessage.toUpperCase() : "")
+    readonly property bool tiles: Streams.grid
+    readonly property bool channelsView: !onTwitch && Streams.youtubeView === "channels"
+
+    // Back and forth through tabs, lists, searches and channels, as in a
+    // browser: { tab, view, text, channel }.
+    property var history: []
+    property int at: -1
+    readonly property bool canBack: at > 0
+    readonly property bool canForward: at < history.length - 1
+    function stateNow() {
+        return { tab: Streams.tab, view: onTwitch ? Streams.twitchView : Streams.youtubeView, text: search.text, channel: channel }
+    }
+    function go(s) {
+        let h = history.slice(0, at + 1)
+        // An empty search tab is replaced by its search.
+        const last = h.length > 0 ? h[h.length - 1] : null
+        if (last && last.tab === s.tab && last.view === "search" && !last.text && s.view === "search") h.pop()
+        h.push(s)
+        if (h.length > 50) h = h.slice(h.length - 50)
+        history = h
+        at = h.length - 1
+        apply(s)
+    }
+    function apply(s) {
+        if (Streams.tab !== s.tab) Streams.chooseTab(s.tab)
+        search.text = s.text || ""
+        channel = s.channel || null
+        if (s.tab === "twitch") {
+            Streams.loadTwitch(s.view, s.view === "search" ? search.text : "")
+        } else if (s.view === "channel" && channel) {
+            Streams.loadYoutube("channel", channel.id)
+        } else {
+            Streams.loadYoutube(s.view === "channel" ? "channels" : s.view, s.view === "search" ? search.text : "")
+        }
+        if (s.view === "search" && !s.text) search.forceActiveFocus()
+    }
+    function back() { if (canBack) { at = at - 1; apply(history[at]) } }
+    function forward() { if (canForward) { at = at + 1; apply(history[at]) } }
+    Shortcut {
+        sequences: ["Alt+Left", StandardKey.Back]
+        enabled: panel.visible && !Companion.locked
+        onActivated: panel.back()
+    }
+    Shortcut {
+        sequences: ["Alt+Right", StandardKey.Forward]
+        enabled: panel.visible && !Companion.locked
+        onActivated: panel.forward()
+    }
 
     property bool loadedOnce: false
     onVisibleChanged: if (visible && !loadedOnce) firstLoad()
@@ -39,6 +88,9 @@ Panel {
     function firstLoad() {
         loadedOnce = true
         Streams.refreshAccount()
+        if (Streams.youtubeView === "channel") Streams.loadYoutube("channels", "")
+        history = [stateNow()]
+        at = 0
         reload()
     }
     function reload() {
@@ -59,10 +111,8 @@ Panel {
             // A pasted link plays at once.
             const id = Streams.videoId(text)
             if (id.length > 0) { panel.playRequested({ kind: "youtube", id: id, title: "", name: "" }); return }
-            Streams.loadYoutube("search", text)
-        } else {
-            Streams.loadTwitch("search", text)
         }
+        go({ tab: Streams.tab, view: "search", text: text, channel: null })
     }
     function ago(iso) {
         if (!iso) return ""
@@ -91,13 +141,54 @@ Panel {
         width: parent.width
         spacing: 10
 
-        // Twitch / YouTube / Jellyfin
-        Row {
-            spacing: 18
+        // Twitch / YouTube / Jellyfin; back, forth, tiles or rows.
+        Item {
+            width: parent.width
             height: 30
-            SiteTab { name: "twitch"; label: "Twitch" }
-            SiteTab { name: "youtube"; label: "YouTube" }
-            SiteTab { name: "jellyfin"; label: "Jellyfin"; enabled: false }
+            Row {
+                spacing: 18
+                height: 30
+                SiteTab { name: "twitch"; label: "Twitch" }
+                SiteTab { name: "youtube"; label: "YouTube" }
+                SiteTab { name: "jellyfin"; label: "Jellyfin"; enabled: false }
+            }
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: -6
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
+                IconButton {
+                    icon: "back"
+                    iconSize: 16
+                    color: panel.canBack ? Theme.muted : Theme.track
+                    hoverColor: panel.canBack ? Theme.accent : Theme.track
+                    tip: "Back (Alt+Left, the mouse's back button)"
+                    onClicked: panel.back()
+                }
+                IconButton {
+                    icon: "forward"
+                    iconSize: 16
+                    color: panel.canForward ? Theme.muted : Theme.track
+                    hoverColor: panel.canForward ? Theme.accent : Theme.track
+                    tip: "Forward (Alt+Right, the mouse's forward button)"
+                    onClicked: panel.forward()
+                }
+                Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 1; height: 16; color: Theme.divider }
+                IconButton {
+                    icon: "grid"
+                    iconSize: 14
+                    color: panel.tiles ? Theme.accent : Theme.muted
+                    tip: "Tiles side by side"
+                    onClicked: Streams.saveGrid(true)
+                }
+                IconButton {
+                    icon: "list"
+                    iconSize: 14
+                    color: !panel.tiles ? Theme.accent : Theme.muted
+                    tip: "Rows"
+                    onClicked: Streams.saveGrid(false)
+                }
+            }
         }
 
         // The game's preset, in purple.
@@ -275,7 +366,7 @@ Panel {
         Row {
             visible: !panel.onTwitch && Streams.youtubeView === "channel" && panel.channel !== null
             spacing: 10
-            TextButton { text: "‹ Channels"; onClicked: { panel.channel = null; Streams.loadYoutube("channels", "") } }
+            TextButton { text: "‹ Channels"; onClicked: panel.go({ tab: "youtube", view: "channels", text: "", channel: null }) }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: panel.channel ? panel.channel.name : ""
@@ -287,42 +378,83 @@ Panel {
         }
 
         Item {
+            id: listArea
             x: -14
             width: parent.width + 28
-            height: 79 * 4 + panel.grow
+            // Rows: four; tiles: two rows of them.
+            height: (panel.tiles && !panel.channelsView ? Math.max(79 * 4, grid.cellHeight * 2) : 79 * 4) + panel.grow
             clip: true
+            readonly property int columns: Math.max(2, Math.min(4, Math.floor((width - 16) / 230)))
+            readonly property int channelColumns: Math.max(2, Math.min(5, Math.floor((width - 16) / 190)))
+            readonly property Flickable shown: panel.channelsView ? (panel.tiles ? channelGrid : channelList) : (panel.tiles ? grid : list)
+            // The mouse's back and forward buttons.
+            TapHandler {
+                acceptedButtons: Qt.BackButton | Qt.ForwardButton
+                onTapped: (point, button) => button === Qt.BackButton ? panel.back() : panel.forward()
+            }
 
             ListView {
                 id: list
                 anchors.fill: parent
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                visible: !(!panel.onTwitch && Streams.youtubeView === "channels")
-                model: panel.onTwitch ? panel.twitchList : panel.youtubeList
+                visible: !panel.channelsView && !panel.tiles
+                model: visible ? (panel.onTwitch ? panel.twitchList : panel.youtubeList) : []
                 delegate: panel.onTwitch ? twitchRow : videoRow
+            }
+            GridView {
+                id: grid
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                visible: !panel.channelsView && panel.tiles
+                cellWidth: Math.floor(width / listArea.columns)
+                cellHeight: Math.round((cellWidth - 12) * 9 / 16) + 78
+                model: visible ? (panel.onTwitch ? panel.twitchList : panel.youtubeList) : []
+                delegate: panel.onTwitch ? twitchTile : videoTile
             }
             ListView {
                 id: channelList
                 anchors.fill: parent
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                visible: !panel.onTwitch && Streams.youtubeView === "channels"
-                model: panel.channels
+                visible: panel.channelsView && !panel.tiles
+                model: visible ? panel.channels : []
                 delegate: channelRow
             }
+            GridView {
+                id: channelGrid
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                visible: panel.channelsView && panel.tiles
+                cellWidth: Math.floor(width / listArea.channelColumns)
+                cellHeight: 62
+                model: visible ? panel.channels : []
+                delegate: channelTile
+            }
+            WheelScroll { flick: list; step: 79 * 2 }
+            WheelScroll { flick: grid; step: grid.cellHeight }
+            WheelScroll { flick: channelList; step: 46 * 3 }
+            WheelScroll { flick: channelGrid; step: 62 * 2 }
             Text {
                 anchors.centerIn: parent
                 width: parent.width - 60
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 readonly property string st: panel.onTwitch ? Streams.twitchState : Streams.youtubeState
-                readonly property int count: channelList.visible ? panel.channels.length : list.count
-                visible: st === "loading" || st === "failed" || count === 0
+                readonly property int count: listArea.shown.count
+                visible: (st === "loading" && count === 0) || st === "failed" || (st !== "loading" && count === 0)
                 text: st === "loading" ? "Loading…"
                     : st === "failed" ? (panel.onTwitch ? Streams.twitchMessage : Streams.youtubeMessage)
-                    : channelList.visible ? "No channels yet: FreeTube's subscriptions show here, and channels you keep with the star beside a video."
+                    : panel.channelsView ? "No channels yet: FreeTube's subscriptions show here, and channels you keep with the star beside a video."
                     : (panel.onTwitch ? Streams.twitchView : Streams.youtubeView) === "search" ? "Type, then Enter."
                     : panel.onTwitch && Streams.twitchView === "favourites" ? "No favorites yet: the star beside a channel keeps it."
+                    : panel.onTwitch && Streams.twitchView === "following" ? "You follow no channels yet."
                     : st === "idle" ? "" : "Nothing here right now."
                 color: st === "failed" ? Theme.red : Theme.dim
                 font.family: Theme.body
@@ -361,7 +493,7 @@ Panel {
                 iconSize: 13
                 color: Theme.dim
                 tip: "Load again"
-                onClicked: panel.reload()
+                onClicked: { Streams.forget(); panel.reload() }
             }
         }
     }
@@ -584,11 +716,13 @@ Panel {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: { panel.channel = row.modelData; Streams.loadYoutube("channel", row.modelData.id) }
+                onClicked: panel.go({ tab: "youtube", view: "channel", text: "", channel: row.modelData })
             }
             Column {
-                x: 14
+                anchors.left: parent.left
+                anchors.leftMargin: 14
                 anchors.right: star.left
+                anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
                 Text {
                     width: parent.width
@@ -624,6 +758,301 @@ Panel {
         }
     }
 
+    // Tiles: side by side, two to four a row as the panel is wide.
+    component Tile: Item {
+        id: tile
+        property bool current: false
+        property bool hovered: tileMouse.containsMouse
+        readonly property Item thumb: tileThumb
+        property string picture
+        property bool dimmed: false
+        default property alias extra: info.data
+        signal clicked
+        width: GridView.view.cellWidth
+        height: GridView.view.cellHeight
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 3
+            color: tile.current ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.10) : (tile.hovered ? Qt.rgba(1, 1, 1, 0.04) : "transparent")
+            Rectangle { visible: tile.current; width: parent.width; height: 2; color: Theme.accent }
+        }
+        MouseArea {
+            id: tileMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: tile.clicked()
+        }
+        Thumb {
+            id: tileThumb
+            source: tile.picture
+            dimmed: tile.dimmed
+            x: 6
+            y: 6
+            width: parent.width - 12
+            height: Math.round(width * 9 / 16)
+        }
+        Item {
+            id: info
+            x: 6
+            anchors.top: tileThumb.bottom
+            anchors.topMargin: 6
+            width: parent.width - 12
+            anchors.bottom: parent.bottom
+        }
+    }
+
+    Component {
+        id: twitchTile
+        Tile {
+            id: tile
+            required property var modelData
+            current: panel.playingTwitch === modelData.login
+            readonly property bool fav: panel.favs.indexOf(modelData.login.toLowerCase()) >= 0
+            picture: modelData.live ? modelData.picture : modelData.avatar
+            dimmed: !modelData.live
+            onClicked: if (modelData.live) panel.playRequested({ kind: "twitch", id: modelData.login, name: modelData.name, game: modelData.game, title: modelData.title })
+            Rectangle {
+                parent: tile.thumb
+                visible: tile.modelData.live
+                x: 4; y: 4
+                width: tileLive.implicitWidth + 8
+                height: tileLive.implicitHeight + 2
+                color: Theme.red
+                Text { id: tileLive; anchors.centerIn: parent; text: "LIVE"; color: "#ffffff"; font.pixelSize: 9; font.weight: Font.Bold; font.family: Theme.body }
+            }
+            Rectangle {
+                parent: tile.thumb
+                visible: tile.modelData.live
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                anchors.margins: 4
+                width: tileViewers.implicitWidth + 8
+                height: tileViewers.implicitHeight + 2
+                color: Qt.rgba(0, 0, 0, 0.75)
+                Text {
+                    id: tileViewers
+                    anchors.centerIn: parent
+                    text: Number(tile.modelData.viewers).toLocaleString(Qt.locale("en_US"), "f", 0) + " viewers"
+                    color: Theme.text
+                    font.family: Theme.body
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                }
+            }
+            Text {
+                parent: tile.thumb
+                visible: tile.current
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: 4
+                text: "PLAYING"
+                color: Theme.accent
+                font.family: Theme.display
+                font.pixelSize: 11
+                font.weight: Font.Bold
+                font.letterSpacing: 1
+            }
+            Column {
+                anchors.left: parent.left
+                anchors.right: tileStar.left
+                anchors.rightMargin: 4
+                spacing: 1
+                Text {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: tile.modelData.name
+                    color: tile.current ? Theme.accent : Theme.text
+                    font.family: Theme.body
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: tile.modelData.live ? tile.modelData.title : "Offline"
+                    color: Theme.textSoft
+                    font.family: Theme.body
+                    font.pixelSize: 12
+                }
+                Text {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    visible: tile.modelData.live
+                    text: {
+                        const parts = []
+                        if (tile.modelData.game && Streams.twitchView !== "game") parts.push(tile.modelData.game)
+                        const t = panel.since(tile.modelData.since)
+                        if (t) parts.push(t)
+                        return parts.join(" · ")
+                    }
+                    color: Theme.dim
+                    font.family: Theme.body
+                    font.pixelSize: 11
+                }
+            }
+            IconButton {
+                id: tileStar
+                anchors.right: parent.right
+                anchors.rightMargin: -6
+                y: -6
+                width: 30
+                height: 30
+                icon: "star"
+                iconSize: 15
+                filled: tile.fav
+                color: tile.fav ? Theme.accent : Theme.dim
+                tip: tile.fav ? "Remove from favorites" : "Add to favorites"
+                onClicked: Streams.toggleFavourite(tile.modelData.login)
+            }
+        }
+    }
+
+    Component {
+        id: videoTile
+        Tile {
+            id: tile
+            required property var modelData
+            current: panel.playingYoutube === modelData.id
+            readonly property bool kept: !!modelData.channelId && panel.channels.some((c) => c.id === modelData.channelId && !c.freetube)
+            picture: modelData.picture
+            onClicked: panel.playRequested({ kind: "youtube", id: modelData.id, title: modelData.title, name: modelData.channel })
+            Rectangle {
+                parent: tile.thumb
+                visible: tile.modelData.duration > 0 || tile.modelData.live
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: 4
+                width: tileLength.implicitWidth + 8
+                height: tileLength.implicitHeight + 2
+                color: tile.modelData.live ? Theme.red : Qt.rgba(0, 0, 0, 0.75)
+                Text {
+                    id: tileLength
+                    anchors.centerIn: parent
+                    text: tile.modelData.live ? "LIVE" : panel.clock(tile.modelData.duration)
+                    color: Theme.text
+                    font.family: Theme.body
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                }
+            }
+            Text {
+                parent: tile.thumb
+                visible: tile.current
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                anchors.margins: 4
+                text: "WATCHING"
+                color: Theme.accent
+                font.family: Theme.display
+                font.pixelSize: 11
+                font.weight: Font.Bold
+                font.letterSpacing: 1
+            }
+            Column {
+                anchors.left: parent.left
+                anchors.right: tileStar.left
+                anchors.rightMargin: 4
+                spacing: 2
+                Text {
+                    width: parent.width
+                    maximumLineCount: 2
+                    wrapMode: Text.WordWrap
+                    elide: Text.ElideRight
+                    text: tile.modelData.title
+                    color: tile.current ? Theme.accent : Theme.text
+                    font.family: Theme.body
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    lineHeight: 1.05
+                }
+                Text {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: [tile.modelData.channel, panel.ago(tile.modelData.published)].filter((t) => t).join(" · ")
+                    color: Theme.dim
+                    font.family: Theme.body
+                    font.pixelSize: 11
+                }
+            }
+            IconButton {
+                id: tileStar
+                visible: !!tile.modelData.channelId
+                anchors.right: parent.right
+                anchors.rightMargin: -6
+                y: -6
+                width: visible ? 30 : 0
+                height: 30
+                icon: "star"
+                iconSize: 15
+                filled: tile.kept
+                color: tile.kept ? Theme.accent : Theme.dim
+                tip: tile.kept ? "Remove the channel from My channels" : "Keep the channel in My channels"
+                onClicked: Streams.toggleChannel(tile.modelData.channelId, tile.modelData.channel)
+            }
+        }
+    }
+
+    Component {
+        id: channelTile
+        Item {
+            id: tile
+            required property var modelData
+            width: GridView.view.cellWidth
+            height: GridView.view.cellHeight
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 3
+                color: tileMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(1, 1, 1, 0.025)
+                Rectangle { width: 2; height: parent.height; color: tile.modelData.freetube ? Theme.track : Theme.accent }
+            }
+            MouseArea {
+                id: tileMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: panel.go({ tab: "youtube", view: "channel", text: "", channel: tile.modelData })
+            }
+            Column {
+                anchors.left: parent.left
+                anchors.leftMargin: 14
+                anchors.right: tileStar.left
+                anchors.rightMargin: 2
+                anchors.verticalCenter: parent.verticalCenter
+                Text {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: tile.modelData.name
+                    color: Theme.text
+                    font.family: Theme.body
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    text: tile.modelData.freetube ? "From FreeTube" : "Kept here"
+                    color: Theme.dim
+                    font.family: Theme.body
+                    font.pixelSize: 11
+                }
+            }
+            IconButton {
+                id: tileStar
+                visible: !tile.modelData.freetube
+                anchors.right: parent.right
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                width: visible ? 30 : 4
+                height: 30
+                icon: "star"
+                iconSize: 15
+                filled: true
+                color: Theme.accent
+                tip: "Remove the channel"
+                onClicked: Streams.toggleChannel(tile.modelData.id, tile.modelData.name)
+            }
+        }
+    }
+
     component Thumb: Rectangle {
         property alias source: img.source
         property bool dimmed: false
@@ -637,7 +1066,7 @@ Panel {
             asynchronous: true
             fillMode: Image.PreserveAspectCrop
             opacity: parent.dimmed ? 0.5 : 1
-            sourceSize.width: 224
+            sourceSize.width: 320
         }
     }
 
@@ -684,8 +1113,8 @@ Panel {
             cursorShape: Qt.PointingHandCursor
             onClicked: {
                 if (Streams.tab === parent.name) return
-                Streams.chooseTab(parent.name)
-                panel.reload()
+                const view = parent.name === "twitch" ? Streams.twitchView : (Streams.youtubeView === "channel" ? "channels" : Streams.youtubeView)
+                panel.go({ tab: parent.name, view: view, text: "", channel: null })
             }
         }
         Accessible.role: Accessible.PageTab
@@ -736,17 +1165,7 @@ Panel {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: {
-                if (twitch) {
-                    if (name === "search") { Streams.loadTwitch("search", ""); search.forceActiveFocus(); return }
-                    Streams.loadTwitch(name, "")
-                } else {
-                    panel.channel = null
-                    if (name === "search") { Streams.loadYoutube("search", ""); search.forceActiveFocus(); return }
-                    if (name === "channels") { Streams.loadYoutube("channels", ""); return }
-                    Streams.loadYoutube(name, "")
-                }
-            }
+            onClicked: panel.go({ tab: twitch ? "twitch" : "youtube", view: name, text: "", channel: null })
         }
         Accessible.role: Accessible.PageTab
         Accessible.name: searchIcon ? "Search" : label

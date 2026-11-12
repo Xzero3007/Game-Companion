@@ -153,6 +153,7 @@ Panel {
                 boundsBehavior: Flickable.StopAtBounds
                 delegate: StationRow {}
             }
+            WheelScroll { flick: stations; step: 46 * 3 }
             Text {
                 anchors.centerIn: parent
                 visible: panel.shown.length === 0

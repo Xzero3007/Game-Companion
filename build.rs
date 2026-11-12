@@ -20,6 +20,8 @@ fn main() {
         QmlFile::from("qml/HubHint.qml"),
         QmlFile::from("qml/StreamsPanel.qml"),
         QmlFile::from("qml/VideoWindow.qml"),
+        QmlFile::from("qml/Picker.qml"),
+        QmlFile::from("qml/WheelScroll.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();

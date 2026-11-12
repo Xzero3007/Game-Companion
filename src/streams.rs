@@ -51,6 +51,7 @@ pub fn stream_url(kind: &str, id: &str) -> Result<String, String> {
 pub fn ytdl_format(quality: &str) -> String {
     match quality {
         "audio" => "bestaudio/best".to_string(),
+        "best" => "bestvideo+bestaudio/best".to_string(),
         q => match q.parse::<u32>() {
             Ok(h) if (144..=2160).contains(&h) => format!("bestvideo[height<=?{h}]+bestaudio/best[height<=?{h}]/best"),
             _ => "bestvideo[height<=?1080]+bestaudio/best".to_string(),
@@ -124,6 +125,33 @@ pub fn twitch_query(kind: &str, arg: &Value) -> Result<Value, String> {
         "followedLive" => Ok(json!({
             "query": format!("query {{ currentUser {{ followedLiveUsers(first: 100, sort: RELEVANCE) {{ edges {{ node {{ {USER} }} }} }} }} }}"),
         })),
+        // All followed channels, by id: twitch.tv's own query for its
+        // following page (the raw `follows` field says "service error"), as
+        // the meter's patch 0068 asks it.
+        "followedIds" => {
+            let cursor = arg.as_str().filter(|c| c.len() <= 200 && c.chars().all(|c| c.is_ascii_graphic()));
+            Ok(json!({
+                "operationName": "ChannelFollows",
+                "variables": { "limit": 100, "order": "DESC", "cursor": cursor },
+                "extensions": { "persistedQuery": { "version": 1, "sha256Hash": "eecf815273d3d949e5cf0085cc5084cd8a1b5b7b6f7990cf43cb0beadf546907" } },
+            }))
+        }
+        // Channels by their ids (at most 100), live or not.
+        "ids" => {
+            let ids: Vec<String> = arg
+                .as_array()
+                .ok_or("no channels")?
+                .iter()
+                .filter_map(Value::as_str)
+                .filter(|i| !i.is_empty() && i.len() <= 20 && i.chars().all(|c| c.is_ascii_digit()))
+                .map(str::to_string)
+                .take(100)
+                .collect();
+            Ok(json!({
+                "query": format!("query($i: [ID!]) {{ users(ids: $i) {{ {USER} }} }}"),
+                "variables": { "i": ids },
+            }))
+        }
         _ => Err("unknown Twitch query".into()),
     }
 }
@@ -180,6 +208,84 @@ pub fn twitch_cards(data: &Value) -> Vec<Value> {
         b["live"].as_bool().cmp(&a["live"].as_bool()).then(b["viewers"].as_u64().cmp(&a["viewers"].as_u64()))
     });
     cards
+}
+
+/// The followed channels' ids of ChannelFollows' pages, each once.
+pub fn followed_ids(pages: &[Value]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for p in pages {
+        let Some(edges) = p.pointer("/user/follows/edges").and_then(Value::as_array) else { continue };
+        for id in edges.iter().filter_map(|e| e.pointer("/node/id")).filter_map(Value::as_str) {
+            if !out.iter().any(|x| x == id) {
+                out.push(id.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// Where ChannelFollows goes on: the last edge's cursor, when there is more.
+pub fn followed_page_cursor(page: &Value) -> Option<String> {
+    let follows = page.pointer("/user/follows")?;
+    if !follows.pointer("/pageInfo/hasNextPage").and_then(Value::as_bool).unwrap_or(false) {
+        return None;
+    }
+    follows.get("edges")?.as_array()?.last()?.get("cursor")?.as_str().filter(|c| !c.is_empty()).map(str::to_string)
+}
+
+/// Every channel the signed-in user follows: the live ones (with their
+/// stream), then all followed by id (up to 1000), merged into cards, live
+/// first. One ask Twitch refuses leaves the others; nothing at all with a
+/// refusal says why.
+pub fn twitch_followed(token: &str) -> Result<Vec<Value>, String> {
+    let mut errors: Vec<String> = Vec::new();
+    let keep = |r: Result<Value, String>, errors: &mut Vec<String>| match r {
+        Ok(a) => {
+            for e in a.get("_errors").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str) {
+                errors.push(e.to_string());
+            }
+            Some(a)
+        }
+        Err(e) => {
+            errors.push(e);
+            None
+        }
+    };
+    let mut cards: Vec<Value> = Vec::new();
+    let add = |data: &Value, cards: &mut Vec<Value>| {
+        for c in twitch_cards(data) {
+            if !cards.iter().any(|x| x["login"] == c["login"]) {
+                cards.push(c);
+            }
+        }
+    };
+    if let Some(a) = keep(twitch(&twitch_query("followedLive", &Value::Null)?, Some(token)), &mut errors) {
+        add(&a, &mut cards);
+    }
+    let mut pages = Vec::new();
+    let mut cursor = Value::Null;
+    for _ in 0..10 {
+        let Some(page) = keep(twitch(&twitch_query("followedIds", &cursor)?, Some(token)), &mut errors) else { break };
+        let next = followed_page_cursor(&page);
+        pages.push(page);
+        match next {
+            Some(c) => cursor = json!(c),
+            None => break,
+        }
+    }
+    for chunk in followed_ids(&pages).chunks(100) {
+        if let Some(a) = keep(twitch(&twitch_query("ids", &json!(chunk))?, None), &mut errors) {
+            add(&a, &mut cards);
+        }
+    }
+    if cards.is_empty() && !errors.is_empty() {
+        errors.dedup();
+        return Err(errors.join("; ").chars().take(300).collect());
+    }
+    cards.sort_by(|a, b| {
+        b["live"].as_bool().cmp(&a["live"].as_bool()).then(b["viewers"].as_u64().cmp(&a["viewers"].as_u64()))
+    });
+    Ok(cards)
 }
 
 /// yt-dlp's search answer, cut to what a list shows.
@@ -330,15 +436,25 @@ pub struct Channel {
     pub name: String,
 }
 
-/// One request at a time, a quarter second apart (as the meter asks).
+/// Twitch: one request at a time, a quarter second apart (as the meter asks).
 fn wait_turn() {
     static NEXT: OnceLock<Mutex<Instant>> = OnceLock::new();
-    let mut next = NEXT.get_or_init(|| Mutex::new(Instant::now())).lock().unwrap_or_else(|p| p.into_inner());
+    wait_for(&NEXT, Duration::from_millis(250));
+}
+
+/// YouTube's feeds: several at once, their starts a little apart.
+fn wait_feed_turn() {
+    static NEXT: OnceLock<Mutex<Instant>> = OnceLock::new();
+    wait_for(&NEXT, Duration::from_millis(60));
+}
+
+fn wait_for(next: &'static OnceLock<Mutex<Instant>>, gap: Duration) {
+    let mut next = next.get_or_init(|| Mutex::new(Instant::now())).lock().unwrap_or_else(|p| p.into_inner());
     let now = Instant::now();
     if *next > now {
         std::thread::sleep(*next - now);
     }
-    *next = Instant::now() + Duration::from_millis(250);
+    *next = Instant::now() + gap;
 }
 
 fn run_with_timeout(command: &mut Command, limit: Duration) -> Result<std::process::Output, String> {
@@ -424,12 +540,21 @@ pub fn twitch(body: &Value, token: Option<&str>) -> Result<Value, String> {
     config.push_str(&format!("url = {}\n", curl_quote(TWITCH_GQL)));
     let bytes = curl(&config, Duration::from_secs(25)).map_err(|e| format!("Twitch: {e}"))?;
     let answer: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    let mut data = answer.get("data").cloned().unwrap_or(Value::Null);
     if let Some(err) = answer.pointer("/errors/0/message").and_then(Value::as_str) {
-        if answer.get("data").is_none_or(Value::is_null) {
+        if data.is_null() {
             return Err(format!("Twitch: {err}"));
         }
+        // Part answered: what was refused goes along, to say why when nothing came.
+        let errors: Vec<Value> = answer["errors"].as_array().into_iter().flatten()
+            .filter_map(|e| e.get("message").and_then(Value::as_str))
+            .map(|m| json!(format!("Twitch: {m}")))
+            .collect();
+        if let Some(obj) = data.as_object_mut() {
+            obj.insert("_errors".into(), Value::Array(errors));
+        }
     }
-    Ok(answer.get("data").cloned().unwrap_or(Value::Null))
+    Ok(data)
 }
 
 /// A YouTube channel's newest videos (its public feed).
@@ -437,7 +562,7 @@ pub fn youtube_feed(channel: &str) -> Result<Vec<Value>, String> {
     if !valid_channel_id(channel) {
         return Err("not a YouTube channel".into());
     }
-    wait_turn();
+    wait_feed_turn();
     let mut config = curl_base();
     config.push_str(&format!("url = \"https://www.youtube.com/feeds/videos.xml?channel_id={channel}\"\n"));
     let bytes = curl(&config, Duration::from_secs(25)).map_err(|e| format!("YouTube: {e}"))?;
@@ -496,6 +621,7 @@ pub fn streamlink_path() -> Option<PathBuf> {
 pub fn streamlink_quality(q: &str) -> String {
     match q {
         "audio" => "audio_only,worst".into(),
+        "best" => "best".into(),
         q => match q.parse::<u32>() {
             Ok(h) if (144..=2160).contains(&h) => format!("{h}p60,{h}p,best"),
             _ => "best".into(),
@@ -577,6 +703,20 @@ pub fn streamlink_stop(slot: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn followed_ids_page_by_page() {
+        let p1 = json!({ "user": { "follows": { "edges": [{ "cursor": "c1", "node": { "id": "11" } }, { "cursor": "c2", "node": { "id": "12" } }], "pageInfo": { "hasNextPage": true } } } });
+        let p2 = json!({ "user": { "follows": { "edges": [{ "cursor": "c3", "node": { "id": "12" } }, { "node": { "id": "13" } }], "pageInfo": { "hasNextPage": false } } } });
+        assert_eq!(followed_page_cursor(&p1).as_deref(), Some("c2"));
+        assert_eq!(followed_page_cursor(&p2), None);
+        assert_eq!(followed_ids(&[p1, p2]), ["11", "12", "13"]);
+        let q = twitch_query("ids", &json!(["1", "x", "22"])).unwrap();
+        assert_eq!(q["variables"]["i"], json!(["1", "22"]));
+        assert_eq!(twitch_query("followedIds", &Value::Null).unwrap()["variables"]["cursor"], Value::Null);
+        assert_eq!(ytdl_format("best"), "bestvideo+bestaudio/best");
+        assert_eq!(streamlink_quality("best"), "best");
+    }
 
     #[test]
     fn addresses_only_of_twitch_and_youtube() {

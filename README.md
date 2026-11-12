@@ -49,17 +49,24 @@ to the game.
   subscriptions from FreeTube's file and channels you keep with the star,
   one channel's videos, a search; a pasted link plays at once). The game's
   preset comes first under its purple tag (AION 2 until game detection;
-  CHANGE sets another). Moved over from the Clicktrough meter's Streams
+  CHANGE sets another). Following shows every channel you follow, the live
+  ones first. Every list shows as tiles side by side (two to four a row, as
+  wide as the panel is) or as rows; the arrows, the mouse's side buttons and
+  Alt+Left / Alt+Right go back and forth through tabs, lists, searches and
+  channels. Subscriptions load several channels at once, show while they
+  come, and are kept 15 minutes (the refresh button asks again). Moved over from the Clicktrough meter's Streams
   plugin (`Xzero3007/A2Tools-Clicktrough-Plugins`, GPL-3.0).
 - **Videos over the game**: a click plays it in Twitch's or YouTube's own
   window (both at once if you like), drawn by your **libmpv** into the
   overlay. Locked, clicks go through it; unlocked, the pointer on it shows
-  its bars (pin, quality, close; pause, volume, time line, how much of the
-  game shows through), it moves by dragging and grows by the corner (16:9).
+  its bars (pin, quality from a list: source, 1080p to 360p or sound only;
+  close; pause, volume, time line, opacity from a list, 100 to 50 % in
+  steps of 10, kept for each window), it moves by dragging and grows by the corner (16:9).
   Pinned, it stays while the hub is hidden. The player row gets a part for
   each video. Twitch plays through **Streamlink** when installed (no ad
   breaks; signed in, Turbo or a subscription means no ads at all), else
-  through yt-dlp; YouTube through yt-dlp.
+  through yt-dlp; YouTube through yt-dlp. A video that doesn't play says
+  why in yt-dlp's or mpv's words, with a hint where one is known.
 - **What Streams sends**: Twitch's public API (gql.twitch.tv, fixed
   queries; your twitch.tv token only for the followed channels, to Twitch
   alone, kept in `~/.config/game-companion/twitch.json`, readable by you

@@ -30,6 +30,7 @@ struct Mpv
     decltype(&mpv_wait_event) wait_event = nullptr;
     decltype(&mpv_set_wakeup_callback) set_wakeup_callback = nullptr;
     decltype(&mpv_error_string) error_string = nullptr;
+    decltype(&mpv_request_log_messages) request_log_messages = nullptr;
     decltype(&mpv_render_context_create) render_create = nullptr;
     decltype(&mpv_render_context_free) render_free = nullptr;
     decltype(&mpv_render_context_render) render_render = nullptr;
@@ -60,6 +61,7 @@ const Mpv &mpv()
         GC_SYM(wait_event, "mpv_wait_event");
         GC_SYM(set_wakeup_callback, "mpv_set_wakeup_callback");
         GC_SYM(error_string, "mpv_error_string");
+        GC_SYM(request_log_messages, "mpv_request_log_messages");
         GC_SYM(render_create, "mpv_render_context_create");
         GC_SYM(render_free, "mpv_render_context_free");
         GC_SYM(render_render, "mpv_render_context_render");
@@ -182,6 +184,23 @@ private:
     mpv_render_context *m_render = nullptr;
 };
 
+// What helps with what yt-dlp says, where that is known.
+QString hintFor(const QString &why)
+{
+    if (why.contains(QLatin1String("JavaScript"), Qt::CaseInsensitive) || why.contains(QLatin1String("challenge"), Qt::CaseInsensitive)
+        || why.contains(QLatin1String("deno"), Qt::CaseInsensitive)) {
+        return QStringLiteral(" · yt-dlp needs a JavaScript runtime: sudo pacman -S deno");
+    }
+    if (why.contains(QLatin1String("Sign in to confirm"), Qt::CaseInsensitive) || why.contains(QLatin1String("Requested format"), Qt::CaseInsensitive)
+        || why.contains(QLatin1String("403"))) {
+        return QStringLiteral(" · an up-to-date yt-dlp often helps: sudo pacman -Syu yt-dlp");
+    }
+    if (why.isEmpty()) {
+        return QStringLiteral(" · is yt-dlp installed and up to date? (sudo pacman -Syu yt-dlp)");
+    }
+    return QString();
+}
+
 void onWakeup(void *ctx)
 {
     QMetaObject::invokeMethod(static_cast<MpvVideo *>(ctx), "readEvents", Qt::QueuedConnection);
@@ -192,7 +211,10 @@ void onWakeup(void *ctx)
 MpvVideo::MpvVideo(QQuickItem *parent)
     : QQuickFramebufferObject(parent)
 {
-    setMirrorVertically(true);
+    // mpv draws top row first into the frame buffer (FLIP_Y 0), and Qt
+    // shows the texture as it is: no mirroring, else the video stands on
+    // its head (checked with a test video whose top is marked, GC_TEST_VIDEO).
+    setMirrorVertically(false);
 }
 
 MpvVideo::~MpvVideo()
@@ -270,6 +292,11 @@ bool MpvVideo::ensureStarted()
         setState(QStringLiteral("failed"), QStringLiteral("mpv could not start"));
         return false;
     }
+    // mpv's warnings and errors (yt-dlp's among them, through mpv's ytdl
+    // hook): a video that doesn't play says why (as the meter's patch 0057).
+    if (mpv().request_log_messages) {
+        mpv().request_log_messages(m_mpv, "warn");
+    }
     mpv().observe_property(m_mpv, 0, "pause", MPV_FORMAT_FLAG);
     mpv().observe_property(m_mpv, 0, "mute", MPV_FORMAT_FLAG);
     mpv().observe_property(m_mpv, 0, "volume", MPV_FORMAT_DOUBLE);
@@ -335,6 +362,12 @@ bool MpvVideo::loadPending()
     const QString &format = p.format;
     const double start = p.start;
     setMpv("ytdl-format", format.isEmpty() ? QStringLiteral("bestvideo[height<=?1080]+bestaudio/best") : format);
+    // YouTube hands out a stream's address a few seconds before it serves
+    // it: mpv asked at once, got 403 and played nothing. ffmpeg connects
+    // again, for YouTube alone (on Twitch's live segments it stalled the
+    // picture), as the meter's patch 0058.
+    const bool youtube = url.startsWith(QLatin1String("https://www.youtube.com/"));
+    setMpv("stream-lavf-o", youtube ? QStringLiteral("reconnect=1,reconnect_on_http_error=4xx,reconnect_delay_max=10") : QString());
     setMpv("start", start > 0 ? QString::number(start, 'f', 1) : QStringLiteral("none"));
     setMpv("pause", QStringLiteral("no"));
     const QByteArray u = url.toUtf8();
@@ -407,7 +440,28 @@ void MpvVideo::readEvents()
             break;
         }
         switch (ev->event_id) {
+        case MPV_EVENT_LOG_MESSAGE: {
+            auto *msg = static_cast<mpv_event_log_message *>(ev->data);
+            if (!msg || !msg->text) {
+                break;
+            }
+            const QString line = QString::fromUtf8(msg->text).trimmed();
+            if (line.isEmpty()) {
+                break;
+            }
+            const bool fromYtdl = msg->prefix && QByteArray(msg->prefix).contains("ytdl");
+            // yt-dlp's ERROR line wins (its "youtube-dl failed" after it says
+            // less), then any of its lines, then mpv's own.
+            const bool hadError = m_why.contains(QLatin1String("ERROR:"));
+            const bool isError = line.contains(QLatin1String("ERROR:"));
+            if (isError || (!hadError && (fromYtdl || !m_why.startsWith(QLatin1String("yt-dlp"))))) {
+                QString text = line.section(QStringLiteral("; please report this issue"), 0, 0).trimmed();
+                m_why = (fromYtdl ? QStringLiteral("yt-dlp: ") + text : text).left(240);
+            }
+            break;
+        }
         case MPV_EVENT_START_FILE:
+            m_why.clear();
             setState(QStringLiteral("loading"));
             break;
         case MPV_EVENT_FILE_LOADED:
@@ -417,7 +471,11 @@ void MpvVideo::readEvents()
         case MPV_EVENT_END_FILE: {
             auto *end = static_cast<mpv_event_end_file *>(ev->data);
             if (end && end->reason == MPV_END_FILE_REASON_ERROR) {
-                setState(QStringLiteral("failed"), QString::fromUtf8(mpv().error_string(end->error)));
+                QString why = QString::fromUtf8(mpv().error_string(end->error));
+                if (!m_why.isEmpty()) {
+                    why += QStringLiteral(" (") + m_why + QStringLiteral(")");
+                }
+                setState(QStringLiteral("failed"), why + hintFor(m_why));
             } else if (end && end->reason == MPV_END_FILE_REASON_EOF) {
                 setState(QStringLiteral("ended"));
                 emit ended();

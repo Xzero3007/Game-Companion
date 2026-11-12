@@ -57,10 +57,14 @@ pub struct StreamsSettings {
     pub tab: String,
     pub twitch_view: String,
     pub youtube_view: String,
-    /// "1080" down to "360", or "audio".
+    /// "best", "1080" down to "360", or "audio".
     pub quality: String,
     /// 0 to 100, as the bars show it.
     pub volume: u8,
+    /// The lists as tiles side by side (true) or as rows.
+    pub grid: bool,
+    /// How much of each video window shows, in percent (50 to 100), by slot.
+    pub video_opacity: BTreeMap<String, u8>,
 }
 
 impl Default for StreamsSettings {
@@ -74,6 +78,8 @@ impl Default for StreamsSettings {
             youtube_view: "game".into(),
             quality: "1080".into(),
             volume: 70,
+            grid: true,
+            video_opacity: BTreeMap::new(),
         }
     }
 }
