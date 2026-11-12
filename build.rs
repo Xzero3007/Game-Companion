@@ -18,6 +18,8 @@ fn main() {
         QmlFile::from("qml/RadioPanel.qml"),
         QmlFile::from("qml/PlayerRow.qml"),
         QmlFile::from("qml/HubHint.qml"),
+        QmlFile::from("qml/StreamsPanel.qml"),
+        QmlFile::from("qml/VideoWindow.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();
@@ -28,9 +30,13 @@ fn main() {
     let builder = CxxQtBuilder::new_qml_module(qml)
         .qt_module("Gui")
         .qt_module("Quick")
-        .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/native.rs"])
+        .qt_module("OpenGL")
+        .qt_module("Network")
+        .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/streams_object.rs", "src/native.rs"])
         .cpp_file("cpp/native.h")
         .cpp_file("cpp/native.cpp")
+        .cpp_file("cpp/mpvvideo.h")
+        .cpp_file("cpp/mpvvideo.cpp")
         .qrc_resources([
             "assets/fonts/Rajdhani-Bold.ttf",
             "assets/fonts/Rajdhani-SemiBold.ttf",

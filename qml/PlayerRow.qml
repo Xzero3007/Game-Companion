@@ -8,7 +8,10 @@ import "theme.js" as Theme
 // stop. It can be pinned, so it stays while the hub is hidden.
 Item {
     id: strip
-    readonly property bool active: Radio.status !== "idle"
+    /// The video windows: each one playing gets its part.
+    property var videos: []
+    readonly property bool radioOn: Radio.status !== "idle"
+    readonly property bool active: radioOn || videos.some((v) => v.active)
     readonly property bool pinned: Companion.pins.indexOf('"player-row"') >= 0
 
     implicitWidth: row.implicitWidth + 32
@@ -34,6 +37,7 @@ Item {
 
         // The radio
         Row {
+            visible: strip.radioOn
             height: parent.height
             spacing: 8
             leftPadding: 10
@@ -87,7 +91,69 @@ Item {
             }
         }
 
-        Rectangle { width: 1; height: 20; anchors.verticalCenter: parent.verticalCenter; color: Theme.divider }
+        Rectangle { visible: strip.radioOn; width: 1; height: 20; anchors.verticalCenter: parent.verticalCenter; color: Theme.divider }
+
+        Repeater {
+            model: strip.videos
+            delegate: Row {
+                id: part
+                required property var modelData
+                readonly property var v: modelData
+                visible: v.active
+                height: parent.height
+                spacing: 8
+                leftPadding: 10
+                rightPadding: 10
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 7
+                    height: 7
+                    color: part.v.playState === "playing" ? Theme.red : part.v.playState === "failed" ? Theme.red : Theme.dim
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: part.v.label.toUpperCase()
+                    color: Theme.accent
+                    font.family: Theme.display
+                    font.pixelSize: 12
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1.5
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.min(implicitWidth, 160)
+                    elide: Text.ElideRight
+                    text: part.v.item ? (part.v.item.kind === "twitch" ? part.v.item.name : (part.v.item.title || part.v.item.name)) : ""
+                    color: Theme.textSoft
+                    font.family: Theme.body
+                    font.pixelSize: 12
+                }
+                IconButton {
+                    anchors.verticalCenter: parent.verticalCenter
+                    readonly property bool on: part.v.playing && !part.v.paused
+                    icon: on ? "pause" : "play"
+                    filled: !on
+                    tip: on ? "Pause" : "Play"
+                    onClicked: part.v.togglePause()
+                }
+                VolumeBar {
+                    anchors.verticalCenter: parent.verticalCenter
+                    compact: true
+                    value: part.v.volume
+                    onStepped: (d) => part.v.setVolume(part.v.volume + d)
+                    onPicked: (x) => part.v.setVolume(x)
+                }
+                IconButton {
+                    anchors.verticalCenter: parent.verticalCenter
+                    icon: "close"
+                    iconSize: 12
+                    color: Theme.dim
+                    tip: "Stop " + part.v.label
+                    onClicked: part.v.stop()
+                }
+                Rectangle { width: 1; height: 20; anchors.verticalCenter: parent.verticalCenter; color: Theme.divider }
+            }
+        }
 
         IconButton {
             anchors.verticalCenter: parent.verticalCenter

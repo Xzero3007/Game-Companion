@@ -14,6 +14,7 @@ Window {
 
     property bool settingsOpen: false
     property bool radioOpen: false
+    property bool streamsOpen: false
     readonly property var keys: JSON.parse(Companion.shortcuts)
     readonly property var pins: JSON.parse(Companion.pins)
 
@@ -36,7 +37,7 @@ Window {
         if (Companion.locked) {
             if (bar.visible) rects.push(rectOf(bar.lockButton))
         } else {
-            for (const item of [bar, playerRow, welcome, settings, radio]) {
+            for (const item of [bar, playerRow, welcome, settings, radio, streams, twitchVideo, youtubeVideo]) {
                 if (item.visible) rects.push(rectOf(item))
             }
         }
@@ -49,10 +50,12 @@ Window {
     function openPanels() {
         const ids = []
         if (radioOpen) ids.push("radio")
+        if (streamsOpen) ids.push("streams")
         return ids
     }
     function openFrom(ids) {
         radioOpen = ids.indexOf("radio") >= 0
+        streamsOpen = ids.indexOf("streams") >= 0
     }
 
     Component.onCompleted: {
@@ -60,6 +63,8 @@ Window {
         if (demo.indexOf("unlocked") >= 0 && Companion.locked) Companion.toggleLocked()
         if (demo.indexOf("settings") >= 0) settingsOpen = true
         if (demo.indexOf("radio") >= 0) radioOpen = true
+        if (demo.indexOf("streams") >= 0) streamsOpen = true
+        if (demo.indexOf("video") >= 0) twitchVideo.item = { kind: "twitch", id: "streamer_one", name: "streamer_one", game: "AION 2", title: "" }
         if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
         requestInput()
     }
@@ -106,6 +111,8 @@ Window {
             anchors.top: parent.top
             settingsOpen: root.settingsOpen
             radioOpen: root.radioOpen
+            streamsOpen: root.streamsOpen
+            onStreamsClicked: root.streamsOpen = !root.streamsOpen
             onSettingsClicked: root.settingsOpen = !root.settingsOpen
             onUpdateClicked: { root.settingsOpen = true; Updates.install() }
             onRadioClicked: root.radioOpen = !root.radioOpen
@@ -115,8 +122,23 @@ Window {
             onVisibleChanged: root.requestInput()
         }
 
+        // Videos sit under the panels, over the game.
+        VideoWindow {
+            id: twitchVideo
+            slot: "twitch"
+            visible: active && root.onScreen(panelId)
+            onAreaChanged: root.requestInput()
+        }
+        VideoWindow {
+            id: youtubeVideo
+            slot: "youtube"
+            visible: active && root.onScreen(panelId)
+            onAreaChanged: root.requestInput()
+        }
+
         PlayerRow {
             id: playerRow
+            videos: [twitchVideo, youtubeVideo]
             visible: active && root.onScreen("player-row")
             anchors.horizontalCenter: parent.horizontalCenter
             y: Companion.shown ? bar.height : 0
@@ -148,6 +170,18 @@ Window {
             defaultY: 120
             onCloseClicked: root.radioOpen = false
             onAreaChanged: root.requestInput()
+        }
+
+        StreamsPanel {
+            id: streams
+            visible: root.streamsOpen && root.onScreen("streams")
+            defaultX: 520
+            defaultY: 120
+            playingTwitch: twitchVideo.item && twitchVideo.item.kind === "twitch" ? twitchVideo.item.id : ""
+            playingYoutube: youtubeVideo.item && youtubeVideo.item.kind === "youtube" ? youtubeVideo.item.id : ""
+            onCloseClicked: root.streamsOpen = false
+            onAreaChanged: root.requestInput()
+            onPlayRequested: (what) => (what.kind === "twitch" ? twitchVideo : youtubeVideo).play(what)
         }
 
         SettingsPanel {

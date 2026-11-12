@@ -6,6 +6,8 @@ mod radio;
 mod radio_object;
 mod settings;
 mod shortcuts;
+mod streams;
+mod streams_object;
 mod updater;
 mod updates_object;
 

@@ -43,6 +43,30 @@ to the game.
 - **Player row** under the bar while the radio plays: state, pause, volume
   as one bar (− and + step by 5, a click on the bar sets it, the wheel
   steps), stop.
+- **Streams** (the bar's TV button): **Twitch** (the game's category, the
+  channels you follow once signed in, your favorites with the star, all
+  live, a search) and **YouTube** (the game's newest videos, your
+  subscriptions from FreeTube's file and channels you keep with the star,
+  one channel's videos, a search; a pasted link plays at once). The game's
+  preset comes first under its purple tag (AION 2 until game detection;
+  CHANGE sets another). Moved over from the Clicktrough meter's Streams
+  plugin (`Xzero3007/A2Tools-Clicktrough-Plugins`, GPL-3.0).
+- **Videos over the game**: a click plays it in Twitch's or YouTube's own
+  window (both at once if you like), drawn by your **libmpv** into the
+  overlay. Locked, clicks go through it; unlocked, the pointer on it shows
+  its bars (pin, quality, close; pause, volume, time line, how much of the
+  game shows through), it moves by dragging and grows by the corner (16:9).
+  Pinned, it stays while the hub is hidden. The player row gets a part for
+  each video. Twitch plays through **Streamlink** when installed (no ad
+  breaks; signed in, Turbo or a subscription means no ads at all), else
+  through yt-dlp; YouTube through yt-dlp.
+- **What Streams sends**: Twitch's public API (gql.twitch.tv, fixed
+  queries; your twitch.tv token only for the followed channels, to Twitch
+  alone, kept in `~/.config/game-companion/twitch.json`, readable by you
+  only), YouTube's channel feeds, YouTube's search and the videos through
+  yt-dlp, and the thumbnails of static-cdn.jtvnw.net, i.ytimg.com and
+  yt3.ggpht.com (the app's image loader refuses every other host). Nothing
+  else.
 - **Updates from its own releases.** At the start, every 20 minutes and with
   Settings → General → Check for updates, it reads `latest.json` of this
   repo's latest GitHub release. A newer one shows a gold **Update** button in
@@ -52,14 +76,14 @@ to the game.
   again. Only a copy installed by pacman updates itself this way.
 - **Turn off** in Settings → General closes the whole app, with the radio.
 - **Nothing else goes online.** The fonts ship with the app, the shortcuts
-  are local D-Bus; the only network use is the radio stream you pick and the
-  update check on GitHub.
+  are local D-Bus; the only network use is the radio stream you pick, the
+  streams you open, and the update check on GitHub.
 
 ## Coming next
 
 1. ~~Core: overlay, lock, shortcuts, bar, settings~~
-2. ~~Radio~~, then streams (Twitch, YouTube, Jellyfin) with a preset search
-   per game, moved over from the Clicktrough meter's plugins
+2. ~~Radio~~, ~~streams (Twitch, YouTube)~~ with a preset search per game,
+   then Jellyfin
 3. Brave Origin and Legcord (on hold)
 4. Game detection: start and close with a game (AION 2, Path of Exile 2),
    and a Games tab that lists the Steam, Lutris and Heroic games and starts them
@@ -80,7 +104,7 @@ release package (`sudo pacman -U game-companion-*.pkg.tar.zst`) works too;
 after that the app updates itself.
 
 Needs: `qt6-base`, `qt6-declarative`, `qt6-wayland`, `layer-shell-qt`,
-`xdg-desktop-portal`, `polkit`, `curl`; `mpv` for the radio (and to build: `rust`, `clang`,
+`xdg-desktop-portal`, `polkit`, `curl`; `mpv` for the radio and the videos, `yt-dlp` for YouTube, `streamlink` for Twitch without ad breaks (and to build: `rust`, `clang`,
 `base-devel`).
 
 ### Development

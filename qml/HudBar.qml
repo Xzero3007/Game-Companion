@@ -11,6 +11,8 @@ Item {
     property bool settingsOpen: false
     property bool radioOpen: false
     signal radioClicked
+    property bool streamsOpen: false
+    signal streamsClicked
     property string gameName: ""
     signal settingsClicked
     signal hideClicked
@@ -94,6 +96,13 @@ Item {
             active: bar.radioOpen
             tip: "Radio"
             onClicked: bar.radioClicked()
+        }
+        HudButton {
+            icon: "tv"
+            label: "TV"
+            active: bar.streamsOpen
+            tip: "Streams: Twitch and YouTube"
+            onClicked: bar.streamsClicked()
         }
 
         Rectangle { width: 1; height: 28; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }

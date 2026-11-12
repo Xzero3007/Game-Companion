@@ -1,4 +1,5 @@
 #include "native.h"
+#include "mpvvideo.h"
 
 #include <QtCore/QMetaObject>
 #include <QtCore/QTimer>
@@ -9,7 +10,11 @@
 #include <QtGui/QScreen>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtQml/QQmlContext>
+#include <QtQml/QQmlNetworkAccessManagerFactory>
+#include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkRequest>
 #include <QtQuick/QQuickWindow>
+#include <QtQuick/QSGRendererInterface>
 
 #ifdef GC_LAYER_SHELL
 #include <LayerShellQt/window.h>
@@ -101,6 +106,50 @@ void NativeWindow::setKeyboard(bool wanted)
 #endif
 }
 
+namespace {
+
+// QML loads pictures from these hosts only (Twitch's and YouTube's
+// thumbnails, the streams module's allowed hosts); any other address,
+// and anything but https, is refused before a connection is made.
+class PictureNetwork : public QNetworkAccessManager
+{
+public:
+    using QNetworkAccessManager::QNetworkAccessManager;
+
+    static bool allowed(const QUrl &url)
+    {
+        static const QStringList hosts = {QStringLiteral("static-cdn.jtvnw.net"), QStringLiteral("i.ytimg.com"),
+                                          QStringLiteral("yt3.ggpht.com")};
+        return url.scheme() == QLatin1String("https") && url.userInfo().isEmpty() && url.port(443) == 443
+            && hosts.contains(url.host().toLower());
+    }
+
+protected:
+    QNetworkReply *createRequest(Operation op, const QNetworkRequest &request, QIODevice *data) override
+    {
+        if (op == GetOperation && allowed(request.url())) {
+            QNetworkRequest r(request);
+            // No redirects: they would go elsewhere unchecked.
+            r.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+            return QNetworkAccessManager::createRequest(op, r, data);
+        }
+        // An address no request goes to: the picture stays empty.
+        QNetworkRequest refused(QUrl(QStringLiteral("refused:")));
+        return QNetworkAccessManager::createRequest(GetOperation, refused, nullptr);
+    }
+};
+
+class PictureNetworkFactory : public QQmlNetworkAccessManagerFactory
+{
+public:
+    QNetworkAccessManager *create(QObject *parent) override
+    {
+        return new PictureNetwork(parent);
+    }
+};
+
+} // namespace
+
 int32_t gc_run()
 {
     static int argc = 1;
@@ -120,8 +169,16 @@ int32_t gc_run()
         }
     }
 
+    // Videos draw through OpenGL (libmpv); screenshots may ask for software.
+    if (qEnvironmentVariableIsEmpty("QT_QUICK_BACKEND")) {
+        QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+    }
+    gc_register_video();
+
     NativeWindow native;
     QQmlApplicationEngine engine;
+    PictureNetworkFactory pictures;
+    engine.setNetworkAccessManagerFactory(&pictures);
     engine.rootContext()->setContextProperty(QStringLiteral("nativeWindow"), &native);
     engine.load(QUrl(QStringLiteral("qrc:/qt/qml/GameCompanion/qml/Main.qml")));
     if (engine.rootObjects().isEmpty()) {

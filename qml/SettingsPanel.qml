@@ -20,7 +20,7 @@ Panel {
     signal saveLayoutRequested(string name)
     signal loadLayoutRequested(string name)
     Component.onCompleted: {
-        for (const t of ["layouts", "shortcuts", "about"]) if (nativeWindow.demo.indexOf(t) >= 0) tab = t
+        for (const t of ["layouts", "streams-settings", "shortcuts", "about"]) if (nativeWindow.demo.indexOf(t) >= 0) tab = t.replace("-settings", "")
     }
 
     Column {
@@ -31,6 +31,7 @@ Panel {
             spacing: 18
             Tab { name: "general"; label: "General" }
             Tab { name: "layouts"; label: "Layouts" }
+            Tab { name: "streams"; label: "Streams" }
             Tab { name: "shortcuts"; label: "Shortcuts" }
             Tab { name: "about"; label: "About" }
         }
@@ -236,6 +237,73 @@ Panel {
             Hint { text: "Later, each game can bring its own layout, loaded when it starts." }
         }
 
+        // Streams
+        Column {
+            visible: settings.tab === "streams"
+            width: parent.width
+            spacing: 10
+            readonly property var account: JSON.parse(Streams.account)
+            readonly property var game: JSON.parse(Streams.game)
+            onVisibleChanged: if (visible) Streams.refreshAccount()
+
+            Label { text: "Twitch token" }
+            Row {
+                width: parent.width
+                spacing: 8
+                visible: !parent.account.user || parent.account.user === "?"
+                NameField {
+                    id: tokenField
+                    width: parent.width - showToken.width - signIn.width - 16
+                    placeholder: "twitch.tv's auth-token"
+                    secret: !showToken.shown
+                    maxLength: 80
+                    onAccepted: signIn.clicked()
+                }
+                TextButton {
+                    id: showToken
+                    property bool shown: false
+                    text: shown ? "Hide" : "Show"
+                    onClicked: shown = !shown
+                }
+                TextButton {
+                    id: signIn
+                    text: "Sign in"
+                    onClicked: { Streams.signIn(tokenField.text); tokenField.text = "" }
+                }
+            }
+            Row {
+                visible: !!parent.account.user && parent.account.user !== "?"
+                spacing: 12
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: parent.parent.account.user === "…" ? "Checking with Twitch…" : "Signed in as " + parent.parent.account.user
+                    color: Theme.accent
+                    font.family: Theme.body
+                    font.pixelSize: 13
+                }
+                TextButton { text: "Sign out"; danger: true; onClicked: Streams.signOut() }
+            }
+            Hint {
+                visible: !!parent.account.error
+                text: parent.account.error || ""
+                color: Theme.red
+            }
+            Hint { text: "For the Following tab, and Twitch without ads with Turbo or a subscription. Sent only to Twitch; kept in its own file on this PC. Find it in your browser on twitch.tv: developer tools → Storage → Cookies → auth-token." }
+            Hint {
+                text: parent.account.streamlink ? "Streamlink is installed: Twitch plays without the ad breaks."
+                    : "Streamlink is not installed: Twitch plays through yt-dlp, with its ad breaks (sudo pacman -S streamlink)."
+                color: parent.account.streamlink ? Theme.dim : Theme.textSoft
+            }
+
+            Item { width: 1; height: 4 }
+            Label { text: "Preset search for the game" }
+            Hint { text: "Now: " + parent.game.name + " · Twitch category \u201c" + parent.game.twitch + "\u201d · YouTube \u201c" + parent.game.youtube + "\u201d. Change it with CHANGE in the Streams panel; with game detection, each game brings its own." }
+
+            Item { width: 1; height: 4 }
+            Label { text: "Jellyfin" }
+            Hint { text: "Your own server, in your home network only: comes next." }
+        }
+
         // Shortcuts
         Column {
             visible: settings.tab === "shortcuts"
@@ -359,6 +427,8 @@ Panel {
     component NameField: Rectangle {
         property alias text: input.text
         property string placeholder: ""
+        property bool secret: false
+        property int maxLength: 40
         signal accepted
         function forceActiveFocus() { input.forceActiveFocus() }
         height: 34
@@ -375,7 +445,8 @@ Panel {
             selectedTextColor: "#0c0c0f"
             font.family: Theme.body
             font.pixelSize: 13
-            maximumLength: 40
+            maximumLength: parent.maxLength
+            echoMode: parent.secret ? TextInput.Password : TextInput.Normal
             clip: true
             onAccepted: parent.accepted()
             Text {

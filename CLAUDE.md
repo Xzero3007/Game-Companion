@@ -57,8 +57,8 @@ learnt, so nothing has to be asked or worked out again.
    input region, shortcuts through the portal, Edge HUD bar, panels with
    remembered places, opacity, settings, Arch package.
 2. Radio (done in 0.2.0: panel, player row, mpv in the background, pins and
-   hub hiding, volume as one bar with − / +) and Streams (Twitch, YouTube,
-   Jellyfin; next, design approved on the canvas
+   hub hiding, volume as one bar with − / +) and Streams (Twitch and YouTube
+   done in 0.3.0; Jellyfin next; design approved on the canvas
    https://claude.ai/artifact/82a3HqWJWbBRdp5FU7MvGZ page "Radio and Streams
    (B)") moved over from the meter's plugins (`Xzero3007/A2Tools-Clicktrough-Plugins`: `plugins/radio`,
    `plugins/streams`), rewritten in QML; their logic and allowed hosts kept.
@@ -127,6 +127,19 @@ learnt, so nothing has to be asked or worked out again.
   places, pins, alpha and the open panels (`Main.openPanels()`); loading one
   raises `Companion.layoutRevision`, and every panel places itself again.
   Planned: a game can bring its own layout (step 4).
+- Streams (`src/streams.rs`, `src/streams_object.rs`, `qml/StreamsPanel.qml`,
+  `qml/VideoWindow.qml`): ported from meter patches 0047, 0059 to 0061, 0068
+  and the plugin. Requests through curl with its settings on stdin
+  (`--config -`: the token never shows in `ps`). Videos: `cpp/mpvvideo.cpp`,
+  a `QQuickFramebufferObject` with libmpv loaded by `dlopen` (headers from
+  the `mpv` package at build time); mpv needs its render context before
+  `loadfile` (`play` waits for `renderReady`); no OpenGL (software
+  renderer) means `vo=null`, sound only. The app asks Qt for OpenGL unless
+  `QT_QUICK_BACKEND` is set. QML pictures go through `PictureNetwork`
+  (`cpp/native.cpp`): https, three hosts, no redirects. Check video drawing
+  in the sandbox with `xvfb-run` and `QT_QPA_PLATFORM=xcb` (llvmpipe GL);
+  the sandbox's network blocks Twitch and YouTube (`--ignored` test).
+  `GC_DEMO=streams[,youtube],video` for screenshots.
 - `HudIcon` draws into a layer (texture): plain shapes were not clipped by
   a list's clip in the software renderer.
 

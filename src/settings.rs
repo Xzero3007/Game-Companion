@@ -25,6 +25,57 @@ pub struct Settings {
     pub radio: RadioSettings,
     /// Saved arrangements, by the name the user gave them.
     pub layouts: BTreeMap<String, Layout>,
+    pub streams: StreamsSettings,
+}
+
+/// What a game brings to the Streams panel: its Twitch category and its
+/// YouTube search words.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GamePreset {
+    pub name: String,
+    pub twitch: String,
+    pub youtube: String,
+}
+
+impl Default for GamePreset {
+    fn default() -> Self {
+        // Until game detection: AION 2, as the meter's plugin had it.
+        Self { name: "AION 2".into(), twitch: "AION 2".into(), youtube: "AION 2".into() }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StreamsSettings {
+    pub game: GamePreset,
+    /// Twitch channels kept with the star, by login.
+    pub favourites: Vec<String>,
+    /// YouTube channels added by hand (FreeTube's are read from FreeTube).
+    pub channels: Vec<crate::streams::Channel>,
+    /// The panel's tabs: "twitch" or "youtube", and each one's list.
+    pub tab: String,
+    pub twitch_view: String,
+    pub youtube_view: String,
+    /// "1080" down to "360", or "audio".
+    pub quality: String,
+    /// 0 to 100, as the bars show it.
+    pub volume: u8,
+}
+
+impl Default for StreamsSettings {
+    fn default() -> Self {
+        Self {
+            game: GamePreset::default(),
+            favourites: Vec::new(),
+            channels: Vec::new(),
+            tab: "twitch".into(),
+            twitch_view: "game".into(),
+            youtube_view: "game".into(),
+            quality: "1080".into(),
+            volume: 70,
+        }
+    }
 }
 
 /// An arrangement to come back to: which panels are open, where and how
@@ -120,6 +171,7 @@ impl Default for Settings {
             pins: BTreeSet::new(),
             radio: RadioSettings::default(),
             layouts: BTreeMap::new(),
+            streams: StreamsSettings::default(),
         }
     }
 }
@@ -146,6 +198,7 @@ impl Settings {
             .unwrap_or_default();
         settings.alpha = clamp_alpha(settings.alpha);
         settings.radio.volume = settings.radio.volume.min(100);
+        settings.streams.volume = settings.streams.volume.min(100);
         settings
     }
 
