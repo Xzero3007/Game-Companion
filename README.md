@@ -26,9 +26,17 @@ to the game.
 - **Panels remember where they were left and their size**: unlocked, the
   gold corner at a panel's bottom right makes it wider or narrower (the
   radio's list also taller); a double-click on it gives back its own size.
-  One opacity for the bar and all panels (Settings → General).
+- **Display** (Settings → Display): one opacity for the bar and all panels,
+  from solid down to 5 % (under half, text gets a thin shadow); the
+  brightness of the white and grey text, 100 down to 40 % (gold, red,
+  purple and the game's colours stay); the bar's size, 100 down to 60 %
+  (with the player row). Each slider of opacity and text has three
+  presets, P1 to P3: a click uses one, holding it or a right click keeps
+  the current value there. Unlocked, the bar moves sideways when dragged
+  by its name or its slanted ends; "Center bar" puts it back.
 - **Layouts** (Settings → Layouts): save the arrangement under a name (which
-  panels are open, where, how big, what is pinned, the opacity), load it
+  panels are open, where, how big, what is pinned, the opacity, the text
+  brightness, the bar's place and size), load it
   again with one click, rename or delete it.
 - **Hide the hub, keep what you pin.** `Alt+Y` (or the eye in the bar)
   hides the bar and the panels; anything pinned (the pin in a panel's header,

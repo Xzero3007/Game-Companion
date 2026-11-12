@@ -21,6 +21,11 @@ Item {
     // Where the lock button is, for the input region while locked.
     readonly property Item lockButton: lockButton
 
+    /// While the user drags the bar sideways: how far, in screen pixels.
+    property real dragShift: 0
+    /// Let go after dragging: the window keeps the new place.
+    signal dropped
+
     implicitWidth: row.implicitWidth + 44
     implicitHeight: 52
 
@@ -44,6 +49,10 @@ Item {
         color: Theme.accent
     }
 
+    // The slanted ends move the bar (the name does too).
+    DragArea { x: 0; width: 24; height: parent.height }
+    DragArea { x: bar.width - 24; width: 24; height: parent.height }
+
     Row {
         id: row
         anchors.centerIn: parent
@@ -56,7 +65,7 @@ Item {
                 id: title
                 anchors.verticalCenter: parent.verticalCenter
                 x: 6
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     text: "GAME COMPANION"
                     color: Theme.accent
                     font.family: Theme.display
@@ -64,9 +73,9 @@ Item {
                     font.weight: Font.Bold
                     font.letterSpacing: 2
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     text: bar.gameName.length > 0 ? "MODULE · " + bar.gameName.toUpperCase() : "NO GAME RUNNING"
-                    color: bar.gameName.length > 0 ? Theme.purpleText : Theme.dim
+                    color: bar.gameName.length > 0 ? Theme.purpleText : Theme.dim()
                     font.family: Theme.display
                     font.pixelSize: 11
                     font.weight: Font.DemiBold
@@ -80,11 +89,11 @@ Item {
                 height: parent.height
                 color: Theme.divider
             }
-            MouseArea {
+            DragArea {
+                id: titleDrag
                 anchors.fill: parent
-                hoverEnabled: true
                 // The version, as a tooltip would show it.
-                ToolTipText { visible: parent.containsMouse; text: "Game Companion " + Companion.version() }
+                ToolTipText { visible: titleDrag.containsMouse && !titleDrag.pressed; text: "Game Companion " + Companion.version() + " · drag to move the bar" }
             }
         }
 
@@ -136,6 +145,18 @@ Item {
         }
     }
 
+    // Dragging moves the bar sideways (measured on the screen, so the
+    // bar's own scale does not matter).
+    component DragArea: MouseArea {
+        property real startX: 0
+        hoverEnabled: true
+        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+        onPressed: (mouse) => startX = mapToItem(null, mouse.x, mouse.y).x
+        onPositionChanged: (mouse) => { if (pressed) bar.dragShift = mapToItem(null, mouse.x, mouse.y).x - startX }
+        onReleased: bar.dropped()
+        onCanceled: bar.dragShift = 0
+    }
+
     component ToolTipText: Rectangle {
         property alias text: label.text
         x: 0
@@ -144,10 +165,10 @@ Item {
         height: label.implicitHeight + 10
         color: Theme.panel(0.95)
         border.color: Theme.divider
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: label
             anchors.centerIn: parent
-            color: Theme.textSoft
+            color: Theme.textSoft()
             font.family: Theme.body
             font.pixelSize: 12
         }

@@ -333,7 +333,7 @@ Item {
     })
     function segmentColor(c) {
         return ({ sponsor: "#5fcf7a", selfpromo: "#e8d44d", interaction: "#c4a8f0", intro: "#a9a6b2",
-                  outro: "#6f6b78", preview: "#e07a3c", filler: "#9b6be8", music_offtopic: "#f2c46b" })[c] || Theme.muted
+                  outro: "#6f6b78", preview: "#e07a3c", filler: "#9b6be8", music_offtopic: "#f2c46b" })[c] || Theme.muted()
     }
     Connections {
         target: Streams
@@ -484,7 +484,7 @@ Item {
         function seek(seconds, relative) {}
     }
     // Where frames can't be drawn (screenshots), or while it loads.
-    Text {
+    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
         anchors.centerIn: parent
         visible: !video.drawable || win.preparing || win.playState === "loading" || win.reconnecting || win.playState === "failed" || win.failure.length > 0
         width: parent.width - 40
@@ -557,9 +557,9 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 7
                 height: 7
-                color: win.playState === "playing" ? Theme.red : win.playState === "failed" ? Theme.red : Theme.dim
+                color: win.playState === "playing" ? Theme.red : win.playState === "failed" ? Theme.red : Theme.dim()
             }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 text: win.label.toUpperCase()
                 color: Theme.accent
@@ -568,14 +568,14 @@ Item {
                 font.weight: Font.Bold
                 font.letterSpacing: 1.5
             }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width - 90
                 elide: Text.ElideRight
                 text: win.item ? (win.item.kind === "twitch" ? win.item.name + (win.item.game ? " · " + win.item.game : "")
                     : win.jelly ? [win.item.title, win.item.name].filter((t) => t).join(" · ")
                     : (win.item.title || video.title)) : ""
-                color: Theme.textSoft
+                color: Theme.textSoft()
                 font.family: Theme.body
                 font.pixelSize: 12
             }
@@ -595,11 +595,11 @@ Item {
                     id: pinRow
                     anchors.centerIn: parent
                     spacing: 4
-                    HudIcon { anchors.verticalCenter: parent.verticalCenter; name: "pin"; size: 12; filled: win.pinned; color: win.pinned ? Theme.accent : Theme.muted }
-                    Text {
+                    HudIcon { anchors.verticalCenter: parent.verticalCenter; name: "pin"; size: 12; filled: win.pinned; color: win.pinned ? Theme.accent : Theme.muted() }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         anchors.verticalCenter: parent.verticalCenter
                         text: win.pinned ? "PINNED" : "PIN"
-                        color: win.pinned ? Theme.accent : Theme.muted
+                        color: win.pinned ? Theme.accent : Theme.muted()
                         font.family: Theme.display
                         font.pixelSize: 11
                         font.weight: Font.Bold
@@ -618,11 +618,11 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: qualityText.implicitWidth + 14
                 height: 26
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     id: qualityText
                     anchors.centerIn: parent
                     text: win.qualityName(win.quality) + " ▾"
-                    color: qualityPicker.open ? Theme.accent : qualityMouse.containsMouse ? Theme.text : Theme.muted
+                    color: qualityPicker.open ? Theme.accent : qualityMouse.containsMouse ? Theme.text() : Theme.muted()
                     font.family: Theme.display
                     font.pixelSize: 12
                     font.weight: Font.Bold
@@ -652,7 +652,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 icon: win.fullScreen ? "shrink" : "expand"
                 iconSize: 13
-                color: win.fullScreen ? Theme.accent : Theme.muted
+                color: win.fullScreen ? Theme.accent : Theme.muted()
                 tip: win.fullScreen ? "Leave full screen (Esc)" : "Full screen"
                 onClicked: win.toggleFullScreen()
             }
@@ -660,7 +660,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 icon: "close"
                 iconSize: 12
-                color: Theme.muted
+                color: Theme.muted()
                 tip: "Close the video"
                 onClicked: win.stop()
             }
@@ -696,12 +696,12 @@ Item {
             }
             SeekButton { back: true }
             SeekButton { back: false }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 // Small, the time line's own label says it.
                 visible: video.duration > 0 && win.width >= 470
                 text: win.clock(timeLine.dragging ? timeLine.at : video.position) + " / " + win.clock(video.duration)
-                color: timeLine.dragging ? Theme.accent : Theme.muted
+                color: timeLine.dragging ? Theme.accent : Theme.muted()
                 font.family: Theme.body
                 font.pixelSize: 11
             }
@@ -712,11 +712,11 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: opacityText.implicitWidth + 12
             height: 26
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 id: opacityText
                 anchors.centerIn: parent
                 text: "◐ " + Math.round(win.videoOpacity * 100) + " % ▾"
-                color: opacityPicker.open ? Theme.accent : opacityMouse.containsMouse ? Theme.text : Theme.muted
+                color: opacityPicker.open ? Theme.accent : opacityMouse.containsMouse ? Theme.text() : Theme.muted()
                 font.family: Theme.display
                 font.pixelSize: 12
                 font.weight: Font.Bold
@@ -785,11 +785,11 @@ Item {
             width: hoverTime.implicitWidth + 10
             height: hoverTime.implicitHeight + 4
             color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.9)
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 id: hoverTime
                 anchors.centerIn: parent
                 text: win.clock(timeLine.timeAt(seekMouse.mouseX))
-                color: Theme.text
+                color: Theme.text()
                 font.family: Theme.body
                 font.pixelSize: 11
             }
@@ -814,11 +814,11 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: trackText.implicitWidth + 14
         height: 26
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: trackText
             anchors.centerIn: parent
             text: parent.text + " ▾"
-            color: parent.picker.open ? Theme.accent : trackMouse.containsMouse ? Theme.text : Theme.muted
+            color: parent.picker.open ? Theme.accent : trackMouse.containsMouse ? Theme.text() : Theme.muted()
             font.family: Theme.display
             font.pixelSize: 12
             font.weight: Font.Bold
@@ -851,12 +851,12 @@ Item {
                 name: "rewind"
                 size: 13
                 lineWidth: 2.2
-                color: seekButtonMouse.containsMouse ? Theme.accent : Theme.text
+                color: seekButtonMouse.containsMouse ? Theme.accent : Theme.text()
             }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 text: "10"
-                color: seekButtonMouse.containsMouse ? Theme.accent : Theme.text
+                color: seekButtonMouse.containsMouse ? Theme.accent : Theme.text()
                 font.family: Theme.display
                 font.pixelSize: 12
                 font.weight: Font.Bold
@@ -867,7 +867,7 @@ Item {
                 name: "forwardWind"
                 size: 13
                 lineWidth: 2.2
-                color: seekButtonMouse.containsMouse ? Theme.accent : Theme.text
+                color: seekButtonMouse.containsMouse ? Theme.accent : Theme.text()
             }
         }
         MouseArea {
@@ -896,16 +896,16 @@ Item {
             id: skipRow
             anchors.centerIn: parent
             spacing: 12
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 text: win.skipNote
-                color: Theme.text
+                color: Theme.text()
                 font.family: Theme.display
                 font.pixelSize: 12
                 font.weight: Font.Bold
                 font.letterSpacing: 1
             }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 visible: !Companion.locked
                 anchors.verticalCenter: parent.verticalCenter
                 text: "UNDO"
@@ -979,7 +979,7 @@ Item {
         height: 34
         color: skipMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.25) : Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.85)
         border.color: Theme.accent
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: skipText
             anchors.centerIn: parent
             text: win.jfSegment ? (win.skipNames[win.jfSegment.kind] || "SKIP") : ""
@@ -1011,12 +1011,12 @@ Item {
             anchors.centerIn: parent
             width: parent.width - 32
             spacing: 8
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
                 text: win.nextNote
-                color: Theme.text
+                color: Theme.text()
                 font.family: Theme.display
                 font.pixelSize: 13
                 font.weight: Font.Bold

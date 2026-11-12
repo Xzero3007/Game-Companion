@@ -99,6 +99,16 @@ learnt, so nothing has to be asked or worked out again.
   `hotkeys.rs`; ids `lock` (Alt+Q) and `toggle` (Alt+Y, hides the hub),
   the person's own KDE keys (2026-11-12). App id
   `io.github.xzero3007.GameCompanion` (the desktop file's name).
+- Display settings (the person, 2026-11-12): `alpha` 0.05 to 1,
+  `text_level` 0.4 to 1, `bar` {offset px from the centre, scale 0.6 to
+  1}, three presets each (`alpha_presets`, `text_presets`); all in layouts
+  (old layouts lack text and bar: kept as they are). `Theme.text()`,
+  `textSoft()`, `muted()`, `dim()` are **functions** (theme.js imports
+  `GameCompanion` and reads `Companion.textLevel`, so bindings follow);
+  every `Text` has `style: Theme.textStyle(); styleColor: Theme.shadow`
+  (a 1 px shadow under half opacity): keep both for new text. The bar and
+  the player row scale from their top left; `Main.rectOf` maps the scaled
+  rectangle for the input region.
 - `qml/theme.js`: the design's colours and fonts (a JS library, not a QML
   singleton: files in `qml/` would otherwise see the implicit directory
   import's non-singleton type).

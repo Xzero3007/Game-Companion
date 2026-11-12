@@ -46,9 +46,9 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 7
                 height: 7
-                color: Radio.status === "playing" ? Theme.accent : Radio.status === "failed" ? Theme.red : Theme.dim
+                color: Radio.status === "playing" ? Theme.accent : Radio.status === "failed" ? Theme.red : Theme.dim()
             }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 text: "RADIO"
                 color: Theme.accent
@@ -57,12 +57,12 @@ Item {
                 font.weight: Font.Bold
                 font.letterSpacing: 1.5
             }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.min(implicitWidth, 180)
                 elide: Text.ElideRight
                 text: Radio.status === "failed" ? Radio.why : Radio.name
-                color: Radio.status === "failed" ? Theme.red : Theme.textSoft
+                color: Radio.status === "failed" ? Theme.red : Theme.textSoft()
                 font.family: Theme.body
                 font.pixelSize: 12
             }
@@ -85,7 +85,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 icon: "close"
                 iconSize: 12
-                color: Theme.dim
+                color: Theme.dim()
                 tip: "Stop the radio"
                 onClicked: Radio.stop()
             }
@@ -108,9 +108,9 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 7
                     height: 7
-                    color: part.v.playState === "playing" ? Theme.red : part.v.playState === "failed" ? Theme.red : Theme.dim
+                    color: part.v.playState === "playing" ? Theme.red : part.v.playState === "failed" ? Theme.red : Theme.dim()
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     anchors.verticalCenter: parent.verticalCenter
                     text: part.v.label.toUpperCase()
                     color: Theme.accent
@@ -119,12 +119,12 @@ Item {
                     font.weight: Font.Bold
                     font.letterSpacing: 1.5
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     anchors.verticalCenter: parent.verticalCenter
                     width: Math.min(implicitWidth, 160)
                     elide: Text.ElideRight
                     text: part.v.item ? (part.v.item.kind === "twitch" ? part.v.item.name : (part.v.item.title || part.v.item.name)) : ""
-                    color: Theme.textSoft
+                    color: Theme.textSoft()
                     font.family: Theme.body
                     font.pixelSize: 12
                 }
@@ -147,7 +147,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     icon: "close"
                     iconSize: 12
-                    color: Theme.dim
+                    color: Theme.dim()
                     tip: "Stop " + part.v.label
                     onClicked: part.v.stop()
                 }
@@ -161,7 +161,7 @@ Item {
             icon: "pin"
             iconSize: 14
             filled: strip.pinned
-            color: strip.pinned ? Theme.accent : Theme.dim
+            color: strip.pinned ? Theme.accent : Theme.dim()
             tip: strip.pinned ? "Unpin: hide with the hub" : "Pin: stay when the hub is hidden"
             onClicked: Companion.togglePin("player-row")
         }

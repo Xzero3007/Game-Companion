@@ -35,7 +35,7 @@ Panel {
         }
 
         Para {
-            color: Theme.dim
+            color: Theme.dim()
             text: "The pin in a panel's header keeps it on screen while the hub is hidden. Videos and game modules come in the next steps."
         }
 
@@ -53,11 +53,11 @@ Panel {
 
     onCloseClicked: Companion.closeWelcome()
 
-    component Para: Text {
+    component Para: Text { style: Theme.textStyle(); styleColor: Theme.shadow;
         width: parent.width
         wrapMode: Text.WordWrap
         textFormat: Text.StyledText
-        color: Theme.textSoft
+        color: Theme.textSoft()
         font.family: Theme.body
         font.pixelSize: 13
         lineHeight: 1.2
@@ -68,7 +68,7 @@ Panel {
         width: parent.width
         height: 34
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             anchors.verticalCenter: parent.verticalCenter
             width: 110
             text: parent.key.toUpperCase()
@@ -78,13 +78,13 @@ Panel {
             font.weight: Font.Bold
             font.letterSpacing: 1
         }
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             x: 118
             anchors.verticalCenter: parent.verticalCenter
             width: parent.width - 118
             elide: Text.ElideRight
             text: parent.what
-            color: Theme.text
+            color: Theme.text()
             font.family: Theme.body
             font.pixelSize: 13
         }

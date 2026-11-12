@@ -10,7 +10,6 @@ Panel {
     width: 440
 
     property string tab: nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0 ? "streams" : "general"
-    property real previewAlpha: Companion.alpha
     property var keys: JSON.parse(Companion.shortcuts)
     readonly property var layouts: JSON.parse(Companion.layouts)
     /// The layout being renamed ("" for none).
@@ -20,7 +19,7 @@ Panel {
     signal saveLayoutRequested(string name)
     signal loadLayoutRequested(string name)
     Component.onCompleted: {
-        for (const t of ["layouts", "streams-settings", "shortcuts", "about"]) if (nativeWindow.demo.indexOf(t) >= 0) tab = t.replace("-settings", "")
+        for (const t of ["display", "layouts", "streams-settings", "shortcuts", "about"]) if (nativeWindow.demo.indexOf(t) >= 0) tab = t.replace("-settings", "")
     }
 
     Column {
@@ -28,8 +27,9 @@ Panel {
         spacing: 12
 
         Row {
-            spacing: 18
+            spacing: 12
             Tab { name: "general"; label: "General" }
+            Tab { name: "display"; label: "Display" }
             Tab { name: "layouts"; label: "Layouts" }
             Tab { name: "streams"; label: "Streams" }
             Tab { name: "shortcuts"; label: "Shortcuts" }
@@ -43,29 +43,6 @@ Panel {
             width: parent.width
             spacing: 10
 
-            Label { text: "Panel opacity" }
-            Row {
-                width: parent.width
-                spacing: 12
-                HudSlider {
-                    width: parent.width - 60
-                    from: 0.5
-                    to: 1
-                    value: settings.previewAlpha
-                    onChanging: (v) => settings.previewAlpha = v
-                    onMoved: (v) => { settings.previewAlpha = v; Companion.saveAlpha(v) }
-                }
-                Text {
-                    text: Math.round(settings.previewAlpha * 100) + " %"
-                    color: Theme.accent
-                    font.family: Theme.display
-                    font.pixelSize: 15
-                    font.weight: Font.Bold
-                }
-            }
-            Hint { text: "How much of the game shows through the bar and the panels." }
-
-            Item { width: 1; height: 6 }
             Label { text: "Overlay" }
             Hint { text: nativeWindow.layerShell
                 ? "On KDE's overlay layer: above games in fullscreen, borderless or windowed mode."
@@ -73,12 +50,12 @@ Panel {
 
             Item { width: 1; height: 6 }
             Label { text: "Updates" }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 width: parent.width
                 wrapMode: Text.WordWrap
                 text: "This is " + Companion.version() + "."
                     + (Updates.latest.length > 0 ? " Latest release: " + Updates.latest + "." : "")
-                color: Theme.textSoft
+                color: Theme.textSoft()
                 font.family: Theme.body
                 font.pixelSize: 13
             }
@@ -86,7 +63,7 @@ Panel {
                 visible: Updates.message.length > 0
                 text: Updates.message
                 color: Updates.state === "failed" ? Theme.red
-                    : Updates.state === "available" || Updates.state === "installing" ? Theme.accent : Theme.dim
+                    : Updates.state === "available" || Updates.state === "installing" ? Theme.accent : Theme.dim()
             }
             Row {
                 spacing: 10
@@ -110,6 +87,60 @@ Panel {
                 danger: true
                 onClicked: Qt.quit()
             }
+        }
+
+        // Display
+        Column {
+            visible: settings.tab === "display"
+            width: parent.width
+            spacing: 10
+
+            Label { text: "Panel opacity" }
+            Level {
+                from: 0.05
+                value: Companion.alpha
+                onChanging: (v) => Companion.alpha = v
+                onMoved: (v) => Companion.saveAlpha(v)
+            }
+            Presets {
+                kind: "alpha"
+                values: JSON.parse(Companion.alphaPresets)
+                current: Companion.alpha
+                onPicked: (v) => Companion.saveAlpha(v)
+            }
+            Hint { text: "How much of the game shows through the bar and the panels. Under half, text gets a thin shadow to stay readable." }
+
+            Item { width: 1; height: 6 }
+            Label { text: "Text brightness" }
+            Level {
+                from: 0.4
+                value: Companion.textLevel
+                onChanging: (v) => Companion.textLevel = v
+                onMoved: (v) => Companion.saveTextLevel(v)
+            }
+            Presets {
+                kind: "text"
+                values: JSON.parse(Companion.textPresets)
+                current: Companion.textLevel
+                onPicked: (v) => Companion.saveTextLevel(v)
+            }
+            Hint { text: "Darkens the white and grey text. Gold, red, purple and the game's colours stay." }
+
+            Item { width: 1; height: 6 }
+            Label { text: "Bar size" }
+            Level {
+                from: 0.6
+                value: Companion.barScale
+                onChanging: (v) => Companion.barScale = v
+                onMoved: (v) => Companion.saveBarScale(v)
+            }
+            Hint { text: "Shrinks the bar and the player row under it. Unlocked, drag the bar by its name or its slanted ends to move it sideways." }
+            TextButton {
+                text: "Center bar"
+                onClicked: Companion.saveBarOffset(0)
+            }
+
+            Hint { text: "P1 to P3: a click uses the value, holding or a right click keeps the current one there." }
         }
 
         // Layouts
@@ -163,7 +194,7 @@ Panel {
                     width: parent.width
                     height: 46
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
-                    Text {
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         visible: !layoutRow.editing
                         anchors.left: parent.left
                         anchors.right: rowButtons.left
@@ -171,7 +202,7 @@ Panel {
                         anchors.verticalCenter: parent.verticalCenter
                         elide: Text.ElideRight
                         text: layoutRow.modelData
-                        color: Theme.text
+                        color: Theme.text()
                         font.family: Theme.body
                         font.pixelSize: 13
                     }
@@ -224,7 +255,7 @@ Panel {
                             anchors.verticalCenter: parent.verticalCenter
                             icon: "close"
                             tip: "Delete " + layoutRow.modelData
-                            color: Theme.dim
+                            color: Theme.dim()
                             hoverColor: Theme.red
                             onClicked: {
                                 Companion.deleteLayout(layoutRow.modelData)
@@ -258,11 +289,11 @@ Panel {
                         readonly property bool chosen: parent.parent.part === modelData[0]
                         width: partText.implicitWidth
                         height: 26
-                        Text {
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                             id: partText
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData[1].toUpperCase()
-                            color: parent.chosen ? Theme.accent : (partMouse.containsMouse ? Theme.text : Theme.dim)
+                            color: parent.chosen ? Theme.accent : (partMouse.containsMouse ? Theme.text() : Theme.dim())
                             font.family: Theme.display
                             font.pixelSize: 12
                             font.weight: Font.Bold
@@ -316,7 +347,7 @@ Panel {
             Row {
                 visible: !!parent.account.user && parent.account.user !== "?"
                 spacing: 12
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     anchors.verticalCenter: parent.verticalCenter
                     text: parent.parent.account.user === "…" ? "Checking with Twitch…" : "Signed in as " + parent.parent.account.user
                     color: Theme.accent
@@ -334,7 +365,7 @@ Panel {
             Hint {
                 text: parent.account.streamlink ? "Streamlink is installed: Twitch plays without the ad breaks."
                     : "Streamlink is not installed: Twitch plays through yt-dlp, with its ad breaks (sudo pacman -S streamlink)."
-                color: parent.account.streamlink ? Theme.dim : Theme.textSoft
+                color: parent.account.streamlink ? Theme.dim() : Theme.textSoft()
             }
 
             Item { width: 1; height: 4 }
@@ -356,9 +387,9 @@ Panel {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 10
                     Label { text: "SponsorBlock" }
-                    Text {
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         text: sbHead.sb.enabled ? "ON" : "OFF"
-                        color: sbHead.sb.enabled ? Theme.accent : Theme.dim
+                        color: sbHead.sb.enabled ? Theme.accent : Theme.dim()
                         font.family: Theme.display
                         font.pixelSize: 12
                         font.weight: Font.Bold
@@ -379,7 +410,7 @@ Panel {
                     }
                 }
             }
-            Hint { visible: sbHead.message.length > 0; text: sbHead.message; color: Theme.textSoft }
+            Hint { visible: sbHead.message.length > 0; text: sbHead.message; color: Theme.textSoft() }
             Column {
                 width: parent.width
                 opacity: sbHead.sb.enabled ? 1 : 0.45
@@ -392,10 +423,10 @@ Panel {
                         width: parent.width
                         height: 28
                         readonly property string mode: (sbHead.sb.categories || {})[modelData[0]] || "off"
-                        Text {
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData[1]
-                            color: Theme.textSoft
+                            color: Theme.textSoft()
                             font.family: Theme.body
                             font.pixelSize: 12
                         }
@@ -410,11 +441,11 @@ Panel {
                                     readonly property bool chosen: parent.parent.mode === modelData[0]
                                     width: choiceText.implicitWidth
                                     height: 24
-                                    Text {
+                                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                                         id: choiceText
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: modelData[1].toUpperCase()
-                                        color: parent.chosen ? Theme.accent : (choiceMouse.containsMouse ? Theme.text : Theme.dim)
+                                        color: parent.chosen ? Theme.accent : (choiceMouse.containsMouse ? Theme.text() : Theme.dim())
                                         font.family: Theme.display
                                         font.pixelSize: 12
                                         font.weight: Font.Bold
@@ -452,15 +483,15 @@ Panel {
                 height: 34
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
-                    Text {
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         text: parent.parent.parent.jf ? "Signed in as " + parent.parent.parent.jf.user + " on " + parent.parent.parent.jf.serverName : ""
                         color: Theme.accent
                         font.family: Theme.body
                         font.pixelSize: 13
                     }
-                    Text {
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         text: parent.parent.parent.jf ? parent.parent.parent.jf.server : ""
-                        color: Theme.dim
+                        color: Theme.dim()
                         font.family: Theme.body
                         font.pixelSize: 11
                     }
@@ -516,27 +547,27 @@ Panel {
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.width - 120
-                        Text {
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                             width: parent.width
                             elide: Text.ElideRight
                             text: modelData.description
-                            color: Theme.text
+                            color: Theme.text()
                             font.family: Theme.body
                             font.pixelSize: 13
                         }
-                        Text {
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                             width: parent.width
                             elide: Text.ElideRight
                             text: modelData.state === "bound" ? "Set in KDE"
                                 : modelData.state === "suggested" ? "Suggested, waiting for KDE"
                                 : modelData.state === "nokey" ? "KDE gave it no key: set one in System Settings"
                                 : "No shortcuts: " + modelData.state.replace("unavailable: ", "")
-                            color: modelData.state === "bound" || modelData.state === "suggested" ? Theme.dim : Theme.red
+                            color: modelData.state === "bound" || modelData.state === "suggested" ? Theme.dim() : Theme.red
                             font.family: Theme.body
                             font.pixelSize: 11
                         }
                     }
-                    Text {
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         text: modelData.key.length > 0 ? modelData.key.toUpperCase() : "—"
@@ -565,7 +596,7 @@ Panel {
             visible: settings.tab === "about"
             width: parent.width
             spacing: 8
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 text: "GAME COMPANION " + Companion.version().toUpperCase()
                 color: Theme.accent
                 font.family: Theme.display
@@ -585,11 +616,11 @@ Panel {
         width: tabText.implicitWidth
         height: 32
         readonly property bool current: settings.tab === name
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: tabText
             anchors.verticalCenter: parent.verticalCenter
             text: parent.label.toUpperCase()
-            color: parent.current ? Theme.accent : (tabMouse.containsMouse ? Theme.text : Theme.muted)
+            color: parent.current ? Theme.accent : (tabMouse.containsMouse ? Theme.text() : Theme.muted())
             font.family: Theme.display
             font.pixelSize: 13
             font.weight: Font.Bold
@@ -612,9 +643,9 @@ Panel {
         Accessible.role: Accessible.PageTab
         Accessible.name: label
     }
-    component Label: Text {
+    component Label: Text { style: Theme.textStyle(); styleColor: Theme.shadow;
         text: ""
-        color: Theme.text
+        color: Theme.text()
         font.family: Theme.display
         font.pixelSize: 13
         font.weight: Font.Bold
@@ -637,7 +668,7 @@ Panel {
             anchors.leftMargin: 10
             anchors.rightMargin: 10
             verticalAlignment: TextInput.AlignVCenter
-            color: Theme.text
+            color: Theme.text()
             selectionColor: Theme.accent
             selectedTextColor: "#0c0c0f"
             font.family: Theme.body
@@ -646,11 +677,11 @@ Panel {
             echoMode: parent.secret ? TextInput.Password : TextInput.Normal
             clip: true
             onAccepted: parent.accepted()
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 visible: input.text.length === 0
                 text: parent.parent.placeholder
-                color: Theme.dim
+                color: Theme.dim()
                 font: input.font
             }
             Accessible.name: parent.placeholder
@@ -663,12 +694,12 @@ Panel {
         property bool on: false
         signal toggled
         height: 30
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             anchors.verticalCenter: parent.verticalCenter
             width: parent.width - 70
             elide: Text.ElideRight
             text: onOff.text
-            color: Theme.textSoft
+            color: Theme.textSoft()
             font.family: Theme.body
             font.pixelSize: 13
         }
@@ -679,10 +710,10 @@ Panel {
             height: 26
             color: onOffMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.12) : "transparent"
             border.color: onOff.on ? Theme.accent : Theme.track
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.centerIn: parent
                 text: onOff.on ? "ON" : "OFF"
-                color: onOff.on ? Theme.accent : Theme.dim
+                color: onOff.on ? Theme.accent : Theme.dim()
                 font.family: Theme.display
                 font.pixelSize: 12
                 font.weight: Font.Bold
@@ -700,10 +731,91 @@ Panel {
         Accessible.name: onOff.text
         Accessible.checked: onOff.on
     }
-    component Hint: Text {
+    // A slider from `from` to 100 %, with its value in the accent beside it.
+    component Level: Row {
+        id: level
+        property real from: 0
+        property real value: 1
+        signal changing(real value)
+        signal moved(real value)
+        width: parent ? parent.width : 300
+        spacing: 12
+        HudSlider {
+            width: parent.width - 60
+            from: level.from
+            to: 1
+            value: level.value
+            onChanging: (v) => level.changing(v)
+            onMoved: (v) => level.moved(v)
+        }
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+            text: Math.round(level.value * 100) + " %"
+            color: Theme.accent
+            font.family: Theme.display
+            font.pixelSize: 15
+            font.weight: Font.Bold
+        }
+    }
+    // P1 to P3: a click jumps to the kept value, a long press or a right
+    // click keeps the current one. The one matching now is gold.
+    component Presets: Row {
+        id: presets
+        property string kind
+        property var values: []
+        property real current: 0
+        signal picked(real value)
+        spacing: 8
+        Repeater {
+            model: presets.values.length
+            delegate: Rectangle {
+                id: preset
+                required property int index
+                readonly property real value: presets.values[index]
+                readonly property bool on: Math.abs(value - presets.current) < 0.005
+                property bool kept: false
+                width: 74
+                height: 28
+                color: presetMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.12) : "transparent"
+                border.color: on || kept ? Theme.accent : Theme.track
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                    anchors.centerIn: parent
+                    text: preset.kept ? "KEPT" : "P" + (preset.index + 1) + "  " + Math.round(preset.value * 100) + " %"
+                    color: preset.on || preset.kept ? Theme.accent : Theme.muted()
+                    font.family: Theme.display
+                    font.pixelSize: 12
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1
+                }
+                Timer { id: keptTimer; interval: 900; onTriggered: preset.kept = false }
+                MouseArea {
+                    id: presetMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    pressAndHoldInterval: 600
+                    property bool held: false
+                    function keep() {
+                        Companion.savePreset(presets.kind, preset.index, presets.current)
+                        preset.kept = true
+                        keptTimer.restart()
+                    }
+                    onPressed: held = false
+                    onPressAndHold: { held = true; keep() }
+                    onClicked: (mouse) => {
+                        if (mouse.button === Qt.RightButton) keep()
+                        else if (!held) presets.picked(preset.value)
+                    }
+                }
+                Accessible.role: Accessible.Button
+                Accessible.name: "Preset " + (index + 1)
+            }
+        }
+    }
+    component Hint: Text { style: Theme.textStyle(); styleColor: Theme.shadow;
         width: parent ? parent.width : 300
         wrapMode: Text.WordWrap
-        color: Theme.dim
+        color: Theme.dim()
         font.family: Theme.body
         font.pixelSize: 12
         lineHeight: 1.15

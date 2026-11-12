@@ -20,7 +20,7 @@ Item {
         border.color: button.tint
         border.width: 1
     }
-    Text {
+    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
         id: label
         anchors.centerIn: parent
         text: button.text.toUpperCase()

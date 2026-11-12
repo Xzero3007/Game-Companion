@@ -47,12 +47,12 @@ Rectangle {
                         height: parent.height
                         color: Theme.accent
                     }
-                    Text {
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         anchors.left: parent.left
                         anchors.leftMargin: 12
                         anchors.verticalCenter: parent.verticalCenter
                         text: modelData.name
-                        color: parent.chosenNow ? Theme.accent : Theme.textSoft
+                        color: parent.chosenNow ? Theme.accent : Theme.textSoft()
                         font.family: Theme.display
                         font.pixelSize: 12
                         font.weight: Font.Bold

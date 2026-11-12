@@ -26,9 +26,9 @@ Window {
         return ""
     }
 
+    // On screen, with any scale (the bar and the player row can be smaller).
     function rectOf(item) {
-        const p = item.mapToItem(null, 0, 0)
-        return Qt.rect(p.x, p.y, item.width, item.height)
+        return item.mapToItem(null, 0, 0, item.width, item.height)
     }
 
     // The input region: what takes clicks right now.
@@ -109,8 +109,17 @@ Window {
         HudBar {
             id: bar
             visible: Companion.shown
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
+            // Sideways where the user left it, never off the screen.
+            transformOrigin: Item.TopLeft
+            scale: Companion.barScale
+            readonly property real shownWidth: width * scale
+            x: Math.max(0, Math.min(scene.width - shownWidth, (scene.width - shownWidth) / 2 + Companion.barOffset + dragShift))
+            y: 0
+            onDropped: {
+                Companion.saveBarOffset(x - (scene.width - shownWidth) / 2)
+                dragShift = 0
+            }
+            onScaleChanged: root.requestInput()
             settingsOpen: root.settingsOpen
             radioOpen: root.radioOpen
             streamsOpen: root.streamsOpen
@@ -151,8 +160,12 @@ Window {
             id: playerRow
             videos: [twitchVideo, youtubeVideo, jellyfinVideo]
             visible: active && root.onScreen("player-row")
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: Companion.shown ? bar.height : 0
+            // Under the bar, as big as it, following it sideways.
+            transformOrigin: Item.TopLeft
+            scale: Companion.barScale
+            x: Math.max(0, Math.min(scene.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
+            y: Companion.shown ? bar.height * bar.scale : 0
+            onScaleChanged: root.requestInput()
             onWidthChanged: root.requestInput()
             onXChanged: root.requestInput()
             onYChanged: root.requestInput()
@@ -162,7 +175,7 @@ Window {
         HubHint {
             id: hubHint
             anchors.horizontalCenter: parent.horizontalCenter
-            y: playerRow.visible ? playerRow.height + 6 : 6
+            y: playerRow.visible ? playerRow.y + playerRow.height * playerRow.scale + 6 : 6
             key: root.keyOf("toggle")
         }
 

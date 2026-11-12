@@ -7,14 +7,28 @@ use std::sync::{Mutex, OnceLock};
 
 use serde::{Deserialize, Serialize};
 
-/// The default see-through value of the overlay's panels (0.5 to 1).
+/// The default see-through value of the overlay's panels (0.05 to 1).
 pub const DEFAULT_ALPHA: f64 = 0.9;
+/// The lowest see-through value: the panels' ground almost gone.
+pub const MIN_ALPHA: f64 = 0.05;
+/// The lowest text brightness (white and grey text, 0.4 to 1).
+pub const MIN_TEXT_LEVEL: f64 = 0.4;
+/// The smallest bar (0.6 to 1 of its size).
+pub const MIN_BAR_SCALE: f64 = 0.6;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
-    /// How solid the panels are, 0.5 (see-through) to 1 (solid).
+    /// How solid the panels are, 0.05 (almost see-through) to 1 (solid).
     pub alpha: f64,
+    /// How bright the white and grey text is, 0.4 to 1 (as designed).
+    pub text_level: f64,
+    /// The three opacity values the buttons P1 to P3 jump to.
+    pub alpha_presets: Vec<f64>,
+    /// The three text brightness values the buttons P1 to P3 jump to.
+    pub text_presets: Vec<f64>,
+    /// Where the bar sits and how big it is.
+    pub bar: BarSettings,
     /// Where each panel was left, by its id: its top-left corner in pixels.
     pub places: BTreeMap<String, Place>,
     /// Whether the welcome panel shows (it closes for good once closed).
@@ -29,6 +43,28 @@ pub struct Settings {
     /// The Jellyfin tab's choices (the server and its key are kept apart,
     /// in `jellyfin.json`).
     pub jellyfin: JellyfinSettings,
+}
+
+/// The bar at the top: moved sideways by `offset` pixels from the screen's
+/// centre, drawn at `scale` (0.6 to 1) of its size.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BarSettings {
+    pub offset: f64,
+    pub scale: f64,
+}
+
+impl Default for BarSettings {
+    fn default() -> Self {
+        Self { offset: 0.0, scale: 1.0 }
+    }
+}
+
+impl BarSettings {
+    pub fn tidy(self) -> Self {
+        let offset = if self.offset.is_finite() { self.offset.clamp(-10_000.0, 10_000.0).round() } else { 0.0 };
+        Self { offset, scale: clamp_bar_scale(self.scale) }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -114,7 +150,9 @@ impl Default for StreamsSettings {
 }
 
 /// An arrangement to come back to: which panels are open, where and how
-/// big they are, what is pinned, how solid the panels are.
+/// big they are, what is pinned, how solid the panels are, how bright the
+/// text is, and where the bar is and its size (the last two missing in
+/// layouts saved before they existed).
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Layout {
@@ -122,6 +160,10 @@ pub struct Layout {
     pub places: BTreeMap<String, Place>,
     pub pins: BTreeSet<String>,
     pub alpha: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_level: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bar: Option<BarSettings>,
 }
 
 /// A layout's name: trimmed, at most 40 characters, not empty.
@@ -201,6 +243,10 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             alpha: DEFAULT_ALPHA,
+            text_level: 1.0,
+            alpha_presets: DEFAULT_ALPHA_PRESETS.to_vec(),
+            text_presets: DEFAULT_TEXT_PRESETS.to_vec(),
+            bar: BarSettings::default(),
             places: BTreeMap::new(),
             welcome: true,
             pins: BTreeSet::new(),
@@ -233,6 +279,10 @@ impl Settings {
             .and_then(|text| serde_json::from_str(&text).ok())
             .unwrap_or_default();
         settings.alpha = clamp_alpha(settings.alpha);
+        settings.text_level = clamp_text_level(settings.text_level);
+        settings.alpha_presets = presets(&settings.alpha_presets, &DEFAULT_ALPHA_PRESETS, clamp_alpha);
+        settings.text_presets = presets(&settings.text_presets, &DEFAULT_TEXT_PRESETS, clamp_text_level);
+        settings.bar = settings.bar.tidy();
         settings.radio.volume = settings.radio.volume.min(100);
         settings.streams.volume = settings.streams.volume.min(100);
         settings
@@ -258,9 +308,26 @@ impl Settings {
     }
 }
 
-/// Keeps the see-through value where panels stay readable.
+pub const DEFAULT_ALPHA_PRESETS: [f64; 3] = [0.9, 0.6, 0.2];
+pub const DEFAULT_TEXT_PRESETS: [f64; 3] = [1.0, 0.8, 0.6];
+
+/// Keeps the see-through value between almost see-through and solid.
 pub fn clamp_alpha(alpha: f64) -> f64 {
-    if alpha.is_finite() { alpha.clamp(0.5, 1.0) } else { DEFAULT_ALPHA }
+    if alpha.is_finite() { alpha.clamp(MIN_ALPHA, 1.0) } else { DEFAULT_ALPHA }
+}
+
+/// Keeps the text brightness where text can still be read.
+pub fn clamp_text_level(level: f64) -> f64 {
+    if level.is_finite() { level.clamp(MIN_TEXT_LEVEL, 1.0) } else { 1.0 }
+}
+
+pub fn clamp_bar_scale(scale: f64) -> f64 {
+    if scale.is_finite() { scale.clamp(MIN_BAR_SCALE, 1.0) } else { 1.0 }
+}
+
+/// Always three presets, each in range; missing ones from the defaults.
+fn presets(values: &[f64], defaults: &[f64; 3], clamp: fn(f64) -> f64) -> Vec<f64> {
+    (0..3).map(|i| clamp(values.get(i).copied().unwrap_or(defaults[i]))).collect()
 }
 
 #[cfg(test)]
@@ -288,7 +355,14 @@ mod tests {
         s.places.insert("radio".into(), Place { x: 30.0, y: 140.0, w: 520.0, grow: 90.0 });
         s.layouts.insert(
             "Raid".into(),
-            Layout { open: vec!["radio".into()], places: s.places.clone(), pins: s.pins.clone(), alpha: 0.8 },
+            Layout {
+                open: vec!["radio".into()],
+                places: s.places.clone(),
+                pins: s.pins.clone(),
+                alpha: 0.8,
+                text_level: Some(0.7),
+                bar: Some(BarSettings { offset: -300.0, scale: 0.8 }),
+            },
         );
         s.pins.insert("radio".into());
         s.radio.favourites.push("best-fm".into());
@@ -321,6 +395,23 @@ mod tests {
         std::fs::write(&path, r#"{"alpha": 0.8}"#).unwrap();
         assert_eq!(Settings::load_from(&path).radio, RadioSettings::default());
         assert_eq!(clamp_alpha(f64::NAN), DEFAULT_ALPHA);
-        assert_eq!(clamp_alpha(0.1), 0.5);
+        assert_eq!(clamp_alpha(0.01), MIN_ALPHA);
+        assert_eq!(clamp_alpha(0.1), 0.1);
+        std::fs::write(&path, r#"{"text_level": 0.1, "alpha_presets": [0.3], "bar": {"offset": 1e9, "scale": 9}}"#).unwrap();
+        let s = Settings::load_from(&path);
+        assert_eq!(s.text_level, MIN_TEXT_LEVEL);
+        assert_eq!(s.alpha_presets, vec![0.3, 0.6, 0.2]);
+        assert_eq!(s.text_presets, DEFAULT_TEXT_PRESETS.to_vec());
+        assert_eq!(s.bar, BarSettings { offset: 10_000.0, scale: 1.0 });
+    }
+
+    #[test]
+    fn layouts_from_before_keep_loading() {
+        let path = temp_file("oldlayout");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, r#"{"layouts": {"Raid": {"open": ["radio"], "alpha": 0.7}}}"#).unwrap();
+        let layout = &Settings::load_from(&path).layouts["Raid"];
+        assert_eq!(layout.text_level, None);
+        assert_eq!(layout.bar, None);
     }
 }

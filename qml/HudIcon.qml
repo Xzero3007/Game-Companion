@@ -5,7 +5,7 @@ import "theme.js" as Theme
 Item {
     id: icon
     property string name
-    property color color: Theme.muted
+    property color color: Theme.muted()
     property real size: 18
     property real lineWidth: 1.8
     /// Filled instead of drawn (the star of a favourite, play).

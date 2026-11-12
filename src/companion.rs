@@ -27,8 +27,19 @@ pub mod qobject {
         /// Whether the hub shows (the bar, the player row, the panels).
         /// Hidden, only what is pinned stays on screen.
         #[qproperty(bool, shown)]
-        /// How solid the panels are, 0.5 to 1.
+        /// How solid the panels are, 0.05 to 1. QML may set it while a
+        /// slider moves; `save_alpha` keeps it.
         #[qproperty(f64, alpha)]
+        /// How bright the white and grey text is, 0.4 to 1.
+        #[qproperty(f64, text_level)]
+        /// The opacity presets P1 to P3, as a JSON list of three numbers.
+        #[qproperty(QString, alpha_presets)]
+        /// The text brightness presets P1 to P3, as a JSON list.
+        #[qproperty(QString, text_presets)]
+        /// The bar's distance from the screen's centre, in pixels.
+        #[qproperty(f64, bar_offset)]
+        /// The bar's size (with the player row), 0.6 to 1.
+        #[qproperty(f64, bar_scale)]
         /// Whether the welcome panel shows.
         #[qproperty(bool, welcome)]
         /// The shortcuts and what the desktop said about them, as JSON:
@@ -56,6 +67,23 @@ pub mod qobject {
         #[qinvokable]
         fn save_alpha(self: Pin<&mut Companion>, alpha: f64);
 
+        /// Sets and keeps how bright the white and grey text is.
+        #[qinvokable]
+        fn save_text_level(self: Pin<&mut Companion>, level: f64);
+
+        /// Keeps a value on a preset button: `kind` "alpha" or "text",
+        /// `index` 0 to 2.
+        #[qinvokable]
+        fn save_preset(self: Pin<&mut Companion>, kind: &QString, index: i32, value: f64);
+
+        /// Sets and keeps where the bar is (pixels from the centre).
+        #[qinvokable]
+        fn save_bar_offset(self: Pin<&mut Companion>, offset: f64);
+
+        /// Sets and keeps the bar's size.
+        #[qinvokable]
+        fn save_bar_scale(self: Pin<&mut Companion>, scale: f64);
+
         /// Closes the welcome panel for good.
         #[qinvokable]
         fn close_welcome(self: Pin<&mut Companion>);
@@ -74,7 +102,8 @@ pub mod qobject {
         #[qinvokable]
         fn save_layout(self: Pin<&mut Companion>, name: &QString, open: &QString) -> bool;
 
-        /// Takes a layout's places, sizes, pins and opacity; returns the
+        /// Takes a layout's places, sizes, pins, opacity, text brightness
+        /// and bar; returns the
         /// panels to open as a JSON list ("" if there is no such layout).
         #[qinvokable]
         fn load_layout(self: Pin<&mut Companion>, name: &QString) -> QString;
@@ -102,6 +131,11 @@ pub struct CompanionRust {
     locked: bool,
     shown: bool,
     alpha: f64,
+    text_level: f64,
+    alpha_presets: QString,
+    text_presets: QString,
+    bar_offset: f64,
+    bar_scale: f64,
     welcome: bool,
     shortcuts: QString,
     pins: QString,
@@ -114,6 +148,9 @@ impl Default for CompanionRust {
     fn default() -> Self {
         let (alpha, welcome, pins, layouts) =
             settings::read(|s| (s.alpha, s.welcome, pins_json(&s.pins), layouts_json(&s.layouts)));
+        let (text_level, alpha_presets, text_presets, bar) = settings::read(|s| {
+            (s.text_level, numbers_json(&s.alpha_presets), numbers_json(&s.text_presets), s.bar)
+        });
         let shortcut_state: Vec<_> = shortcuts::ALL.iter().map(|s| (s.id, shortcuts::Status::Bound(None))).collect();
         Self {
             // Always start locked: the game gets every click until the user
@@ -121,6 +158,11 @@ impl Default for CompanionRust {
             locked: true,
             shown: true,
             alpha,
+            text_level,
+            alpha_presets: QString::from(&alpha_presets),
+            text_presets: QString::from(&text_presets),
+            bar_offset: bar.offset,
+            bar_scale: bar.scale,
             welcome,
             shortcuts: QString::from(&shortcuts_json(&shortcut_state)),
             pins: QString::from(&pins),
@@ -133,6 +175,10 @@ impl Default for CompanionRust {
 
 fn layouts_json(layouts: &std::collections::BTreeMap<String, settings::Layout>) -> String {
     serde_json::to_string(&layouts.keys().collect::<Vec<_>>()).unwrap_or_else(|_| "[]".into())
+}
+
+fn numbers_json(values: &[f64]) -> String {
+    serde_json::to_string(values).unwrap_or_else(|_| "[]".into())
 }
 
 fn pins_json(pins: &std::collections::BTreeSet<String>) -> String {
@@ -237,6 +283,54 @@ impl qobject::Companion {
         self.set_alpha(alpha);
     }
 
+    fn save_text_level(self: Pin<&mut Self>, level: f64) {
+        let level = settings::clamp_text_level(level);
+        settings::change(|s| s.text_level = level);
+        self.set_text_level(level);
+    }
+
+    fn save_preset(self: Pin<&mut Self>, kind: &QString, index: i32, value: f64) {
+        let Ok(index) = usize::try_from(index) else { return };
+        if index > 2 {
+            return;
+        }
+        match kind.to_string().as_str() {
+            "alpha" => {
+                let value = (settings::clamp_alpha(value) * 100.0).round() / 100.0;
+                let json = settings::change(|s| {
+                    s.alpha_presets[index] = value;
+                    numbers_json(&s.alpha_presets)
+                });
+                self.set_alpha_presets(QString::from(&json));
+            }
+            "text" => {
+                let value = (settings::clamp_text_level(value) * 100.0).round() / 100.0;
+                let json = settings::change(|s| {
+                    s.text_presets[index] = value;
+                    numbers_json(&s.text_presets)
+                });
+                self.set_text_presets(QString::from(&json));
+            }
+            _ => {}
+        }
+    }
+
+    fn save_bar_offset(self: Pin<&mut Self>, offset: f64) {
+        let bar = settings::change(|s| {
+            s.bar = settings::BarSettings { offset, ..s.bar }.tidy();
+            s.bar
+        });
+        self.set_bar_offset(bar.offset);
+    }
+
+    fn save_bar_scale(self: Pin<&mut Self>, scale: f64) {
+        let bar = settings::change(|s| {
+            s.bar = settings::BarSettings { scale, ..s.bar }.tidy();
+            s.bar
+        });
+        self.set_bar_scale(bar.scale);
+    }
+
     fn close_welcome(self: Pin<&mut Self>) {
         settings::change(|s| s.welcome = false);
         self.set_welcome(false);
@@ -267,7 +361,14 @@ impl qobject::Companion {
         let Some(name) = settings::layout_name(&name.to_string()) else { return false };
         let open: Vec<String> = serde_json::from_str(&open.to_string()).unwrap_or_default();
         let json = settings::change(|s| {
-            let layout = settings::Layout { open, places: s.places.clone(), pins: s.pins.clone(), alpha: s.alpha };
+            let layout = settings::Layout {
+                open,
+                places: s.places.clone(),
+                pins: s.pins.clone(),
+                alpha: s.alpha,
+                text_level: Some(s.text_level),
+                bar: Some(s.bar),
+            };
             s.layouts.insert(name, layout);
             layouts_json(&s.layouts)
         });
@@ -282,10 +383,19 @@ impl qobject::Companion {
             s.places = layout.places;
             s.pins = layout.pins;
             s.alpha = settings::clamp_alpha(layout.alpha);
-            Some((layout.open, s.alpha, pins_json(&s.pins)))
+            if let Some(level) = layout.text_level {
+                s.text_level = settings::clamp_text_level(level);
+            }
+            if let Some(bar) = layout.bar {
+                s.bar = bar.tidy();
+            }
+            Some((layout.open, s.alpha, s.text_level, s.bar, pins_json(&s.pins)))
         });
-        let Some((open, alpha, pins)) = loaded else { return QString::default() };
+        let Some((open, alpha, text_level, bar, pins)) = loaded else { return QString::default() };
         self.as_mut().set_alpha(alpha);
+        self.as_mut().set_text_level(text_level);
+        self.as_mut().set_bar_offset(bar.offset);
+        self.as_mut().set_bar_scale(bar.scale);
         self.as_mut().set_pins(QString::from(&pins));
         let revision = self.layout_revision().wrapping_add(1);
         self.as_mut().set_layout_revision(revision);

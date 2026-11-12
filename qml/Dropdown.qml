@@ -30,17 +30,17 @@ Item {
         anchors.leftMargin: 10
         anchors.verticalCenter: parent.verticalCenter
         spacing: 8
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             text: dd.label.toUpperCase()
-            color: Theme.dim
+            color: Theme.dim()
             font.family: Theme.display
             font.pixelSize: 12
             font.weight: Font.Bold
             font.letterSpacing: 1.5
         }
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             text: dd.nameOf(dd.current)
-            color: Theme.textSoft
+            color: Theme.textSoft()
             font.family: Theme.body
             font.pixelSize: 12
         }
@@ -52,7 +52,7 @@ Item {
         name: "chevron"
         size: 12
         lineWidth: 2.2
-        color: Theme.muted
+        color: Theme.muted()
     }
     MouseArea {
         anchors.fill: parent
@@ -89,12 +89,12 @@ Item {
                     height: parent.height
                     color: Theme.accent
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     anchors.left: parent.left
                     anchors.leftMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
                     text: modelData.name
-                    color: modelData.id === dd.current ? Theme.accent : Theme.textSoft
+                    color: modelData.id === dd.current ? Theme.accent : Theme.textSoft()
                     font.family: Theme.body
                     font.pixelSize: 12
                 }

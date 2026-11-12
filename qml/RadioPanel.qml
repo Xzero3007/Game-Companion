@@ -78,7 +78,7 @@ Panel {
                 name: "search"
                 size: 15
                 lineWidth: 2
-                color: Theme.dim
+                color: Theme.dim()
             }
             TextInput {
                 id: search
@@ -87,17 +87,17 @@ Panel {
                 anchors.right: parent.right
                 anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
-                color: Theme.text
+                color: Theme.text()
                 selectionColor: Theme.accent
                 selectedTextColor: "#0c0c0f"
                 font.family: Theme.body
                 font.pixelSize: 13
                 clip: true
                 onTextChanged: panel.query = text
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     visible: search.text.length === 0
                     text: "Search stations"
-                    color: Theme.dim
+                    color: Theme.dim()
                     font: search.font
                 }
                 Accessible.name: "Search stations"
@@ -154,7 +154,7 @@ Panel {
                 delegate: StationRow {}
             }
             WheelScroll { flick: stations; step: 46 * 3 }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.centerIn: parent
                 visible: panel.shown.length === 0
                 width: parent.width - 40
@@ -163,7 +163,7 @@ Panel {
                 text: Radio.tab === "favourites" && panel.favs.length === 0
                     ? "No favorites yet: the star beside a station adds it."
                     : Radio.tab === "recent" && panel.recents.length === 0 ? "Nothing played yet." : "No station here."
-                color: Theme.dim
+                color: Theme.dim()
                 font.family: Theme.body
                 font.pixelSize: 12
             }
@@ -198,19 +198,19 @@ Panel {
                 anchors.right: volume.left
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     text: Radio.status === "failed" ? "DOESN'T PLAY" : Radio.status === "connecting" ? "CONNECTING" : Radio.status === "buffering" ? "BUFFERING" : Radio.status === "paused" ? "PAUSED" : "NOW PLAYING"
-                    color: Radio.status === "failed" ? Theme.red : Theme.dim
+                    color: Radio.status === "failed" ? Theme.red : Theme.dim()
                     font.family: Theme.display
                     font.pixelSize: 11
                     font.weight: Font.Bold
                     font.letterSpacing: 1.5
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: Radio.status === "failed" ? Radio.name + " · " + Radio.why : (Radio.name.length > 0 ? Radio.name : "Pick a station")
-                    color: Theme.text
+                    color: Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
@@ -235,11 +235,11 @@ Panel {
         width: tabText.implicitWidth
         height: parent.height
         readonly property bool current: Radio.tab === name
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: tabText
             anchors.verticalCenter: parent.verticalCenter
             text: parent.label.toUpperCase()
-            color: parent.current ? Theme.accent : (tabMouse.containsMouse ? Theme.text : Theme.muted)
+            color: parent.current ? Theme.accent : (tabMouse.containsMouse ? Theme.text() : Theme.muted())
             font.family: Theme.display
             font.pixelSize: 13
             font.weight: Font.Bold
@@ -300,7 +300,7 @@ Panel {
                 lineWidth: 2.6
                 name: row.current && panel.playingNow ? "pause" : "play"
                 filled: !(row.current && panel.playingNow)
-                color: row.current ? Theme.accent : Theme.textSoft
+                color: row.current ? Theme.accent : Theme.textSoft()
             }
         }
         Column {
@@ -308,16 +308,16 @@ Panel {
             anchors.leftMargin: 10
             anchors.right: star.left
             anchors.verticalCenter: parent.verticalCenter
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 width: parent.width
                 elide: Text.ElideRight
                 text: row.modelData.name
-                color: row.current ? Theme.accent : Theme.text
+                color: row.current ? Theme.accent : Theme.text()
                 font.family: Theme.body
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
             }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 width: parent.width
                 elide: Text.ElideRight
                 text: {
@@ -328,7 +328,7 @@ Panel {
                     if (row.modelData.info.length > 0) parts.push(row.modelData.info)
                     return parts.join(" · ")
                 }
-                color: row.current && Radio.status === "failed" ? Theme.red : Theme.muted
+                color: row.current && Radio.status === "failed" ? Theme.red : Theme.muted()
                 font.family: Theme.body
                 font.pixelSize: 11
             }
@@ -343,7 +343,7 @@ Panel {
             icon: "star"
             iconSize: 16
             filled: row.fav
-            color: row.fav ? Theme.accent : Theme.dim
+            color: row.fav ? Theme.accent : Theme.dim()
             tip: row.fav ? "Remove from favorites" : "Add to favorites"
             onClicked: Radio.toggleFavourite(row.modelData.id)
         }

@@ -7,7 +7,7 @@ Item {
     property string icon
     property string tip
     property bool filled: false
-    property color color: Theme.text
+    property color color: Theme.text()
     property color hoverColor: Theme.accent
     property real iconSize: 13
     property bool framed: false

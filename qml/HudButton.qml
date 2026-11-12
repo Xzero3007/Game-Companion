@@ -14,7 +14,7 @@ Item {
     implicitWidth: label.length > 0 ? 56 : 48
     implicitHeight: 52
 
-    readonly property color tint: active ? Theme.accent : (mouse.containsMouse ? Theme.text : Theme.muted)
+    readonly property color tint: active ? Theme.accent : (mouse.containsMouse ? Theme.text() : Theme.muted())
 
     Column {
         anchors.centerIn: parent
@@ -24,7 +24,7 @@ Item {
             name: button.icon
             color: button.tint
         }
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             visible: button.label.length > 0
             anchors.horizontalCenter: parent.horizontalCenter
             text: button.label.toUpperCase()

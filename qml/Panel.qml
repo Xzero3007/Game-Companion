@@ -126,12 +126,12 @@ Item {
             name: panel.icon
             color: Theme.accent
         }
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             anchors.left: panel.icon.length > 0 ? titleIcon.right : parent.left
             anchors.leftMargin: panel.icon.length > 0 ? 10 : 14
             anchors.verticalCenter: parent.verticalCenter
             text: panel.title.toUpperCase()
-            color: Theme.text
+            color: Theme.text()
             font.family: Theme.display
             font.pixelSize: 15
             font.weight: Font.Bold
@@ -149,7 +149,7 @@ Item {
                 name: "pin"
                 size: 15
                 filled: panel.pinned
-                color: panel.pinned ? Theme.accent : (pinMouse.containsMouse ? Theme.text : Theme.dim)
+                color: panel.pinned ? Theme.accent : (pinMouse.containsMouse ? Theme.text() : Theme.dim())
             }
             MouseArea {
                 id: pinMouse
@@ -161,7 +161,7 @@ Item {
             Accessible.role: Accessible.CheckBox
             Accessible.name: panel.pinned ? "Unpin: hide with the hub" : "Pin: stay when the hub is hidden"
         }
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             anchors.right: pinButton.left
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
@@ -185,7 +185,7 @@ Item {
                 name: "close"
                 size: 14
                 lineWidth: 2
-                color: closeMouse.containsMouse ? Theme.text : Theme.dim
+                color: closeMouse.containsMouse ? Theme.text() : Theme.dim()
             }
             MouseArea {
                 id: closeMouse

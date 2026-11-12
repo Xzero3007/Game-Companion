@@ -196,7 +196,7 @@ Panel {
                 IconButton {
                     icon: "back"
                     iconSize: 16
-                    color: panel.canBack ? Theme.muted : Theme.track
+                    color: panel.canBack ? Theme.muted() : Theme.track
                     hoverColor: panel.canBack ? Theme.accent : Theme.track
                     tip: "Back (Alt+Left, the mouse's back button)"
                     onClicked: panel.back()
@@ -204,7 +204,7 @@ Panel {
                 IconButton {
                     icon: "forward"
                     iconSize: 16
-                    color: panel.canForward ? Theme.muted : Theme.track
+                    color: panel.canForward ? Theme.muted() : Theme.track
                     hoverColor: panel.canForward ? Theme.accent : Theme.track
                     tip: "Forward (Alt+Right, the mouse's forward button)"
                     onClicked: panel.forward()
@@ -213,14 +213,14 @@ Panel {
                 IconButton {
                     icon: "grid"
                     iconSize: 14
-                    color: panel.tiles ? Theme.accent : Theme.muted
+                    color: panel.tiles ? Theme.accent : Theme.muted()
                     tip: "Tiles side by side"
                     onClicked: Streams.saveGrid(true)
                 }
                 IconButton {
                     icon: "list"
                     iconSize: 14
-                    color: !panel.tiles ? Theme.accent : Theme.muted
+                    color: !panel.tiles ? Theme.accent : Theme.muted()
                     tip: "Rows"
                     onClicked: Streams.saveGrid(false)
                 }
@@ -247,7 +247,7 @@ Panel {
                     width: 7; height: 7
                     color: Jellyfin.state === "failed" ? Theme.track : Theme.accent
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - homeOnly.implicitWidth - 37
                     elide: Text.ElideRight
@@ -256,11 +256,11 @@ Panel {
                     font.family: Theme.body
                     font.pixelSize: 12
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     id: homeOnly
                     anchors.verticalCenter: parent.verticalCenter
                     text: "HOME ONLY"
-                    color: Theme.dim
+                    color: Theme.dim()
                     font.family: Theme.display
                     font.pixelSize: 11
                     font.weight: Font.Bold
@@ -274,9 +274,9 @@ Panel {
                 y: 12
                 width: parent.width - 24
                 spacing: 8
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     text: "SIGN IN TO YOUR JELLYFIN SERVER"
-                    color: Theme.text
+                    color: Theme.text()
                     font.family: Theme.display
                     font.pixelSize: 13
                     font.weight: Font.Bold
@@ -306,7 +306,7 @@ Panel {
                     width: gameTag.implicitWidth + 16
                     height: 20
                     color: Qt.rgba(155 / 255, 107 / 255, 232 / 255, 0.35)
-                    Text {
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         id: gameTag
                         anchors.centerIn: parent
                         text: panel.game.name.toUpperCase()
@@ -317,7 +317,7 @@ Panel {
                         font.letterSpacing: 1.5
                     }
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - gameTag.implicitWidth - changeGame.width - 46
                     elide: Text.ElideRight
@@ -333,7 +333,7 @@ Panel {
                     height: 28
                     color: changeMouse.containsMouse ? Qt.rgba(155 / 255, 107 / 255, 232 / 255, 0.2) : "transparent"
                     border.color: Qt.rgba(155 / 255, 107 / 255, 232 / 255, 0.5)
-                    Text {
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         id: changeText
                         anchors.centerIn: parent
                         text: "CHANGE"
@@ -366,7 +366,7 @@ Panel {
                 y: 10
                 width: parent.width - 24
                 spacing: 6
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     text: "Until games are found by themselves, set the one you play here."
                     color: "#d8d4e0"
                     font.family: Theme.body
@@ -441,7 +441,7 @@ Panel {
                 name: "search"
                 size: 15
                 lineWidth: 2
-                color: Theme.dim
+                color: Theme.dim()
             }
             TextInput {
                 id: search
@@ -450,7 +450,7 @@ Panel {
                 anchors.right: parent.right
                 anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
-                color: Theme.text
+                color: Theme.text()
                 selectionColor: Theme.accent
                 selectedTextColor: "#0c0c0f"
                 font.family: Theme.body
@@ -458,11 +458,11 @@ Panel {
                 clip: true
                 maximumLength: 100
                 onAccepted: panel.runSearch()
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     visible: search.text.length === 0
                     text: panel.onJelly ? "A film, a show or an episode, then Enter"
                         : panel.onTwitch ? "A channel's name, then Enter" : "Search words or a video's link, then Enter"
-                    color: Theme.dim
+                    color: Theme.dim()
                     font: search.font
                 }
                 Accessible.name: panel.onJelly ? "Search Jellyfin" : panel.onTwitch ? "Search Twitch" : "Search YouTube"
@@ -477,14 +477,14 @@ Panel {
             TextButton { text: "‹ Libraries"; onClicked: panel.go({ tab: "jellyfin", view: "libraries", text: "", channel: null, path: [] }) }
             Repeater {
                 model: panel.jfPath
-                delegate: Text {
+                delegate: Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     required property var modelData
                     required property int index
                     readonly property bool last: index === panel.jfPath.length - 1
                     height: 34
                     verticalAlignment: Text.AlignVCenter
                     text: "/  " + modelData.name
-                    color: last ? Theme.text : (crumbMouse.containsMouse ? Theme.accent : Theme.muted)
+                    color: last ? Theme.text() : (crumbMouse.containsMouse ? Theme.accent : Theme.muted())
                     font.family: Theme.body
                     font.pixelSize: 13
                     font.weight: last ? Font.DemiBold : Font.Normal
@@ -505,10 +505,10 @@ Panel {
             visible: Streams.tab === "youtube" && Streams.youtubeView === "channel" && panel.channel !== null
             spacing: 10
             TextButton { text: "‹ Channels"; onClicked: panel.go({ tab: "youtube", view: "channels", text: "", channel: null }) }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 text: panel.channel ? panel.channel.name : ""
-                color: Theme.text
+                color: Theme.text()
                 font.family: Theme.body
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
@@ -582,7 +582,7 @@ Panel {
             WheelScroll { flick: grid; step: grid.cellHeight }
             WheelScroll { flick: channelList; step: 46 * 3 }
             WheelScroll { flick: channelGrid; step: 62 * 2 }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.centerIn: parent
                 width: parent.width - 60
                 horizontalAlignment: Text.AlignHCenter
@@ -601,7 +601,7 @@ Panel {
                     : panel.onTwitch && Streams.twitchView === "favourites" ? "No favorites yet: the star beside a channel keeps it."
                     : panel.onTwitch && Streams.twitchView === "following" ? "You follow no channels yet."
                     : st === "idle" ? "" : "Nothing here right now."
-                color: st === "failed" ? Theme.red : Theme.dim
+                color: st === "failed" ? Theme.red : Theme.dim()
                 font.family: Theme.body
                 font.pixelSize: 12
             }
@@ -619,14 +619,14 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 8
                 Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; color: Theme.accent }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     anchors.verticalCenter: parent.verticalCenter
                     text: panel.onJelly ? "Your own server, in your home network only · nothing goes out"
                         : panel.onTwitch
                         ? (panel.account.streamlink ? "Ad-free via Streamlink" : "Through yt-dlp (install streamlink for no ad breaks)")
                           + (panel.account.user && panel.account.user !== "?" && panel.account.user !== "…" ? " · signed in as " + panel.account.user : "")
                         : "Subscriptions read from FreeTube · search via yt-dlp"
-                    color: Theme.dim
+                    color: Theme.dim()
                     font.family: Theme.body
                     font.pixelSize: 11
                 }
@@ -637,7 +637,7 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
                 icon: "refresh"
                 iconSize: 13
-                color: Theme.dim
+                color: Theme.dim()
                 tip: "Load again"
                 onClicked: { if (!panel.onJelly) Streams.forget(); panel.reload() }
             }
@@ -678,9 +678,9 @@ Panel {
                     width: liveText.implicitWidth + 8
                     height: liveText.implicitHeight + 2
                     color: Theme.red
-                    Text { id: liveText; anchors.centerIn: parent; text: "LIVE"; color: "#ffffff"; font.pixelSize: 9; font.weight: Font.Bold; font.family: Theme.body }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow; id: liveText; anchors.centerIn: parent; text: "LIVE"; color: "#ffffff"; font.pixelSize: 9; font.weight: Font.Bold; font.family: Theme.body }
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     visible: row.current
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
@@ -699,24 +699,24 @@ Panel {
                 anchors.right: star.left
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 2
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: row.modelData.name
-                    color: row.current ? Theme.accent : Theme.text
+                    color: row.current ? Theme.accent : Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: row.modelData.live ? row.modelData.title : "Offline"
-                    color: Theme.textSoft
+                    color: Theme.textSoft()
                     font.family: Theme.body
                     font.pixelSize: 12
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     visible: row.modelData.live
@@ -727,7 +727,7 @@ Panel {
                         if (t) parts.push(t)
                         return parts.join(" · ")
                     }
-                    color: Theme.dim
+                    color: Theme.dim()
                     font.family: Theme.body
                     font.pixelSize: 11
                 }
@@ -742,7 +742,7 @@ Panel {
                 icon: "star"
                 iconSize: 16
                 filled: row.fav
-                color: row.fav ? Theme.accent : Theme.dim
+                color: row.fav ? Theme.accent : Theme.dim()
                 tip: row.fav ? "Remove from favorites" : "Add to favorites"
                 onClicked: Streams.toggleFavourite(row.modelData.login)
             }
@@ -784,11 +784,11 @@ Panel {
                     width: lengthText.implicitWidth + 8
                     height: lengthText.implicitHeight + 2
                     color: row.modelData.live ? Theme.red : Qt.rgba(0, 0, 0, 0.75)
-                    Text {
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         id: lengthText
                         anchors.centerIn: parent
                         text: row.modelData.live ? "LIVE" : panel.clock(row.modelData.duration)
-                        color: Theme.text
+                        color: Theme.text()
                         font.family: Theme.body
                         font.pixelSize: 10
                         font.weight: Font.DemiBold
@@ -801,27 +801,27 @@ Panel {
                 anchors.right: star.left
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 2
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     maximumLineCount: 2
                     wrapMode: Text.WordWrap
                     elide: Text.ElideRight
                     text: row.modelData.title
-                    color: row.current ? Theme.accent : Theme.text
+                    color: row.current ? Theme.accent : Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
                     lineHeight: 1.1
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: [row.modelData.channel, panel.ago(row.modelData.published)].filter((t) => t).join(" · ")
                         + (row.current ? " · " : "")
-                    color: Theme.dim
+                    color: Theme.dim()
                     font.family: Theme.body
                     font.pixelSize: 11
-                    Text {
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         anchors.left: parent.right
                         visible: row.current
                         text: "watching"
@@ -841,7 +841,7 @@ Panel {
                 icon: "star"
                 iconSize: 16
                 filled: row.kept
-                color: row.kept ? Theme.accent : Theme.dim
+                color: row.kept ? Theme.accent : Theme.dim()
                 tip: row.kept ? "Remove the channel from My channels" : "Keep the channel in My channels"
                 onClicked: Streams.toggleChannel(row.modelData.channelId, row.modelData.channel)
             }
@@ -870,18 +870,18 @@ Panel {
                 anchors.right: star.left
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: row.modelData.name
-                    color: Theme.text
+                    color: Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     text: row.modelData.freetube ? "From FreeTube" : "Kept here"
-                    color: Theme.dim
+                    color: Theme.dim()
                     font.family: Theme.body
                     font.pixelSize: 11
                 }
@@ -965,7 +965,7 @@ Panel {
                 width: tileLive.implicitWidth + 8
                 height: tileLive.implicitHeight + 2
                 color: Theme.red
-                Text { id: tileLive; anchors.centerIn: parent; text: "LIVE"; color: "#ffffff"; font.pixelSize: 9; font.weight: Font.Bold; font.family: Theme.body }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow; id: tileLive; anchors.centerIn: parent; text: "LIVE"; color: "#ffffff"; font.pixelSize: 9; font.weight: Font.Bold; font.family: Theme.body }
             }
             Rectangle {
                 parent: tile.thumb
@@ -976,17 +976,17 @@ Panel {
                 width: tileViewers.implicitWidth + 8
                 height: tileViewers.implicitHeight + 2
                 color: Qt.rgba(0, 0, 0, 0.75)
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     id: tileViewers
                     anchors.centerIn: parent
                     text: Number(tile.modelData.viewers).toLocaleString(Qt.locale("en_US"), "f", 0) + " viewers"
-                    color: Theme.text
+                    color: Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 10
                     font.weight: Font.DemiBold
                 }
             }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 parent: tile.thumb
                 visible: tile.current
                 anchors.right: parent.right
@@ -1004,24 +1004,24 @@ Panel {
                 anchors.right: tileStar.left
                 anchors.rightMargin: 4
                 spacing: 1
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: tile.modelData.name
-                    color: tile.current ? Theme.accent : Theme.text
+                    color: tile.current ? Theme.accent : Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: tile.modelData.live ? tile.modelData.title : "Offline"
-                    color: Theme.textSoft
+                    color: Theme.textSoft()
                     font.family: Theme.body
                     font.pixelSize: 12
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     visible: tile.modelData.live
@@ -1032,7 +1032,7 @@ Panel {
                         if (t) parts.push(t)
                         return parts.join(" · ")
                     }
-                    color: Theme.dim
+                    color: Theme.dim()
                     font.family: Theme.body
                     font.pixelSize: 11
                 }
@@ -1047,7 +1047,7 @@ Panel {
                 icon: "star"
                 iconSize: 15
                 filled: tile.fav
-                color: tile.fav ? Theme.accent : Theme.dim
+                color: tile.fav ? Theme.accent : Theme.dim()
                 tip: tile.fav ? "Remove from favorites" : "Add to favorites"
                 onClicked: Streams.toggleFavourite(tile.modelData.login)
             }
@@ -1072,17 +1072,17 @@ Panel {
                 width: tileLength.implicitWidth + 8
                 height: tileLength.implicitHeight + 2
                 color: tile.modelData.live ? Theme.red : Qt.rgba(0, 0, 0, 0.75)
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     id: tileLength
                     anchors.centerIn: parent
                     text: tile.modelData.live ? "LIVE" : panel.clock(tile.modelData.duration)
-                    color: Theme.text
+                    color: Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 10
                     font.weight: Font.DemiBold
                 }
             }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 parent: tile.thumb
                 visible: tile.current
                 anchors.left: parent.left
@@ -1100,23 +1100,23 @@ Panel {
                 anchors.right: tileStar.left
                 anchors.rightMargin: 4
                 spacing: 2
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     maximumLineCount: 2
                     wrapMode: Text.WordWrap
                     elide: Text.ElideRight
                     text: tile.modelData.title
-                    color: tile.current ? Theme.accent : Theme.text
+                    color: tile.current ? Theme.accent : Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 12
                     font.weight: Font.DemiBold
                     lineHeight: 1.05
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: [tile.modelData.channel, panel.ago(tile.modelData.published)].filter((t) => t).join(" · ")
-                    color: Theme.dim
+                    color: Theme.dim()
                     font.family: Theme.body
                     font.pixelSize: 11
                 }
@@ -1132,7 +1132,7 @@ Panel {
                 icon: "star"
                 iconSize: 15
                 filled: tile.kept
-                color: tile.kept ? Theme.accent : Theme.dim
+                color: tile.kept ? Theme.accent : Theme.dim()
                 tip: tile.kept ? "Remove the channel from My channels" : "Keep the channel in My channels"
                 onClicked: Streams.toggleChannel(tile.modelData.channelId, tile.modelData.channel)
             }
@@ -1165,18 +1165,18 @@ Panel {
                 anchors.right: tileStar.left
                 anchors.rightMargin: 2
                 anchors.verticalCenter: parent.verticalCenter
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: tile.modelData.name
-                    color: Theme.text
+                    color: Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     text: tile.modelData.freetube ? "From FreeTube" : "Kept here"
-                    color: Theme.dim
+                    color: Theme.dim()
                     font.family: Theme.body
                     font.pixelSize: 11
                 }
@@ -1233,20 +1233,20 @@ Panel {
                 anchors.right: watched.left
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 2
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: row.modelData.name
-                    color: row.current ? Theme.accent : Theme.text
+                    color: row.current ? Theme.accent : Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: [row.modelData.sub, panel.timeLeft(row.modelData)].filter((t) => t).join(" · ")
-                    color: Theme.dim
+                    color: Theme.dim()
                     font.family: Theme.body
                     font.pixelSize: 11
                 }
@@ -1264,7 +1264,7 @@ Panel {
             picture: modelData.picture
             onClicked: panel.jfOpen(modelData)
             Progress { parent: tile.thumb; item: tile.modelData }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 parent: tile.thumb
                 visible: tile.current
                 anchors.left: parent.left
@@ -1282,20 +1282,20 @@ Panel {
                 anchors.right: tileWatched.left
                 anchors.rightMargin: 2
                 spacing: 1
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: tile.modelData.name
-                    color: tile.current ? Theme.accent : Theme.text
+                    color: tile.current ? Theme.accent : Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
                 }
-                Text {
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
                     text: [tile.modelData.sub, panel.timeLeft(tile.modelData)].filter((t) => t).join(" · ")
-                    color: Theme.muted
+                    color: Theme.muted()
                     font.family: Theme.body
                     font.pixelSize: 11
                 }
@@ -1326,12 +1326,12 @@ Panel {
             height: 18
             color: item && item.played ? Theme.accent : Qt.rgba(0, 0, 0, 0.75)
             HudIcon { visible: !!item && item.played; anchors.centerIn: parent; name: "check"; size: 12; lineWidth: 2.6; color: "#0c0c0f" }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 id: unplayedText
                 visible: !!item && !item.played && item.unplayed > 0
                 anchors.centerIn: parent
                 text: item ? String(item.unplayed) : ""
-                color: Theme.text
+                color: Theme.text()
                 font.family: Theme.body
                 font.pixelSize: 10
                 font.weight: Font.DemiBold
@@ -1347,7 +1347,7 @@ Panel {
         height: 30
         icon: "check"
         iconSize: 15
-        color: item && item.played ? Theme.accent : Theme.dim
+        color: item && item.played ? Theme.accent : Theme.dim()
         tip: item && item.played ? "Mark as not watched" : "Mark as watched"
         onClicked: Jellyfin.setPlayed(item.id, !item.played)
     }
@@ -1375,23 +1375,23 @@ Panel {
         width: siteText.implicitWidth
         height: 30
         readonly property bool current: Streams.tab === name
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: siteText
             anchors.verticalCenter: parent.verticalCenter
             text: parent.label.toUpperCase()
-            color: !parent.enabled ? Theme.dim : parent.current ? Theme.accent : (siteMouse.containsMouse ? Theme.text : Theme.muted)
+            color: !parent.enabled ? Theme.dim() : parent.current ? Theme.accent : (siteMouse.containsMouse ? Theme.text() : Theme.muted())
             font.family: Theme.display
             font.pixelSize: 14
             font.weight: Font.Bold
             font.letterSpacing: 1.5
         }
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             visible: !parent.enabled
             anchors.left: siteText.right
             anchors.leftMargin: 6
             anchors.verticalCenter: parent.verticalCenter
             text: "NEXT"
-            color: Theme.dim
+            color: Theme.dim()
             font.family: Theme.display
             font.pixelSize: 9
             font.weight: Font.Bold
@@ -1439,10 +1439,10 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 6
             Rectangle { visible: purple; anchors.verticalCenter: parent.verticalCenter; width: 7; height: 7; color: Theme.purple }
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 visible: !searchIcon
                 text: label.toUpperCase()
-                color: current ? Theme.accent : (tabMouse.containsMouse ? Theme.text : Theme.muted)
+                color: current ? Theme.accent : (tabMouse.containsMouse ? Theme.text() : Theme.muted())
                 font.family: Theme.display
                 font.pixelSize: 13
                 font.weight: Font.Bold
@@ -1454,7 +1454,7 @@ Panel {
                 name: "search"
                 size: 15
                 lineWidth: 2
-                color: current ? Theme.accent : (tabMouse.containsMouse ? Theme.text : Theme.muted)
+                color: current ? Theme.accent : (tabMouse.containsMouse ? Theme.text() : Theme.muted())
             }
         }
         Rectangle {
@@ -1487,18 +1487,18 @@ Panel {
             anchors.leftMargin: 10
             anchors.rightMargin: 10
             verticalAlignment: TextInput.AlignVCenter
-            color: Theme.text
+            color: Theme.text()
             selectionColor: Theme.accent
             selectedTextColor: "#0c0c0f"
             font.family: Theme.body
             font.pixelSize: 13
             maximumLength: 80
             clip: true
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 visible: input.text.length === 0
                 text: parent.parent.placeholder
-                color: Theme.dim
+                color: Theme.dim()
                 font: input.font
             }
             Accessible.name: parent.placeholder

@@ -11,7 +11,7 @@ Rectangle {
     color: Theme.panel(0.9)
     opacity: 0
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.accent }
-    Text {
+    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
         id: label
         anchors.centerIn: parent
         text: "HUB HIDDEN" + (hint.key.length > 0 ? " · " + hint.key.toUpperCase() + " BRINGS IT BACK" : "")

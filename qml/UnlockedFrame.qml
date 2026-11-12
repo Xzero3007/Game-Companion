@@ -23,7 +23,7 @@ Item {
         height: 26
         color: Theme.panel(0.92)
         Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.accent }
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: note
             anchors.centerIn: parent
             text: "UNLOCKED · " + (frame.lockKey.length > 0 ? frame.lockKey.toUpperCase() + " LOCKS AGAIN" : "THE LOCK IN THE BAR LOCKS AGAIN")

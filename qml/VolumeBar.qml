@@ -42,7 +42,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 3
                 height: 13
-                color: Theme.text
+                color: Theme.text()
             }
             MouseArea {
                 anchors.fill: parent
@@ -57,12 +57,12 @@ Item {
 
         StepButton { icon: "plus"; tip: "Louder"; onClicked: vol.stepped(vol.step) }
 
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             anchors.verticalCenter: parent.verticalCenter
             width: 24
             horizontalAlignment: Text.AlignRight
             text: vol.value
-            color: Theme.muted
+            color: Theme.muted()
             font.family: Theme.body
             font.pixelSize: 11
         }
@@ -85,7 +85,7 @@ Item {
             name: sb.icon
             size: 12
             lineWidth: 2.4
-            color: sbMouse.containsMouse ? Theme.accent : Theme.muted
+            color: sbMouse.containsMouse ? Theme.accent : Theme.muted()
         }
         MouseArea {
             id: sbMouse

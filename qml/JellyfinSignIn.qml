@@ -27,7 +27,7 @@ Column {
     Row {
         spacing: 12
         TextButton { text: form.busy ? "Signing in…" : "Sign in"; onClicked: form.send() }
-        Text {
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             anchors.verticalCenter: parent.verticalCenter
             visible: form.problem.length > 0
             width: form.width - 140
@@ -38,11 +38,11 @@ Column {
             font.pixelSize: 12
         }
     }
-    Text {
+    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
         width: parent.width
         wrapMode: Text.WordWrap
         text: "Home network addresses only. The password is never kept; the server's key stays in a file on this PC that only you can read."
-        color: Theme.dim
+        color: Theme.dim()
         font.family: Theme.body
         font.pixelSize: 11
         lineHeight: 1.15
@@ -64,7 +64,7 @@ Column {
             anchors.leftMargin: 10
             anchors.rightMargin: 10
             verticalAlignment: TextInput.AlignVCenter
-            color: Theme.text
+            color: Theme.text()
             selectionColor: Theme.accent
             selectedTextColor: "#0c0c0f"
             font.family: Theme.body
@@ -73,11 +73,11 @@ Column {
             echoMode: parent.secret ? TextInput.Password : TextInput.Normal
             clip: true
             onAccepted: parent.accepted()
-            Text {
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 visible: input.text.length === 0
                 text: parent.parent.placeholder
-                color: Theme.dim
+                color: Theme.dim()
                 font: input.font
             }
             Accessible.name: parent.placeholder
