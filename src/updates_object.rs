@@ -135,7 +135,13 @@ impl qobject::Updates {
         self.as_mut().say("downloading", &format!("Downloading {}…", release.label()));
         let thread = self.qt_thread();
         std::thread::spawn(move || {
-            let result = updater::download(&release).and_then(|file| updater::start_install(&file));
+            // The latest release again, right now: the root script installs
+            // only that one, so an older one found earlier would be refused
+            // (and the password asked).
+            let result = updater::fetch_latest()
+                .map(|latest| if latest.build >= release.build { latest } else { release })
+                .and_then(|release| updater::download(&release))
+                .and_then(|file| updater::start_install(&file));
             let _ = thread.queue(move |obj: Pin<&mut qobject::Updates>| match result {
                 Ok(()) => {
                     obj.say("installing", "Installing; Game Companion starts again in a moment.");

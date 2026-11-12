@@ -145,11 +145,13 @@ pub fn installed_by_pacman() -> bool {
 /// The script that waits for this app to close, installs the package
 /// (without a password through the package's script; with it if that is
 /// missing or refuses) and starts the app again. `$1` the package, `$2` this
-/// app's pid.
+/// app's pid, `$3` the log (what the root script says when it refuses).
 pub fn installer_script(helper: bool) -> String {
     let fast = if helper { format!("/usr/bin/pkexec {UPDATE_HELPER} <\"$1\" || ") } else { String::new() };
     format!(
-        r#"while kill -0 "$2" 2>/dev/null; do sleep 0.2; done
+        r#"exec >>"$3" 2>&1
+echo "$(date -Is) installing $1"
+while kill -0 "$2" 2>/dev/null; do sleep 0.2; done
 {fast}/usr/bin/pkexec /usr/bin/pacman -U --noconfirm -- "$1"
 rm -f -- "$1"
 exec {INSTALLED_BINARY}
@@ -168,6 +170,7 @@ pub fn start_install(package: &Path) -> Result<(), String> {
         .arg("game-companion-install")
         .arg(package)
         .arg(std::process::id().to_string())
+        .arg(cache_dir().join("update.log"))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());

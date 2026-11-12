@@ -118,7 +118,7 @@ learnt, so nothing has to be asked or worked out again.
   detached sh waits for the app to close, runs
   `pkexec /usr/lib/game-companion-update < pkg` (the polkit policy allows it
   without a password; the script re-reads the checksum as root) or
-  `pkexec pacman -U`, then starts the app again. `GC_NO_UPDATES=1` turns the
+  `pkexec pacman -U`, then starts the app again. Right before downloading it reads the latest release again (an older one found earlier would be refused by the root script, and the password asked: frequent pushes made that happen). The installer's output goes to `~/.cache/game-companion/update.log`. `GC_NO_UPDATES=1` turns the
   check off; `GC_DEMO=update` shows an update.
 - Panels (`qml/Panel.qml`) keep place and size in `settings.places`
   (`x`, `y`, `w` = 0 for its own width, `grow` = height added to a
