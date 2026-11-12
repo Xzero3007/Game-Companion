@@ -47,6 +47,15 @@ NativeWindow::NativeWindow(QObject *parent)
 
 QScreen *NativeWindow::screen() const
 {
+    // GC_SCREEN=<name> picks another screen (for checks with two screens).
+    const QString wanted = qEnvironmentVariable("GC_SCREEN");
+    if (!wanted.isEmpty()) {
+        for (QScreen *s : QGuiApplication::screens()) {
+            if (s->name() == wanted) {
+                return s;
+            }
+        }
+    }
     return QGuiApplication::primaryScreen();
 }
 
@@ -100,19 +109,26 @@ void NativeWindow::place(QQuickWindow *window, const QRectF &area)
     const QRect r = area.toAlignedRect();
     const QSize size(qMax(1, r.width()), qMax(1, r.height()));
     window->setProperty("gcArea", QRect(r.topLeft(), size));
+    // Every part lives on the main screen (where the game runs). Qt picks a
+    // window's screen from its position, and layer-shell-qt takes the output
+    // from the window's screen: a window left at 0,0 would land on whichever
+    // screen sits there (the person's second monitor).
+    QScreen *s = screen();
+    const QPoint origin = s ? s->geometry().topLeft() : QPoint();
+    if (s && window->screen() != s) {
+        window->setScreen(s);
+    }
 #ifdef GC_LAYER_SHELL
     if (m_layerShell) {
         if (auto *layer = LayerShellQt::Window::get(window)) {
             layer->setMargins(QMargins(r.x(), r.y(), 0, 0));
-            if (window->size() != size) {
-                window->resize(size);
-            }
+            window->setGeometry(QRect(origin + r.topLeft(), size));
             window->requestUpdate();
             return;
         }
     }
 #endif
-    window->setGeometry(QRect(r.topLeft(), size));
+    window->setGeometry(QRect(origin + r.topLeft(), size));
 }
 
 void NativeWindow::setInput(QQuickWindow *window, bool all, const QVariantList &rects)
@@ -257,6 +273,20 @@ int32_t gc_run()
     // The parts' windows: when the last one closes, so does the app (none
     // is closed by the user; Settings' "Turn off" quits).
     QGuiApplication::setQuitOnLastWindowClosed(false);
+
+    // For checks during development: GC_DEBUG_SCREENS=1 prints, after a
+    // second, each part's window, its screen and its place.
+    if (!qEnvironmentVariableIsEmpty("GC_DEBUG_SCREENS")) {
+        QTimer::singleShot(1500, &app, []() {
+            for (QWindow *w : QGuiApplication::allWindows()) {
+                if (w->isVisible()) {
+                    const QRect g = w->geometry();
+                    qWarning("window %s on %s at %d,%d %dx%d", qPrintable(w->title()), w->screen() ? qPrintable(w->screen()->name()) : "none",
+                             g.x(), g.y(), g.width(), g.height());
+                }
+            }
+        });
+    }
 
     // For screenshots during development: GC_SCREENSHOT=<file.png>.
     const QString shot = qEnvironmentVariable("GC_SCREENSHOT");
