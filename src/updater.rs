@@ -85,7 +85,7 @@ pub fn fetch_latest() -> Result<Release, String> {
     parse_manifest(&String::from_utf8_lossy(&out.stdout))
 }
 
-fn cache_dir() -> PathBuf {
+pub(crate) fn cache_dir() -> PathBuf {
     std::env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())

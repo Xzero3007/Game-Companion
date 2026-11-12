@@ -159,5 +159,9 @@ fn quit_soon() {
     std::thread::spawn(|| {
         std::thread::sleep(Duration::from_millis(800));
         crate::native::quit();
+        // The installer waits for this process to end: should Qt not
+        // finish closing, it ends anyway (mpv goes with it).
+        std::thread::sleep(Duration::from_secs(5));
+        std::process::exit(0);
     });
 }

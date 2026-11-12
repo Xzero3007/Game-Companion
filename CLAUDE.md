@@ -111,14 +111,22 @@ learnt, so nothing has to be asked or worked out again.
   coordinates), never `mapToItem(null)` (the window moves along). Popups
   must stay inside their part, or the part's surface must grow (`extra`,
   as the bar's tooltip). Stacking between surfaces is KWin's (no z across
-  parts); `stack` only orders screenshots. Root of `Main.qml` is an Item
-  (no window). Screenshots (`GC_SCREENSHOT`): every part moves into one
+  parts); `stack` only orders screenshots. Root of `Main.qml` is `Overlay` (a QtObject with a
+  default list), **never an Item**: Qt 6.7+ embeds a Window declared inside
+  an Item into that item's window (0.4.0 showed nothing on the person's Qt;
+  the sandbox's Qt 6.4 does not do this). Screenshots (`GC_SCREENSHOT`): every part moves into one
   screen-sized window (`nativeWindow.shotScene`), grabbed whole (a
   software window's own grab has no alpha). Under `xvfb-run` with xcb, each
   part is its own X window (`xdotool search --onlyvisible --name "^Game
   Companion$"`, `getwindowgeometry`): good for checking places and drags.
   The radio's mpv: `--audio-buffer=1`, cache with `cache-pause-wait=4`
   (stutters when the system hangs briefly).
+- One copy at a time (the person, 2026-11-12): `main.rs`
+  `single_instance` holds `flock` on `$XDG_RUNTIME_DIR/game-companion.lock`
+  (close-on-exec, so mpv and the installer never inherit it); a second
+  start prints "already running" and ends. Ending cleanly: mpv children die
+  with the app (PR_SET_PDEATHSIG); for an update the app quits and, if Qt
+  hangs, exits after 5 s anyway (the installer waits for its pid).
 - `src/companion.rs`: the `Companion` QML singleton (CXX-Qt). The shortcut
   thread queues onto the Qt thread (`qt_thread().queue`).
 - `src/shortcuts.rs`: the GlobalShortcuts portal, adapted from the meter's

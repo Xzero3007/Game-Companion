@@ -6,10 +6,11 @@ import "theme.js" as Theme
 // video) in a small window of its own on the overlay layer (Surface), as
 // big as the part; the rest of the screen is the game's. Locked, only the
 // lock button takes clicks. Parts are placed in screen coordinates.
-Item {
+// The root is no Item (see Overlay.qml).
+Overlay {
     id: root
-    width: nativeWindow.screenWidth
-    height: nativeWindow.screenHeight
+    readonly property real width: nativeWindow.screenWidth
+    readonly property real height: nativeWindow.screenHeight
 
     property bool settingsOpen: false
     property bool radioOpen: false
