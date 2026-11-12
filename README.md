@@ -56,7 +56,8 @@ to the game.
 2. ~~Radio~~, then streams (Twitch, YouTube, Jellyfin) with a preset search
    per game, moved over from the Clicktrough meter's plugins
 3. Brave Origin and Legcord (on hold)
-4. Game detection: start and close with a game (AION 2, Path of Exile 2)
+4. Game detection: start and close with a game (AION 2, Path of Exile 2),
+   and a Games tab that lists the Steam, Lutris and Heroic games and starts them
 5. The AION 2 module (first: start the Clicktrough meter with the game)
 
 ## Build and install (Arch)

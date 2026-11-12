@@ -74,6 +74,10 @@ learnt, so nothing has to be asked or worked out again.
 4. Game detection with autostart (as meter patch 0037: `/proc` every 3 s, a
    list of process names per game, Proton/Steam, Lutris, Heroic). AION 2 and
    Path of Exile 2 (PoE 2 brings its own helper programs: plan them then).
+   With it a **Games tab** (the person, 2026-11-12): the libraries of Steam,
+   Lutris and Heroic read from disk (plus own entries), each game started
+   through its launcher (e.g. `steam://rungameid/<id>`); no network. The same
+   game list feeds the detection. Design comes from the design thread.
 5. AION 2 module: first only start the Clicktrough meter with the game.
    Plex: later, home network only, as its own step.
 
