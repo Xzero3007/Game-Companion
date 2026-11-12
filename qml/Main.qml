@@ -13,7 +13,12 @@ Window {
     height: 720
 
     property bool settingsOpen: false
+    property bool radioOpen: false
     readonly property var keys: JSON.parse(Companion.shortcuts)
+    readonly property var pins: JSON.parse(Companion.pins)
+
+    // On screen: with the hub, or pinned while it is hidden.
+    function onScreen(id) { return Companion.shown || pins.indexOf(id) >= 0 }
 
     function keyOf(id) {
         for (const k of keys) if (k.id === id) return k.key
@@ -28,18 +33,15 @@ Window {
     // The input region: what takes clicks right now.
     function updateInput() {
         const rects = []
-        if (Companion.shown) {
-            if (Companion.locked) {
-                rects.push(rectOf(bar.lockButton))
-            } else {
-                rects.push(rectOf(bar))
-                for (const panel of [welcome, settings]) {
-                    if (panel.visible) rects.push(rectOf(panel))
-                }
+        if (Companion.locked) {
+            if (bar.visible) rects.push(rectOf(bar.lockButton))
+        } else {
+            for (const item of [bar, playerRow, welcome, settings, radio]) {
+                if (item.visible) rects.push(rectOf(item))
             }
         }
         nativeWindow.setInputRects(rects)
-        nativeWindow.setKeyboard(Companion.shown && !Companion.locked)
+        nativeWindow.setKeyboard(!Companion.locked && rects.length > 0)
     }
     function requestInput() { Qt.callLater(updateInput) }
 
@@ -47,6 +49,8 @@ Window {
         const demo = nativeWindow.demo.split(",")
         if (demo.indexOf("unlocked") >= 0 && Companion.locked) Companion.toggleLocked()
         if (demo.indexOf("settings") >= 0) settingsOpen = true
+        if (demo.indexOf("radio") >= 0) radioOpen = true
+        if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
         requestInput()
     }
     onWidthChanged: requestInput()
@@ -55,14 +59,14 @@ Window {
     Connections {
         target: Companion
         function onLockedChanged() { root.requestInput() }
-        function onShownChanged() { root.requestInput() }
         function onWelcomeChanged() { root.requestInput() }
+        function onPinsChanged() { root.requestInput() }
+        function onShownChanged() { root.requestInput(); if (!Companion.shown) hubHint.flash() }
     }
 
     Item {
         id: scene
         anchors.fill: parent
-        visible: Companion.shown
 
         // Screenshots only (GC_DEMO=backdrop): a stand-in for the game.
         Rectangle {
@@ -81,32 +85,64 @@ Window {
 
         UnlockedFrame {
             anchors.fill: parent
-            visible: !Companion.locked
+            visible: !Companion.locked && (Companion.shown || root.pins.length > 0)
             lockKey: root.keyOf("lock")
         }
 
         HudBar {
             id: bar
+            visible: Companion.shown
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             settingsOpen: root.settingsOpen
+            radioOpen: root.radioOpen
             onSettingsClicked: root.settingsOpen = !root.settingsOpen
+            onRadioClicked: root.radioOpen = !root.radioOpen
             onHideClicked: Companion.toggleShown()
             onWidthChanged: root.requestInput()
             onXChanged: root.requestInput()
+            onVisibleChanged: root.requestInput()
+        }
+
+        PlayerRow {
+            id: playerRow
+            visible: active && root.onScreen("player-row")
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: Companion.shown ? bar.height : 0
+            onWidthChanged: root.requestInput()
+            onXChanged: root.requestInput()
+            onYChanged: root.requestInput()
+            onVisibleChanged: root.requestInput()
+        }
+
+        HubHint {
+            id: hubHint
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: playerRow.visible ? playerRow.height + 6 : 6
+            key: root.keyOf("toggle")
         }
 
         WelcomePanel {
             id: welcome
-            visible: Companion.welcome
+            visible: Companion.welcome && Companion.shown
             defaultX: 24
             defaultY: 120
             onAreaChanged: root.requestInput()
         }
 
+        RadioPanel {
+            id: radio
+            visible: root.radioOpen && root.onScreen("radio")
+            defaultX: 24
+            defaultY: 120
+            onCloseClicked: root.radioOpen = false
+            onAreaChanged: root.requestInput()
+        }
+
         SettingsPanel {
             id: settings
-            visible: root.settingsOpen
+            pinnable: false
+            visible: root.settingsOpen && Companion.shown
             defaultX: scene.width - width - 24
             defaultY: 120
             onCloseClicked: root.settingsOpen = false

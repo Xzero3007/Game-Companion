@@ -7,6 +7,7 @@ arch=(x86_64)
 url="https://github.com/Xzero3007/Game-Companion"
 license=(GPL-3.0-or-later)
 depends=(qt6-base qt6-declarative qt6-wayland layer-shell-qt xdg-desktop-portal)
+optdepends=('mpv: the radio')
 makedepends=(rust clang)
 options=(!lto !debug)
 

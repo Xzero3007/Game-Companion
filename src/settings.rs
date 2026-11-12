@@ -1,8 +1,9 @@
 //! What the overlay remembers between starts, in
 //! `~/.config/game-companion/settings.json`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +19,61 @@ pub struct Settings {
     pub places: BTreeMap<String, Place>,
     /// Whether the welcome panel shows (it closes for good once closed).
     pub welcome: bool,
+    /// What stays on screen while the hub is hidden, by id (panels, the
+    /// player row).
+    pub pins: BTreeSet<String>,
+    pub radio: RadioSettings,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RadioSettings {
+    /// The station last played.
+    pub station: Option<String>,
+    /// 0 to 100, as the volume bar shows it.
+    pub volume: u8,
+    pub favourites: Vec<String>,
+    /// The stations played last, newest first.
+    pub recent: Vec<String>,
+    /// The panel's list: "favourites", "all" or "recent".
+    pub tab: String,
+    /// "" for all countries, else a country id.
+    pub country: String,
+    /// "" for all genres, else a genre id.
+    pub genre: String,
+}
+
+impl Default for RadioSettings {
+    fn default() -> Self {
+        Self {
+            station: None,
+            volume: 60,
+            favourites: Vec::new(),
+            recent: Vec::new(),
+            tab: "all".into(),
+            country: String::new(),
+            genre: String::new(),
+        }
+    }
+}
+
+/// The settings, shared by everything in the app, loaded once.
+fn shared() -> &'static Mutex<Settings> {
+    static SHARED: OnceLock<Mutex<Settings>> = OnceLock::new();
+    SHARED.get_or_init(|| Mutex::new(Settings::load()))
+}
+
+/// Reads the shared settings.
+pub fn read<T>(f: impl FnOnce(&Settings) -> T) -> T {
+    f(&shared().lock().unwrap_or_else(|p| p.into_inner()))
+}
+
+/// Changes the shared settings and saves them.
+pub fn change<T>(f: impl FnOnce(&mut Settings) -> T) -> T {
+    let mut guard = shared().lock().unwrap_or_else(|p| p.into_inner());
+    let out = f(&mut guard);
+    guard.save();
+    out
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -28,7 +84,13 @@ pub struct Place {
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { alpha: DEFAULT_ALPHA, places: BTreeMap::new(), welcome: true }
+        Self {
+            alpha: DEFAULT_ALPHA,
+            places: BTreeMap::new(),
+            welcome: true,
+            pins: BTreeSet::new(),
+            radio: RadioSettings::default(),
+        }
     }
 }
 
@@ -53,6 +115,7 @@ impl Settings {
             .and_then(|text| serde_json::from_str(&text).ok())
             .unwrap_or_default();
         settings.alpha = clamp_alpha(settings.alpha);
+        settings.radio.volume = settings.radio.volume.min(100);
         settings
     }
 
@@ -103,6 +166,9 @@ mod tests {
         let path = temp_file("roundtrip");
         let mut s = Settings { alpha: 0.7, ..Default::default() };
         s.places.insert("welcome".into(), Place { x: 24.0, y: 120.0 });
+        s.pins.insert("radio".into());
+        s.radio.favourites.push("best-fm".into());
+        s.radio.volume = 45;
         s.save_to(&path).unwrap();
         assert_eq!(Settings::load_from(&path), s);
     }
@@ -115,6 +181,10 @@ mod tests {
         assert_eq!(Settings::load_from(&path), Settings::default());
         std::fs::write(&path, r#"{"alpha": 3.0}"#).unwrap();
         assert_eq!(Settings::load_from(&path).alpha, 1.0);
+        std::fs::write(&path, r#"{"radio": {"volume": 250}}"#).unwrap();
+        assert_eq!(Settings::load_from(&path).radio.volume, 100);
+        std::fs::write(&path, r#"{"alpha": 0.8}"#).unwrap();
+        assert_eq!(Settings::load_from(&path).radio, RadioSettings::default());
         assert_eq!(clamp_alpha(f64::NAN), DEFAULT_ALPHA);
         assert_eq!(clamp_alpha(0.1), 0.5);
     }

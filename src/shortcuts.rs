@@ -34,8 +34,8 @@ pub struct Shortcut {
 
 /// The overlay's shortcuts. Brave and Legcord get theirs once they are built.
 pub const ALL: [Shortcut; 2] = [
-    Shortcut { id: "lock", description: "Lock or unlock the overlay (locked, clicks go to the game)", trigger: "CTRL+ALT+o" },
-    Shortcut { id: "toggle", description: "Show or hide the overlay", trigger: "CTRL+ALT+h" },
+    Shortcut { id: "lock", description: "Lock or unlock the overlay (locked, clicks go to the game)", trigger: "ALT+q" },
+    Shortcut { id: "toggle", description: "Hide or show the hub (pinned things stay)", trigger: "ALT+y" },
 ];
 
 /// What the desktop said about one shortcut.
@@ -231,7 +231,8 @@ mod tests {
     #[test]
     fn readable_keys() {
         assert_eq!(readable("CTRL+ALT+o"), "Ctrl+Alt+O");
-        assert_eq!(readable("CTRL+ALT+h"), "Ctrl+Alt+H");
+        assert_eq!(readable("ALT+q"), "Alt+Q");
+        assert_eq!(readable("ALT+y"), "Alt+Y");
     }
 
     #[test]

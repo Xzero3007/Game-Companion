@@ -2,6 +2,8 @@
 
 mod companion;
 mod native;
+mod radio;
+mod radio_object;
 mod settings;
 mod shortcuts;
 

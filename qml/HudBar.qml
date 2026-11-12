@@ -9,6 +9,8 @@ import "theme.js" as Theme
 Item {
     id: bar
     property bool settingsOpen: false
+    property bool radioOpen: false
+    signal radioClicked
     property string gameName: ""
     signal settingsClicked
     signal hideClicked
@@ -86,6 +88,17 @@ Item {
         Item { width: 6; height: 1 }
 
         HudButton {
+            icon: "radio"
+            label: "Radio"
+            active: bar.radioOpen
+            tip: "Radio"
+            onClicked: bar.radioClicked()
+        }
+
+        Rectangle { width: 1; height: 28; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }
+        Item { width: 6; height: 1 }
+
+        HudButton {
             id: lockButton
             icon: Companion.locked ? "lock" : "unlock"
             active: !Companion.locked
@@ -100,7 +113,7 @@ Item {
         }
         HudButton {
             icon: "hide"
-            tip: "Hide the overlay"
+            tip: "Hide the hub (pinned things stay)"
             onClicked: bar.hideClicked()
         }
     }

@@ -551,12 +551,13 @@ dependencies = [
 
 [[package]]
 name = "game-companion"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "cxx-qt",
  "cxx-qt-build",
  "cxx-qt-lib",
+ "libc",
  "serde",
  "serde_json",
  "zbus",

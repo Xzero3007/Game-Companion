@@ -55,10 +55,17 @@ learnt, so nothing has to be asked or worked out again.
 1. **Core** (done in 0.1.0): overlay on KDE's overlay layer, one lock with
    input region, shortcuts through the portal, Edge HUD bar, panels with
    remembered places, opacity, settings, Arch package.
-2. Radio and Streams (Twitch, YouTube, Jellyfin) moved over from the meter's
-   plugins (`Xzero3007/A2Tools-Clicktrough-Plugins`: `plugins/radio`,
+2. Radio (done in 0.2.0: panel, player row, mpv in the background, pins and
+   hub hiding, volume as one bar with − / +) and Streams (Twitch, YouTube,
+   Jellyfin; next, design approved on the canvas
+   https://claude.ai/artifact/82a3HqWJWbBRdp5FU7MvGZ page "Radio and Streams
+   (B)") moved over from the meter's plugins (`Xzero3007/A2Tools-Clicktrough-Plugins`: `plugins/radio`,
    `plugins/streams`), rewritten in QML; their logic and allowed hosts kept.
    Video through libmpv (MpvQt). Then switched off in the meter by the person.
+   Each game brings a preset search (the person, 2026-11-12): its Twitch
+   category and YouTube search words; the Streams panel's first tab is the
+   running game's (purple tag). Until game detection, AION 2 by default and
+   changeable by hand.
 3. Brave Origin and Legcord: **on hold** (the person, 2026-11-12). Options
    known: steer their real windows by KWin rules (as meter patch 0050), or
    try a nested Wayland compositor (Qt Wayland Compositor) to show them
@@ -80,12 +87,24 @@ learnt, so nothing has to be asked or worked out again.
 - `src/companion.rs`: the `Companion` QML singleton (CXX-Qt). The shortcut
   thread queues onto the Qt thread (`qt_thread().queue`).
 - `src/shortcuts.rs`: the GlobalShortcuts portal, adapted from the meter's
-  `hotkeys.rs`; ids `lock`, `toggle`. App id
+  `hotkeys.rs`; ids `lock` (Alt+Q) and `toggle` (Alt+Y, hides the hub),
+  the person's own KDE keys (2026-11-12). App id
   `io.github.xzero3007.GameCompanion` (the desktop file's name).
 - `qml/theme.js`: the design's colours and fonts (a JS library, not a QML
   singleton: files in `qml/` would otherwise see the implicit directory
   import's non-singleton type).
 - Fonts ship in the binary (Qt resources): nothing is fetched.
+- `src/settings.rs`: one shared settings file (`settings::read` /
+  `settings::change`), used by every QML singleton.
+- The radio (`src/radio.rs`): the user's mpv as a child (`--idle`, JSON IPC
+  on a socket, `--ytdl=no`, killed with the app through PR_SET_PDEATHSIG);
+  `Player::load` refuses any address whose host is not in the station
+  list. mpv's volume is cubic: `mpv_volume` maps the bar like a browser.
+- Hub hidden (`Companion.shown` false): the bar, the welcome and settings go;
+  panels and the player row stay if their id is in `pins`. Locked with the
+  hub hidden, nothing takes clicks (Alt+Q / Alt+Y still work).
+- `HudIcon` draws into a layer (texture): plain shapes were not clipped by
+  a list's clip in the software renderer.
 
 ## Checking a change
 

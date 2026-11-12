@@ -12,6 +12,12 @@ fn main() {
         QmlFile::from("qml/UnlockedFrame.qml"),
         QmlFile::from("qml/TextButton.qml"),
         QmlFile::from("qml/HudSlider.qml"),
+        QmlFile::from("qml/IconButton.qml"),
+        QmlFile::from("qml/VolumeBar.qml"),
+        QmlFile::from("qml/Dropdown.qml"),
+        QmlFile::from("qml/RadioPanel.qml"),
+        QmlFile::from("qml/PlayerRow.qml"),
+        QmlFile::from("qml/HubHint.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();
@@ -22,7 +28,7 @@ fn main() {
     let builder = CxxQtBuilder::new_qml_module(qml)
         .qt_module("Gui")
         .qt_module("Quick")
-        .files(["src/companion.rs", "src/native.rs"])
+        .files(["src/companion.rs", "src/radio_object.rs", "src/native.rs"])
         .cpp_file("cpp/native.h")
         .cpp_file("cpp/native.cpp")
         .qrc_resources([

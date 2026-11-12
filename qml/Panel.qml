@@ -12,6 +12,11 @@ Item {
     property string title
     /// Text right of the title, in gold (a count, a state).
     property string badge: ""
+    /// An icon left of the title (HudIcon names).
+    property string icon: ""
+    /// Whether it can be pinned (it then stays while the hub is hidden).
+    property bool pinnable: true
+    readonly property bool pinned: Companion.pins.indexOf('"' + panelId + '"') >= 0
     property real defaultX: 24
     property real defaultY: 120
     default property alias content: body.data
@@ -86,9 +91,18 @@ Item {
             onReleased: Companion.savePlace(panel.panelId, panel.x, panel.y)
         }
 
-        Text {
+        HudIcon {
+            id: titleIcon
+            visible: panel.icon.length > 0
             anchors.left: parent.left
             anchors.leftMargin: 14
+            anchors.verticalCenter: parent.verticalCenter
+            name: panel.icon
+            color: Theme.accent
+        }
+        Text {
+            anchors.left: panel.icon.length > 0 ? titleIcon.right : parent.left
+            anchors.leftMargin: panel.icon.length > 0 ? 10 : 14
             anchors.verticalCenter: parent.verticalCenter
             text: panel.title.toUpperCase()
             color: Theme.text
@@ -97,8 +111,32 @@ Item {
             font.weight: Font.Bold
             font.letterSpacing: 2
         }
-        Text {
+        Item {
+            id: pinButton
+            visible: panel.pinnable
             anchors.right: closeButton.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: visible ? 32 : 0
+            height: 32
+            HudIcon {
+                anchors.centerIn: parent
+                name: "pin"
+                size: 15
+                filled: panel.pinned
+                color: panel.pinned ? Theme.accent : (pinMouse.containsMouse ? Theme.text : Theme.dim)
+            }
+            MouseArea {
+                id: pinMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                enabled: !Companion.locked
+                onClicked: Companion.togglePin(panel.panelId)
+            }
+            Accessible.role: Accessible.CheckBox
+            Accessible.name: panel.pinned ? "Unpin: hide with the hub" : "Pin: stay when the hub is hidden"
+        }
+        Text {
+            anchors.right: pinButton.left
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             visible: panel.badge.length > 0

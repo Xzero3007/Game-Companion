@@ -7,7 +7,8 @@ Panel {
     id: welcome
     panelId: "welcome"
     title: "Welcome"
-    badge: "STEP 1"
+    badge: "STEP 2"
+    pinnable: false
     width: 420
 
     property var keys: JSON.parse(Companion.shortcuts)
@@ -30,12 +31,12 @@ Panel {
             width: parent.width
             topPadding: 4
             KeyRow { key: welcome.keyOf("lock"); what: "Use the overlay / let clicks through" }
-            KeyRow { key: welcome.keyOf("toggle"); what: "Show or hide the overlay" }
+            KeyRow { key: welcome.keyOf("toggle"); what: "Hide the hub; pinned things stay" }
         }
 
         Para {
             color: Theme.dim
-            text: "Radio, videos and game modules come in the next steps."
+            text: "The pin in a panel's header keeps it on screen while the hub is hidden. Videos and game modules come in the next steps."
         }
 
         Item {
