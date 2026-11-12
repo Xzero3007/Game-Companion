@@ -60,20 +60,30 @@ to the game.
   window (both at once if you like), drawn by your **libmpv** into the
   overlay. Locked, clicks go through it; unlocked, the pointer on it shows
   its bars (pin, quality from a list: source, 1080p to 360p or sound only;
-  close; pause, volume, time line, opacity from a list, 100 to 50 % in
-  steps of 10, kept for each window), it moves by dragging and grows by the corner (16:9).
+  full screen (Esc leaves it); close; pause, 10 seconds back and on, a time
+  line to click or drag, volume, opacity from a list, 100 to 50 % in steps
+  of 10, kept for each window), it moves by dragging and grows by the corner (16:9).
   Pinned, it stays while the hub is hidden. The player row gets a part for
   each video. Twitch plays through **Streamlink** when installed (no ad
   breaks; signed in, Turbo or a subscription means no ads at all), else
   through yt-dlp; YouTube through yt-dlp. A video that doesn't play says
   why in yt-dlp's or mpv's words, with a hint where one is known.
+  When the time stands still for 4 seconds while it should play (after a
+  jump, a quality change, a stalled connection), it gets a fresh address
+  and goes on at the same spot ("Reconnecting…").
 - **What Streams sends**: Twitch's public API (gql.twitch.tv, fixed
   queries; your twitch.tv token only for the followed channels, to Twitch
   alone, kept in `~/.config/game-companion/twitch.json`, readable by you
   only), YouTube's channel feeds, YouTube's search and the videos through
   yt-dlp, and the thumbnails of static-cdn.jtvnw.net, i.ytimg.com and
-  yt3.ggpht.com (the app's image loader refuses every other host). Nothing
-  else.
+  yt3.ggpht.com (the app's image loader refuses every other host), and
+  SponsorBlock (sponsor.ajay.app) when switched on in Settings → Streams,
+  asked with only the first four characters of the video id's SHA-256.
+  Nothing else.
+- **SponsorBlock** (off until switched on): the parts of YouTube videos
+  viewers flagged are marked on the time line in their colour; each
+  category skips, shows or is off (FreeTube's choices can be taken over).
+  A skip says so, with UNDO. Segments: SponsorBlock, CC BY-NC-SA 4.0.
 - **Updates from its own releases.** At the start, every 20 minutes and with
   Settings → General → Check for updates, it reads `latest.json` of this
   repo's latest GitHub release. A newer one shows a gold **Update** button in

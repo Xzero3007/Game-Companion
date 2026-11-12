@@ -589,7 +589,7 @@ dependencies = [
 
 [[package]]
 name = "game-companion"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "cxx",
  "cxx-qt",

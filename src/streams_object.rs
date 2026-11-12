@@ -12,6 +12,7 @@ use cxx_qt_lib::QString;
 use serde_json::{json, Value};
 
 use crate::settings::{self, GamePreset};
+use crate::sponsorblock;
 use crate::streams::{self, Channel};
 
 #[cxx_qt::bridge]
@@ -50,6 +51,8 @@ pub mod qobject {
         #[qproperty(i32, volume)]
         /// The lists as tiles side by side.
         #[qproperty(bool, grid)]
+        /// SponsorBlock: JSON `{"enabled", "categories": {category: "skip"|"show"|"off"}}`.
+        #[qproperty(QString, sponsorblock)]
         type Streams = super::StreamsRust;
 
         /// Loads a Twitch list: "game", "following", "favourites", "live" or "search" (with `text`).
@@ -101,6 +104,25 @@ pub mod qobject {
         #[qinvokable]
         fn save_opacity(self: Pin<&mut Streams>, slot: &QString, percent: i32);
 
+        #[qinvokable]
+        fn set_sponsor_enabled(self: Pin<&mut Streams>, enabled: bool);
+
+        #[qinvokable]
+        fn set_sponsor_mode(self: Pin<&mut Streams>, category: &QString, mode: &QString);
+
+        /// Takes FreeTube's SponsorBlock settings; says what happened.
+        #[qinvokable]
+        fn sponsor_from_freetube(self: Pin<&mut Streams>) -> QString;
+
+        /// Asks SponsorBlock for a YouTube video's segments (when it is on);
+        /// they come with `segments_loaded`.
+        #[qinvokable]
+        fn load_segments(self: Pin<&mut Streams>, slot: &QString, id: &QString);
+
+        /// A video's segments: JSON `[{category, start, end, mode}]`.
+        #[qsignal]
+        fn segments_loaded(self: Pin<&mut Streams>, slot: QString, id: QString, segments: QString);
+
         /// Forgets the subscriptions kept for a while: the next load asks again.
         #[qinvokable]
         fn forget(self: Pin<&mut Streams>);
@@ -143,6 +165,7 @@ pub struct StreamsRust {
     quality: QString,
     volume: i32,
     grid: bool,
+    sponsorblock: QString,
     twitch_request: u64,
     youtube_request: u64,
 }
@@ -253,6 +276,7 @@ impl Default for StreamsRust {
             quality: q(&s.quality),
             volume: i32::from(s.volume),
             grid: s.grid,
+            sponsorblock: q(&serde_json::to_string(&s.sponsorblock).unwrap_or_default()),
             twitch_request: 0,
             youtube_request: 0,
         };
@@ -599,6 +623,59 @@ impl qobject::Streams {
             let p = percent.clamp(50, 100) as u8;
             settings::change(|s| s.streams.video_opacity.insert(slot.clone(), p));
         }
+    }
+
+    fn set_sponsor_enabled(self: Pin<&mut Self>, enabled: bool) {
+        let json = settings::change(|s| {
+            s.streams.sponsorblock.enabled = enabled;
+            serde_json::to_string(&s.streams.sponsorblock).unwrap_or_default()
+        });
+        self.set_sponsorblock(q(&json));
+    }
+
+    fn set_sponsor_mode(self: Pin<&mut Self>, category: &QString, mode: &QString) {
+        let (category, mode) = (category.to_string(), mode.to_string());
+        if !sponsorblock::CATEGORIES.contains(&category.as_str()) || !matches!(mode.as_str(), "skip" | "show" | "off") {
+            return;
+        }
+        let json = settings::change(|s| {
+            s.streams.sponsorblock.categories.insert(category.clone(), mode.clone());
+            serde_json::to_string(&s.streams.sponsorblock).unwrap_or_default()
+        });
+        self.set_sponsorblock(q(&json));
+    }
+
+    fn sponsor_from_freetube(self: Pin<&mut Self>) -> QString {
+        let Some(taken) = sponsorblock::from_freetube() else {
+            return q("FreeTube's SponsorBlock settings were not found.");
+        };
+        let json = serde_json::to_string(&taken).unwrap_or_default();
+        settings::change(|s| s.streams.sponsorblock = taken);
+        self.set_sponsorblock(q(&json));
+        q("Taken from FreeTube.")
+    }
+
+    fn load_segments(self: Pin<&mut Self>, slot: &QString, id: &QString) {
+        let (slot, id) = (slot.to_string(), id.to_string());
+        let sb = settings::read(|s| s.streams.sponsorblock.clone());
+        if !sb.enabled || Self::demo_mode() {
+            return;
+        }
+        let thread = self.qt_thread();
+        std::thread::spawn(move || {
+            // Unreachable or refused: the video plays as it is.
+            let list = sponsorblock::segments(&id, &sb).unwrap_or_default();
+            let list: Vec<Value> = list
+                .into_iter()
+                .map(|mut v| {
+                    let mode = sb.mode(v["category"].as_str().unwrap_or("")).to_string();
+                    v["mode"] = json!(mode);
+                    v
+                })
+                .collect();
+            let text = Value::Array(list).to_string();
+            let _ = thread.queue(move |obj: Pin<&mut qobject::Streams>| obj.segments_loaded(q(&slot), q(&id), q(&text)));
+        });
     }
 
     fn forget(self: Pin<&mut Self>) {

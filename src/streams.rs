@@ -557,6 +557,16 @@ pub fn twitch(body: &Value, token: Option<&str>) -> Result<Value, String> {
     Ok(data)
 }
 
+/// A plain https GET (SponsorBlock), through curl.
+pub fn get(url: &str, limit: Duration) -> Result<Vec<u8>, String> {
+    if !url.starts_with("https://") {
+        return Err("only https".into());
+    }
+    let mut config = curl_base();
+    config.push_str(&format!("url = {}\n", curl_quote(url)));
+    curl(&config, limit)
+}
+
 /// A YouTube channel's newest videos (its public feed).
 pub fn youtube_feed(channel: &str) -> Result<Vec<Value>, String> {
     if !valid_channel_id(channel) {

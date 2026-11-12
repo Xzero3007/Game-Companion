@@ -245,7 +245,47 @@ Panel {
             readonly property var account: JSON.parse(Streams.account)
             readonly property var game: JSON.parse(Streams.game)
             onVisibleChanged: if (visible) Streams.refreshAccount()
+            property string part: nativeWindow.demo.indexOf("sponsor") >= 0 ? "sponsorblock" : "twitch"
 
+            Row {
+                spacing: 16
+                Repeater {
+                    model: [["twitch", "Twitch"], ["sponsorblock", "SponsorBlock"], ["jellyfin", "Jellyfin"]]
+                    delegate: Item {
+                        required property var modelData
+                        readonly property bool chosen: parent.parent.part === modelData[0]
+                        width: partText.implicitWidth
+                        height: 26
+                        Text {
+                            id: partText
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData[1].toUpperCase()
+                            color: parent.chosen ? Theme.accent : (partMouse.containsMouse ? Theme.text : Theme.dim)
+                            font.family: Theme.display
+                            font.pixelSize: 12
+                            font.weight: Font.Bold
+                            font.letterSpacing: 1.5
+                        }
+                        Rectangle { visible: parent.chosen; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent }
+                        MouseArea {
+                            id: partMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: parent.parent.parent.part = modelData[0]
+                        }
+                        Accessible.role: Accessible.PageTab
+                        Accessible.name: modelData[1]
+                    }
+                }
+            }
+
+            Column {
+            visible: parent.part === "twitch"
+            width: parent.width
+            spacing: 10
+            readonly property var account: parent.account
+            readonly property var game: parent.game
             Label { text: "Twitch token" }
             Row {
                 width: parent.width
@@ -298,10 +338,112 @@ Panel {
             Item { width: 1; height: 4 }
             Label { text: "Preset search for the game" }
             Hint { text: "Now: " + parent.game.name + " · Twitch category \u201c" + parent.game.twitch + "\u201d · YouTube \u201c" + parent.game.youtube + "\u201d. Change it with CHANGE in the Streams panel; with game detection, each game brings its own." }
+            }
 
-            Item { width: 1; height: 4 }
+            Column {
+            visible: parent.part === "sponsorblock"
+            width: parent.width
+            spacing: 10
+            Item {
+                id: sbHead
+                width: parent.width
+                height: 26
+                readonly property var sb: JSON.parse(Streams.sponsorblock)
+                property string message: ""
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 10
+                    Label { text: "SponsorBlock" }
+                    Text {
+                        text: sbHead.sb.enabled ? "ON" : "OFF"
+                        color: sbHead.sb.enabled ? Theme.accent : Theme.dim
+                        font.family: Theme.display
+                        font.pixelSize: 12
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.5
+                    }
+                }
+                Row {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
+                    TextButton {
+                        text: "Take from FreeTube"
+                        onClicked: sbHead.message = Streams.sponsorFromFreetube()
+                    }
+                    TextButton {
+                        text: sbHead.sb.enabled ? "Switch off" : "Switch on"
+                        onClicked: Streams.setSponsorEnabled(!sbHead.sb.enabled)
+                    }
+                }
+            }
+            Hint { visible: sbHead.message.length > 0; text: sbHead.message; color: Theme.textSoft }
+            Column {
+                width: parent.width
+                opacity: sbHead.sb.enabled ? 1 : 0.45
+                Repeater {
+                    model: [["sponsor", "Sponsor"], ["selfpromo", "Self-promotion"], ["interaction", "Interaction reminder"],
+                            ["intro", "Intro"], ["outro", "Outro"], ["preview", "Preview, recap"],
+                            ["filler", "Filler, jokes"], ["music_offtopic", "Non-music part (music videos)"]]
+                    delegate: Item {
+                        required property var modelData
+                        width: parent.width
+                        height: 28
+                        readonly property string mode: (sbHead.sb.categories || {})[modelData[0]] || "off"
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData[1]
+                            color: Theme.textSoft
+                            font.family: Theme.body
+                            font.pixelSize: 12
+                        }
+                        Row {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 12
+                            Repeater {
+                                model: [["skip", "Skip"], ["show", "Show"], ["off", "Off"]]
+                                delegate: Item {
+                                    required property var modelData
+                                    readonly property bool chosen: parent.parent.mode === modelData[0]
+                                    width: choiceText.implicitWidth
+                                    height: 24
+                                    Text {
+                                        id: choiceText
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: modelData[1].toUpperCase()
+                                        color: parent.chosen ? Theme.accent : (choiceMouse.containsMouse ? Theme.text : Theme.dim)
+                                        font.family: Theme.display
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                        font.letterSpacing: 1
+                                    }
+                                    Rectangle { visible: parent.chosen; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent }
+                                    MouseArea {
+                                        id: choiceMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: Streams.setSponsorMode(parent.parent.parent.modelData[0], modelData[0])
+                                    }
+                                    Accessible.role: Accessible.RadioButton
+                                    Accessible.name: modelData[1]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Hint { text: "Skips or marks the parts of YouTube videos that viewers flagged. Asks sponsor.ajay.app with only the first four characters of the video's hash, so it never learns which video plays. Segments: SponsorBlock, CC BY-NC-SA 4.0." }
+            }
+
+            Column {
+            visible: parent.part === "jellyfin"
+            width: parent.width
+            spacing: 10
             Label { text: "Jellyfin" }
             Hint { text: "Your own server, in your home network only: comes next." }
+            }
         }
 
         // Shortcuts
@@ -377,7 +519,7 @@ Panel {
                 font.letterSpacing: 2
             }
             Hint { text: "One overlay for every game on Linux. Free software under the GNU GPL 3.0." }
-            Hint { text: "Nothing is sent: the overlay works without the internet. It goes online only for the radio you play and to look for its own updates on GitHub." }
+            Hint { text: "The overlay works without the internet. It goes online only for the radio you play, Twitch and YouTube in Streams, SponsorBlock when you switch it on, and to look for its own updates on GitHub." }
             Hint { text: "Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project Authors, both under the SIL Open Font License 1.1." }
         }
     }

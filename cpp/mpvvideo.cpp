@@ -274,6 +274,9 @@ bool MpvVideo::ensureStarted()
         {"ytdl", "yes"},
         {"cache", "yes"},
         {"demuxer-max-bytes", "64MiB"},
+        // What played stays a while: jumping back needs no new download.
+        {"demuxer-max-back-bytes", "48MiB"},
+        {"force-seekable", "yes"},
         {"load-unsafe-playlists", "no"},
         {"audio-client-name", "Game Companion"},
         {"title", "Game Companion"},

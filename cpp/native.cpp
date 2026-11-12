@@ -198,7 +198,9 @@ int32_t gc_run()
     // For screenshots during development: GC_SCREENSHOT=<file.png>.
     const QString shot = qEnvironmentVariable("GC_SCREENSHOT");
     if (!shot.isEmpty()) {
-        QTimer::singleShot(1500, window, [window, shot]() {
+        // GC_SCREENSHOT_DELAY: milliseconds before it is taken (1500).
+        const int delay = qEnvironmentVariableIntValue("GC_SCREENSHOT_DELAY") > 0 ? qEnvironmentVariableIntValue("GC_SCREENSHOT_DELAY") : 1500;
+        QTimer::singleShot(delay, window, [window, shot]() {
             window->grabWindow().save(shot);
             QGuiApplication::quit();
         });

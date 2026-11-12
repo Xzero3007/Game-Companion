@@ -126,12 +126,14 @@ Window {
         // Videos sit under the panels, over the game.
         VideoWindow {
             id: twitchVideo
+            z: fullScreen ? 100 : 0
             slot: "twitch"
             visible: active && root.onScreen(panelId)
             onAreaChanged: root.requestInput()
         }
         VideoWindow {
             id: youtubeVideo
+            z: fullScreen ? 100 : 0
             slot: "youtube"
             visible: active && root.onScreen(panelId)
             onAreaChanged: root.requestInput()

@@ -65,6 +65,8 @@ pub struct StreamsSettings {
     pub grid: bool,
     /// How much of each video window shows, in percent (50 to 100), by slot.
     pub video_opacity: BTreeMap<String, u8>,
+    /// SponsorBlock: off until switched on.
+    pub sponsorblock: crate::sponsorblock::SponsorSettings,
 }
 
 impl Default for StreamsSettings {
@@ -80,6 +82,7 @@ impl Default for StreamsSettings {
             volume: 70,
             grid: true,
             video_opacity: BTreeMap::new(),
+            sponsorblock: Default::default(),
         }
     }
 }

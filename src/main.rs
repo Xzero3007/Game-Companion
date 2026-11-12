@@ -6,6 +6,7 @@ mod radio;
 mod radio_object;
 mod settings;
 mod shortcuts;
+mod sponsorblock;
 mod streams;
 mod streams_object;
 mod updater;

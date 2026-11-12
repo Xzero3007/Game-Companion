@@ -58,7 +58,12 @@ Item {
 
     function play(what) {
         item = what
+        tries = 0
+        segments = []
+        skipped = ({})
+        skipNote = ""
         load(0)
+        if (what.kind === "youtube") Streams.loadSegments(slot, what.id)
     }
     function load(start) {
         if (!item) return
@@ -94,6 +99,114 @@ Item {
     }
     // mpv's volume is cubic: the bar works like a browser's.
     function mpvVolume(v) { return 100 * Math.cbrt(v / 100) }
+    // Stuck: the time stands still for 4 seconds while it should play (20
+    // while it loads): a fresh address from yt-dlp (or Streamlink), at the
+    // same spot. Three tries in a row, then it says so.
+    property real lastPosition: -1
+    property int stillFor: 0
+    property int tries: 0
+    property int goodFor: 0
+    property bool reconnecting: false
+    Timer {
+        interval: 1000
+        repeat: true
+        running: win.active && win.item.kind !== "file" && !video.paused
+            && (video.state === "playing" || video.state === "buffering" || video.state === "loading")
+        onRunningChanged: { win.stillFor = 0; win.lastPosition = video.position }
+        onTriggered: {
+            if (Math.abs(video.position - win.lastPosition) > 0.05 && video.state !== "loading") {
+                win.lastPosition = video.position
+                win.stillFor = 0
+                win.reconnecting = false
+                if (++win.goodFor >= 30) win.tries = 0
+                return
+            }
+            win.goodFor = 0
+            win.stillFor++
+            if (win.stillFor >= (video.state === "loading" ? 20 : 4)) win.reconnect()
+        }
+    }
+    function reconnect() {
+        stillFor = 0
+        if (tries >= 3) {
+            reconnecting = false
+            failure = "Stuck: it played no further after three new tries. Play starts it again."
+            video.stop()
+            return
+        }
+        tries++
+        reconnecting = true
+        const at = item.kind === "youtube" ? Math.max(0, video.position) : 0
+        load(at)
+    }
+
+    // SponsorBlock (when on in Settings): its parts marked on the time line,
+    // those set to skip jumped over, with a moment to go back.
+    property var segments: []
+    property var skipped: ({})
+    property var lastSkip: null
+    property string skipNote: ""
+    readonly property var segmentNames: ({
+        sponsor: "Sponsor", selfpromo: "Self-promotion", interaction: "Interaction reminder", intro: "Intro",
+        outro: "Outro", preview: "Preview", filler: "Filler", music_offtopic: "Non-music part"
+    })
+    function segmentColor(c) {
+        return ({ sponsor: "#5fcf7a", selfpromo: "#e8d44d", interaction: "#c4a8f0", intro: "#a9a6b2",
+                  outro: "#6f6b78", preview: "#e07a3c", filler: "#9b6be8", music_offtopic: "#f2c46b" })[c] || Theme.muted
+    }
+    Connections {
+        target: Streams
+        function onSegmentsLoaded(slot, id, list) {
+            if (slot !== win.slot || !win.item || win.item.id !== id) return
+            win.segments = JSON.parse(list)
+            win.skipped = ({})
+        }
+    }
+    Connections {
+        target: video
+        function onPositionChanged() {
+            const at = video.position
+            for (let i = 0; i < win.segments.length; i++) {
+                const seg = win.segments[i]
+                if (seg.mode !== "skip" || win.skipped[i]) continue
+                if (at >= seg.start && at < seg.end - 0.5) {
+                    const done = win.skipped
+                    done[i] = true
+                    win.skipped = done
+                    win.lastSkip = seg
+                    win.skipNote = "SKIPPED: " + (win.segmentNames[seg.category] || seg.category).toUpperCase()
+                    skipNoteTimer.restart()
+                    video.seek(seg.end, false)
+                    return
+                }
+            }
+        }
+    }
+    Timer { id: skipNoteTimer; interval: 6000; onTriggered: win.skipNote = "" }
+
+    // Full screen: over everything, the game and the panels; Esc or the
+    // button leaves it. Where it was is kept.
+    property bool fullScreen: false
+    property rect before
+    function toggleFullScreen() {
+        if (!parent) return
+        if (!fullScreen) {
+            before = Qt.rect(x, y, width, height)
+            fullScreen = true
+            fitScreen()
+        } else {
+            fullScreen = false
+            x = before.x; y = before.y; width = before.width; height = before.height
+        }
+    }
+    function fitScreen() { x = 0; y = 0; width = parent.width; height = parent.height }
+    onActiveChanged: if (!active && fullScreen) toggleFullScreen()
+    Shortcut {
+        sequence: "Escape"
+        enabled: win.fullScreen && !Companion.locked
+        onActivated: win.toggleFullScreen()
+    }
+
     function setQuality(q) {
         Streams.saveQuality(q)
         quality = q
@@ -131,11 +244,17 @@ Item {
         // Screenshots: GC_DEMO=video,quality or video,opacity opens that list.
         if (nativeWindow.demo.indexOf("quality") >= 0) qualityPicker.open = true
         if (nativeWindow.demo.indexOf("opacity") >= 0) opacityPicker.open = true
+        if (nativeWindow.demo.indexOf("fullscreen") >= 0) Qt.callLater(toggleFullScreen)
+        if (nativeWindow.demo.indexOf("sponsor") >= 0) {
+            segments = [{ category: "sponsor", start: 1, end: 2.5, mode: "skip" }, { category: "outro", start: 6.5, end: 8, mode: "show" }]
+            lastSkip = segments[0]
+            skipNote = "SKIPPED: SPONSOR"
+        }
     }
     Connections {
         target: win.parent
-        function onWidthChanged() { win.place() }
-        function onHeightChanged() { win.place() }
+        function onWidthChanged() { win.place(); if (win.fullScreen) win.fitScreen() }
+        function onHeightChanged() { win.place(); if (win.fullScreen) win.fitScreen() }
     }
     Connections {
         target: Companion
@@ -157,12 +276,13 @@ Item {
     // Where frames can't be drawn (screenshots), or while it loads.
     Text {
         anchors.centerIn: parent
-        visible: !video.drawable || win.playState === "loading" || win.playState === "failed" || win.failure.length > 0
+        visible: !video.drawable || win.playState === "loading" || win.reconnecting || win.playState === "failed" || win.failure.length > 0
         width: parent.width - 40
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
         text: win.failure.length > 0 ? win.failure
             : win.playState === "failed" ? "Doesn't play: " + video.error
+            : win.reconnecting ? "RECONNECTING…"
             : win.playState === "loading" ? "LOADING…"
             : win.label.toUpperCase() + " VIDEO"
         color: win.failure.length > 0 || win.playState === "failed" ? Theme.red : "#5b5866"
@@ -196,13 +316,13 @@ Item {
         anchors.fill: parent
         enabled: !Companion.locked
         hoverEnabled: true
-        drag.target: win
+        drag.target: win.fullScreen ? null : win
         drag.minimumX: 0
         drag.minimumY: 0
         drag.maximumX: win.parent ? win.parent.width - win.width : 0
         drag.maximumY: win.parent ? win.parent.height - 40 : 0
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-        onReleased: win.remember()
+        onReleased: if (!win.fullScreen) win.remember()
         onDoubleClicked: win.togglePause()
     }
     readonly property bool showBars: !Companion.locked && (barsWanted || barsLinger.running || nativeWindow.demo.indexOf("video") >= 0)
@@ -307,6 +427,14 @@ Item {
             }
             IconButton {
                 anchors.verticalCenter: parent.verticalCenter
+                icon: win.fullScreen ? "shrink" : "expand"
+                iconSize: 13
+                color: win.fullScreen ? Theme.accent : Theme.muted
+                tip: win.fullScreen ? "Leave full screen (Esc)" : "Full screen"
+                onClicked: win.toggleFullScreen()
+            }
+            IconButton {
+                anchors.verticalCenter: parent.verticalCenter
                 icon: "close"
                 iconSize: 12
                 color: Theme.muted
@@ -343,29 +471,16 @@ Item {
                 onStepped: (d) => win.setVolume(win.volume + d)
                 onPicked: (v) => win.setVolume(v)
             }
+            SeekButton { back: true }
+            SeekButton { back: false }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                visible: video.duration > 0
-                text: win.clock(video.position) + " / " + win.clock(video.duration)
-                color: Theme.muted
+                // Small, the time line's own label says it.
+                visible: video.duration > 0 && win.width >= 470
+                text: win.clock(timeLine.dragging ? timeLine.at : video.position) + " / " + win.clock(video.duration)
+                color: timeLine.dragging ? Theme.accent : Theme.muted
                 font.family: Theme.body
                 font.pixelSize: 11
-            }
-            IconButton {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: video.duration > 0
-                icon: "prev"
-                iconSize: 11
-                tip: "Back 10 seconds"
-                onClicked: video.seek(-10, true)
-            }
-            IconButton {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: video.duration > 0
-                icon: "next"
-                iconSize: 11
-                tip: "On 30 seconds"
-                onClicked: video.seek(30, true)
             }
         }
         Item {
@@ -396,23 +511,173 @@ Item {
             Accessible.name: "How much of the video shows: " + opacityText.text
         }
     }
-    // Time line, along the bottom bar's top edge.
-    Rectangle {
+    // The time line over the bottom bar: a click jumps, dragging shows
+    // where to and jumps on letting go.
+    Item {
+        id: timeLine
         visible: win.showBars && video.duration > 0
         anchors.bottom: bottomBar.top
         width: parent.width
-        height: 4
-        color: "#3a3842"
+        height: 16
+        readonly property bool dragging: seekMouse.pressed
+        readonly property bool hot: seekMouse.containsMouse || dragging
+        property real at: 0
+        function timeAt(px) { return video.duration * Math.max(0, Math.min(1, px / width)) }
         Rectangle {
-            width: video.duration > 0 ? parent.width * video.position / video.duration : 0
-            height: parent.height
-            color: Theme.accent
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: timeLine.hot ? 8 : 5
+            color: Qt.rgba(58 / 255, 56 / 255, 66 / 255, 0.9)
+            Rectangle {
+                width: video.duration > 0 ? parent.width * (timeLine.dragging ? timeLine.at : video.position) / video.duration : 0
+                height: parent.height
+                color: Theme.accent
+            }
+            Repeater {
+                model: video.duration > 0 ? win.segments : []
+                delegate: Rectangle {
+                    required property var modelData
+                    x: parent.width * modelData.start / video.duration
+                    width: Math.max(2, parent.width * (modelData.end - modelData.start) / video.duration)
+                    height: parent.height
+                    color: win.segmentColor(modelData.category)
+                    opacity: 0.9
+                }
+            }
+        }
+        Rectangle {
+            visible: timeLine.hot
+            x: Math.max(0, Math.min(parent.width - width, (video.duration > 0 ? parent.width * (timeLine.dragging ? timeLine.at : video.position) / video.duration : 0) - width / 2))
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: -3
+            width: 4
+            height: 14
+            color: Theme.accentLight
+        }
+        // The time under the pointer.
+        Rectangle {
+            visible: seekMouse.containsMouse || timeLine.dragging
+            x: Math.max(0, Math.min(parent.width - width, seekMouse.mouseX - width / 2))
+            y: -height - 4
+            width: hoverTime.implicitWidth + 10
+            height: hoverTime.implicitHeight + 4
+            color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.9)
+            Text {
+                id: hoverTime
+                anchors.centerIn: parent
+                text: win.clock(timeLine.timeAt(seekMouse.mouseX))
+                color: Theme.text
+                font.family: Theme.body
+                font.pixelSize: 11
+            }
         }
         MouseArea {
+            id: seekMouse
             anchors.fill: parent
-            anchors.topMargin: -4
+            hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: (m) => video.seek(video.duration * m.x / width, false)
+            preventStealing: true
+            onPressed: (m) => timeLine.at = timeLine.timeAt(m.x)
+            onPositionChanged: (m) => { if (pressed) timeLine.at = timeLine.timeAt(m.x) }
+            onReleased: (m) => video.seek(timeLine.timeAt(m.x), false)
+        }
+        Accessible.role: Accessible.Slider
+        Accessible.name: "Time line"
+    }
+
+    component SeekButton: Item {
+        property bool back
+        anchors.verticalCenter: parent.verticalCenter
+        visible: video.duration > 0
+        width: seekRow.implicitWidth + 10
+        height: 26
+        Row {
+            id: seekRow
+            anchors.centerIn: parent
+            spacing: 3
+            HudIcon {
+                visible: back
+                anchors.verticalCenter: parent.verticalCenter
+                name: "rewind"
+                size: 13
+                lineWidth: 2.2
+                color: seekButtonMouse.containsMouse ? Theme.accent : Theme.text
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "10"
+                color: seekButtonMouse.containsMouse ? Theme.accent : Theme.text
+                font.family: Theme.display
+                font.pixelSize: 12
+                font.weight: Font.Bold
+            }
+            HudIcon {
+                visible: !back
+                anchors.verticalCenter: parent.verticalCenter
+                name: "forwardWind"
+                size: 13
+                lineWidth: 2.2
+                color: seekButtonMouse.containsMouse ? Theme.accent : Theme.text
+            }
+        }
+        MouseArea {
+            id: seekButtonMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: video.seek(back ? -10 : 10, true)
+        }
+        Accessible.role: Accessible.Button
+        Accessible.name: back ? "Back 10 seconds" : "On 10 seconds"
+    }
+
+    // What SponsorBlock skipped, with a way back (unlocked).
+    Rectangle {
+        visible: win.skipNote.length > 0
+        anchors.left: parent.left
+        anchors.leftMargin: 10
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: win.showBars ? 62 : 12
+        width: skipRow.implicitWidth + 20
+        height: 30
+        color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.9)
+        Rectangle { width: 2; height: parent.height; color: win.lastSkip ? win.segmentColor(win.lastSkip.category) : Theme.accent }
+        Row {
+            id: skipRow
+            anchors.centerIn: parent
+            spacing: 12
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: win.skipNote
+                color: Theme.text
+                font.family: Theme.display
+                font.pixelSize: 12
+                font.weight: Font.Bold
+                font.letterSpacing: 1
+            }
+            Text {
+                visible: !Companion.locked
+                anchors.verticalCenter: parent.verticalCenter
+                text: "UNDO"
+                color: undoMouse.containsMouse ? Theme.accentLight : Theme.accent
+                font.family: Theme.display
+                font.pixelSize: 12
+                font.weight: Font.Bold
+                font.letterSpacing: 1
+                MouseArea {
+                    id: undoMouse
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (win.lastSkip) video.seek(win.lastSkip.start, false)
+                        win.skipNote = ""
+                    }
+                }
+                Accessible.role: Accessible.Button
+                Accessible.name: "Play the skipped part"
+            }
         }
     }
 
@@ -448,7 +713,7 @@ Item {
 
     // The size corner (unlocked): 16:9 kept.
     Item {
-        visible: !Companion.locked
+        visible: !Companion.locked && !win.fullScreen
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         width: 18

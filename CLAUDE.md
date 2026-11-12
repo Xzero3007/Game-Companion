@@ -36,7 +36,10 @@ learnt, so nothing has to be asked or worked out again.
   through yt-dlp; Twitch's and YouTube's thumbnails; videos through mpv; the
   person's Jellyfin server, home network only (no server data in the repo);
   FreeTube's subscriptions file, read only; the update check (this repo's
-  own GitHub releases only, the person, 2026-11-12). Brave Origin and Legcord are the
+  own GitHub releases only, the person, 2026-11-12); SponsorBlock
+  (sponsor.ajay.app, hash-prefix lookup only, off until switched on; the
+  person, 2026-11-12); FreeTube's settings file for its SponsorBlock
+  choices, read only. Brave Origin and Legcord are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
 - **Game modules only read** (like the AION 2 meter): never send anything to
@@ -149,7 +152,13 @@ learnt, so nothing has to be asked or worked out again.
   query and `users(ids:)` (meter patch 0068); Twitch's partial errors ride
   along as `_errors`. Subscriptions: 8 feeds at once, kept 15 minutes
   (`Streams.forget()` on refresh). Lists scroll by `WheelScroll` (Qt's own
-  wheel crept); history in `StreamsPanel` (`go`, `back`, `forward`).
+  wheel crept, glides 160 ms); history in `StreamsPanel` (`go`, `back`,
+  `forward`). Videos: a watchdog reloads at the same spot after 4 s
+  without progress (20 s loading, three tries); full screen fills the
+  scene (z 100, Esc); SponsorBlock in `src/sponsorblock.rs`, segments by
+  `Streams.loadSegments`. Under xvfb (llvmpipe) a large video shows
+  stripes after some seconds (also without resizing): most likely a
+  software-GL artifact; to be checked on the person's GPU. `GC_SCREENSHOT_DELAY` sets the screenshot's moment.
 - `HudIcon` draws into a layer (texture): plain shapes were not clipped by
   a list's clip in the software renderer.
 
