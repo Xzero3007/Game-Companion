@@ -77,7 +77,8 @@ learnt, so nothing has to be asked or worked out again.
    With it a **Games tab** (the person, 2026-11-12): the libraries of Steam,
    Lutris and Heroic read from disk (plus own entries), each game started
    through its launcher (e.g. `steam://rungameid/<id>`); no network. The same
-   game list feeds the detection. Design comes from the design thread.
+   game list feeds the detection. Design (not yet approved): canvas page
+   "Games (step 4)", boards G4Library and G4AddGame.
 5. AION 2 module: first only start the Clicktrough meter with the game.
    Plex: later, home network only, as its own step.
 
