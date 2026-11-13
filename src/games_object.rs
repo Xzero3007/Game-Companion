@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
@@ -140,7 +140,8 @@ pub mod qobject {
         /// the current options checked, and what others use (ProtonDB,
         /// Steam games). Answer: JSON `{"suggestions":[{"id","label",
         /// "explanation","option","recommended","why","warning","group",
-        /// "applied","flavours":[..],"popular":<usage>|null}],"context":
+        /// "applied","flavours":[..],"popular":<usage>|null,"available",
+        /// "unavailable_why"}],"context":
         /// {"flavour","label","sure","cachyos"},"check":<as checkOptions>,
         /// "warnings":[..],"others":{"title","reports","export","months",
         /// "source","groups":[{"group","label","reports"}],"proton":
@@ -149,7 +150,9 @@ pub mod qobject {
         /// per group can be on. `<usage>` is `{"count","reports","share",
         /// "similar":[{"group","label","count","reports","share"}],"like":
         /// {..}}` (`like`: the first of this PC's groups, GPU, distro, CPU,
-        /// with 5 reports or more, else all reports).
+        /// with 5 reports or more, else all reports). `available` false: a
+        /// switch this exact build no longer needs or reads (greyed out,
+        /// `unavailable_why` says why; combineOptions refuses it).
         #[qinvokable]
         fn suggestions(self: &Games, id: &QString) -> i32;
 
@@ -162,15 +165,18 @@ pub mod qobject {
         /// "summary":{"ok",..},"fixed","error"}`. status: ok, outdated,
         /// invalid, no_effect, not_recommended, unknown; fix: the word's
         /// replacement ("" = take it out) or null; fixed: the whole text
-        /// with every fix ("" when none or not safely possible).
+        /// with every fix ("" when none or not safely possible). Only the
+        /// newest check's answer is sent: an older request still waiting
+        /// or running when a newer one comes gets no launchResult.
         #[qinvokable]
         fn check_options(self: &Games, id: &QString, text: &QString) -> i32;
 
         /// The game's launch options with the suggestions in `chosen` (a
         /// JSON list of ids: the ones to have on; applied ones left out are
         /// taken out) put into its text, not written. Answer: JSON
-        /// `{"text","error"}` (text too complex to change is refused in
-        /// "error", with the text as it was).
+        /// `{"text","error"}` (text too complex to change, or an unavailable
+        /// suggestion chosen to be added, is refused in "error", with the
+        /// text as it was).
         #[qinvokable]
         fn combine_options(self: &Games, id: &QString, chosen: &QString) -> i32;
 
@@ -279,11 +285,35 @@ fn system() -> system_info::SystemInfo {
 struct Answer {
     json: String,
     rebuild: bool,
+    /// A newer request of the same kind came: send nothing.
+    stale: bool,
 }
 
 impl Answer {
     fn json(value: Value) -> Self {
-        Answer { json: value.to_string(), rebuild: false }
+        Answer { json: value.to_string(), rebuild: false, stale: false }
+    }
+
+    fn stale() -> Self {
+        Answer { json: String::new(), rebuild: false, stale: true }
+    }
+}
+
+/// The newest request of one kind, so older answers can be dropped.
+struct Newest(AtomicU64);
+
+impl Newest {
+    const fn new() -> Self {
+        Newest(AtomicU64::new(0))
+    }
+
+    /// A new request: its generation.
+    fn begin(&self) -> u64 {
+        self.0.fetch_add(1, Ordering::Relaxed) + 1
+    }
+
+    fn is_newest(&self, generation: u64) -> bool {
+        self.0.load(Ordering::Relaxed) == generation
     }
 }
 
@@ -688,6 +718,9 @@ impl qobject::Games {
                 let _turn = ONE_AT_A_TIME.lock().unwrap_or_else(|p| p.into_inner());
                 job()
             };
+            if answer.stale {
+                return;
+            }
             let _ = thread.queue(move |mut obj: Pin<&mut qobject::Games>| {
                 if answer.rebuild {
                     obj.as_mut().rebuild();
@@ -724,14 +757,26 @@ impl qobject::Games {
     }
 
     fn check_options(&self, id: &QString, text: &QString) -> i32 {
+        // Rapid checks (typing): only the newest is worked out and answered.
+        static CHECKS: Newest = Newest::new();
+        let generation = CHECKS.begin();
+        let stale = move || !CHECKS.is_newest(generation);
         let id = id.to_string();
         let text = text.to_string();
         self.work(move || {
+            if stale() {
+                return Answer::stale();
+            }
             let Some(places) = places() else { return Answer::json(json!({"error": "No home folder"})) };
             let current = launch_options::read(&places, &id, own_command(&id).as_deref());
             let text = if text.trim().is_empty() { current.text.clone() } else { text };
             let ctx = launch_check::context(&system(), &current, &tools(&places, false));
-            Answer::json(launch_check::check(&text, &ctx).to_json(&text))
+            let answer = Answer::json(launch_check::check(&text, &ctx).to_json(&text));
+            if stale() {
+                Answer::stale()
+            } else {
+                answer
+            }
         })
     }
 
@@ -770,7 +815,7 @@ impl qobject::Games {
                 if !settings::change(|s| set_own_command(&mut s.games, n, command)) {
                     return error("This game was not found");
                 }
-                return Answer { json: json!({"error": ""}).to_string(), rebuild: true };
+                return Answer { json: json!({"error": ""}).to_string(), rebuild: true, stale: false };
             }
             let Some(places) = places() else { return error("No home folder") };
             match launch_options::write(&places, &id, &text, now_seconds()) {
@@ -783,7 +828,7 @@ impl qobject::Games {
     fn proton_versions(&self, refresh: bool) -> i32 {
         self.work(move || {
             let Some(places) = places() else { return Answer::json(json!([])) };
-            Answer { json: launch_options::tools_json(&tools(&places, refresh)), rebuild: false }
+            Answer { json: launch_options::tools_json(&tools(&places, refresh)), rebuild: false, stale: false }
         })
     }
 
@@ -809,7 +854,7 @@ impl qobject::Games {
     }
 
     fn system_info(&self) -> i32 {
-        self.work(|| Answer { json: system().to_json().to_string(), rebuild: false })
+        self.work(|| Answer { json: system().to_json().to_string(), rebuild: false, stale: false })
     }
 
     /// Puts an id in one of the settings' sets, or takes it out.
@@ -833,6 +878,16 @@ impl qobject::Games {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_newest_check_counts() {
+        let checks = Newest::new();
+        let first = checks.begin();
+        assert!(checks.is_newest(first));
+        let second = checks.begin();
+        assert!(!checks.is_newest(first) && checks.is_newest(second));
+        assert!(Answer::stale().stale && !Answer::json(json!({})).stale);
+    }
 
     #[test]
     fn own_command_change_guesses_processes_again() {

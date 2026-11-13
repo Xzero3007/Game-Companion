@@ -60,6 +60,14 @@ pub struct Entry {
     pub container: bool,
     #[serde(default)]
     pub by_flavour: BTreeMap<String, Override>,
+    /// Values that still do something although the option is retired
+    /// (GE-Proton's `PROTON_ENABLE_HDR=0` turns HDR off): ok, with a note.
+    #[serde(default)]
+    pub keep_values: Vec<String>,
+    /// Why a suggestion of it is greyed out where it does nothing (plain
+    /// English; else the check's note).
+    #[serde(default)]
+    pub unavailable: String,
     pub explanation: String,
     pub source: String,
 }
@@ -82,19 +90,44 @@ pub struct ValueSpec {
     /// Flags seen in use that no source confirms.
     #[serde(default)]
     pub uncertain: BTreeMap<String, String>,
+    /// Flags that were removed upstream (outdated, taken out by the fix),
+    /// with what became of them.
+    #[serde(default)]
+    pub retired: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct Override {
     pub status: String,
-    /// Only from this Valve major on.
+    /// Only from this major on: Valve's and proton-cachyos's major, or
+    /// GE-Proton's major together with `fromRelease` (GE-Proton10-10 =
+    /// from 10, fromRelease 10). Older builds keep the entry's own status.
     pub from: Option<u32>,
+    #[serde(rename = "fromRelease")]
+    pub from_release: Option<u32>,
     #[serde(default)]
     pub since: String,
     #[serde(default)]
     pub replacement: String,
     #[serde(default)]
     pub note: String,
+    /// As `Entry::keep_values`, for this flavour.
+    #[serde(rename = "keepValues", default)]
+    pub keep_values: Vec<String>,
+    /// As `Entry::unavailable`, for this flavour.
+    #[serde(default)]
+    pub unavailable: String,
+}
+
+impl Override {
+    /// Whether it applies to this build (its version at or past `from`).
+    fn applies(&self, family: Family) -> bool {
+        match (self.from, family) {
+            (Some(from), Family::Valve(m) | Family::CachyOs(m)) => m >= from,
+            (Some(from), Family::Ge(m, r)) => m > from || (m == from && r >= self.from_release.unwrap_or(0)),
+            _ => true,
+        }
+    }
 }
 
 pub fn kb() -> &'static Kb {
@@ -184,7 +217,8 @@ pub enum Family {
     Valve(u32),
     Experimental,
     Ge(u32, u32),
-    CachyOs,
+    /// proton-cachyos (major; `NEWEST` when it cannot be told).
+    CachyOs(u32),
     /// Some Proton whose family could not be told.
     ProtonOther,
     Wine,
@@ -199,7 +233,7 @@ impl Family {
             Family::Valve(_) => "valve",
             Family::Experimental => "experimental",
             Family::Ge(..) => "ge",
-            Family::CachyOs => "cachyos",
+            Family::CachyOs(_) => "cachyos",
             Family::ProtonOther => "proton",
             Family::Wine => "wine",
             Family::Native => "native",
@@ -213,7 +247,7 @@ impl Family {
     pub fn from_flavour(f: Flavour) -> Family {
         match f {
             Flavour::Ge(m, r) => Family::Ge(m, r),
-            Flavour::CachyOs => Family::CachyOs,
+            Flavour::CachyOs => Family::CachyOs(NEWEST),
             Flavour::Experimental => Family::Experimental,
             Flavour::Hotfix => Family::Valve(NEWEST),
             Flavour::Valve(m) => Family::Valve(m),
@@ -236,6 +270,9 @@ pub struct Ctx {
     pub nvidia_major: Option<u32>,
     /// Tools found on PATH (of `system_info::TOOLS`).
     pub tools: Vec<String>,
+    /// PATH was looked through, so a tool missing from `tools` is surely
+    /// not installed.
+    pub path_scanned: bool,
     pub ananicy: bool,
     pub cachyos: bool,
     /// Steam's own launch options: `%command%` matters.
@@ -253,7 +290,7 @@ impl Ctx {
 
     /// A proton-cachyos build without Steam's runtime container.
     fn outside_container(&self) -> bool {
-        self.family == Family::CachyOs && self.tool.to_ascii_lowercase().contains("native")
+        matches!(self.family, Family::CachyOs(_)) && self.tool.to_ascii_lowercase().contains("native")
     }
 
     pub fn to_json(&self) -> Value {
@@ -268,7 +305,7 @@ impl Ctx {
 
 /// The context of a game: its build's family from its launcher's choice.
 pub fn context(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Ctx {
-    let (family, tool, sure) = if current.proton == Some(false) {
+    let (mut family, tool, sure) = if current.proton == Some(false) {
         let wine = matches!(current.launcher.as_str(), "lutris" | "heroic")
             || (current.launcher == "own" && current.text.to_ascii_lowercase().split_whitespace().any(|w| w.rsplit('/').next().is_some_and(|p| p.starts_with("wine"))));
         (if wine { Family::Wine } else { Family::Native }, current.tool.clone(), true)
@@ -278,6 +315,19 @@ pub fn context(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Ctx {
             None => (Family::ProtonOther, current.tool.clone(), current.proton == Some(true)),
         }
     };
+    if family == Family::CachyOs(NEWEST) {
+        // The build's version: from its name, else from its `version` file.
+        let names = [tool.as_str(), current.tool.as_str()];
+        let found = tools.iter().find(|t| names.iter().any(|n| !n.is_empty() && (t.label == *n || t.name == *n)));
+        let major = names
+            .iter()
+            .chain(found.map(|t| t.name.as_str()).iter())
+            .find_map(|n| cachyos_major(n))
+            .or_else(|| found.and_then(|t| std::fs::read_to_string(t.path.join("version")).ok()).and_then(|v| cachyos_major(&v)));
+        if let Some(m) = major {
+            family = Family::CachyOs(m);
+        }
+    }
     Ctx {
         family,
         tool,
@@ -285,10 +335,32 @@ pub fn context(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Ctx {
         gpus: sys.gpus.iter().map(|g| g.vendor.clone()).collect(),
         nvidia_major: sys.nvidia_major(),
         tools: sys.tools.iter().map(|(n, _)| n.clone()).collect(),
+        path_scanned: sys.path_scanned,
         ananicy: sys.ananicy,
         cachyos: sys.cachyos(),
         steam_form: current.launcher != "own",
     }
+}
+
+/// proton-cachyos's major from a name or its `version` file
+/// ("proton-cachyos-10.0-20250819-slr", "1747000000 cachyos-11.0-20260521"):
+/// the first "<major>.<minor>" in it.
+pub fn cachyos_major(text: &str) -> Option<u32> {
+    let b = text.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i].is_ascii_digit() && (i == 0 || !b[i - 1].is_ascii_alphanumeric()) {
+            let start = i;
+            while i < b.len() && b[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i + 1 < b.len() && b[i] == b'.' && b[i + 1].is_ascii_digit() && i - start <= 3 {
+                return text[start..i].parse().ok().filter(|m| (1..100).contains(m));
+            }
+        }
+        i += 1;
+    }
+    None
 }
 
 // ------------------------------------------------------------- checks ----
@@ -383,6 +455,11 @@ pub struct Report {
     /// or nothing needs fixing).
     pub fixed: String,
     pub error: String,
+    /// Settings found after a wrapper, to go in front (their fixed text).
+    pub moves: Vec<String>,
+    /// Where a missing `%command%` goes and what is added there; None
+    /// when it cannot be told (then there is no fixed text).
+    pub command_fix: Option<(usize, String)>,
 }
 
 impl Report {
@@ -442,6 +519,67 @@ fn nearest<'a>(word: &str, candidates: impl Iterator<Item = &'a str>) -> Option<
     best.map(|(_, c)| c)
 }
 
+/// Words that turn a setting on or off: a correction that swaps one for
+/// another (`_USE_` ↔ `_NO_`, `_ENABLE_` ↔ `_DISABLE_`) changes what it does.
+const POLARITY: &[&str] = &["USE", "NO", "ENABLE", "DISABLE", "FORCE", "HIDE", "ALLOW", "SKIP", "IGNORE", "PREFER", "DISALLOW"];
+
+/// Real settings that are not in the list and must never be "corrected" to
+/// a listed name that looks alike.
+const NEVER_CORRECT: &[&str] = &[
+    "LANG", "LANGUAGE", "LC_ALL", "TZ", "HOME", "PATH", "USER", "DISPLAY", "WAYLAND_DISPLAY", "XDG_SESSION_TYPE", "XDG_RUNTIME_DIR",
+    "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "LD_LIBRARY_PATH", "LD_BIND_NOW", "VK_ICD_FILENAMES", "VK_DRIVER_FILES",
+    "VK_LOADER_DEBUG", "VK_INSTANCE_LAYERS", "VK_LOADER_LAYERS_ENABLE", "VK_LOADER_LAYERS_DISABLE", "MESA_VK_DEVICE_SELECT",
+    "MESA_LOADER_DRIVER_OVERRIDE", "MESA_GL_VERSION_OVERRIDE", "MESA_GLSL_VERSION_OVERRIDE", "SDL_AUDIODRIVER", "SDL_AUDIO_DRIVER",
+    "SDL_JOYSTICK_HIDAPI", "SDL_GAMECONTROLLERCONFIG", "PULSE_LATENCY_MSEC", "PIPEWIRE_LATENCY", "STEAM_COMPAT_DATA_PATH",
+    "STEAM_COMPAT_CLIENT_INSTALL_PATH", "STEAM_COMPAT_MOUNTS", "STEAM_RUNTIME", "WINEESYNC", "WINEFSYNC", "WINENTSYNC", "WINEDLLPATH",
+    "WINEARCH", "WINELOADER", "WINESERVER", "WINE_LARGE_ADDRESS_AWARE", "DXVK_STATE_CACHE", "DXVK_STATE_CACHE_PATH",
+    "ENABLE_VKBASALT", "VKBASALT_CONFIG_FILE", "OBS_VKCAPTURE", "ENABLE_GAMESCOPE_WSI", "DISABLE_GAMESCOPE_WSI", "__GL_VRR_ALLOWED",
+    "__GL_GSYNC_ALLOWED", "__GL_MaxFramesAllowed", "__GL_YIELD", "AMD_VULKAN_ICD", "RADV_FORCE_FAMILY", "ACO_DEBUG", "NIR_DEBUG",
+];
+
+/// Digit runs of a word ("dxr11" → ["11"]).
+fn digits(word: &str) -> Vec<&str> {
+    word.split(|c: char| !c.is_ascii_digit()).filter(|d| !d.is_empty()).collect()
+}
+
+/// Whether "correcting" a flag or value to `near` would change what it
+/// does instead of fixing its spelling: another number (dxr11 → dxr12),
+/// a negation added or dropped (nodxr ↔ dxr), or a whole part added or
+/// cut (wave32 → cswave32).
+fn flag_meaning_changes(word: &str, near: &str) -> bool {
+    let (w, n) = (word.to_ascii_lowercase(), near.to_ascii_lowercase());
+    let negated = |f: &str| f.starts_with("no") || f.starts_with("disable") || f.starts_with("skip");
+    if negated(&w) != negated(&n) || digits(&w) != digits(&n) {
+        return true;
+    }
+    (n.contains(&w) || w.contains(&n)) && w.len().abs_diff(n.len()) >= 2
+}
+
+/// Whether correcting a setting's name to `near` changes its meaning: an
+/// on/off word swapped, added or dropped, or another number
+/// (PROTON_FSR5_UPGRADE → PROTON_FSR4_UPGRADE).
+fn name_meaning_changes(word: &str, near: &str) -> bool {
+    let (w, n) = (word.to_ascii_uppercase(), near.to_ascii_uppercase());
+    if digits(&w) != digits(&n) {
+        return true;
+    }
+    let seg_w: Vec<&str> = w.split('_').filter(|s| !s.is_empty()).collect();
+    let seg_n: Vec<&str> = n.split('_').filter(|s| !s.is_empty()).collect();
+    let pol = |segs: &[&str]| -> Vec<String> {
+        let mut p: Vec<String> = segs.iter().filter(|s| POLARITY.contains(s)).map(|s| s.to_string()).collect();
+        p.sort();
+        p
+    };
+    let (pw, pn) = (pol(&seg_w), pol(&seg_n));
+    if pw == pn {
+        return false;
+    }
+    // An on/off word the word lacks is fine only when one of its other
+    // parts is that word misspelt (ENALBE → ENABLE).
+    let misspelt = |p: &str| seg_w.iter().any(|s| !POLARITY.contains(s) && (distance(s, p) <= 2 || s.starts_with(p)));
+    pw.iter().any(|p| !pn.contains(p)) || pn.iter().filter(|p| !pw.contains(p)).any(|p| !misspelt(p))
+}
+
 fn flag_known(spec: &ValueSpec, flag: &str) -> bool {
     spec.values.iter().any(|v| match v.strip_suffix('*') {
         Some(prefix) => flag.starts_with(prefix) && flag.len() > prefix.len(),
@@ -473,8 +611,16 @@ fn check_value(entry: &Entry, value: &str, token: &mut TokenCheck) -> Result<(),
             if spec.values.iter().any(|v| v == value) {
                 return Ok(());
             }
-            let near = nearest(value, spec.values.iter().map(String::as_str)).map(str::to_string);
-            Err((format!("{value:?} is not a value {name} knows ({}).", spec.values.join(", ")), near))
+            let near = nearest(value, spec.values.iter().map(String::as_str));
+            match near {
+                Some(n) if flag_meaning_changes(value, n) => {
+                    // Another value, not a misspelling: no fix.
+                    token.status = "unknown";
+                    token.add_note(&format!("{value:?} is not a value {name} knows ({}); did you mean {n}? That would do something else, so it is not changed.", spec.values.join(", ")));
+                    Ok(())
+                }
+                _ => Err((format!("{value:?} is not a value {name} knows ({}).", spec.values.join(", ")), near.map(str::to_string))),
+            }
         }
         "number" => {
             let n: Option<f64> = value.trim().parse().ok();
@@ -540,17 +686,27 @@ fn check_value(entry: &Entry, value: &str, token: &mut TokenCheck) -> Result<(),
                     ("ok", spec.notes.get(flag).cloned().unwrap_or_default(), String::new())
                 } else if let Some(note) = spec.uncertain.get(flag) {
                     ("unknown", note.clone(), String::new())
+                } else if let Some(note) = spec.retired.get(flag) {
+                    ("outdated", note.clone(), String::new())
                 } else if let Some(near) = nearest(flag, spec.values.iter().map(String::as_str)) {
-                    ("invalid", format!("Not a flag of {name}; did you mean {near}?"), near.to_string())
+                    if flag_meaning_changes(flag, near) {
+                        ("unknown", format!("Not in this app's list of {name} flags; did you mean {near}? That flag does something else, so it is not changed."), String::new())
+                    } else {
+                        ("invalid", format!("Not a flag of {name}; did you mean {near}?"), near.to_string())
+                    }
                 } else {
                     ("unknown", format!("Not in this app's list of {name} flags; it may be newer or older than that list."), String::new())
                 };
                 worst = worst.max(match status {
-                    "invalid" => 2,
+                    "invalid" => 3,
+                    "outdated" => 2,
                     "unknown" => 1,
                     _ => 0,
                 });
-                if suggestion.is_empty() {
+                if status == "outdated" {
+                    // Taken out by the fix.
+                    any_fix = true;
+                } else if suggestion.is_empty() {
                     fixed.push(flag.to_string());
                 } else {
                     any_fix = true;
@@ -558,13 +714,23 @@ fn check_value(entry: &Entry, value: &str, token: &mut TokenCheck) -> Result<(),
                 }
                 token.flags.push(FlagCheck { flag: flag.into(), status, note, suggestion });
             }
+            let fixed_value = fixed.join(&seps[0].to_string());
+            let fixed_text = if fixed_value.is_empty() { String::new() } else { env_text(&token.name, &fixed_value) };
+            if worst >= 1 && token.flags.iter().any(|f| f.status == "unknown") {
+                token.add_note("Some flags are not in this app's list.");
+            }
             match worst {
-                2 => Err(("A flag in the list is misspelt.".into(), any_fix.then(|| fixed.join(&seps[0].to_string())))),
+                3 => Err(("A flag in the list is misspelt.".into(), any_fix.then(|| fixed_value.clone()))),
+                2 => {
+                    token.status = "outdated";
+                    token.add_note("A flag in the list was removed upstream and does nothing any more.");
+                    token.fix = Some(fixed_text);
+                    Ok(())
+                }
                 1 => {
                     if token.status == "ok" {
                         token.status = "unknown";
                     }
-                    token.add_note("Some flags are not in this app's list.");
                     Ok(())
                 }
                 _ => Ok(()),
@@ -574,12 +740,21 @@ fn check_value(entry: &Entry, value: &str, token: &mut TokenCheck) -> Result<(),
     }
 }
 
-fn text_of(kind: &str, name: &str, value: &str) -> String {
-    if kind == "env" {
-        format!("{name}={}", if value.contains([' ', ';', '"', '\'', '$']) { format!("\"{value}\"") } else { value.to_string() })
+/// A value as one shell word that stays exactly this text: as it is when
+/// it holds only plain characters, else in single quotes (a `'` inside
+/// becomes `'\''`), so `|`, `"` and `$HOME` stay literal.
+pub fn shell_value(value: &str) -> String {
+    let plain = |c: char| c.is_ascii_alphanumeric() || "_.,:/=+@%-".contains(c);
+    if value.chars().all(plain) {
+        value.to_string()
     } else {
-        name.to_string()
+        format!("'{}'", value.replace('\'', "'\\''"))
     }
+}
+
+/// `NAME=value` as launch option text (the value quoted if it needs it).
+pub fn env_text(name: &str, value: &str) -> String {
+    format!("{name}={}", shell_value(value))
 }
 
 /// Judges one known word in this context.
@@ -588,10 +763,7 @@ fn judge(entry: &Entry, token: &mut TokenCheck, ctx: &Ctx) {
     token.source = entry.source_text();
     token.warning = entry.warning.clone();
     let family = ctx.family;
-    let over = entry.by_flavour.get(family.name()).filter(|o| match (o.from, family) {
-        (Some(from), Family::Valve(m)) => m >= from,
-        _ => true,
-    });
+    let over = entry.by_flavour.get(family.name()).filter(|o| o.applies(family));
     let flavours = entry.flavour_names();
     let works_here = flavours.contains(&family.name()) || (family == Family::ProtonOther && flavours.iter().any(|f| PROTONS.contains(f)));
     let (status, replacement, since, note) = match over {
@@ -628,7 +800,19 @@ fn judge(entry: &Entry, token: &mut TokenCheck, ctx: &Ctx) {
         token.fix = Some(String::new());
         return;
     }
+    if over.is_some_and(|o| o.from.is_some()) && family == Family::CachyOs(NEWEST) {
+        token.add_note(&format!("Which proton-cachyos version {} is could not be told, so it is judged as the newest.", if ctx.tool.is_empty() { "this" } else { ctx.tool.as_str() }));
+    }
     match status {
+        "retired" if entry.kind == "env" && keeps_value(entry, over, &token.value) => {
+            // Retired for turning it on, but this value still does something.
+            token.add_note(note);
+            if over.is_none() {
+                token.add_note(&entry.note);
+            }
+            token.add_note(&format!("{}={} still works here.", entry.name, token.value));
+            return;
+        }
         "retired" => {
             token.status = "outdated";
             token.replacement = replacement.to_string();
@@ -658,7 +842,7 @@ fn judge(entry: &Entry, token: &mut TokenCheck, ctx: &Ctx) {
     }
     // Wrappers: installed, and what they clash with.
     if entry.kind == "wrapper" {
-        if !entry.tool.is_empty() && crate::system_info::TOOLS.contains(&entry.tool.as_str()) && !ctx.has_tool(&entry.tool) && !ctx.tools.is_empty() {
+        if !entry.tool.is_empty() && crate::system_info::TOOLS.contains(&entry.tool.as_str()) && !ctx.has_tool(&entry.tool) && ctx.path_scanned {
             token.status = "invalid";
             token.add_note(&format!("{} is not installed (not found on PATH): the game will not start this way.", entry.tool));
             token.fix = Some(String::new());
@@ -670,12 +854,12 @@ fn judge(entry: &Entry, token: &mut TokenCheck, ctx: &Ctx) {
         } else if entry.name == "gamemoderun" && ctx.cachyos && ctx.has_tool("game-performance") {
             token.add_note("On CachyOS, game-performance is the suggested alternative.");
         }
-        if entry.name == "game-performance" && !ctx.has_tool("powerprofilesctl") && !ctx.tools.is_empty() {
+        if entry.name == "game-performance" && !ctx.has_tool("powerprofilesctl") && ctx.path_scanned {
             token.status = "not_recommended";
             token.warning = "game-performance needs power-profiles-daemon, which is not installed (powerprofilesctl not found).".into();
         }
     }
-    if entry.name == "ENABLE_HDR_WSI" && ctx.family == Family::CachyOs && ctx.nvidia_major.is_some_and(|m| m >= 595) && !ctx.has_gpu("amd") {
+    if entry.name == "ENABLE_HDR_WSI" && matches!(ctx.family, Family::CachyOs(_)) && ctx.nvidia_major.is_some_and(|m| m >= 595) && !ctx.has_gpu("amd") {
         token.add_note("proton-cachyos's README calls for it only on NVIDIA drivers older than 595; this one is newer.");
     }
     if entry.kind == "env" {
@@ -683,9 +867,18 @@ fn judge(entry: &Entry, token: &mut TokenCheck, ctx: &Ctx) {
         if let Err((note, suggestion)) = check_value(entry, &value, token) {
             token.status = "invalid";
             token.add_note(&note);
-            token.fix = suggestion.map(|v| text_of("env", &token.name, &v));
+            token.fix = suggestion.map(|v| env_text(&token.name, &v));
         }
     }
+}
+
+/// A value of a retired option that still does something.
+fn keeps_value(entry: &Entry, over: Option<&Override>, value: &str) -> bool {
+    let keep = match over {
+        Some(o) if !o.keep_values.is_empty() => &o.keep_values,
+        _ => &entry.keep_values,
+    };
+    keep.iter().any(|k| k == value)
 }
 
 fn vendor_label(v: &str) -> &'static str {
@@ -707,10 +900,20 @@ pub fn check_word(kind: &'static str, name: &str, value: &str, text: &str, span:
     match kind {
         "env" => {
             let names = kb().entries.iter().filter(|e| e.kind == "env" && !e.prefix).flat_map(|e| e.names());
-            if let Some(near) = nearest(name, names) {
+            let near = if NEVER_CORRECT.iter().any(|n| n.eq_ignore_ascii_case(name)) { None } else { nearest(name, names) };
+            if let Some(near) = near.filter(|n| name_meaning_changes(name, n)) {
+                // Looks alike but means something else: no fix.
+                token.status = "unknown";
+                token.explanation = "Not in this app's list of known settings: it may be fine, but nothing here can tell what it does.".into();
+                token.add_note(&format!("Did you mean {near}? That setting does something else, so it is not changed."));
+            } else if let Some(near) = near {
                 token.status = "invalid";
                 token.add_note(&format!("Not a known setting; did you mean {near}?"));
-                token.fix = Some(text_of("env", near, value));
+                // Only the name changes; the value stays exactly as written.
+                token.fix = Some(match text.strip_prefix(name) {
+                    Some(rest) => format!("{near}{rest}"),
+                    None => env_text(near, value),
+                });
                 if let Some(e) = find("env", near) {
                     token.explanation = format!("({near}) {}", e.explanation);
                     token.source = e.source_text();
@@ -737,10 +940,46 @@ pub fn check_word(kind: &'static str, name: &str, value: &str, text: &str, span:
     token
 }
 
+/// Where the options end when `%command%` is missing (Steam's form):
+/// settings, then wrappers with their own words (gamescope's up to `--`,
+/// env's settings). Returns (words that are options, the text to add
+/// after them: " %command%" or " -- %command%" for a gamescope without
+/// `--`), or None for the text when it cannot be told where the game's
+/// words begin.
+fn options_without_command(words: &[(String, (usize, usize))]) -> (usize, Option<&'static str>) {
+    let is_wrapper = |w: &str| {
+        let p = launch_options::program_name(w);
+        find("wrapper", p).is_some() || launch_options::is_wrapper(p)
+    };
+    let mut n = words.iter().take_while(|(w, _)| launch_options::is_assignment(w)).count();
+    let mut insert = Some(" %command%");
+    while n < words.len() && is_wrapper(&words[n].0) {
+        let program = launch_options::program_name(&words[n].0);
+        n += 1;
+        match program {
+            "gamescope" => match words[n..].iter().position(|(w, _)| w == "--") {
+                Some(dash) => n += dash + 1,
+                None => {
+                    n = words.len();
+                    insert = Some(" -- %command%");
+                }
+            },
+            "env" => n += words[n..].iter().take_while(|(w, _)| launch_options::is_assignment(w)).count(),
+            _ => {
+                // Words after a wrapper may be its own or the game's.
+                if n < words.len() && !is_wrapper(&words[n].0) {
+                    return (n, None);
+                }
+            }
+        }
+    }
+    (n, insert)
+}
+
 /// Checks launch options (Steam's form, or an own entry's command line)
 /// word by word, plus `%command%` and settings given twice.
 pub fn check(text: &str, ctx: &Ctx) -> Report {
-    let mut report = Report { ctx_json: ctx.to_json(), tokens: Vec::new(), problems: Vec::new(), fixed: String::new(), error: String::new() };
+    let mut report = Report { ctx_json: ctx.to_json(), tokens: Vec::new(), problems: Vec::new(), fixed: String::new(), error: String::new(), moves: Vec::new(), command_fix: None };
     let toks = match launch_options::lex_words(text) {
         Ok(t) => t,
         Err(e) => {
@@ -759,14 +998,15 @@ pub fn check(text: &str, ctx: &Ctx) -> Report {
             Some(c) => (c, c + 1),
             None => {
                 // Without %command% Steam puts everything after the game.
-                let looks_like_options = words.iter().take_while(|(w, _)| launch_options::is_assignment(w) || find("wrapper", launch_options::program_name(w)).is_some()).count();
-                if looks_like_options > 0 {
+                let (n, insert) = options_without_command(&words);
+                if n > 0 {
                     report.problems.push(Problem {
                         kind: "command_missing",
                         message: "%command% is missing: Steam passes all of this to the game as arguments, so the settings and programs do nothing. Put %command% after them.".into(),
                         name: String::new(),
                     });
-                    (looks_like_options, looks_like_options)
+                    report.command_fix = insert.map(|s| (words[n - 1].1 .1, s.to_string()));
+                    (n, n)
                 } else {
                     (0, 0)
                 }
@@ -789,11 +1029,31 @@ pub fn check(text: &str, ctx: &Ctx) -> Report {
         i += 1;
     }
     let mut own_program = false;
+    let mut last_wrapper = String::new();
     while i < before {
         let (w, span) = &words[i];
         let program = launch_options::program_name(w);
-        if find("wrapper", program).is_some() || launch_options::is_wrapper(program) {
+        if launch_options::is_assignment(w) {
+            // A setting after a wrapper: Steam runs it as a program (env
+            // aside), so it belongs in front.
+            let (name, value) = w.split_once('=').unwrap_or((w, ""));
+            let mut token = check_word("env", name, value, &raw(*span), *span, ctx);
+            let moved = match &token.fix {
+                Some(f) if f.is_empty() => None,
+                Some(f) => Some(f.clone()),
+                None => Some(raw(*span)),
+            };
+            token.status = "invalid";
+            token.add_note(&format!("After {last_wrapper} this is not a setting: it is taken as the program to run. Settings go in front of the programs."));
+            if let Some(m) = moved {
+                report.moves.push(m);
+            }
+            token.fix = Some(String::new());
+            report.tokens.push(token);
+            i += 1;
+        } else if find("wrapper", program).is_some() || launch_options::is_wrapper(program) {
             let mut token = check_word("wrapper", program, "", &raw(*span), *span, ctx);
+            last_wrapper = program.to_string();
             i += 1;
             // The wrapper's own words: gamescope's up to "--"; env's settings.
             let gamescope = program == "gamescope";
@@ -814,9 +1074,9 @@ pub fn check(text: &str, ctx: &Ctx) -> Report {
                 if program == "env" && launch_options::is_assignment(next) {
                     let (name, value) = next.split_once('=').unwrap_or((next, ""));
                     report.tokens.push(check_word("env", name, value, &raw(words[i].1), words[i].1, ctx));
-                } else if !ctx.steam_form {
+                } else if !ctx.steam_form || launch_options::is_assignment(next) {
                     // An own entry's wrappers take no words: the next one
-                    // is the program.
+                    // is the program. A setting is handled above.
                     break;
                 } else {
                     token.span.1 = words[i].1 .1;
@@ -833,8 +1093,22 @@ pub fn check(text: &str, ctx: &Ctx) -> Report {
             report.tokens.push(token);
             own_program = true;
             break;
+        } else if let Some(entry) = find("env", w).filter(|_| !w.contains('/')) {
+            // A known setting without "=value".
+            let mut token = TokenCheck::new(&raw(*span), "env", w, "", *span);
+            token.explanation = entry.explanation.clone();
+            token.source = entry.source_text();
+            token.status = "invalid";
+            token.add_note(&format!("Without =value this is not a setting: Steam would try to run {w} as a program."));
+            if entry.value.kind == "bool" {
+                token.add_note(&format!("Write {w}=1 to turn it on."));
+                token.fix = Some(format!("{w}=1"));
+            }
+            report.tokens.push(token);
+            i += 1;
         } else {
             report.tokens.push(check_word("wrapper", program, "", &raw(*span), *span, ctx));
+            last_wrapper = program.to_string();
             i += 1;
         }
     }
@@ -856,15 +1130,14 @@ pub fn check(text: &str, ctx: &Ctx) -> Report {
         report.tokens.push(check_word("arg", name, "", &raw(*span), *span, ctx));
     }
     // Settings given twice (aliases count as one): the last one wins.
-    let key = |t: &TokenCheck| -> String { find(t.kind, &t.name).map(|e| e.name.clone()).unwrap_or_else(|| t.name.clone()) };
     let n = report.tokens.len();
     for a in 0..n {
         let t = &report.tokens[a];
         if !matches!(t.kind, "env" | "wrapper") {
             continue;
         }
-        let k = key(t);
-        let later = report.tokens[a + 1..].iter().any(|u| u.kind == t.kind && key(u) == k);
+        let k = key_of(t.kind, &t.name);
+        let later = report.tokens[a + 1..].iter().any(|u| u.kind == t.kind && key_of(u.kind, &u.name) == k);
         if later {
             let t = &mut report.tokens[a];
             t.status = "no_effect";
@@ -875,21 +1148,92 @@ pub fn check(text: &str, ctx: &Ctx) -> Report {
             }
         }
     }
-    report.fixed = if has_ops { String::new() } else { apply_fixes(text, &report) };
+    no_doubles_from_fixes(&mut report);
+    report.fixed = if has_ops { String::new() } else { apply_fixes(text, &words, &report) };
     report
 }
 
+/// A setting's or wrapper's name for doubles (aliases count as one).
+fn key_of(kind: &str, name: &str) -> String {
+    find(kind, name).map(|e| e.name.clone()).unwrap_or_else(|| name.to_string())
+}
+
+/// The setting a fix's text sets ("DXVK_HDR=1 ..." → DXVK_HDR), if any.
+fn fix_key(fix: &str) -> Option<String> {
+    let first = fix.split_whitespace().next()?;
+    let (name, _) = first.split_once('=').filter(|_| launch_options::is_assignment(first))?;
+    Some(key_of("env", name))
+}
+
+/// Fixes must not set a setting twice: a fix that renames to a setting the
+/// text already keeps takes its word out instead, and of fixes renaming to
+/// the same setting only the last stays.
+fn no_doubles_from_fixes(report: &mut Report) {
+    let n = report.tokens.len();
+    let kept_key = |t: &TokenCheck| -> Option<String> {
+        if t.kind != "env" {
+            return None;
+        }
+        match &t.fix {
+            None => Some(key_of("env", &t.name)),
+            Some(f) if f.is_empty() => None,
+            Some(f) => fix_key(f),
+        }
+    };
+    for b in 0..n {
+        let t = &report.tokens[b];
+        let Some(new_key) = t.fix.as_deref().filter(|f| !f.is_empty()).and_then(fix_key) else { continue };
+        if t.kind != "env" || new_key == key_of("env", &t.name) {
+            continue;
+        }
+        // Another word that stays as it is already sets it, or a later fix
+        // renames to it too.
+        let taken = (0..n).any(|o| {
+            o != b && {
+                let u = &report.tokens[o];
+                let stays = u.fix.is_none() && kept_key(u).as_deref() == Some(new_key.as_str());
+                let later_fix = o > b && u.fix.as_deref().is_some_and(|f| !f.is_empty()) && kept_key(u).as_deref() == Some(new_key.as_str());
+                stays || later_fix
+            }
+        });
+        if taken {
+            let t = &mut report.tokens[b];
+            t.add_note(&format!("{new_key} is already set in the text, so this one is taken out instead."));
+            t.fix = Some(String::new());
+        }
+    }
+    // Moved settings that are set again in front.
+    let front: Vec<String> = report.tokens.iter().filter_map(kept_key).collect();
+    report.moves.retain(|m| fix_key(m).is_none_or(|k| front.iter().filter(|f| **f == k).count() <= 1));
+}
+
 /// The text with every token's fix in place (and a missing `%command%`).
-fn apply_fixes(text: &str, report: &Report) -> String {
+/// Checked again afterwards: when the result does not split into the
+/// words meant (an operator appears, or the count is off), "" (no fix).
+fn apply_fixes(text: &str, words: &[(String, (usize, usize))], report: &Report) -> String {
     let mut edits: Vec<(usize, usize, String)> = report.tokens.iter().filter_map(|t| t.fix.clone().map(|f| (t.span.0, t.span.1, f))).collect();
     let missing = report.problems.iter().any(|p| p.kind == "command_missing");
-    if edits.is_empty() && !missing {
+    if edits.is_empty() && !missing && report.moves.is_empty() {
         return String::new();
     }
     if missing {
-        // After the last setting or program.
-        let at = report.tokens.iter().filter(|t| matches!(t.kind, "env" | "wrapper")).map(|t| t.span.1).max().unwrap_or(0);
-        edits.push((at, at, " %command%".into()));
+        // Not sure where the game's words begin: no fixed text.
+        let Some((at, add)) = report.command_fix.clone() else { return String::new() };
+        edits.push((at, at, add));
+    }
+    for m in report.moves.iter().rev() {
+        edits.push((0, 0, format!("{m} ")));
+    }
+    // Words each edit takes away and brings.
+    let count = |s: &str| -> Option<usize> {
+        let toks = launch_options::lex_words(s).ok()?;
+        (!toks.iter().any(|t| t.2)).then_some(toks.len())
+    };
+    let mut expected = words.len();
+    for (start, end, new) in &edits {
+        let gone = words.iter().filter(|(_, sp)| sp.0 >= *start && sp.1 <= *end && sp.0 < sp.1 && start < end).count();
+        let Some(added) = (if new.trim().is_empty() { Some(0) } else { count(new) }) else { return String::new() };
+        expected = expected + added - gone.min(expected + added);
     }
     edits.sort_by_key(|e| std::cmp::Reverse(e.0));
     let mut out = text.to_string();
@@ -906,7 +1250,7 @@ fn apply_fixes(text: &str, report: &Report) -> String {
         out.replace_range(s..e, &new);
     }
     let out = out.trim().to_string();
-    if out == text.trim() {
+    if out == text.trim() || count(&out) != Some(expected) {
         String::new()
     } else {
         out
@@ -918,6 +1262,10 @@ fn apply_fixes(text: &str, report: &Report) -> String {
 /// current text>,"warnings":[".."],"others":<protondb::others>|null}`.
 /// With ProtonDB's entry for the game, suggestions others use (on systems
 /// like this one) move up among their equals; `recommended` stays as it is.
+/// Each suggestion carries `available` (false: this exact build does not
+/// need or read it; shown greyed out, cannot be added) and
+/// `unavailable_why` (plain English, "" when available); unavailable ones
+/// come last.
 pub fn suggestions_answer(sys: &SystemInfo, current: &Current, tools: &[Tool], pdb: Option<(crate::protondb::Meta, crate::protondb::Game)>) -> Value {
     let mut list = launch_options::suggest(sys, current, tools);
     let ctx = context(sys, current, tools);
@@ -928,7 +1276,7 @@ pub fn suggestions_answer(sys: &SystemInfo, current: &Current, tools: &[Tool], p
             s.popular = crate::protondb::popularity(&game, &groups, &s.option);
             s.share = s.popular.as_ref().and_then(|p| p["like"]["share"].as_f64()).unwrap_or(0.0);
         }
-        list.sort_by(|a, b| b.recommended.cmp(&a.recommended).then(b.share.total_cmp(&a.share)));
+        list.sort_by(|a, b| b.available.cmp(&a.available).then(b.recommended.cmp(&a.recommended)).then(b.share.total_cmp(&a.share)));
         crate::protondb::others(&meta, &game, &groups, &ctx)
     });
     let report = check(&current.text, &ctx);
@@ -947,6 +1295,59 @@ pub fn suggestions_answer(sys: &SystemInfo, current: &Current, tools: &[Tool], p
         "warnings": warnings,
         "others": others.unwrap_or(Value::Null),
     })
+}
+
+/// A switch whose use depends on the exact build (`gated`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Gated {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub explanation: String,
+    pub option: String,
+    /// It still does something in this build.
+    pub available: bool,
+    /// Why it is there (available) or why not (plain English).
+    pub why: String,
+}
+
+/// Switches that older builds needed and newer ones retired or turned on
+/// by default (PROTON_USE_NTSYNC, PROTON_ENABLE_NVAPI, PROTON_VKD3D_HEAP,
+/// PROTON_ENABLE_HDR), judged for the exact build the game uses: shown for
+/// the builds of their family (and only when the computer could use them),
+/// available only where they still do something. Unavailable ones say why.
+pub fn gated(sys: &SystemInfo, ctx: &Ctx) -> Vec<Gated> {
+    let f = ctx.family;
+    let ge_or_cachy = matches!(f, Family::Ge(..) | Family::CachyOs(_));
+    let hdr_screen = sys.display.as_ref().is_some_and(|d| d.hdr);
+    let list: [(&'static str, &'static str, &'static str, bool); 4] = [
+        ("ntsync", "PROTON_USE_NTSYNC", "Turn NTSync on", ge_or_cachy && sys.ntsync),
+        ("nvapi", "PROTON_ENABLE_NVAPI", "NVAPI (DLSS, Reflex)", matches!(f, Family::Valve(_) | Family::Experimental | Family::Ge(..) | Family::CachyOs(_)) && sys.nvidia_driver()),
+        ("vkd3d_heap", "PROTON_VKD3D_HEAP", "Descriptor heap build (proton-cachyos 10)", matches!(f, Family::CachyOs(_))),
+        ("enable_hdr", "PROTON_ENABLE_HDR", "HDR switch (older builds)", ge_or_cachy && hdr_screen),
+    ];
+    let build = if ctx.tool.is_empty() { flavour_label(f.name()).to_string() } else { ctx.tool.clone() };
+    list.into_iter()
+        .filter(|l| l.3)
+        .filter_map(|(id, name, label, _)| {
+            let entry = find("env", name)?;
+            let option = format!("{name}=1 %command%");
+            let text = format!("{name}=1");
+            let t = check_word("env", name, "1", &text, (0, text.len()), ctx);
+            let available = t.status == "ok";
+            let why = if available {
+                format!("{build} still reads this switch; it is off unless set.")
+            } else {
+                let over = entry.by_flavour.get(f.name()).filter(|o| o.applies(f));
+                let own = over.map(|o| o.unavailable.as_str()).filter(|u| !u.is_empty()).unwrap_or(entry.unavailable.as_str());
+                let mut why = if own.is_empty() { t.note.clone() } else { own.to_string() };
+                if f == Family::CachyOs(NEWEST) && !why.contains("could not be told") {
+                    why.push_str(" (The proton-cachyos version could not be told, so it is judged as the newest.)");
+                }
+                why
+            };
+            Some(Gated { id, label, explanation: entry.explanation.clone(), option, available, why })
+        })
+        .collect()
 }
 
 /// Explanation and flavours of a suggestion's option (`NAME=value ...
@@ -981,7 +1382,7 @@ mod tests {
         Ctx {
             family,
             tool: match family {
-                Family::CachyOs => "proton-cachyos-slr".into(),
+                Family::CachyOs(_) => "proton-cachyos-slr (11.0-20261015)".into(),
                 Family::Ge(..) => "GE-Proton10-25".into(),
                 Family::Experimental => "Proton - Experimental".into(),
                 Family::Valve(_) => "Proton 11.0".into(),
@@ -991,6 +1392,7 @@ mod tests {
             gpus: vec!["nvidia".into()],
             nvidia_major: Some(595),
             tools: vec!["gamemoderun".into(), "game-performance".into(), "powerprofilesctl".into(), "mangohud".into()],
+            path_scanned: true,
             ananicy: false,
             cachyos: true,
             steam_form: true,
@@ -1027,7 +1429,7 @@ mod tests {
     #[test]
     fn checks_the_forza_options() {
         // proton-cachyos: PROTON_VKD3D_HEAP is retired (no replacement).
-        let r = check(FORZA, &ctx(Family::CachyOs));
+        let r = check(FORZA, &ctx(Family::CachyOs(11)));
         assert_eq!(
             statuses(&r),
             [("PROTON_DISABLE_HIDRAW", "ok"), ("VKD3D_CONFIG", "ok"), ("PROTON_VKD3D_HEAP", "outdated"), ("PRESSURE_VESSEL_IMPORT_OPENXR_1_RUNTIMES", "ok")]
@@ -1052,10 +1454,10 @@ mod tests {
             assert_eq!(r.token("VKD3D_CONFIG").unwrap().status, "ok");
         }
         // A proton-cachyos build without Steam's container.
-        let mut native = ctx(Family::CachyOs);
+        let mut native = ctx(Family::CachyOs(11));
         native.tool = "proton-cachyos-native".into();
         assert_eq!(check(FORZA, &native).token("PRESSURE_VESSEL_IMPORT_OPENXR_1_RUNTIMES").unwrap().status, "no_effect");
-        let json = check(FORZA, &ctx(Family::CachyOs)).to_json(FORZA);
+        let json = check(FORZA, &ctx(Family::CachyOs(11))).to_json(FORZA);
         assert_eq!(json["summary"]["outdated"], 1);
         assert_eq!(json["tokens"][1]["flags"][0]["flag"], "descriptor_heap");
     }
@@ -1064,12 +1466,12 @@ mod tests {
     fn statuses_follow_the_flavour() {
         let hdr = "PROTON_ENABLE_HDR=1 %command%";
         let t = |text: &str, f: Family, name: &str| -> TokenCheck { check(text, &ctx(f)).token(name).cloned().unwrap() };
-        let c = t(hdr, Family::CachyOs, "PROTON_ENABLE_HDR");
+        let c = t(hdr, Family::CachyOs(11), "PROTON_ENABLE_HDR");
         assert_eq!((c.status, c.replacement.as_str(), c.fix.as_deref()), ("outdated", "DXVK_HDR=1", Some("DXVK_HDR=1")));
-        assert_eq!(t(hdr, Family::Ge(10, 25), "PROTON_ENABLE_HDR").status, "outdated");
+        assert_eq!(t(hdr, Family::Ge(11, 12), "PROTON_ENABLE_HDR").status, "outdated");
         assert_eq!(t(hdr, Family::Valve(11), "PROTON_ENABLE_HDR").status, "no_effect");
         // NTSync is on by default; the old switch is retired.
-        assert_eq!(t("PROTON_USE_NTSYNC=1 %command%", Family::CachyOs, "PROTON_USE_NTSYNC").status, "outdated");
+        assert_eq!(t("PROTON_USE_NTSYNC=1 %command%", Family::CachyOs(11), "PROTON_USE_NTSYNC").status, "outdated");
         assert_eq!(t("PROTON_USE_NTSYNC=1 %command%", Family::Valve(11), "PROTON_USE_NTSYNC").status, "no_effect");
         // Retired from Proton 11 on, fine before.
         assert_eq!(t("PROTON_NO_ESYNC=1 %command%", Family::Valve(11), "PROTON_NO_ESYNC").status, "outdated");
@@ -1077,24 +1479,24 @@ mod tests {
         assert_eq!(t("PROTON_NO_ESYNC=1 %command%", Family::Ge(10, 25), "PROTON_NO_ESYNC").status, "ok");
         // proton-cachyos's own options do nothing elsewhere.
         assert_eq!(t("PROTON_DXVK_SAREK=1 %command%", Family::Valve(11), "PROTON_DXVK_SAREK").status, "no_effect");
-        let sarek = t("PROTON_DXVK_SAREK=1 %command%", Family::CachyOs, "PROTON_DXVK_SAREK");
+        let sarek = t("PROTON_DXVK_SAREK=1 %command%", Family::CachyOs(11), "PROTON_DXVK_SAREK");
         assert_eq!(sarek.status, "not_recommended");
         assert!(sarek.warning.contains("anti-cheat"));
-        assert_eq!(t("PROTON_ENABLE_MEDIACONV=1 %command%", Family::CachyOs, "PROTON_ENABLE_MEDIACONV").status, "not_recommended");
+        assert_eq!(t("PROTON_ENABLE_MEDIACONV=1 %command%", Family::CachyOs(11), "PROTON_ENABLE_MEDIACONV").status, "not_recommended");
         assert_eq!(t("PROTON_ENABLE_MEDIACONV=1 %command%", Family::Ge(10, 25), "PROTON_ENABLE_MEDIACONV").status, "ok");
         // Wayland: warned, and not in Valve's builds.
-        let w = t("PROTON_ENABLE_WAYLAND=1 %command%", Family::CachyOs, "PROTON_ENABLE_WAYLAND");
+        let w = t("PROTON_ENABLE_WAYLAND=1 %command%", Family::CachyOs(11), "PROTON_ENABLE_WAYLAND");
         assert!(w.status == "ok" && w.warning.contains("experimental"));
         assert_eq!(t("PROTON_USE_WAYLAND=1 %command%", Family::Experimental, "PROTON_USE_WAYLAND").status, "no_effect");
         // Any Proton setting for a native game.
         assert_eq!(t("PROTON_LOG=1 %command%", Family::Native, "PROTON_LOG").status, "no_effect");
         assert_eq!(t("PROTON_WHATEVER_NEW=1 %command%", Family::Native, "PROTON_WHATEVER_NEW").status, "no_effect");
-        assert_eq!(t("PROTON_WHATEVER_NEW=1 %command%", Family::CachyOs, "PROTON_WHATEVER_NEW").status, "unknown");
+        assert_eq!(t("PROTON_WHATEVER_NEW=1 %command%", Family::CachyOs(11), "PROTON_WHATEVER_NEW").status, "unknown");
         // Renamed, with the replacement as the fix.
-        let r = check("PROTON_MEDIA_USE_GST=1 PROTON_VKREFLEX=1 %command%", &ctx(Family::CachyOs));
+        let r = check("PROTON_MEDIA_USE_GST=1 PROTON_VKREFLEX=1 %command%", &ctx(Family::CachyOs(11)));
         assert_eq!(r.fixed, "PROTON_MEDIA_FORCE_GST=1 DXVK_NVAPI_VKREFLEX=1 %command%");
         // NVIDIA-only on an AMD computer.
-        let mut amd = ctx(Family::CachyOs);
+        let mut amd = ctx(Family::CachyOs(11));
         amd.gpus = vec!["amd".into()];
         assert_eq!(check("PROTON_DLSS_UPGRADE=1 %command%", &amd).token("PROTON_DLSS_UPGRADE").unwrap().status, "no_effect");
         assert_eq!(check("PROTON_FSR4_UPGRADE=1 %command%", &amd).token("PROTON_FSR4_UPGRADE").unwrap().status, "ok");
@@ -1105,7 +1507,7 @@ mod tests {
 
     #[test]
     fn finds_misspellings_and_bad_values() {
-        let mut c = ctx(Family::CachyOs);
+        let mut c = ctx(Family::CachyOs(11));
         c.gpus.push("amd".into());
         let r = check("PROTON_ENABLE_WAYLNAD=1 VKD3D_CONFIG=dxr,single_queu,brand_new_flag DXVK_HUD=fps,memroy %command%", &c);
         let way = r.token("PROTON_ENABLE_WAYLNAD").unwrap();
@@ -1176,7 +1578,7 @@ mod tests {
 
     #[test]
     fn checks_wrappers_command_and_doubles() {
-        let mut c = ctx(Family::CachyOs);
+        let mut c = ctx(Family::CachyOs(11));
         // %command% missing: everything would be an argument.
         let r = check("PROTON_LOG=1 gamemoderun", &c);
         assert_eq!(r.problems[0].kind, "command_missing");
@@ -1209,4 +1611,236 @@ mod tests {
         assert!(r.problems.is_empty());
         assert!(check("\"open %command%", &c).error.contains("quote"));
     }
+
+    fn fixed(text: &str, c: &Ctx) -> String {
+        check(text, c).fixed
+    }
+
+    #[test]
+    fn fixes_keep_values_literal() {
+        let c = ctx(Family::CachyOs(11));
+        // A misspelt name: only the name changes, the value stays as typed.
+        for (text, want) in [
+            ("PROTON_LOGG='a|b' %command%", "PROTON_LOG='a|b' %command%"),
+            ("PROTON_LOGG='say \"hi\"' %command%", "PROTON_LOG='say \"hi\"' %command%"),
+            ("PROTON_LOGG='$HOME/x' %command%", "PROTON_LOG='$HOME/x' %command%"),
+            ("PROTON_LOGG=\"$HOME/x y\" %command%", "PROTON_LOG=\"$HOME/x y\" %command%"),
+        ] {
+            let r = check(text, &c);
+            assert_eq!(r.fixed, want, "{text}");
+            assert_eq!(r.tokens[0].fix.as_deref(), Some(want.trim_end_matches(" %command%")));
+        }
+        // Rebuilt values are single-quoted when they need it.
+        assert_eq!(shell_value("fps,memory"), "fps,memory");
+        assert_eq!(shell_value("a|b"), "'a|b'");
+        assert_eq!(shell_value("$HOME/x"), "'$HOME/x'");
+        assert_eq!(shell_value("it's"), "'it'\\''s'");
+        assert_eq!(env_text("X", "say \"hi\""), "X='say \"hi\"'");
+        assert_eq!(fixed("DXVK_HUD='fps,memroy' %command%", &c), "DXVK_HUD=fps,memory %command%");
+        // Safety net: a fix that would bring an operator in gives no text.
+        let mut r = check("PROTON_LOGG=1 %command%", &c);
+        r.tokens[0].fix = Some("PROTON_LOG=1 | rm".into());
+        let words: Vec<(String, (usize, usize))> = launch_options::lex_words("PROTON_LOGG=1 %command%").unwrap().into_iter().map(|w| (w.0, w.1)).collect();
+        assert_eq!(apply_fixes("PROTON_LOGG=1 %command%", &words, &r), "");
+        r.tokens[0].fix = Some("PROTON_LOG=1 extra".into());
+        assert_eq!(apply_fixes("PROTON_LOGG=1 %command%", &words, &r), "PROTON_LOG=1 extra %command%");
+        r.tokens[0].fix = Some("'PROTON_LOG=1".into());
+        assert_eq!(apply_fixes("PROTON_LOGG=1 %command%", &words, &r), "");
+    }
+
+    #[test]
+    fn retirements_follow_the_build_version() {
+        let st = |text: &str, f: Family, name: &str| -> TokenCheck { check(text, &ctx(f)).token(name).cloned().unwrap() };
+        // GE-Proton: PROTON_USE_NTSYNC only in 10-9.
+        assert_eq!(st("PROTON_USE_NTSYNC=1 %command%", Family::Ge(10, 9), "PROTON_USE_NTSYNC").status, "ok");
+        let t = st("PROTON_USE_NTSYNC=1 %command%", Family::Ge(10, 10), "PROTON_USE_NTSYNC");
+        assert_eq!((t.status, t.fix.as_deref()), ("outdated", Some("")));
+        assert!(t.note.contains("GE-Proton10-10"));
+        assert_eq!(st("PROTON_USE_NTSYNC=1 %command%", Family::Ge(11, 1), "PROTON_USE_NTSYNC").status, "outdated");
+        // HDR detection from GE-Proton11-9.
+        assert_eq!(st("PROTON_ENABLE_HDR=1 %command%", Family::Ge(11, 8), "PROTON_ENABLE_HDR").status, "ok");
+        assert_eq!(st("PROTON_ENABLE_HDR=1 %command%", Family::Ge(11, 9), "PROTON_ENABLE_HDR").status, "outdated");
+        // NVAPI on by default from Proton 9 / GE-Proton9-1.
+        assert_eq!(st("PROTON_ENABLE_NVAPI=1 %command%", Family::Valve(8), "PROTON_ENABLE_NVAPI").status, "ok");
+        assert_eq!(st("PROTON_ENABLE_NVAPI=1 %command%", Family::Valve(9), "PROTON_ENABLE_NVAPI").status, "outdated");
+        assert_eq!(st("PROTON_ENABLE_NVAPI=1 %command%", Family::Ge(8, 32), "PROTON_ENABLE_NVAPI").status, "ok");
+        assert_eq!(st("PROTON_ENABLE_NVAPI=1 %command%", Family::Ge(9, 1), "PROTON_ENABLE_NVAPI").status, "outdated");
+        // proton-cachyos 10.x still reads what 11 retired.
+        for (text, name) in [
+            ("PROTON_ENABLE_HDR=1 %command%", "PROTON_ENABLE_HDR"),
+            ("PROTON_VKD3D_HEAP=1 %command%", "PROTON_VKD3D_HEAP"),
+            ("PROTON_MEDIA_USE_GST=1 %command%", "PROTON_MEDIA_USE_GST"),
+            ("PROTON_VKREFLEX=1 %command%", "PROTON_VKREFLEX"),
+            ("PROTON_USE_NTSYNC=0 %command%", "PROTON_USE_NTSYNC"),
+            ("PROTON_NO_ESYNC=1 %command%", "PROTON_NO_ESYNC"),
+        ] {
+            let mut c10 = ctx(Family::CachyOs(10));
+            c10.tool = "proton-cachyos-10.0-20260410-slr".into();
+            let t = check(text, &c10).token(name).cloned().unwrap();
+            assert_eq!((t.status, t.fix.as_deref()), ("ok", None), "{name} on 10");
+            assert_eq!(st(text, Family::CachyOs(11), name).status, "outdated", "{name} on 11");
+            // Unknown version: as the newest, and said so.
+            let mut unknown = ctx(Family::CachyOs(NEWEST));
+            unknown.tool = "proton-cachyos-slr".into();
+            let t = check(text, &unknown).token(name).cloned().unwrap();
+            assert!(t.status == "outdated" && t.note.contains("could not be told"), "{name}: {t:?}");
+        }
+        // The version from the build's name or its version file.
+        assert_eq!(cachyos_major("proton-cachyos-10.0-20250819-slr"), Some(10));
+        assert_eq!(cachyos_major("proton-cachyos-slr (11.0-20261015)"), Some(11));
+        assert_eq!(cachyos_major("1747000000 cachyos-11.0-20260521-slr\n"), Some(11));
+        assert_eq!(cachyos_major("proton-cachyos-slr"), None);
+        let dir = std::env::temp_dir().join(format!("gc-cachy-version-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("version"), "1744000000 cachyos-10.0-20260410-slr\n").unwrap();
+        let tool = Tool { name: "proton-cachyos-slr".into(), label: "proton-cachyos-slr".into(), path: dir.clone(), source: "system", kind: "proton", launchers: vec!["steam"] };
+        let current = Current { launcher: "steam".into(), tool: "proton-cachyos-slr".into(), proton: Some(true), ..Default::default() };
+        assert_eq!(context(&SystemInfo::default(), &current, std::slice::from_ref(&tool)).family, Family::CachyOs(10));
+        assert_eq!(context(&SystemInfo::default(), &current, &[]).family, Family::CachyOs(NEWEST));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn retired_values_that_still_work() {
+        let c = ctx(Family::Ge(11, 12));
+        for name in ["PROTON_ENABLE_HDR", "PROTON_USE_HDR"] {
+            let r = check(&format!("{name}=0 %command%"), &c);
+            let t = r.token(name).unwrap();
+            assert_eq!((t.status, t.fix.as_deref()), ("ok", None), "{name}");
+            assert!(t.note.contains("0 still turns HDR off") && t.note.contains("still works"));
+            assert_eq!(r.fixed, "");
+            assert_eq!(check(&format!("{name}=1 %command%"), &c).token(name).unwrap().status, "outdated");
+        }
+    }
+
+    #[test]
+    fn corrects_only_plain_misspellings() {
+        let mut c = ctx(Family::CachyOs(11));
+        c.gpus.push("amd".into());
+        let st = |text: &str, name: &str| check(text, &c).token(name).cloned().unwrap();
+        // Known now: never "corrected".
+        let mut native = ctx(Family::Native);
+        native.gpus.push("amd".into());
+        assert_eq!(check("SDL_VIDEO_DRIVER=wayland %command%", &native).token("SDL_VIDEO_DRIVER").unwrap().status, "ok");
+        let pace = st("DXVK_FRAME_PACE=low-latency %command%", "DXVK_FRAME_PACE");
+        assert!(pace.fix.is_none() && pace.explanation.contains("dxvk-low-latency"));
+        for name in ["PROTON_USE_FSYNC", "PROTON_USE_ESYNC"] {
+            let t = st(&format!("{name}=1 %command%"), name);
+            assert_eq!((t.status, t.fix.as_deref()), ("outdated", Some("")), "{name}");
+        }
+        // Flags removed upstream: outdated, not "did you mean dxr12".
+        let t = st("VKD3D_CONFIG=dxr11,single_queue %command%", "VKD3D_CONFIG");
+        assert_eq!((t.status, t.flags[0].status, t.flags[0].suggestion.as_str()), ("outdated", "outdated", ""));
+        assert_eq!(t.fix.as_deref(), Some("VKD3D_CONFIG=single_queue"));
+        assert_eq!(st("VKD3D_CONFIG=dxr11 %command%", "VKD3D_CONFIG").fix.as_deref(), Some(""));
+        for flag in ["ngg", "gpl", "aco", "rt", "emulate_rt", "wave32"] {
+            let t = st(&format!("RADV_PERFTEST={flag},sam %command%"), "RADV_PERFTEST");
+            assert_eq!((t.status, t.flags[0].status), ("outdated", "outdated"), "{flag}");
+            assert_eq!(t.fix.as_deref(), Some("RADV_PERFTEST=sam"));
+        }
+        // A correction that changes the meaning: a note, no fix.
+        let t = st("PROTON_FSR5_UPGRADE=1 %command%", "PROTON_FSR5_UPGRADE");
+        assert_eq!((t.status, t.fix.as_deref()), ("unknown", None));
+        assert!(t.note.contains("Did you mean PROTON_FSR"));
+        let t = st("VKD3D_CONFIG=dxr13 %command%", "VKD3D_CONFIG");
+        assert_eq!((t.status, t.flags[0].status, t.fix.as_deref()), ("unknown", "unknown", None));
+        assert!(name_meaning_changes("PROTON_USE_NTSYNC", "PROTON_NO_NTSYNC"));
+        assert!(name_meaning_changes("PROTON_ENABLE_NVAPI", "PROTON_DISABLE_NVAPI"));
+        assert!(name_meaning_changes("PROTON_NO_D3D13", "PROTON_NO_D3D12"));
+        assert!(!name_meaning_changes("PROTON_ENALBE_WAYLAND", "PROTON_ENABLE_WAYLAND"));
+        assert!(!name_meaning_changes("DXVK_NOHDR", "DXVK_NO_HDR"));
+        assert!(flag_meaning_changes("nodxr", "dxr") && flag_meaning_changes("dxr11", "dxr12") && flag_meaning_changes("wave32", "cswave32"));
+        assert!(!flag_meaning_changes("single_queu", "single_queue") && !flag_meaning_changes("MAILBX", "MAILBOX"));
+        // Plain misspellings still get their fix.
+        assert_eq!(st("DXVK_NOHDR=1 %command%", "DXVK_NOHDR").fix.as_deref(), Some("DXVK_NO_HDR=1"));
+        assert_eq!(st("PROTON_ENABLE_WAYLNAD=1 %command%", "PROTON_ENABLE_WAYLNAD").fix.as_deref(), Some("PROTON_ENABLE_WAYLAND=1"));
+        // Real settings outside the list are never corrected.
+        for name in NEVER_CORRECT {
+            let t = check(&format!("{name}=1 %command%"), &c).tokens[0].clone();
+            assert!(t.fix.is_none() && t.status != "invalid", "{name}: {t:?}");
+        }
+    }
+
+    #[test]
+    fn adds_a_missing_command_after_wrapper_words() {
+        let c = ctx(Family::CachyOs(11));
+        let mut c = c;
+        c.tools.push("gamescope".into());
+        assert_eq!(fixed("gamescope -W 2560 -H 1440 --", &c), "gamescope -W 2560 -H 1440 -- %command%");
+        assert_eq!(fixed("PROTON_LOG=1 gamescope -W 2560 -H 1440", &c), "PROTON_LOG=1 gamescope -W 2560 -H 1440 -- %command%");
+        assert_eq!(fixed("gamescope -f -- mangohud", &c), "gamescope -f -- mangohud %command%");
+        assert_eq!(fixed("env DXVK_HUD=fps gamemoderun", &c), "env DXVK_HUD=fps gamemoderun %command%");
+        // Words after a wrapper that may be its own: told, not fixed.
+        let r = check("PROTON_LOG=1 taskset -c 0-3", &c);
+        assert_eq!((r.problems[0].kind, r.fixed.as_str()), ("command_missing", ""));
+        let r = check("gamemoderun -dx12", &c);
+        assert_eq!((r.problems[0].kind, r.fixed.as_str()), ("command_missing", ""));
+        // Only game arguments: nothing missing.
+        assert!(check("-dx12 -novid", &c).problems.is_empty());
+    }
+
+    #[test]
+    fn fixes_never_set_a_setting_twice() {
+        let c = ctx(Family::CachyOs(11));
+        // The replacement is already there: the old one goes.
+        let r = check("PROTON_ENABLE_HDR=1 DXVK_HDR=1 %command%", &c);
+        assert_eq!(r.fixed, "DXVK_HDR=1 %command%");
+        assert_eq!(fixed("DXVK_HDR=0 PROTON_ENABLE_HDR=1 %command%", &c), "DXVK_HDR=0 %command%");
+        // Two misspellings of one setting: the later one stays.
+        assert_eq!(fixed("PROTON_LOGG=1 PROTON_LGO=2 %command%", &c), "PROTON_LOG=2 %command%");
+        // A setting that a fix renames into, set again by hand: kept once.
+        assert_eq!(fixed("PROTON_MEDIA_USE_GST=1 PROTON_MEDIA_FORCE_GST=1 %command%", &c), "PROTON_MEDIA_FORCE_GST=1 %command%");
+    }
+
+    #[test]
+    fn bare_and_misplaced_settings() {
+        let c = ctx(Family::CachyOs(11));
+        let r = check("PROTON_ENABLE_WAYLAND %command%", &c);
+        let t = r.token("PROTON_ENABLE_WAYLAND").unwrap();
+        assert_eq!((t.kind, t.status, t.fix.as_deref()), ("env", "invalid", Some("PROTON_ENABLE_WAYLAND=1")));
+        assert_eq!(r.fixed, "PROTON_ENABLE_WAYLAND=1 %command%");
+        let r = check("gamemoderun PROTON_LOG=1 %command%", &c);
+        let t = r.token("PROTON_LOG").unwrap();
+        assert_eq!(t.status, "invalid");
+        assert!(t.note.contains("After gamemoderun"));
+        assert_eq!(r.fixed, "PROTON_LOG=1 gamemoderun %command%");
+        assert_eq!(r.token("gamemoderun").unwrap().text, "gamemoderun");
+        // Moved and corrected at once.
+        assert_eq!(fixed("DXVK_HUD=fps gamemoderun PROTON_LOGG=1 %command%", &c), "PROTON_LOG=1 DXVK_HUD=fps gamemoderun %command%");
+        // After env it is a setting.
+        assert_eq!(check("env PROTON_LOG=1 %command%", &c).token("PROTON_LOG").unwrap().status, "ok");
+    }
+
+    #[test]
+    fn missing_tools_count_once_path_was_read() {
+        let mut c = ctx(Family::CachyOs(11));
+        c.tools.clear();
+        assert_eq!(check("gamescope %command%", &c).token("gamescope").unwrap().status, "invalid");
+        c.path_scanned = false;
+        assert_ne!(check("gamescope %command%", &c).token("gamescope").unwrap().status, "invalid");
+    }
+
+    #[test]
+    fn suggests_ntsync_only_where_it_is_read() {
+        use crate::system_info::{Gpu, SystemInfo};
+        let sys = SystemInfo {
+            gpus: vec![Gpu { vendor: "amd".into(), driver: "amdgpu".into(), card: "card0".into() }],
+            ntsync: true,
+            session: "wayland".into(),
+            ..Default::default()
+        };
+        let current = |tool: &str| Current { launcher: "steam".into(), supported: true, text: "%command%".into(), spec: launch_options::parse("%command%").unwrap(), tool: tool.into(), proton: Some(true), ..Default::default() };
+        let find_ntsync = |tool: &str| launch_options::suggest(&sys, &current(tool), &[]).into_iter().find(|s| s.id == "ntsync").unwrap();
+        let old = find_ntsync("GE-Proton10-9");
+        assert!(old.available && old.unavailable_why.is_empty() && old.option == "PROTON_USE_NTSYNC=1 %command%");
+        let new = find_ntsync("GE-Proton10-10");
+        assert!(!new.available && new.unavailable_why == "NTSync is already on in GE-Proton10-10 and later; this switch does nothing here.");
+        let list = launch_options::suggest(&sys, &current("GE-Proton10-10"), &[]);
+        assert!(launch_options::combine(&current("GE-Proton10-10"), &list, &["ntsync".to_string()]).is_err());
+        let list = launch_options::suggest(&sys, &current("GE-Proton10-9"), &[]);
+        assert_eq!(launch_options::combine(&current("GE-Proton10-9"), &list, &["ntsync".to_string()]).unwrap(), "PROTON_USE_NTSYNC=1 %command%");
+        // Valve's Proton never read it: not offered at all.
+        assert!(launch_options::suggest(&sys, &current("proton_11"), &[]).iter().all(|s| s.id != "ntsync"));
+    }
+
 }

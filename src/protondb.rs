@@ -78,14 +78,17 @@ struct Raw<'a> {
 }
 
 /// Where the extract is: `GC_PROTONDB`, the package's
-/// /usr/share/game-companion, else the repository's data folder.
+/// /usr/share/game-companion, else (debug builds only) the repository's
+/// data folder.
 pub fn data_path() -> Option<PathBuf> {
     if let Some(p) = std::env::var_os("GC_PROTONDB").map(PathBuf::from) {
         return p.is_file().then_some(p);
     }
-    [PathBuf::from("/usr/share/game-companion/protondb.json.gz"), PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/data/protondb.json.gz"))]
-        .into_iter()
-        .find(|p| p.is_file())
+    #[cfg_attr(not(debug_assertions), allow(unused_mut))]
+    let mut places = vec![PathBuf::from("/usr/share/game-companion/protondb.json.gz")];
+    #[cfg(debug_assertions)]
+    places.push(PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/data/protondb.json.gz")));
+    places.into_iter().find(|p| p.is_file())
 }
 
 /// One game's entry (by Steam app id) from the extract (gzip or plain JSON).
@@ -187,10 +190,11 @@ pub fn usage(game: &Game, opt: &Opt, groups: &[String]) -> Value {
     json!({"count": opt.count, "reports": game.reports, "share": share(opt.count, game.reports), "similar": similar, "like": like})
 }
 
-/// The option as launch option text.
+/// The option as launch option text (a value with spaces, quotes, `|`
+/// or `$` single-quoted, so it stays one word and literal).
 fn text_of(opt: &Opt) -> String {
     match (opt.kind.as_str(), &opt.value) {
-        ("env", Some(v)) => format!("{}={v}", opt.name),
+        ("env", Some(v)) => launch_check::env_text(&opt.name, v),
         _ => opt.name.clone(),
     }
 }
@@ -281,6 +285,7 @@ pub mod tests {
             gpus: vec![gpu.into()],
             nvidia_major: None,
             tools: vec!["gamemoderun".into()],
+            path_scanned: true,
             ananicy: false,
             cachyos: true,
             steam_form: true,
@@ -311,7 +316,7 @@ pub mod tests {
         assert_eq!(usage(&small, &small.options[0], &amd)["like"]["group"], "all");
         // "What others use" on AMD/proton-cachyos: sorted by the AMD share,
         // each checked for this build.
-        let o = others(&meta, &game, &amd, &ctx(Family::CachyOs, "amd"));
+        let o = others(&meta, &game, &amd, &ctx(Family::CachyOs(11), "amd"));
         let names: Vec<&str> = o["options"].as_array().unwrap().iter().map(|x| x["name"].as_str().unwrap()).collect();
         assert_eq!(names, ["VKD3D_CONFIG", "PROTON_ENABLE_WAYLAND", "PROTON_VKD3D_HEAP", "gamemoderun", "PROTON_ENABLE_HDR"]);
         let check = |name: &str| o["options"].as_array().unwrap().iter().find(|x| x["name"] == name).unwrap()["check"].clone();
@@ -330,6 +335,20 @@ pub mod tests {
         let p = popularity(&game, &amd, "PROTON_ENABLE_WAYLAND=1 %command%").unwrap();
         assert_eq!(p["like"]["count"], 48);
         assert!(popularity(&game, &amd, "mangohud %command%").is_none());
+    }
+
+    #[test]
+    fn others_text_stays_one_literal_word() {
+        let opt = |value: &str| Opt { kind: "env".into(), name: "WINEDLLOVERRIDES".into(), value: Some(value.into()), count: 3, by: BTreeMap::new() };
+        assert_eq!(text_of(&opt("dxgi=n,b")), "WINEDLLOVERRIDES=dxgi=n,b");
+        assert_eq!(text_of(&opt("winmm=n,b;dxgi=n")), "WINEDLLOVERRIDES='winmm=n,b;dxgi=n'");
+        assert_eq!(text_of(&opt("it's $HOME | x")), "WINEDLLOVERRIDES='it'\\''s $HOME | x'");
+        for v in ["winmm=n,b;dxgi=n", "it's $HOME | x", "say \"hi\""] {
+            let words = crate::launch_options::lex_words(&text_of(&opt(v))).unwrap();
+            assert_eq!(words.len(), 1, "{v}");
+            assert!(!words[0].2);
+            assert_eq!(words[0].0, format!("WINEDLLOVERRIDES={v}"));
+        }
     }
 
     #[test]
