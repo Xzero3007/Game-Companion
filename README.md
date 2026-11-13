@@ -250,6 +250,11 @@ Qt 6 / QML for the interface, Rust for the logic, joined by
 GPL-3.0-or-later (see `LICENSE`). Parts are adapted from the Clicktrough
 meter (`Xzero3007/A2Tools-DPS-Meter_Clicktrough`, GPL-3.0).
 
+AION 2 pictures: the class symbols and the Odyle symbol (`assets/aion2/`)
+come from the A2Tools DPS Meter (`taengu/A2Tools-DPS-Meter`, GPL-3.0) and
+show the game's own symbols (AION 2 by NCSOFT); skill pictures are loaded
+from the game's icon server and kept on this computer.
+
 Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project
 Authors, both under the SIL Open Font License 1.1 (`assets/fonts/OFL-*.txt`).
 

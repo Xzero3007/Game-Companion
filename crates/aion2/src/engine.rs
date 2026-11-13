@@ -474,7 +474,9 @@ pub fn summary(data: &DpsData) -> serde_json::Value {
     let mut rows: Vec<_> = data
         .map
         .iter()
-        .filter(|(_, p)| p.amount > 0.0 || p.heal_amount > 0.0)
+        // Party members show as soon as the party forms, damage or not
+        // (`DpsCalculator::add_party_rows` gives them their class).
+        .filter(|(_, p)| p.amount > 0.0 || p.heal_amount > 0.0 || (!p.nickname.is_empty() && !p.job.is_empty()))
         .map(|(id, p)| {
             let me = data.local_player_id == Some(*id as i64);
             let name = if !p.nickname.is_empty() {
@@ -495,10 +497,16 @@ pub fn summary(data: &DpsData) -> serde_json::Value {
                 "heal": p.heal_amount.round() as i64,
                 "me": me,
                 "others": p.is_others,
+                "cp": p.combat_power,
+                "gs": p.gear_score,
             })
         })
         .collect();
-    rows.sort_by(|a, b| b["amount"].as_i64().cmp(&a["amount"].as_i64()));
+    rows.sort_by(|a, b| {
+        b["amount"].as_i64().cmp(&a["amount"].as_i64())
+            .then_with(|| b["heal"].as_i64().cmp(&a["heal"].as_i64()))
+            .then_with(|| a["name"].as_str().cmp(&b["name"].as_str()))
+    });
     serde_json::json!({
         "time": data.battle_time,
         "target": data.target_name,
@@ -527,6 +535,7 @@ pub fn skills(data: &DpsData, actor: i32) -> serde_json::Value {
             let rate = |n: i32| ((n as f64) / hits * 1000.0).round() / 10.0;
             serde_json::json!({
                 "code": s.skill_code,
+                "icon": crate::skill_icon(s.skill_code as i64),
                 "name": if s.skill_name.is_empty() { format!("#{}", s.skill_code) } else { s.skill_name.clone() },
                 "casts": s.times,
                 "damage": damage,
@@ -580,6 +589,7 @@ pub fn detail_skills(entries: &[crate::entity::details_context::DetailSkillEntry
             let rate = |n: i64| ((n as f64) / hits * 1000.0).round() / 10.0;
             serde_json::json!({
                 "code": code,
+                "icon": crate::skill_icon(code as i64),
                 "name": if s.name.is_empty() { format!("#{code}") } else { s.name.clone() },
                 "casts": s.hits,
                 "damage": s.damage,
@@ -696,6 +706,28 @@ mod tests {
         assert_eq!((rows[1]["name"].as_str(), rows[1]["dps"].as_i64()), (Some("[Gladiator]"), Some(10)));
         assert_eq!(rows[1]["share"].as_f64(), Some(33.3));
         assert_eq!(s["hpNow"].as_i64(), Some(700));
+    }
+
+    #[test]
+    fn party_members_show_before_they_hit_anything() {
+        use crate::entity::personal_data::PersonalData;
+        let mut data = DpsData::new();
+        let mut me = PersonalData::new("Me".into());
+        me.job = "궁성".into();
+        me.amount = 500.0;
+        let mut b = PersonalData::new("Zed".into());
+        b.job = "치유성".into();
+        b.combat_power = 205_000;
+        b.gear_score = 3050;
+        let mut c = PersonalData::new("Amy".into());
+        c.job = "Unknown".into();
+        data.map.insert(1, me);
+        data.map.insert(90_000_002, b);
+        data.map.insert(90_000_003, c);
+        let rows = summary(&data)["rows"].as_array().unwrap().clone();
+        let names: Vec<_> = rows.iter().map(|r| r["name"].as_str().unwrap().to_string()).collect();
+        assert_eq!(names, ["Me", "Amy", "Zed"]);
+        assert_eq!((rows[2]["job"].as_str(), rows[2]["cp"].as_i64(), rows[2]["gs"].as_i64()), (Some("Cleric"), Some(205_000), Some(3050)));
     }
 
     #[test]

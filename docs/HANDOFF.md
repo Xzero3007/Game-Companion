@@ -24,6 +24,22 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.7.9 Slim DPS window (branch `dps-slim`, 2026-11-13; MN approved the
+  canvas page "DPS-Fenster schlank", boards D1 to D4): `Panel.compact`
+  (30 px header, `headerTools` puts the tabs in it, body 8 px sides) used by
+  `qml/DpsPanel.qml`: 28 px rows with the class symbol
+  (`assets/aion2/classes/*.png`, from the A2Tools meter), combat power and
+  gear score in cyan; the target's name in its HP bar; the time and totals
+  in the foot with the Odyle symbol. Party members show from the moment
+  the party forms (`engine::summary` keeps rows with a name and a class,
+  `add_party_rows` makes them; `cp`/`gs` added). Skill pictures:
+  `aion2::skill_icon` (the meter's skillIcons.js: skill_icons.json, the
+  class prefix fallback, theostones, "basic" for basic attacks), fetched
+  once through `Aion2.icon` like Market's (assets.playnccdn.com, kept in
+  ~/.cache/game-companion/aion2/icons); swords / wand when there is none.
+  `GC_DEMO=dps,party` shows a party that just formed. QML: `short` is a
+  reserved word in Qt 6.4's JS, and `font.pixelSize` is an int (a literal
+  like 10.5 fails to load).
 - 0.7.8 Characters (branch `aion-characters`, 2026-11-13; MN chose "Ja, aber
   ohne Checkliste" on the design canvas page "Charaktere (Bereich 1)",
   boards C1–C3; plan in /mnt/project-files/game-companion/

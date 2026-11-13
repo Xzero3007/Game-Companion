@@ -216,7 +216,8 @@ impl cxx_qt::Initialize for qobject::Aion2 {
         if std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "dps")) {
             self.as_mut().set_active(true);
             self.as_mut().set_state(QString::from("reading"));
-            self.as_mut().set_fight(QString::from(DEMO));
+            let party = std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "party"));
+            self.as_mut().set_fight(QString::from(if party { DEMO_PARTY } else { DEMO }));
             self.as_mut().set_skills(QString::from(DEMO_SKILLS));
             self.as_mut().set_history(QString::from(DEMO_HISTORY));
             return;
@@ -506,13 +507,20 @@ const DEMO_WORLD: &str = r#"{"at":0,"zone":902,"me":{"x":-108000,"y":-56000,"exa
 "npcs":[[11,2100002,-110660,-58525],[12,2100006,-74581,-53904],[13,2100015,-74634,-51920],[14,2100009,-111486,-24906]],"objects":[]}"#;
 
 /// A made-up fight for screenshots (GC_DEMO=dps).
-const DEMO: &str = r#"{"time":134000,"target":"Training Scarecrow","boss":false,"hpMax":0,"hpNow":0,"rows":[
-{"id":1,"name":"Lumen","job":"Sorcerer","dps":41200,"amount":5520800,"share":26.0,"hps":0,"heal":0,"me":true,"others":false},
-{"id":2,"name":"Party 2","job":"Gladiator","dps":35400,"amount":4743600,"share":22.3,"hps":0,"heal":0,"me":false,"others":false},
-{"id":3,"name":"Party 3","job":"Ranger","dps":29300,"amount":3926200,"share":18.4,"hps":0,"heal":0,"me":false,"others":false},
-{"id":4,"name":"Party 4","job":"Assassin","dps":23900,"amount":3202600,"share":15.0,"hps":0,"heal":0,"me":false,"others":false},
-{"id":5,"name":"Party 5","job":"Templar","dps":16500,"amount":2211000,"share":10.4,"hps":1200,"heal":160800,"me":false,"others":false},
-{"id":6,"name":"Party 6","job":"Cleric","dps":9100,"amount":1219400,"share":7.7,"hps":14800,"heal":1983200,"me":false,"others":false}],"extras":{"ping":15,"odyle":[75,1850]}}"#;
+const DEMO: &str = r#"{"time":242000,"target":"Brigade General Vasharti","boss":true,"hpMax":161000000,"hpNow":61200000,"rows":[
+{"id":1,"name":"Lumen","job":"Ranger","dps":168400,"amount":40752800,"share":40.8,"hps":0,"heal":0,"me":true,"others":false,"cp":210400,"gs":3072},
+{"id":2,"name":"Party 2","job":"Spiritmaster","dps":121300,"amount":29354600,"share":29.4,"hps":0,"heal":0,"me":false,"others":false,"cp":205100,"gs":3050},
+{"id":3,"name":"Party 3","job":"Chanter","dps":64200,"amount":15536400,"share":15.6,"hps":3100,"heal":750200,"me":false,"others":false,"cp":197300,"gs":3013},
+{"id":4,"name":"Party 4","job":"Templar","dps":36900,"amount":8929800,"share":8.9,"hps":1200,"heal":290400,"me":false,"others":false,"cp":210000,"gs":3032},
+{"id":5,"name":"Party 5","job":"Cleric","dps":21800,"amount":5275600,"share":5.3,"hps":14800,"heal":3581600,"me":false,"others":false,"cp":208200,"gs":2965}],"extras":{"ping":14,"odyle":[90,1850]}}"#;
+
+/// A party that just formed (GC_DEMO=dps,party): only the player has hit.
+const DEMO_PARTY: &str = r#"{"time":20000,"target":"Melee Training Scarecrow","boss":false,"hpMax":119700,"hpNow":119700,"rows":[
+{"id":1,"name":"Lumen","job":"Ranger","dps":168000,"amount":3360000,"share":100.0,"hps":0,"heal":0,"me":true,"others":false,"cp":210400,"gs":3072},
+{"id":90000002,"name":"Party 2","job":"Spiritmaster","dps":0,"amount":0,"share":0.0,"hps":0,"heal":0,"me":false,"others":false,"cp":205100,"gs":3050},
+{"id":90000003,"name":"Party 3","job":"Chanter","dps":0,"amount":0,"share":0.0,"hps":0,"heal":0,"me":false,"others":false,"cp":197300,"gs":3013},
+{"id":90000004,"name":"Party 4","job":"Cleric","dps":0,"amount":0,"share":0.0,"hps":0,"heal":0,"me":false,"others":false,"cp":208200,"gs":2965},
+{"id":90000005,"name":"Party 5","job":"Templar","dps":0,"amount":0,"share":0.0,"hps":0,"heal":0,"me":false,"others":false,"cp":210000,"gs":3032}],"extras":{"ping":14,"odyle":[90,1850]}}"#;
 
 /// Made-up history for screenshots (GC_DEMO=dps,history).
 const DEMO_HISTORY: &str = r#"[
@@ -522,11 +530,13 @@ const DEMO_HISTORY: &str = r#"[
 
 /// Made-up skills for screenshots (GC_DEMO=dps,skills).
 const DEMO_SKILLS: &str = r#"[
-{"code":1,"name":"Flame Cascade","casts":38,"damage":1876500,"share":34.0,"crit":42.1,"back":0.0,"perfect":10.5,"double":13.2,"parry":0.0},
-{"code":2,"name":"Frost Lance","casts":61,"damage":1214600,"share":22.0,"crit":36.0,"back":0.0,"perfect":8.2,"double":9.8,"parry":1.6},
-{"code":3,"name":"Burning Mark","casts":12,"damage":993700,"share":18.0,"crit":25.0,"back":0.0,"perfect":0.0,"double":0.0,"parry":0.0},
-{"code":4,"name":"Arcane Bolt","casts":94,"damage":828100,"share":15.0,"crit":30.9,"back":0.0,"perfect":5.3,"double":7.4,"parry":2.1},
-{"code":5,"name":"Meteor","casts":4,"damage":607900,"share":11.0,"crit":50.0,"back":0.0,"perfect":25.0,"double":0.0,"parry":0.0}]"#;
+{"code":14010100,"icon":"ICON_RA_SKILL_001","name":"Spiral Arrow","casts":14,"damage":1104000,"share":32.9,"crit":46.0,"back":0.0,"perfect":10.5,"double":13.2,"parry":0.0},
+{"code":14020100,"icon":"ICON_RA_SKILL_002","name":"Snipe","casts":9,"damage":742500,"share":22.1,"crit":51.0,"back":0.0,"perfect":8.2,"double":9.8,"parry":1.6},
+{"code":14030100,"icon":"ICON_RA_SKILL_003","name":"Rapid Fire","casts":31,"damage":538800,"share":16.0,"crit":38.0,"back":0.0,"perfect":0.0,"double":0.0,"parry":0.0},
+{"code":14040100,"icon":"ICON_RA_SKILL_004","name":"Arrow Storm","casts":4,"damage":401200,"share":11.9,"crit":44.0,"back":0.0,"perfect":5.3,"double":7.4,"parry":2.1},
+{"code":14000001,"icon":"basic","name":"Basic attack","casts":88,"damage":264000,"share":7.9,"crit":29.0,"back":0.0,"perfect":0.0,"double":0.0,"parry":0.0},
+{"code":14050100,"icon":"ICON_RA_SKILL_005","name":"Gale Arrow","casts":7,"damage":152600,"share":4.5,"crit":40.0,"back":0.0,"perfect":0.0,"double":0.0,"parry":0.0},
+{"code":99999999,"icon":"","name":"Unknown skill","casts":6,"damage":58600,"share":1.7,"crit":0.0,"back":0.0,"perfect":0.0,"double":0.0,"parry":0.0}]"#;
 
 #[cfg(test)]
 mod tests {
@@ -540,13 +550,13 @@ mod tests {
 
     #[test]
     fn the_demo_and_the_empty_fight_read() {
-        for text in [super::DEMO, super::EMPTY] {
+        for text in [super::DEMO, super::DEMO_PARTY, super::EMPTY] {
             let v: serde_json::Value = serde_json::from_str(text).unwrap();
             assert!(v["rows"].is_array());
         }
         let history: serde_json::Value = serde_json::from_str(super::DEMO_HISTORY).unwrap();
         assert_eq!(history.as_array().map(|a| a.len()), Some(3));
         let skills: serde_json::Value = serde_json::from_str(super::DEMO_SKILLS).unwrap();
-        assert_eq!(skills.as_array().map(|a| a.len()), Some(5));
+        assert_eq!(skills.as_array().map(|a| a.len()), Some(7));
     }
 }
