@@ -34,7 +34,7 @@ Panel {
 
     // ---- what is kept ----
     property var settings: ({
-        server: null, tab: "gather", fee: 10, npc: {}, prof: "all", sort: "profit", priced: true, kind: "all",
+        server: null, region: "", tab: "gather", fee: 10, npc: {}, prof: "all", sort: "profit", priced: true, kind: "all",
         search: {}, faction: null, fav: [], pins: true, cat: "all", minGrade: 0, allSort: "name", listedOnly: true
     })
     property var servers: []
@@ -51,7 +51,33 @@ Panel {
     readonly property int gameServer: {
         try { const e = JSON.parse(Aion2.fight).extras; return e && e.server ? e.server : 0 } catch (x) { return 0 }
     }
-    onGameServerChanged: if (settings.server == null && servers.length) { pickServer(); loadPrices(false) }
+    // The game named the server you play on: its market, unless it is the one shown.
+    onGameServerChanged: {
+        if (!servers.length) return
+        const mine = MK.C.serverOf(servers, gameServer)
+        if (mine && mine.id !== settings.server) { takeServer(mine.id); loadPrices(true) }
+        else if (settings.server == null) { pickServer(); loadPrices(false) }
+    }
+    /// The region whose servers the list shows: the one picked, else the shown server's.
+    readonly property string region: {
+        if (settings.region) return settings.region
+        const s = server()
+        return s ? s.region : ""
+    }
+    readonly property var regions: {
+        const seen = []
+        for (const s of servers) if (s.hasData && seen.indexOf(s.region) < 0) seen.push(s.region)
+        return seen.sort((a, b) => (b === "Europe") - (a === "Europe") || a.localeCompare(b))
+    }
+    function takeServer(id) {
+        prices = new Map()
+        hist = null
+        fetchedAt = 0
+        opened = ({})
+        change("server", id)
+        const s = server()
+        if (s) change("region", s.region)
+    }
 
     function change(key, value) {
         const s = Object.assign({}, settings)
@@ -129,7 +155,7 @@ Panel {
     function pickServer() {
         if (settings.server != null && servers.some((s) => s.id === settings.server)) return
         const mine = MK.C.serverOf(servers, gameServer)
-        if (mine) change("server", mine.id)
+        if (mine) takeServer(mine.id)
     }
     function directRows(id) {
         const rows = []
@@ -486,26 +512,56 @@ Panel {
             width: parent.width
             height: 32
             z: 30
+            // First the region, then that region's servers (the game's own
+            // server is picked by itself once the game names it).
+            Dropdown {
+                id: regionPick
+                anchors.left: parent.left
+                width: Math.min(190, (parent.width - barTools.width - 16) * 0.4)
+                label: "Region"
+                current: panel.region
+                options: {
+                    const out = [{ id: "", name: panel.regions.length ? "Pick" : "…" }]
+                    for (const r of panel.regions) out.push({ id: r, name: r })
+                    return out
+                }
+                onChosen: (id) => {
+                    panel.change("region", id)
+                    const s = panel.server()
+                    if (s && s.region !== id) {
+                        panel.prices = new Map()
+                        panel.hist = null
+                        panel.fetchedAt = 0
+                        panel.opened = ({})
+                        panel.change("server", null)
+                        panel.refresh()
+                    }
+                }
+            }
             Dropdown {
                 id: serverPick
-                anchors.left: parent.left
+                anchors.left: regionPick.right
+                anchors.leftMargin: 6
                 anchors.right: barTools.left
                 anchors.rightMargin: 8
                 label: "Server"
                 current: panel.settings.server != null ? String(panel.settings.server) : ""
                 options: {
-                    const out = [{ id: "", name: panel.servers.length ? "Pick your server" : "Servers …" }]
-                    const list = panel.servers.filter((s) => s.hasData).slice()
-                    list.sort((a, b) => a.region.localeCompare(b.region) || String(a.faction).localeCompare(String(b.faction)) || a.name.localeCompare(b.name))
-                    for (const s of list) out.push({ id: String(s.id), name: s.name + " · " + (s.faction || "") + " · " + s.region })
+                    const out = [{ id: "", name: !panel.servers.length ? "Servers …" : panel.region ? "Pick your server" : "Pick a region first" }]
+                    const list = panel.servers.filter((s) => s.hasData && s.region === panel.region).slice()
+                    list.sort((a, b) => String(a.faction).localeCompare(String(b.faction)) || a.name.localeCompare(b.name))
+                    for (const s of list) out.push({ id: String(s.id), name: s.name + " · " + (s.faction || "") })
                     return out
                 }
                 onChosen: (id) => {
-                    panel.prices = new Map()
-                    panel.hist = null
-                    panel.fetchedAt = 0
-                    panel.opened = ({})
-                    panel.change("server", id ? Number(id) : null)
+                    if (id) panel.takeServer(Number(id))
+                    else {
+                        panel.prices = new Map()
+                        panel.hist = null
+                        panel.fetchedAt = 0
+                        panel.opened = ({})
+                        panel.change("server", null)
+                    }
                     panel.loadPrices(true)
                 }
             }
@@ -715,24 +771,38 @@ Panel {
             }
         }
 
-        // The favourites, pinned above the list.
+        // The favourites, pinned above the list. An opened one shows all it
+        // has (up to most of the list's room); the list below gives up that
+        // room, so the panel keeps its height.
         ListView {
             id: pinList
             visible: count > 0
             width: parent.width
-            height: visible ? Math.min(contentHeight, 150) : 0
+            height: visible ? Math.min(contentHeight, Math.max(150, (360 + panel.grow) * 0.7)) : 0
             clip: true
             interactive: false
             model: panel.pinRows
             delegate: rowDelegate
             WheelScroll { flick: pinList; step: 90 }
+            // More below (the wheel shows it): a line and a fade at the edge.
+            Rectangle {
+                visible: pinList.contentHeight > pinList.height + 1 && !pinList.atYEnd
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: 18
+                gradient: Gradient {
+                    GradientStop { position: 0; color: "transparent" }
+                    GradientStop { position: 1; color: Theme.panel(Math.max(0.6, panel.ground)) }
+                }
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.5) }
+            }
         }
 
         // The list.
         ListView {
             id: list
             width: parent.width
-            height: 360 + panel.grow
+            height: 360 + panel.grow - Math.max(0, pinList.height - 150)
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             interactive: false
