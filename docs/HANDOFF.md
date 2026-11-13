@@ -120,7 +120,43 @@ Agreed with the person 2026-11-13 (see CLAUDE.md plan step 4):
   (not the README); `PROTON_VKD3D_HEAP` was proton-cachyos-only, removed
   in 11.0-20260521 (outdated there, no_effect on Valve/GE).
 
-Open points: QA review done (fixes on the branch), test on real KWin (Arch thread), the person's test, a UI for the checker and "What others use".
+  UI (same branch, design boards L1Options, L2Suggestions, L3Proton,
+  approved 2026-11-13): the game form has tabs GENERAL / PRESET SEARCH /
+  LAUNCH (`qml/LaunchTab.qml`, read when first opened, scrolls when the
+  screen is short): options field (monospace, one line), chips ENV /
+  WRAPPER / GAME / ARG from `checkOptions` (debounced 400 ms, only the
+  newest answer counts) with a status mark (`StatusMark`, `launch.js`:
+  ok gold, outdated purple, invalid red, no effect grey, not recommended
+  hollow red, unknown hollow grey), a click opens a part's explanation,
+  note, warning and flags with its fix ("Fix: …" / "Take it out"; FIX ALL
+  uses `fixed`), all only into the field; red "CLOSE STEAM FIRST" banner
+  while the launcher runs (`launchOptions` answers `running`;
+  `Games.launcherState` asked every 3 s only while it shows; SAVE off);
+  Proton choice (`SelectBox` + `ChoiceList`, a list over the whole panel,
+  opens upwards when there is no room). SAVE writes options and Proton
+  through the worker and closes when both answered; setProton's warning
+  shows as a note over the list. SHOW opens `LaunchSuggestions.qml` over
+  the form: system strip, rows with checkbox (recommended ones start on),
+  groups as radio rows, unavailable ones (`available: false`,
+  `unavailable_why`, from launch-fixes) greyed with the reason, PREVIEW
+  from `combineOptions` (new words gold), WHAT OTHERS USE (shares on
+  systems like this one and overall, check status, click for the note;
+  Proton variants; "Data: ProtonDB export (ODbL)"; no one-click apply of
+  others' text yet); APPLY puts the preview into the field (SAVE writes:
+  one write path, deviation from the board's "APPLY writes"). PROTON in
+  the list's header opens `ProtonOverview.qml` (new `Games.protonOverview(
+  ids)`: builds by source with the games using each, STEAM DEFAULT, quick
+  change per game; own entries left out). Backend additions:
+  `launch_options::launcher_running`, `tool_name`, `tool_in_use`,
+  `tool_choices` (config.vdf read once), `usage_json`; `launchOptions`
+  answers `proton.name` / `proton.inUse` / `running`. Demo
+  (`src/launch_demo.rs`, made-up PC, builds and games; the real checker,
+  suggestions and ProtonDB extract run on it): GC_DEMO=games,launch
+  [,detail][,picker][,launcherrunning], games,suggestions[,rows|,middle|
+  ,others|,end], games,proton, games,launchown; `nowelcome` closes the
+  welcome. Screenshots in /mnt/project-files/game-companion/screens/launch/.
+
+Open points: merge launch-fixes, test on real KWin (Arch thread), the person's test; the check follows the saved Proton build, not one picked but not saved yet.
 Known limits: PoE 1 outside Steam counts as PoE 2; any process with a
 game's folder in its command line counts as the game; Heroic covers only
 for sideloaded games. Demo: GC_DEMO=games[,gameform]; GC_NO_GAMES=1 stops

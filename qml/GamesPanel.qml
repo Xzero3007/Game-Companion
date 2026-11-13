@@ -38,6 +38,20 @@ Panel {
     property string query: ""
     /// The form: null (the list), {} (a new own game) or the game to edit.
     property var editing: null
+    /// The form's tab: general, presets, launch.
+    property string formPage: "general"
+    /// The suggestions for the edited game are shown (over its form).
+    property bool suggesting: false
+    /// The Proton overview is shown instead of the list.
+    property bool protonView: false
+    /// Something to know after a save (e.g. Heroic's prefix), over the list.
+    property string notice: ""
+    /// The height the panel's body may take: the screen under its top less
+    /// its frame (the launch views scroll inside it).
+    readonly property real room: (parent ? parent.height : 900) - Math.max(0, y) - 68 - 12
+    /// The form's LAUNCH tab while it exists (the suggestions fill it).
+    property var launchTab: null
+    onEditingChanged: { formPage = "general"; suggesting = false }
 
     function count(launcher) { return visibleGames.filter((g) => g.launcher === launcher).length }
     function fold(s) { return String(s || "").toLocaleLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") }
@@ -76,10 +90,43 @@ Panel {
 
     Component.onCompleted: Games.refresh()
 
+    // Screenshots: GC_DEMO=games,launch (the LAUNCH tab of the demo's
+    // racing game; ,detail opens its first flagged part, ,launcherrunning
+    // shows Steam running), games,suggestions, games,proton, games,launchown.
+    property bool demoDetail: false
+    property real demoScroll: -1
+    property bool demoPicker: false
+    function demo(words) {
+        const has = (w) => words.indexOf(w) >= 0
+        const find = (id) => library.find((g) => g.id === id)
+        if (has("launch") || has("suggestions")) {
+            demoDetail = has("detail")
+            demoPicker = has("picker")
+            editing = find("steam:2483190") || null
+            formPage = "launch"
+            if (has("suggestions")) suggesting = true
+            demoScroll = has("rows") ? 0.3 : has("middle") ? 0.5 : has("others") ? 0.75 : has("end") ? 1 : -1
+        } else if (has("launchown")) {
+            editing = find("own:1") || null
+            formPage = "launch"
+        } else if (has("proton")) {
+            protonView = true
+        }
+    }
+
+    // Choices (the Proton lists) open over the whole panel.
+    ChoiceList {
+        id: choiceList
+        parent: panel
+        anchors.fill: parent
+    }
+
     Column {
         width: parent.width
         spacing: 0
-        visible: panel.editing === null
+        visible: panel.editing === null && !panel.protonView
+        // The body takes its children's whole rect, hidden ones too.
+        height: visible ? implicitHeight : 0
 
         // Search, add, read again
         Item {
@@ -88,7 +135,7 @@ Panel {
             Rectangle {
                 id: searchBox
                 anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(300, parent.width - addButton.width - refreshButton.width - 40)
+                width: Math.min(300, parent.width - addButton.width - refreshButton.width - protonButton.width - 50)
                 height: 32
                 color: "#1b1a20"
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: search.activeFocus ? Theme.accent : "#3a3842" }
@@ -138,6 +185,16 @@ Panel {
                 onClicked: Games.refresh()
             }
             TextButton {
+                id: protonButton
+                anchors.right: refreshButton.left
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                height: 32
+                text: "Proton"
+                onClicked: panel.protonView = true
+                Accessible.description: "Proton versions and which games use them"
+            }
+            TextButton {
                 id: addButton
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
@@ -167,6 +224,36 @@ Panel {
         }
 
         Item { width: 1; height: 14 }
+
+        // A note from the last save.
+        Rectangle {
+            visible: panel.notice.length > 0
+            width: parent.width
+            height: visible ? noticeText.implicitHeight + 20 : 0
+            color: Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.08)
+            Rectangle { width: parent.width; height: 2; color: Theme.accent }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                id: noticeText
+                x: 12
+                y: 10
+                width: parent.width - 60
+                wrapMode: Text.WordWrap
+                text: "Saved. " + panel.notice
+                color: Theme.textSoft()
+                font.family: Theme.body
+                font.pixelSize: 12
+            }
+            IconButton {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 4
+                icon: "close"
+                tip: "Close the note"
+                color: Theme.muted()
+                onClicked: panel.notice = ""
+            }
+        }
+        Item { visible: panel.notice.length > 0; width: 1; height: 14 }
 
         // The games
         Item {
@@ -229,9 +316,41 @@ Panel {
     Loader {
         width: parent.width
         active: panel.editing !== null
-        visible: active
+        visible: active && !panel.suggesting
+        height: visible && item ? item.implicitHeight : 0
         sourceComponent: GameForm {}
         onActiveChanged: panel.formError = ""
+    }
+
+    // Suggestions for the edited game (design L2Suggestions); APPLY puts
+    // the result into the form's launch options.
+    Loader {
+        width: parent.width
+        active: panel.editing !== null && panel.suggesting && panel.launchTab !== null
+        visible: active
+        sourceComponent: LaunchSuggestions {
+            game: panel.editing
+            fieldText: panel.launchTab ? panel.launchTab.text : ""
+            savedText: panel.launchTab ? panel.launchTab.savedText : ""
+            room: panel.room
+            demoScroll: panel.demoScroll
+            onApplied: (text) => { if (panel.launchTab) panel.launchTab.setText(text); panel.suggesting = false }
+            onCanceled: panel.suggesting = false
+        }
+    }
+
+    // The Proton overview (design L3Proton).
+    Loader {
+        width: parent.width
+        active: panel.editing === null && panel.protonView
+        visible: active
+        sourceComponent: ProtonOverview {
+            games: panel.visibleGames
+            choices: choiceList
+            room: panel.room
+            onClosed: panel.protonView = false
+            onSaved: (warning) => { panel.notice = warning; panel.protonView = false }
+        }
     }
 
     component Tab: Item {
@@ -456,10 +575,22 @@ Panel {
         readonly property var g: panel.editing || ({})
         readonly property bool isNew: g.id === undefined
         readonly property bool own: isNew || g.own === true
+        /// general, presets, launch
+        property string page: panel.formPage
+        /// The LAUNCH tab once it was opened (it reads the launcher's files).
+        property bool launchOpened: page === "launch"
+        readonly property var launch: launchLoader.item
+        property bool saving: false
+        /// Answers still out while saving, and what they said.
+        property int waiting: 0
+        property var errors: []
+        property string warning: ""
+        readonly property bool launchBlocked: launch !== null && launch.running && (launch.dirty || page === "launch")
         spacing: 14
-        topPadding: 6
+        topPadding: 2
         bottomPadding: 4
 
+        onPageChanged: if (page === "launch") launchOpened = true
         Component.onCompleted: {
             nameField.text = g.name || ""
             commandField.text = g.command || ""
@@ -468,132 +599,240 @@ Panel {
             youtubeField.text = g.youtube || ""
             showBox.checked = g.showOnStart === undefined ? true : g.showOnStart
             radioBox.checked = g.radioOnStart === true
+            panel.launchTab = Qt.binding(() => form.launch)
         }
+        Component.onDestruction: panel.launchTab = null
 
-        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-            text: form.isNew ? "ADD GAME" : form.own ? "EDIT GAME" : g.name.toUpperCase()
-            color: Theme.text()
-            font.family: Theme.display
-            font.pixelSize: 16
-            font.weight: Font.Bold
-            font.letterSpacing: 2
-        }
-        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-            visible: !form.own
+        // Header: what is edited, from where.
+        Item {
             width: parent.width
-            wrapMode: Text.WordWrap
-            text: "From " + panel.launcherName(g.launcher) + ". Its name and how it starts come from there; here you set what the companion does with it."
-            color: Theme.dim()
-            font.family: Theme.body
-            font.pixelSize: 12
-        }
-
-        Labeled {
-            visible: form.own
-            label: "Name"
-            Field { id: nameField; width: parent.width; placeholder: "Game name" }
-        }
-        Labeled {
-            visible: form.own
-            label: "Start with"
-            Field { id: commandField; width: parent.width; placeholder: "Program, script or launcher command" }
-        }
-        Labeled {
-            visible: form.own
-            label: "Process name"
-            hint: "So the companion knows when the game runs, also when you start it elsewhere. Several: separate with commas."
-            Field { id: processField; width: parent.width; placeholder: "e.g. Game.exe" }
-        }
-
-        Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
-        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-            text: "PRESET SEARCH"
-            color: Theme.text()
-            font.family: Theme.display
-            font.pixelSize: 13
-            font.weight: Font.Bold
-            font.letterSpacing: 1.5
-        }
-        Row {
-            width: parent.width
-            spacing: 10
-            Labeled {
-                width: (parent.width - 10) / 2
-                label: "Twitch category"
-                small: true
-                Field { id: twitchField; width: parent.width; placeholder: "As Twitch names it" }
+            height: 30
+            Row {
+                anchors.left: parent.left
+                anchors.right: launcherTag.left
+                anchors.rightMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 10
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: form.isNew ? "ADD GAME" : "EDIT GAME"
+                    color: Theme.text()
+                    font.family: Theme.display
+                    font.pixelSize: 16
+                    font.weight: Font.Bold
+                    font.letterSpacing: 2
+                }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: !form.isNew
+                    width: Math.min(implicitWidth, parent.width - 120)
+                    elide: Text.ElideRight
+                    text: form.g.name || ""
+                    color: Theme.textSoft()
+                    font.family: Theme.body
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                }
             }
-            Labeled {
-                width: (parent.width - 10) / 2
-                label: "YouTube search"
-                small: true
-                Field { id: youtubeField; width: parent.width; placeholder: "Search words" }
+            Tag {
+                id: launcherTag
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: panel.launcherName(form.isNew ? "own" : form.g.launcher).toUpperCase()
+                tint: "#5a5764"
+                size: 11
             }
         }
 
-        Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
-        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-            text: "WHEN IT STARTS"
-            color: Theme.text()
-            font.family: Theme.display
-            font.pixelSize: 13
-            font.weight: Font.Bold
-            font.letterSpacing: 1.5
-        }
-        Check { id: showBox; text: "Show the companion over the game" }
-        Check { id: radioBox; text: "Start the radio with my last station" }
-        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-            text: "LOAD LAYOUT"
-            color: Theme.dim()
-            font.family: Theme.display
-            font.pixelSize: 11
-            font.weight: Font.Bold
-            font.letterSpacing: 1.5
-        }
-        Flow {
-            id: layoutChoice
+        // Tabs
+        Item {
             width: parent.width
-            spacing: 8
-            property string picked: form.g.layout || ""
-            readonly property var names: JSON.parse(Companion.layouts)
-            Repeater {
-                model: [""].concat(layoutChoice.names)
-                delegate: Rectangle {
-                    required property var modelData
-                    readonly property bool on: layoutChoice.picked === modelData
-                    width: chipText.implicitWidth + 20
-                    height: 28
-                    color: chipMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.12) : "transparent"
-                    border.color: on ? Theme.accent : Theme.track
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        id: chipText
-                        anchors.centerIn: parent
-                        text: modelData.length > 0 ? modelData : "None"
-                        color: parent.on ? Theme.accent : Theme.textSoft()
-                        font.family: Theme.body
-                        font.pixelSize: 12
+            height: 34
+            Row {
+                spacing: 18
+                height: parent.height
+                FormTab { name: "general"; label: "General" }
+                FormTab { name: "presets"; label: "Preset search" }
+                FormTab { name: "launch"; label: "Launch"; visible: !form.isNew }
+            }
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+        }
+
+        // GENERAL
+        Column {
+            visible: form.page === "general"
+            width: parent.width
+            spacing: 14
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                visible: !form.own
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "From " + panel.launcherName(form.g.launcher) + ". Its name and how it starts come from there; here you set what the companion does with it."
+                color: Theme.dim()
+                font.family: Theme.body
+                font.pixelSize: 12
+            }
+            Labeled {
+                visible: form.own
+                label: "Name"
+                Field { id: nameField; width: parent.width; placeholder: "Game name" }
+            }
+            Labeled {
+                visible: form.own
+                label: "Start with"
+                Field { id: commandField; width: parent.width; placeholder: "Program, script or launcher command" }
+            }
+            Labeled {
+                visible: form.own
+                label: "Process name"
+                hint: "So the companion knows when the game runs, also when you start it elsewhere. Several: separate with commas."
+                Field { id: processField; width: parent.width; placeholder: "e.g. Game.exe" }
+            }
+            Rectangle { visible: form.own; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                text: "WHEN IT STARTS"
+                color: Theme.text()
+                font.family: Theme.display
+                font.pixelSize: 13
+                font.weight: Font.Bold
+                font.letterSpacing: 1.5
+            }
+            Check { id: showBox; text: "Show the companion over the game" }
+            Check { id: radioBox; text: "Start the radio with my last station" }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                text: "LOAD LAYOUT"
+                color: Theme.dim()
+                font.family: Theme.display
+                font.pixelSize: 11
+                font.weight: Font.Bold
+                font.letterSpacing: 1.5
+            }
+            Flow {
+                id: layoutChoice
+                width: parent.width
+                spacing: 8
+                property string picked: form.g.layout || ""
+                readonly property var names: JSON.parse(Companion.layouts)
+                Repeater {
+                    model: [""].concat(layoutChoice.names)
+                    delegate: Rectangle {
+                        required property var modelData
+                        readonly property bool on: layoutChoice.picked === modelData
+                        width: chipText.implicitWidth + 20
+                        height: 28
+                        color: chipMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.12) : "transparent"
+                        border.color: on ? Theme.accent : Theme.track
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                            id: chipText
+                            anchors.centerIn: parent
+                            text: modelData.length > 0 ? modelData : "None"
+                            color: parent.on ? Theme.accent : Theme.textSoft()
+                            font.family: Theme.body
+                            font.pixelSize: 12
+                        }
+                        MouseArea {
+                            id: chipMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: layoutChoice.picked = parent.modelData
+                        }
+                        Accessible.role: Accessible.RadioButton
+                        Accessible.name: "Layout " + chipText.text
+                        Accessible.checked: on
                     }
-                    MouseArea {
-                        id: chipMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: layoutChoice.picked = parent.modelData
-                    }
-                    Accessible.role: Accessible.RadioButton
-                    Accessible.name: "Layout " + chipText.text
-                    Accessible.checked: on
+                }
+            }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                visible: layoutChoice.names.length === 0
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "Save a layout in Settings → Layouts to have the game load it."
+                color: Theme.dim()
+                font.family: Theme.body
+                font.pixelSize: 11
+            }
+        }
+
+        // PRESET SEARCH
+        Column {
+            visible: form.page === "presets"
+            width: parent.width
+            spacing: 14
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "What the Streams panel's game tab looks for while this game runs. Empty: the built-in game's search, if it has one."
+                color: Theme.dim()
+                font.family: Theme.body
+                font.pixelSize: 12
+            }
+            Row {
+                width: parent.width
+                spacing: 10
+                Labeled {
+                    width: (parent.width - 10) / 2
+                    label: "Twitch category"
+                    small: true
+                    Field { id: twitchField; width: parent.width; placeholder: "As Twitch names it" }
+                }
+                Labeled {
+                    width: (parent.width - 10) / 2
+                    label: "YouTube search"
+                    small: true
+                    Field { id: youtubeField; width: parent.width; placeholder: "Search words" }
                 }
             }
         }
-        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-            visible: layoutChoice.names.length === 0
+
+        // LAUNCH (read when first opened); scrolls when the screen is too
+        // short for it.
+        Item {
+            id: launchBox
+            visible: form.page === "launch"
             width: parent.width
-            wrapMode: Text.WordWrap
-            text: "Save a layout in Settings → Layouts to have the game load it."
-            color: Theme.dim()
-            font.family: Theme.body
-            font.pixelSize: 11
+            // The room left on the screen under the panel's top, less the
+            // panel's frame, the form's header, tabs and footer.
+            readonly property real room: panel.room - 30 - 34 - 46 - 4 * 14 - (panel.formError.length > 0 ? 40 : 0)
+            height: Math.max(160, Math.min(launchLoader.height, room))
+            clip: launchFlick.contentHeight > height
+            Flickable {
+                id: launchFlick
+                anchors.fill: parent
+                contentHeight: launchLoader.height
+                boundsBehavior: Flickable.StopAtBounds
+                interactive: contentHeight > height
+                Loader {
+                    id: launchLoader
+                    width: launchBox.width - (launchFlick.interactive ? 12 : 0)
+                    active: form.launchOpened && !form.isNew
+                    sourceComponent: LaunchTab {
+                        width: launchLoader.width
+                        game: form.g
+                        choices: choiceList
+                        ownText: commandField.text
+                        onOwnTextEdited: (text) => commandField.text = text
+                        onShowSuggestions: panel.suggesting = true
+                        demoDetail: panel.demoDetail
+                        demoPicker: panel.demoPicker
+                    }
+                }
+            }
+            WheelScroll { flick: launchFlick; step: 90 }
+            // Where the list stands (only when it scrolls).
+            Rectangle {
+                visible: launchFlick.interactive
+                anchors.right: parent.right
+                width: 3
+                height: parent.height
+                color: Theme.trackDark
+                Rectangle {
+                    width: parent.width
+                    height: Math.max(24, parent.height * launchFlick.height / launchFlick.contentHeight)
+                    y: (parent.height - height) * (launchFlick.contentY / Math.max(1, launchFlick.contentHeight - launchFlick.height))
+                    color: Theme.track
+                }
+            }
         }
 
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
@@ -607,17 +846,42 @@ Panel {
         }
         Item {
             width: parent.width
-            height: 40
+            height: 46
             Rectangle { x: -14; width: parent.width + 28; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
             TextButton {
-                visible: !form.isNew && form.own
+                visible: !form.isNew && form.own && form.page === "general"
                 anchors.left: parent.left
                 anchors.bottom: parent.bottom
                 danger: true
                 text: "Remove"
                 onClicked: { Games.removeOwn(form.g.id); panel.editing = null }
             }
+            // Where the change goes (LAUNCH).
             Row {
+                visible: form.page === "launch" && form.launch !== null && form.launch.supported && !form.own
+                anchors.left: parent.left
+                anchors.right: buttons.left
+                anchors.rightMargin: 14
+                anchors.bottom: parent.bottom
+                height: 34
+                spacing: 8
+                Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; color: Theme.accent }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - 14
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                    text: form.launch && form.launch.fileName.length > 0
+                        ? "A backup of " + panel.launcherName(form.g.launcher) + "'s " + form.launch.fileName + " is kept before each save."
+                        : "A backup of the launcher's file is kept before each save."
+                    color: Theme.dim()
+                    font.family: Theme.body
+                    font.pixelSize: 11
+                }
+            }
+            Row {
+                id: buttons
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 spacing: 10
@@ -625,14 +889,15 @@ Panel {
                 Rectangle {
                     width: saveText.implicitWidth + 32
                     height: 34
-                    readonly property bool ready: !form.own || (nameField.text.trim().length > 0 && commandField.text.trim().length > 0)
+                    readonly property bool ready: !form.saving && !form.launchBlocked
+                        && (!form.own || (nameField.text.trim().length > 0 && commandField.text.trim().length > 0))
                     color: ready ? (saveMouse.containsMouse ? Theme.accentLight : Theme.accent) : "transparent"
-                    border.color: ready ? Theme.accent : Theme.track
+                    border.color: ready ? Theme.accent : "#3a3842"
                     Text {
-                        style: Theme.textStyle(); styleColor: Theme.shadow
+                        style: parent.ready ? Text.Normal : Theme.textStyle(); styleColor: Theme.shadow
                         id: saveText
                         anchors.centerIn: parent
-                        text: "SAVE"
+                        text: form.saving ? "SAVING…" : "SAVE"
                         color: parent.ready ? "#121116" : Theme.dim()
                         font.family: Theme.display
                         font.pixelSize: 13
@@ -653,6 +918,10 @@ Panel {
             }
         }
 
+        Requests { id: saveRequests }
+
+        // The companion's own settings at once; the launcher's file and the
+        // Proton choice on the worker, the form closing when both are done.
         function save() {
             const processes = processField.text.split(",").map((s) => s.trim()).filter((s) => s.length > 0).join(", ")
             let newId = ""
@@ -673,8 +942,76 @@ Panel {
             }
             const id = isNew ? newId : g.id
             if (id && id.length > 0) Games.setLayout(id, layoutChoice.picked)
+            errors = []
+            warning = ""
+            waiting = 0
+            const done = () => {
+                form.waiting -= 1
+                if (form.waiting > 0) return
+                form.saving = false
+                if (form.errors.length > 0) {
+                    panel.formError = "Couldn't save: " + form.errors.join(" ")
+                    return
+                }
+                panel.notice = form.warning
+                panel.editing = null
+            }
+            if (launch && launch.textDirty) {
+                waiting += 1
+                saveRequests.ask(Games.setLaunchOptions(g.id, launch.text.trim()), (a) => {
+                    if (!a || a.error.length > 0) form.errors = form.errors.concat([(a ? a.error : "no answer") + "."])
+                    done()
+                })
+            }
+            if (launch && launch.protonDirty) {
+                waiting += 1
+                saveRequests.ask(Games.setProton(g.id, launch.protonPick), (a) => {
+                    if (!a || a.error.length > 0) form.errors = form.errors.concat([(a ? a.error : "no answer") + "."])
+                    else if (a.warning.length > 0) form.warning = a.warning
+                    done()
+                })
+            }
+            if (waiting > 0) {
+                saving = true
+                panel.formError = ""
+                return
+            }
             panel.editing = null
         }
+    }
+
+    component FormTab: Item {
+        property string name
+        property string label
+        width: formTabText.implicitWidth
+        height: parent.height
+        readonly property bool current: panel.formPage === name
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+            id: formTabText
+            anchors.verticalCenter: parent.verticalCenter
+            text: parent.label.toUpperCase()
+            color: parent.current ? Theme.accent : (formTabMouse.containsMouse ? Theme.text() : Theme.muted())
+            font.family: Theme.display
+            font.pixelSize: 13
+            font.weight: Font.Bold
+            font.letterSpacing: 1.5
+        }
+        Rectangle {
+            visible: parent.current
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 2
+            color: Theme.accent
+        }
+        MouseArea {
+            id: formTabMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: panel.formPage = parent.name
+        }
+        Accessible.role: Accessible.PageTab
+        Accessible.name: label
     }
 
     component Labeled: Column {

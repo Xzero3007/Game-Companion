@@ -26,6 +26,14 @@ fn main() {
         QmlFile::from("qml/Surface.qml"),
         QmlFile::from("qml/MoveArea.qml"),
         QmlFile::from("qml/Overlay.qml"),
+        QmlFile::from("qml/LaunchTab.qml"),
+        QmlFile::from("qml/LaunchSuggestions.qml"),
+        QmlFile::from("qml/ProtonOverview.qml"),
+        QmlFile::from("qml/ChoiceList.qml"),
+        QmlFile::from("qml/StatusMark.qml"),
+        QmlFile::from("qml/Requests.qml"),
+        QmlFile::from("qml/SelectBox.qml"),
+        QmlFile::from("qml/Tag.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();
@@ -54,6 +62,7 @@ fn main() {
             "assets/fonts/Inter.ttf",
             "qml/theme.js",
             "qml/drag.js",
+            "qml/launch.js",
         ]);
     // SAFETY: only adds include paths and a define to the C++ build.
     let builder = unsafe {

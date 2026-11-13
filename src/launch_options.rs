@@ -331,6 +331,12 @@ fn closed(places: &Places, launcher: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Whether the game's launcher runs now: it writes its settings when it
+/// quits, which would undo a change (unreadable `/proc` counts as running).
+pub fn launcher_running(places: &Places, launcher: &str) -> bool {
+    closed(places, launcher).is_err()
+}
+
 // -------------------------------------------------------------- Steam ----
 
 const STEAM_APPS: [&str; 5] = ["UserLocalConfigStore", "Software", "Valve", "Steam", "apps"];
@@ -993,6 +999,8 @@ impl Current {
             "proton": {
                 "current": self.tool,
                 "label": if self.tool.is_empty() { String::new() } else { label(&self.tool) },
+                "name": tool_name(self, tools),
+                "inUse": tool_in_use(self, tools),
                 "global": self.global_tool,
                 "canSet": matches!(self.launcher.as_str(), "steam" | "heroic") || (self.launcher == "lutris" && self.runner == "wine"),
             },
@@ -1271,6 +1279,97 @@ pub fn set_tool(places: &Places, tools: &[Tool], id: &str, name: &str, now: u64)
         return Ok(warning);
     }
     Err("This game's launcher has no Proton choice".into())
+}
+
+/// The game's own choice as a name from `tools` (Heroic keeps
+/// "Proton - <folder>"); the launcher's text when nothing matches, "" for
+/// the launcher's default.
+pub fn tool_name(current: &Current, tools: &[Tool]) -> String {
+    if current.tool.is_empty() {
+        return String::new();
+    }
+    let fits = |t: &&Tool| current.launcher.is_empty() || t.launchers.contains(&current.launcher.as_str());
+    tools
+        .iter()
+        .filter(fits)
+        .find(|t| t.name == current.tool || (current.launcher == "heroic" && heroic_name(t) == current.tool))
+        .map(|t| t.name.clone())
+        .unwrap_or_else(|| current.tool.clone())
+}
+
+/// The build a game will use, by its name from `tools` (as
+/// `proton_in_use`: its own choice, Steam's default, else the newest of
+/// Valve's numbered Protons); "" when it cannot be told.
+pub fn tool_in_use(current: &Current, tools: &[Tool]) -> String {
+    let own = tool_name(current, tools);
+    if !own.is_empty() {
+        return own;
+    }
+    if current.launcher != "steam" {
+        return String::new();
+    }
+    if !current.global_tool.is_empty() {
+        return current.global_tool.clone();
+    }
+    tools
+        .iter()
+        .filter(|t| t.source == "steam")
+        .filter_map(|t| match flavour(&t.name) {
+            Flavour::Valve(m) => Some((m, t)),
+            _ => None,
+        })
+        .max_by_key(|(m, _)| *m)
+        .map(|(_, t)| t.name.clone())
+        .unwrap_or_default()
+}
+
+/// Each game's Proton or Wine choice, enough for the Proton overview: Steam's
+/// config.vdf is read once for all Steam games, Lutris's and Heroic's files
+/// one by one; own entries are left out (their command holds the build).
+/// Also Steam's default for all games.
+pub fn tool_choices(places: &Places, ids: &[String]) -> (Vec<(String, Current)>, String) {
+    let config = steam_config(&places.home).and_then(|f| std::fs::read_to_string(f).ok()).unwrap_or_default();
+    let compat = |app: &str| {
+        let path: Vec<&str> = STEAM_COMPAT.iter().copied().chain([app, "name"]).collect();
+        vdf_edit::get_str(&config, &path).unwrap_or_default()
+    };
+    let global = compat("0");
+    let mut out = Vec::new();
+    for id in ids {
+        if let Some(appid) = steam_appid(id) {
+            let tool = compat(appid);
+            let proton = if tool.is_empty() && !steam_prefix(&places.home, appid) { None } else { Some(true) };
+            out.push((id.clone(), Current { launcher: "steam".into(), supported: true, tool, global_tool: global.clone(), proton, ..Default::default() }));
+        } else if id.starts_with("lutris:") || id.starts_with("heroic:") {
+            out.push((id.clone(), read(places, id, None)));
+        }
+    }
+    (out, global)
+}
+
+/// The Proton overview's answer: `{"tools":[..],"steamDefault","games":
+/// [{"id","launcher","choice","inUse","proton","canSet"}]}`, games that
+/// run through Proton or Wine only (`choice` "" = the launcher's default).
+pub fn usage_json(games: &[(String, Current)], tools: &[Tool], steam_default: &str) -> Value {
+    let list: Vec<Value> = games
+        .iter()
+        .filter(|(_, c)| c.proton == Some(true) || (c.launcher != "steam" && !c.tool.is_empty()))
+        .map(|(id, c)| {
+            json!({
+                "id": id,
+                "launcher": c.launcher,
+                "choice": tool_name(c, tools),
+                "inUse": tool_in_use(c, tools),
+                "proton": c.proton,
+                "canSet": matches!(c.launcher.as_str(), "steam" | "heroic") || (c.launcher == "lutris" && c.runner == "wine"),
+            })
+        })
+        .collect();
+    json!({
+        "tools": tools.iter().map(Tool::to_json).collect::<Vec<_>>(),
+        "steamDefault": steam_default,
+        "games": list,
+    })
 }
 
 // -------------------------------------------------------- suggestions ----
@@ -2136,6 +2235,30 @@ mod tests {
         write(&cachy.join("proton"), "");
         write(&cachy.join("compatibilitytool.vdf"), "\"compatibilitytools\" { \"compat_tools\" { \"proton-cachyos\" { \"install_path\" \".\" \"display_name\" \"Proton CachyOS\" } } }");
         steam
+    }
+
+    #[test]
+    fn tells_which_build_each_game_uses() {
+        let root = temp("choices");
+        fake_steam(&root);
+        let p = places(&root);
+        let tools = all_tools(&p);
+        let (games, global) = tool_choices(&p, &["steam:10".into(), "steam:20".into(), "own:1".into()]);
+        assert_eq!(global, "proton_9");
+        // Own entries are left out; a game without a choice or prefix may be native.
+        assert_eq!(games.len(), 2);
+        let v = usage_json(&games, &tools, &global);
+        assert_eq!(v["games"].as_array().unwrap().len(), 1);
+        assert_eq!(v["games"][0]["id"], "steam:10");
+        assert_eq!(v["games"][0]["choice"], "GE-Proton10-25");
+        assert_eq!(v["games"][0]["inUse"], "GE-Proton10-25");
+        assert_eq!(v["steamDefault"], "proton_9");
+        // Without a choice: Steam's default, else the newest of Valve's.
+        let mut c = games[1].1.clone();
+        assert_eq!(tool_in_use(&c, &tools), "proton_9");
+        c.global_tool.clear();
+        assert_eq!(tool_in_use(&c, &tools), "proton_10");
+        assert!(!launcher_running(&p, "steam"));
     }
 
     #[test]

@@ -6,6 +6,7 @@ mod games_object;
 mod jellyfin;
 mod jellyfin_object;
 mod launch_check;
+mod launch_demo;
 mod launch_options;
 mod native;
 mod protondb;
