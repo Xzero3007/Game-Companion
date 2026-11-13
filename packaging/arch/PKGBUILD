@@ -45,4 +45,7 @@ package() {
         "$pkgdir/usr/share/polkit-1/actions/io.github.xzero3007.GameCompanion.update.policy"
     install -Dm644 assets/fonts/OFL-Rajdhani.txt "$pkgdir/usr/share/licenses/$pkgname/OFL-Rajdhani.txt"
     install -Dm644 assets/fonts/OFL-Inter.txt "$pkgdir/usr/share/licenses/$pkgname/OFL-Inter.txt"
+    # "What others use" for launch options (ProtonDB extract, ODbL 1.0).
+    install -Dm644 data/protondb.json.gz "$pkgdir/usr/share/game-companion/protondb.json.gz"
+    install -Dm644 NOTICE-ProtonDB.txt "$pkgdir/usr/share/licenses/$pkgname/NOTICE-ProtonDB.txt"
 }

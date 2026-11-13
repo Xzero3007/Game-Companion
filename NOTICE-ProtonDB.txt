@@ -1,0 +1,8 @@
+Contains information from the ProtonDB data export
+(https://github.com/bdefore/protondb-data), which is made available under the
+Open Database License (ODbL) 1.0; the derived data/protondb.json.gz is likewise
+under the ODbL 1.0.
+
+data/protondb.json.gz is made by tools/protondb-extract.py: per Steam game,
+the counts of working reports, the Proton builds they used and the parts of
+their launch options, also by GPU maker, distribution family and CPU maker.
