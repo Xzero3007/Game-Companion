@@ -3,10 +3,12 @@ name: Build
 # Builds, tests and packages Game Companion on Arch Linux, as the person runs
 # it (Qt 6 with KDE's layer-shell-qt). The package is kept as the run's
 # artifact, and every push to main publishes it as a release with a
-# manifest (latest.json) that the app's update check reads.
+# manifest (latest.json) that the app's update check reads. Every push to
+# beta publishes a pre-release (the beta channel) and points the rolling
+# release `beta-channel` (its latest.json) at it.
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
   pull_request:
   workflow_dispatch:
 
@@ -30,11 +32,12 @@ jobs:
       - name: Package
         env:
           GC_BUILD: ${{ github.run_number }}
+          GC_CHANNEL: ${{ github.ref == 'refs/heads/beta' && 'beta' || 'stable' }}
         run: |
           useradd -m builder
           chown -R builder "$GITHUB_WORKSPACE"
           cd packaging/arch
-          su builder -c "GC_BUILD=$GC_BUILD makepkg --noconfirm --nocheck"
+          su builder -c "GC_BUILD=$GC_BUILD GC_CHANNEL=$GC_CHANNEL makepkg --noconfirm --nocheck"
       - uses: actions/upload-artifact@v4
         with:
           name: game-companion-arch-package
@@ -60,3 +63,32 @@ jobs:
           gh release create "$tag" "$pkg" latest.json \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Game Companion $version (build $BUILD)" --notes-file notes.txt --latest
+      - name: Beta release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/beta'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD: ${{ github.run_number }}
+        run: |
+          pacman -S --noconfirm --needed github-cli jq
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          pkg=$(ls packaging/arch/game-companion-[0-9]*.pkg.tar.zst | head -n1)
+          name=$(basename "$pkg")
+          version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          tag="v$version-beta-$BUILD"
+          jq -nc --arg v "$version-beta" --argjson b "$BUILD" \
+            --arg u "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$name" \
+            --arg s "$(sha256sum "$pkg" | cut -d' ' -f1)" \
+            '{version:$v, build:$b, archUrl:$u, archSha256:$s}' > latest.json
+          cat latest.json
+          git log -1 --format='%s%n%n%b' > notes.txt
+          gh release create "$tag" "$pkg" latest.json \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Game Companion $version beta (build $BUILD)" --notes-file notes.txt \
+            --prerelease --latest=false
+          # The beta channel's fixed address: release beta-channel, latest.json.
+          if ! gh release view beta-channel --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create beta-channel --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Beta channel" --notes "Points at the newest beta build (latest.json). Not a release to install by hand." \
+              --prerelease --latest=false
+          fi
+          gh release upload beta-channel latest.json --clobber --repo "$GITHUB_REPOSITORY"

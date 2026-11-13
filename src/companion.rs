@@ -199,9 +199,14 @@ fn pins_json(pins: &std::collections::BTreeSet<String>) -> String {
     serde_json::to_string(pins).unwrap_or_else(|_| "[]".into())
 }
 
-/// "0.1.0", or "0.1.0 (build 12)" for a release built on GitHub.
+/// "0.1.0", or "0.1.0 (build 12)" for a release built on GitHub, "0.1.0
+/// beta (build 12)" for a beta build.
 pub fn version_text() -> String {
-    let version = env!("CARGO_PKG_VERSION");
+    let version = if crate::updater::running_beta() {
+        format!("{} beta", env!("CARGO_PKG_VERSION"))
+    } else {
+        env!("CARGO_PKG_VERSION").to_string()
+    };
     match option_env!("GC_BUILD") {
         Some(build) if !build.is_empty() => format!("{version} (build {build})"),
         _ => version.to_string(),

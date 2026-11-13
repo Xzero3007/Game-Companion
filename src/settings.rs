@@ -38,6 +38,9 @@ pub struct Settings {
     pub places: BTreeMap<String, Place>,
     /// Whether the welcome panel shows (it closes for good once closed).
     pub welcome: bool,
+    /// Whether updates come from the beta channel (test builds of the
+    /// `beta` branch) instead of the stable releases.
+    pub beta_updates: bool,
     /// What stays on screen while the hub is hidden, by id (panels, the
     /// player row).
     pub pins: BTreeSet<String>,
@@ -258,6 +261,7 @@ impl Default for Settings {
             bar: BarSettings::default(),
             places: BTreeMap::new(),
             welcome: true,
+            beta_updates: false,
             pins: BTreeSet::new(),
             radio: RadioSettings::default(),
             layouts: BTreeMap::new(),

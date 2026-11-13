@@ -12,6 +12,9 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 pub const MANIFEST_URL: &str = "https://github.com/Xzero3007/Game-Companion/releases/latest/download/latest.json";
+/// The beta channel's manifest: the rolling release `beta-channel`, which
+/// the workflow points at the newest build of the `beta` branch.
+pub const BETA_MANIFEST_URL: &str = "https://github.com/Xzero3007/Game-Companion/releases/download/beta-channel/latest.json";
 /// Packages are downloaded from here only.
 pub const DOWNLOAD_PREFIX: &str = "https://github.com/Xzero3007/Game-Companion/releases/download/";
 const UPDATE_HELPER: &str = "/usr/lib/game-companion-update";
@@ -36,6 +39,23 @@ impl Release {
 /// build made by hand.
 pub fn current_build() -> u32 {
     option_env!("GC_BUILD").and_then(|b| b.parse().ok()).unwrap_or(0)
+}
+
+/// Whether this app was built from the `beta` branch (the workflow sets
+/// GC_CHANNEL=beta there).
+pub fn running_beta() -> bool {
+    option_env!("GC_CHANNEL") == Some("beta")
+}
+
+/// Whether to offer the release: a newer build of the channel this app came
+/// from, or, when the user picked the other channel, its build (older or
+/// newer: going back to stable installs stable's latest).
+pub fn should_offer(release: &Release, current_build: u32, running_beta: bool, wanted_beta: bool) -> bool {
+    if running_beta == wanted_beta {
+        is_newer(release, current_build)
+    } else {
+        release.build != current_build
+    }
 }
 
 /// Reads and checks a release manifest.
@@ -72,10 +92,11 @@ fn curl() -> Command {
     c
 }
 
-/// The latest release, from GitHub.
-pub fn fetch_latest() -> Result<Release, String> {
+/// The latest release of a channel, from GitHub.
+pub fn fetch_latest(beta: bool) -> Result<Release, String> {
+    let url = if beta { BETA_MANIFEST_URL } else { MANIFEST_URL };
     let out = curl()
-        .args(["--max-time", "30", "--max-filesize", "65536", "--", MANIFEST_URL])
+        .args(["--max-time", "30", "--max-filesize", "65536", "--", url])
         .stdin(Stdio::null())
         .output()
         .map_err(|e| format!("curl did not start: {e}"))?;
@@ -206,6 +227,25 @@ mod tests {
         assert!(is_newer(&r, 11));
         assert!(!is_newer(&r, 12));
         assert!(is_newer(&r, 0), "a build made by hand takes the release");
+    }
+
+    #[test]
+    fn channels() {
+        let r = parse_manifest(&manifest(
+            "https://github.com/Xzero3007/Game-Companion/releases/download/v0.3.0-12/game-companion-0.3.0-1-x86_64.pkg.tar.zst",
+            SHA,
+        ))
+        .unwrap();
+        // Same channel: only newer builds.
+        assert!(should_offer(&r, 11, false, false));
+        assert!(!should_offer(&r, 12, true, true));
+        assert!(!should_offer(&r, 20, false, false));
+        // Back from beta (build 20) to stable (build 12): offered although older.
+        assert!(should_offer(&r, 20, true, false));
+        // Onto beta from stable.
+        assert!(should_offer(&r, 5, false, true));
+        assert!(!should_offer(&r, 12, false, true));
+        assert!(BETA_MANIFEST_URL.starts_with(DOWNLOAD_PREFIX));
     }
 
     #[test]

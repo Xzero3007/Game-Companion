@@ -8,7 +8,8 @@
 # (pkexec passes none); the package comes on stdin and is installed only when:
 #   - the installed Game Companion is pacman's package game-companion,
 #   - its SHA-256 is the one this script reads itself, as root and over HTTPS,
-#     from the latest release of Xzero3007/Game-Companion on GitHub,
+#     from the latest release of Xzero3007/Game-Companion on GitHub (stable,
+#     or the newest beta build),
 #   - the package file names itself game-companion.
 # So whatever runs as the user can at most have the newest official release
 # installed, which the user could install anyway. Anything else: nothing is
@@ -20,6 +21,9 @@ LC_ALL=C
 export PATH LC_ALL
 
 MANIFEST=https://github.com/Xzero3007/Game-Companion/releases/latest/download/latest.json
+# The beta channel (test builds of the beta branch, for whoever switched
+# beta updates on): its newest build is accepted as well.
+BETA_MANIFEST=https://github.com/Xzero3007/Game-Companion/releases/download/beta-channel/latest.json
 PACKAGE=game-companion
 MAX_BYTES=268435456 # 256 MiB; a package is a few MiB
 
@@ -47,16 +51,27 @@ timeout 120 head -c "$((MAX_BYTES + 1))" >"$pkg" || fail "could not read the pac
 size=$(stat -c %s -- "$pkg")
 [ "$size" -gt 0 ] && [ "$size" -le "$MAX_BYTES" ] || fail "the package is empty or too large"
 
-# The checksum, read by root itself from the releases (HTTPS only, redirects
-# too, a small answer within a minute).
-curl --fail --silent --show-error --location \
-  --proto =https --proto-redir =https --tlsv1.2 \
-  --max-time 60 --max-filesize 65536 --max-redirs 5 \
-  --output "$dir/latest.json" -- "$MANIFEST" || fail "could not read the release manifest"
-sha=$(sed -n 's/.*"archSha256":"\([0-9a-f]\{64\}\)".*/\1/p' "$dir/latest.json" | head -n1)
-[ "${#sha}" -eq 64 ] || fail "the release manifest has no checksum"
-printf '%s  %s\n' "$sha" "$pkg" | sha256sum -c --status \
-  || fail "the package is not the latest Game Companion release"
+# The checksums, read by root itself from the releases (HTTPS only, redirects
+# too, a small answer within a minute): the latest stable release and the
+# newest beta build. The package must be one of them.
+latest_sha() {
+  rm -f -- "$dir/manifest.json"
+  curl --fail --silent --show-error --location \
+    --proto =https --proto-redir =https --tlsv1.2 \
+    --max-time 60 --max-filesize 65536 --max-redirs 5 \
+    --output "$dir/manifest.json" -- "$1" || return 0
+  sed -n 's/.*"archSha256":"\([0-9a-f]\{64\}\)".*/\1/p' "$dir/manifest.json" | head -n1
+}
+ok=
+for url in "$MANIFEST" "$BETA_MANIFEST"; do
+  sha=$(latest_sha "$url")
+  [ "${#sha}" -eq 64 ] || continue
+  if printf '%s  %s\n' "$sha" "$pkg" | sha256sum -c --status; then
+    ok=1
+    break
+  fi
+done
+[ -n "$ok" ] || fail "the package is not the latest Game Companion release (stable or beta)"
 
 name=$(pacman -Qqp -- "$pkg" 2>/dev/null) || fail "not a pacman package"
 [ "$name" = "$PACKAGE" ] || fail "the package is not $PACKAGE"

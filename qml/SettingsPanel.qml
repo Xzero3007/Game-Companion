@@ -77,6 +77,14 @@ Panel {
                     onClicked: Updates.install()
                 }
             }
+            OnOff {
+                width: parent.width
+                text: "Beta updates (test builds)"
+                on: Updates.beta
+                onToggled: Updates.setChannel(!Updates.beta)
+            }
+            Hint { text: (Updates.runningBeta ? "This copy is a beta build. " : "")
+                + "Beta builds bring new things first and may break; switching back off installs the latest stable release." }
             Hint { text: "Looks at Game Companion's own releases on GitHub when it starts and every 20 minutes. Nothing else is sent." }
 
             Item { width: 1; height: 6 }

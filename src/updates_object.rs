@@ -27,6 +27,10 @@ pub mod qobject {
         #[qproperty(QString, latest)]
         /// A line for Settings: what happened, in plain words.
         #[qproperty(QString, message)]
+        /// Whether updates come from the beta channel (Settings → General).
+        #[qproperty(bool, beta)]
+        /// Whether this copy is a beta build.
+        #[qproperty(bool, running_beta)]
         type Updates = super::UpdatesRust;
 
         /// Looks for an update now.
@@ -37,6 +41,10 @@ pub mod qobject {
         /// starts again once it is installed.
         #[qinvokable]
         fn install(self: Pin<&mut Updates>);
+
+        /// Picks the update channel (kept) and looks again.
+        #[qinvokable]
+        fn set_channel(self: Pin<&mut Updates>, beta: bool);
     }
 
     impl cxx_qt::Threading for Updates {}
@@ -47,6 +55,8 @@ pub struct UpdatesRust {
     state: QString,
     latest: QString,
     message: QString,
+    beta: bool,
+    running_beta: bool,
     release: Option<Release>,
 }
 
@@ -56,6 +66,8 @@ impl Default for UpdatesRust {
             state: QString::from("idle"),
             latest: QString::default(),
             message: QString::default(),
+            beta: crate::settings::read(|s| s.beta_updates),
+            running_beta: updater::running_beta(),
             release: None,
         }
     }
@@ -100,19 +112,27 @@ impl qobject::Updates {
             return;
         }
         self.as_mut().say("checking", "Looking for an update…");
+        let beta = *self.beta();
         let thread = self.qt_thread();
         std::thread::spawn(move || {
-            let result = updater::fetch_latest();
+            let result = updater::fetch_latest(beta);
             let _ = thread.queue(move |mut obj: Pin<&mut qobject::Updates>| match result {
+                // The channel changed meanwhile: that check counts.
+                _ if *obj.beta() != beta => {}
                 Ok(release) => {
                     obj.as_mut().set_latest(QString::from(&release.label()));
-                    let newer = updater::is_newer(&release, updater::current_build());
+                    let running_beta = updater::running_beta();
+                    let offer = updater::should_offer(&release, updater::current_build(), running_beta, beta);
                     let label = release.label();
                     obj.as_mut().rust_mut().release = Some(release);
-                    if newer {
-                        obj.say("available", &format!("Update {label} is ready to install."));
-                    } else {
+                    if !offer {
                         obj.say("current", "Game Companion is up to date.");
+                    } else if beta && !running_beta {
+                        obj.say("available", &format!("Beta {label} is ready to install."));
+                    } else if !beta && running_beta {
+                        obj.say("available", &format!("Back to stable: {label} is ready to install."));
+                    } else {
+                        obj.say("available", &format!("Update {label} is ready to install."));
                     }
                 }
                 Err(why) => obj.say("failed", &why),
@@ -133,13 +153,15 @@ impl qobject::Updates {
             return;
         }
         self.as_mut().say("downloading", &format!("Downloading {}…", release.label()));
+        let beta = *self.beta();
         let thread = self.qt_thread();
         std::thread::spawn(move || {
             // The latest release again, right now: the root script installs
             // only that one, so an older one found earlier would be refused
             // (and the password asked).
-            let result = updater::fetch_latest()
-                .map(|latest| if latest.build >= release.build { latest } else { release })
+            // Within the channel only: going back to stable may be an older build.
+            let result = updater::fetch_latest(beta)
+                .map(|latest| if latest.build >= release.build || beta != updater::running_beta() { latest } else { release })
                 .and_then(|release| updater::download(&release))
                 .and_then(|file| updater::start_install(&file));
             let _ = thread.queue(move |obj: Pin<&mut qobject::Updates>| match result {
@@ -151,6 +173,25 @@ impl qobject::Updates {
                 Err(why) => obj.say("failed", &why),
             });
         });
+    }
+}
+
+impl qobject::Updates {
+    fn set_channel(mut self: Pin<&mut Self>, beta: bool) {
+        if *self.beta() == beta {
+            return;
+        }
+        crate::settings::change(|s| s.beta_updates = beta);
+        self.as_mut().set_beta(beta);
+        self.as_mut().rust_mut().release = None;
+        if matches!(self.state().to_string().as_str(), "downloading" | "installing") {
+            return;
+        }
+        self.as_mut().set_state(QString::from("idle"));
+        if std::env::var_os("GC_NO_UPDATES").is_none() {
+            // A check of the other channel still running is ignored when it ends.
+            self.check();
+        }
     }
 }
 

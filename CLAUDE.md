@@ -182,7 +182,13 @@ learnt, so nothing has to be asked or worked out again.
   `pkexec /usr/lib/game-companion-update < pkg` (the polkit policy allows it
   without a password; the script re-reads the checksum as root) or
   `pkexec pacman -U`, then starts the app again. Right before downloading it reads the latest release again (an older one found earlier would be refused by the root script, and the password asked: frequent pushes made that happen). The installer's output goes to `~/.cache/game-companion/update.log`. `GC_NO_UPDATES=1` turns the
-  check off; `GC_DEMO=update` shows an update.
+  check off; `GC_DEMO=update` shows an update. Channels (0.4.4, the person,
+  2026-11-13): `main` stable, `beta` test builds as pre-releases plus the
+  rolling release `beta-channel` (its `latest.json`); Settings → General
+  "Beta updates" (`Updates.beta`, `setChannel`); `GC_CHANNEL=beta` marks a
+  beta build; the root script accepts stable's latest or beta's newest.
+  Work in progress, milestones and the next steps: `docs/HANDOFF.md`
+  (update it after every finished step).
 - Panels (`qml/Panel.qml`) keep place and size in `settings.places`
   (`x`, `y`, `w` = 0 for its own width, `grow` = height added to a
   `stretchy` panel's list or video, which the panel's content adds to its
