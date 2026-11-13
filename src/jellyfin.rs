@@ -436,12 +436,34 @@ fn user_paths(account: &Account, new: &str, old: &str) -> Vec<String> {
 
 pub fn continue_watching(account: &Account) -> Result<Vec<Value>, String> {
     let q = list_query(account, &[("Limit", "40".into()), ("MediaTypes", "Video".into())]);
-    Ok(items(&get_first(account, &user_paths(account, "/UserItems/Resume", "/Users/{user}/Items/Resume"), &q)?))
+    Ok(series_first(items(&get_first(account, &user_paths(account, "/UserItems/Resume", "/Users/{user}/Items/Resume"), &q)?)))
 }
 
 pub fn next_up(account: &Account) -> Result<Vec<Value>, String> {
     let q = list_query(account, &[("Limit", "40".into())]);
-    Ok(items(&get_first(account, &["/Shows/NextUp".to_string()], &q)?))
+    Ok(series_first(items(&get_first(account, &["/Shows/NextUp".to_string()], &q)?)))
+}
+
+/// Continue and Next up as the person wants them: an episode shows its
+/// series' name on top and the episode below, with the series' picture
+/// (its thumb, else its backdrop, else its poster), not a still from the
+/// episode; a film its own thumb or backdrop (as already).
+pub fn series_first(list: Vec<Value>) -> Vec<Value> {
+    list.into_iter()
+        .map(|mut v| {
+            if v["type"] == "Episode" && !v["series"].as_str().unwrap_or("").is_empty() {
+                let episode = v["name"].as_str().unwrap_or("").to_string();
+                let code = v["code"].as_str().unwrap_or("").to_string();
+                v["name"] = v["series"].clone();
+                v["sub"] = json!([code.as_str(), episode.as_str()].iter().filter(|t| !t.is_empty()).cloned().collect::<Vec<_>>().join(" · "));
+                let series_picture = v["seriesPicture"].as_str().unwrap_or("").to_string();
+                if !series_picture.is_empty() {
+                    v["picture"] = json!(series_picture);
+                }
+            }
+            v
+        })
+        .collect()
 }
 
 pub fn libraries(account: &Account) -> Result<Vec<Value>, String> {
@@ -731,6 +753,18 @@ pub fn item(i: &Value) -> Option<Value> {
     } else {
         String::new()
     };
+    // The series' own wide picture (for Continue and Next up).
+    let series_picture = if !episode {
+        String::new()
+    } else if item_ok(&s(i, "ParentThumbItemId")) {
+        picture_url(&s(i, "ParentThumbItemId"), "Thumb", 400)
+    } else if backdrops("ParentBackdropImageTags") {
+        picture_url(&s(i, "ParentBackdropItemId"), "Backdrop", 400)
+    } else if i.get("SeriesPrimaryImageTag").is_some_and(|t| !t.is_null()) {
+        picture_url(&s(i, "SeriesId"), "Primary", 400)
+    } else {
+        String::new()
+    };
     let series = s(i, "SeriesName");
     let sub = if episode {
         [series.as_str(), code.as_str()].iter().filter(|t| !t.is_empty()).cloned().collect::<Vec<_>>().join(" · ")
@@ -767,6 +801,7 @@ pub fn item(i: &Value) -> Option<Value> {
         "unplayed": n(&ud, "UnplayedItemCount").max(0.0),
         "picture": wide,
         "poster": poster,
+        "seriesPicture": series_picture,
     }))
 }
 
@@ -782,6 +817,7 @@ pub fn libraries_of(answer: &Value) -> Vec<Value> {
     let rank = |k: &str| match k {
         "movies" => 0,
         "tvshows" => 1,
+        "boxsets" => 2,
         "homevideos" => 2,
         "musicvideos" => 3,
         "mixed" | "" => 4,
@@ -789,7 +825,8 @@ pub fn libraries_of(answer: &Value) -> Vec<Value> {
     };
     let mut libs: Vec<Value> = items(answer)
         .into_iter()
-        .filter(|v| !["music", "books", "playlists", "livetv", "boxsets", "photos"].contains(&v["collection"].as_str().unwrap_or("")))
+        // Collections (boxsets) stay: each opens to its films and shows.
+        .filter(|v| !["music", "books", "playlists", "livetv", "photos"].contains(&v["collection"].as_str().unwrap_or("")))
         .map(|mut v| {
             v["type"] = json!("lib");
             v["openable"] = json!(true);
@@ -967,6 +1004,21 @@ mod tests {
         assert_eq!(stream_path(id, "", "", "audio", None), format!("/Videos/{id}/stream?static=true&mediaSourceId={id}"));
         let p = stream_path(id, id, "abc", "720", Some(2));
         assert!(p.starts_with(&format!("/Videos/{id}/master.m3u8?")) && p.contains("MaxHeight=720") && p.contains("PlaySessionId=abc") && p.contains("AudioStreamIndex=2"), "{p}");
+    }
+
+    #[test]
+    fn continue_shows_the_series_first() {
+        let ep = "0123456789abcdef0123456789abcdef";
+        let series = "fedcba9876543210fedcba9876543210";
+        let raw = json!([{ "Id": ep, "Type": "Episode", "Name": "Pilot", "SeriesName": "Show", "SeriesId": series, "ParentIndexNumber": 1, "IndexNumber": 2,
+            "ImageTags": { "Primary": "still" }, "ParentThumbItemId": series, "ParentThumbImageTag": "t" }]);
+        let v = &series_first(items(&raw))[0];
+        assert_eq!(v["name"], "Show");
+        assert_eq!(v["sub"], "S1 E2 · Pilot");
+        assert_eq!(v["picture"], format!("image://jellyfin/{series}/Thumb/400"));
+        // Without a series thumb: its backdrop, else its poster.
+        let raw = json!([{ "Id": ep, "Type": "Episode", "Name": "Pilot", "SeriesName": "Show", "SeriesId": series, "SeriesPrimaryImageTag": "p", "ImageTags": { "Primary": "still" } }]);
+        assert_eq!(series_first(items(&raw))[0]["picture"], format!("image://jellyfin/{series}/Primary/400"));
     }
 
     #[test]

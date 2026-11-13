@@ -977,6 +977,8 @@ Panel {
                 delegate: ({ jelly: jellyRow, twitch: twitchRow, categories: categoryRow, recordings: recordingRow, playlists: playlistRow, video: videoRow })[panel.listKind] || videoRow
                 onAtYEndChanged: if (atYEnd) panel.moreAtEnd()
                 footer: moreFooter
+                // Rows made a little ahead: no hitch while the wheel moves on.
+                cacheBuffer: 600
             }
             GridView {
                 id: grid
@@ -993,6 +995,8 @@ Panel {
                 delegate: ({ jelly: jellyTile, twitch: twitchTile, categories: categoryTile, recordings: recordingTile, playlists: playlistTile, video: videoTile })[panel.listKind] || videoTile
                 onAtYEndChanged: if (atYEnd) panel.moreAtEnd()
                 footer: moreFooter
+                // Rows made a little ahead: no hitch while the wheel moves on.
+                cacheBuffer: 600
             }
             ListView {
                 id: channelList
@@ -1097,21 +1101,44 @@ Panel {
     function moreAtEnd() {
         if (onJelly && Jellyfin.hasMore) Jellyfin.more()
         else if (onTwitch && Streams.twitchHasMore) Streams.loadMoreTwitch()
+        else if (!onTwitch && !onJelly && Streams.youtubeHasMore) Streams.loadMoreYoutube()
     }
     // Under a Twitch list with more: a button (it also comes on its own
     // when scrolled to the end).
     Component {
         id: moreFooter
         Item {
-            readonly property bool shown: panel.onTwitch && Streams.twitchHasMore
+            readonly property bool yt: !panel.onTwitch && !panel.onJelly
+            readonly property bool more: panel.onTwitch ? Streams.twitchHasMore : yt && Streams.youtubeHasMore
+            readonly property bool loading: panel.onTwitch ? Streams.twitchLoadingMore : Streams.youtubeLoadingMore
+            readonly property string note: panel.onTwitch ? Streams.twitchMoreNote : yt ? Streams.youtubeMoreNote : ""
+            readonly property bool shown: more || note.length > 0
             width: ListView.view ? ListView.view.width : GridView.view ? GridView.view.width : 0
-            height: shown ? 52 : 0
+            height: shown ? (note.length > 0 ? 76 : 52) : 0
             visible: shown
-            TextButton {
+            Column {
                 anchors.centerIn: parent
-                implicitHeight: 30
-                text: Streams.twitchLoadingMore ? "Loading…" : "Load more"
-                onClicked: if (!Streams.twitchLoadingMore) Streams.loadMoreTwitch()
+                width: parent.width - 40
+                spacing: 6
+                TextButton {
+                    visible: parent.parent.more
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    implicitHeight: 30
+                    text: parent.parent.loading ? "Loading…" : "Load more"
+                    onClicked: if (!parent.parent.loading) panel.moreAtEnd()
+                }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    visible: parent.parent.note.length > 0
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                    text: parent.parent.note
+                    color: Theme.dim()
+                    font.family: Theme.body
+                    font.pixelSize: 11
+                }
             }
         }
     }

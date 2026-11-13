@@ -99,7 +99,8 @@ pub fn video_id_of(text: &str) -> Option<String> {
 
 /// A page cursor Twitch gave (opaque, kept short and plain).
 pub fn valid_cursor(c: &str) -> bool {
-    !c.is_empty() && c.len() <= 500 && c.chars().all(|c| c.is_ascii_graphic())
+    // Written into the query as a string: no quote or backslash.
+    !c.is_empty() && c.len() <= 500 && c.chars().all(|c| c.is_ascii_graphic() && c != '"' && c != '\\')
 }
 
 /// Twitch's query for a list.
@@ -123,17 +124,9 @@ pub fn next_cursor(data: &Value, at: &str) -> Option<String> {
 /// categories, past broadcasts and clips page; the others ignore it).
 pub fn twitch_query_after(kind: &str, arg: &Value, after: Option<&str>) -> Result<Value, String> {
     let after = after.filter(|c| valid_cursor(c));
-    // The first page asks exactly as before; only later pages name a cursor.
-    let (decl, from, tail) = match after {
-        Some(_) => ("$a: Cursor", ", after: $a", ", $a: Cursor"),
-        None => ("", "", ""),
-    };
-    let vars = |mut v: Value| {
-        if let (Some(a), Some(o)) = (after, v.as_object_mut()) {
-            o.insert("a".into(), json!(a));
-        }
-        v
-    };
+    // The first page asks exactly as before; later pages write the cursor
+    // in as a string (Twitch refused it as a typed variable).
+    let from = after.map(|c| format!(", after: \"{c}\"")).unwrap_or_default();
     match kind {
         "search" => {
             let text = arg.as_str().map(str::trim).filter(|t| !t.is_empty() && t.len() <= 100).ok_or("no search words")?;
@@ -169,23 +162,15 @@ pub fn twitch_query_after(kind: &str, arg: &Value, after: Option<&str>) -> Resul
             let page = format!("edges {{ cursor node {{ {fields} }} }} pageInfo {{ hasNextPage }}");
             match arg.as_str().map(str::trim).filter(|g| !g.is_empty()) {
                 Some(game) if game.len() <= 100 => Ok(json!({
-                    "query": format!("query($g: String!{tail}) {{ game(name: $g) {{ streams(first: 30{from}) {{ {page} }} }} }}"),
-                    "variables": vars(json!({ "g": game })),
+                    "query": format!("query($g: String!) {{ game(name: $g) {{ streams(first: 30{from}) {{ {page} }} }} }}"),
+                    "variables": { "g": game },
                 })),
                 Some(_) => Err("not a game".into()),
-                None if after.is_some() => Ok(json!({
-                    "query": format!("query({decl}) {{ streams(first: 30{from}) {{ {page} }} }}"),
-                    "variables": vars(json!({})),
-                })),
-                None => Ok(json!({ "query": format!("query {{ streams(first: 30) {{ {page} }} }}") })),
+                None => Ok(json!({ "query": format!("query {{ streams(first: 30{from}) {{ {page} }} }}") })),
             }
         }
         // The most watched categories (Twitch's directory).
-        "categories" if after.is_some() => Ok(json!({
-            "query": format!("query({decl}) {{ games(first: 40{from}) {{ edges {{ cursor node {{ {CATEGORY} }} }} pageInfo {{ hasNextPage }} }} }}"),
-            "variables": vars(json!({})),
-        })),
-        "categories" => Ok(json!({ "query": format!("query {{ games(first: 40) {{ edges {{ cursor node {{ {CATEGORY} }} }} pageInfo {{ hasNextPage }} }} }}") })),
+        "categories" => Ok(json!({ "query": format!("query {{ games(first: 40{from}) {{ edges {{ cursor node {{ {CATEGORY} }} }} pageInfo {{ hasNextPage }} }} }}") })),
         "searchCategories" => {
             let text = arg.as_str().map(str::trim).filter(|t| !t.is_empty() && t.len() <= 100).ok_or("no search words")?;
             Ok(json!({
@@ -197,16 +182,16 @@ pub fn twitch_query_after(kind: &str, arg: &Value, after: Option<&str>) -> Resul
         "videos" => {
             let login = arg.as_str().map(str::trim).filter(|l| valid_login(l)).ok_or("not a channel name")?;
             Ok(json!({
-                "query": format!("query($l: String!{tail}) {{ user(login: $l) {{ videos(first: 30{from}, sort: TIME) {{ edges {{ cursor node {{ id title lengthSeconds publishedAt viewCount previewThumbnailURL(width: 320, height: 180) game {{ displayName }} }} }} pageInfo {{ hasNextPage }} }} }} }}"),
-                "variables": vars(json!({ "l": login.to_ascii_lowercase() })),
+                "query": format!("query($l: String!) {{ user(login: $l) {{ videos(first: 30{from}, sort: TIME) {{ edges {{ cursor node {{ id title lengthSeconds publishedAt viewCount previewThumbnailURL(width: 320, height: 180) game {{ displayName }} }} }} pageInfo {{ hasNextPage }} }} }} }}"),
+                "variables": { "l": login.to_ascii_lowercase() },
             }))
         }
         // A channel's most watched clips of the last month.
         "clips" => {
             let login = arg.as_str().map(str::trim).filter(|l| valid_login(l)).ok_or("not a channel name")?;
             Ok(json!({
-                "query": format!("query($l: String!{tail}) {{ user(login: $l) {{ clips(first: 30{from}, criteria: {{ period: LAST_MONTH, sort: VIEWS_DESC }}) {{ edges {{ cursor node {{ slug title durationSeconds viewCount createdAt thumbnailURL }} }} pageInfo {{ hasNextPage }} }} }} }}"),
-                "variables": vars(json!({ "l": login.to_ascii_lowercase() })),
+                "query": format!("query($l: String!) {{ user(login: $l) {{ clips(first: 30{from}, criteria: {{ period: LAST_MONTH, sort: VIEWS_DESC }}) {{ edges {{ cursor node {{ slug title durationSeconds viewCount createdAt thumbnailURL }} }} pageInfo {{ hasNextPage }} }} }} }}"),
+                "variables": { "l": login.to_ascii_lowercase() },
             }))
         }
         // The signed-in user's followed channels that are live (only
@@ -560,6 +545,16 @@ pub fn system_languages() -> Vec<String> {
 /// `lang` ("" none) asks YouTube in that language (yt-dlp's `lang`), which
 /// leans the results towards it.
 pub fn youtube_search_with(text: &str, sp: &str, count: usize, lang: &str) -> Result<Vec<Value>, String> {
+    youtube_search_range(text, sp, 1, count, lang)
+}
+
+/// YouTube's search, results `first` to `last` (from 1; a later page).
+pub fn youtube_search_range(text: &str, sp: &str, first: usize, last: usize, lang: &str) -> Result<Vec<Value>, String> {
+    let (first, last) = (first.max(1), last.clamp(1, 600));
+    if first > last {
+        return Ok(Vec::new());
+    }
+    let count = last;
     let text = text.trim().replace(['\n', '\r'], " ");
     if text.is_empty() || text.len() > 100 {
         return Err("no search words".into());
@@ -573,7 +568,7 @@ pub fn youtube_search_with(text: &str, sp: &str, count: usize, lang: &str) -> Re
         format!("https://www.youtube.com/results?search_query={}&sp={sp}", query_encode(&text))
     };
     let mut cmd = Command::new("yt-dlp");
-    cmd.args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-end", &count.to_string(), "--dump-single-json"]);
+    cmd.args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-items", &format!("{first}-{last}"), "--dump-single-json"]);
     if valid_language(lang) && lang != "en" {
         cmd.args(["--extractor-args", &format!("youtube:lang={lang}")]);
     }
@@ -640,6 +635,11 @@ pub fn trend_searches(section: &str, words: &[String], langs: &[String]) -> Vec<
 /// Football this week's videos for each search, merged in turns (the most
 /// relevant of each first), each video once.
 pub fn youtube_trending(section: &str, words: &[String], langs: &[String]) -> Result<Vec<Value>, String> {
+    youtube_trending_page(section, words, langs, 0)
+}
+
+/// A Trending part's page (0 the first; each search's next results).
+pub fn youtube_trending_page(section: &str, words: &[String], langs: &[String], page: usize) -> Result<Vec<Value>, String> {
     let sp = if section == "gaming" { search_param("views", "week", "any") } else { search_param("relevance", "week", "any") };
     let searches: Vec<(String, String)> = trend_searches(section, words, langs).into_iter().take(8).collect();
     if searches.is_empty() {
@@ -650,7 +650,7 @@ pub fn youtube_trending(section: &str, words: &[String], langs: &[String]) -> Re
         .into_iter()
         .map(|(w, lang)| {
             let sp = sp.clone();
-            std::thread::spawn(move || youtube_search_with(&w, &sp, per, &lang))
+            std::thread::spawn(move || youtube_search_range(&w, &sp, page * per + 1, (page + 1) * per, &lang))
         })
         .collect();
     let mut lists = Vec::new();
@@ -930,6 +930,26 @@ pub fn get_direct(url: &str, limit: Duration) -> Result<Vec<u8>, String> {
     curl(&config, limit)
 }
 
+/// A YouTube channel's older videos (after its feed's 15): results `first`
+/// to `last` of its videos tab, through yt-dlp.
+pub fn youtube_channel_range(channel: &str, first: usize, last: usize) -> Result<Vec<Value>, String> {
+    if !valid_channel_id(channel) {
+        return Err("not a YouTube channel".into());
+    }
+    let out = run_with_timeout(
+        Command::new("yt-dlp")
+            .args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-items", &format!("{}-{}", first.max(1), last.clamp(1, 600)), "--dump-single-json", "--"])
+            .arg(format!("https://www.youtube.com/channel/{channel}/videos")),
+        Duration::from_secs(40),
+    )?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        return Err(err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("yt-dlp failed").chars().take(300).collect());
+    }
+    let all: Value = serde_json::from_slice(&out.stdout).map_err(|e| e.to_string())?;
+    Ok(search_entries(&all))
+}
+
 /// A YouTube channel's newest videos (its public feed).
 pub fn youtube_feed(channel: &str) -> Result<Vec<Value>, String> {
     if !valid_channel_id(channel) {
@@ -1073,8 +1093,24 @@ pub fn streamlink_stop(slot: &str) {
     }
 }
 
+/// Whether a text holds letters of an Indian script: Devanagari (Hindi,
+/// Marathi), Bengali, Gurmukhi (Punjabi), Gujarati, Odia, Tamil, Telugu,
+/// Kannada, Malayalam (U+0900 to U+0D7F) or Devanagari Extended.
+pub fn indian_script(text: &str) -> bool {
+    text.chars().any(|c| matches!(c, '\u{0900}'..='\u{0D7F}' | '\u{A8E0}'..='\u{A8FF}'))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn finds_indian_scripts() {
+        assert!(super::indian_script("Minecraft लाइव स्ट्रीम"));
+        assert!(super::indian_script("தமிழ் gaming"));
+        assert!(super::indian_script("বাংলা"));
+        assert!(!super::indian_script("Fußball Bundesliga Highlights"));
+        assert!(!super::indian_script("Türkçe oyun · 日本語 · Русский"));
+    }
+
     #[test]
     fn trend_searches_follow_languages() {
         let w = vec!["gaming".to_string()];
@@ -1159,13 +1195,12 @@ mod tests {
         assert_eq!(q["variables"]["l"], json!(["good", "x"]));
         assert!(twitch_query("live", &json!("AION 2")).unwrap()["query"].as_str().unwrap().contains("game(name"));
         let q = twitch_query_after("live", &Value::Null, Some("abc=")).unwrap();
-        assert_eq!(q["variables"]["a"], "abc=");
-        assert!(q["query"].as_str().unwrap().contains("after: $a"));
-        assert!(!twitch_query("live", &Value::Null).unwrap()["query"].as_str().unwrap().contains("$a"));
-        assert!(!twitch_query_after("categories", &Value::Null, Some("bad cursor")).unwrap()["query"].as_str().unwrap().contains("$a"));
+        assert!(q["query"].as_str().unwrap().contains("streams(first: 30, after: \"abc=\")"));
+        assert!(!twitch_query("live", &Value::Null).unwrap()["query"].as_str().unwrap().contains("after"));
+        assert!(!twitch_query_after("categories", &Value::Null, Some("bad cursor")).unwrap()["query"].as_str().unwrap().contains("after"));
+        assert!(!twitch_query_after("categories", &Value::Null, Some("x\"}")).unwrap()["query"].as_str().unwrap().contains("after"));
         let v = twitch_query_after("videos", &json!("someone"), Some("xyz")).unwrap();
-        assert_eq!(v["variables"]["a"], "xyz");
-        assert!(v["query"].as_str().unwrap().contains("after: $a, sort"));
+        assert!(v["query"].as_str().unwrap().contains("after: \"xyz\", sort"));
         let page = json!({ "streams": { "edges": [{ "cursor": "c1" }, { "cursor": "c2" }], "pageInfo": { "hasNextPage": true } } });
         assert_eq!(next_cursor(&page, "/streams").as_deref(), Some("c2"));
         let end = json!({ "streams": { "edges": [{ "cursor": "c1" }], "pageInfo": { "hasNextPage": false } } });
