@@ -447,15 +447,19 @@ fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: O
                 next.insert("live".into(), json!(c));
             }
         };
-        if filtered {
-            if let Ok(data) = streams::twitch(&streams::twitch_query_page("liveMore", &game, after.as_deref(), first)?, None) {
+        // Sorted by viewers first (Twitch pages only that way); the fields
+        // for the filters while one is on; plain if Twitch refuses either.
+        let kinds: &[&str] = if filtered { &["liveMoreSorted", "liveSorted", "liveMore", "live"] } else { &["liveSorted", "live"] };
+        let (last, tries) = kinds.split_last().unwrap_or((&"live", &[]));
+        for kind in tries {
+            if let Ok(data) = streams::twitch(&streams::twitch_query_page(kind, &game, after.as_deref(), first)?, None) {
                 if data.get("_errors").is_none() {
                     page(&data, &mut next);
                     return Ok(streams::twitch_cards(&data));
                 }
             }
         }
-        let data = streams::twitch(&streams::twitch_query_page("live", &game, after.as_deref(), first)?, None)?;
+        let data = streams::twitch(&streams::twitch_query_page(last, &game, after.as_deref(), first)?, None)?;
         page(&data, &mut next);
         Ok(streams::twitch_cards(&data))
     };

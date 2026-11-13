@@ -376,7 +376,7 @@ Panel {
                 width: parent.width
                 z: 29
                 label: "Scroll speed"
-                options: [50, 100, 150, 200, 300].map((p) => ({ id: String(p), name: p + " %" }))
+                options: [50, 100, 150, 200, 300, 400, 500].map((p) => ({ id: String(p), name: p + " %" }))
                 current: String(Companion.wheelSpeed)
                 onChosen: (id) => Companion.saveWheelSpeed(parseInt(id))
             }

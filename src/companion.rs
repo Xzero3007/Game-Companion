@@ -44,7 +44,7 @@ pub mod qobject {
         #[qproperty(f64, text_level)]
         /// How bright the bar's and the player row's gold is, 0.4 to 1.
         #[qproperty(f64, accent_level)]
-        /// How far a wheel notch scrolls, in percent (50 to 300).
+        /// How far a wheel notch scrolls, in percent (50 to 500).
         #[qproperty(i32, wheel_speed)]
         /// The gold brightness presets P1 to P3, as a JSON list.
         #[qproperty(QString, accent_presets)]

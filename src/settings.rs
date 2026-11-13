@@ -27,7 +27,7 @@ pub struct Settings {
     /// How bright the gold of the bar and the player row is, 0.4 to 1.
     pub accent_level: f64,
     /// How far a mouse-wheel notch scrolls the lists, in percent of a
-    /// list's own step (50 to 300; MN, 2026-11-13).
+    /// list's own step (50 to 500; MN, 2026-11-13).
     pub wheel_speed: u32,
     /// The three opacity values the buttons P1 to P3 jump to.
     pub alpha_presets: Vec<f64>,
@@ -453,7 +453,7 @@ pub fn clamp_alpha(alpha: f64) -> f64 {
 
 /// Keeps the text brightness where text can still be read.
 pub fn clamp_wheel_speed(percent: i32) -> u32 {
-    percent.clamp(50, 300) as u32
+    percent.clamp(50, 500) as u32
 }
 
 pub fn clamp_text_level(level: f64) -> f64 {

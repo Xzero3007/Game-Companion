@@ -168,16 +168,20 @@ pub fn twitch_query_page(kind: &str, arg: &Value, after: Option<&str>, first: Op
                 "variables": { "l": logins },
             }))
         }
-        "live" | "liveMore" => {
-            let fields = if kind == "liveMore" { STREAM_MORE } else { STREAM };
+        "live" | "liveMore" | "liveSorted" | "liveMoreSorted" => {
+            let fields = if kind.starts_with("liveMore") { STREAM_MORE } else { STREAM };
+            // Sorted by viewers as Twitch's own directory asks: unsorted,
+            // Twitch's All live sent the same 30 for every cursor and length
+            // (MN's 0.8.2).
+            let sort = if kind.ends_with("Sorted") { ", options: { sort: VIEWER_COUNT }" } else { "" };
             let page = format!("edges {{ cursor node {{ {fields} }} }} pageInfo {{ hasNextPage }}");
             match arg.as_str().map(str::trim).filter(|g| !g.is_empty()) {
                 Some(game) if game.len() <= 100 => Ok(json!({
-                    "query": format!("query($g: String!) {{ game(name: $g) {{ streams(first: {}{from}) {{ {page} }} }} }}", n(30)),
+                    "query": format!("query($g: String!) {{ game(name: $g) {{ streams(first: {}{from}{sort}) {{ {page} }} }} }}", n(30)),
                     "variables": { "g": game },
                 })),
                 Some(_) => Err("not a game".into()),
-                None => Ok(json!({ "query": format!("query {{ streams(first: {}{from}) {{ {page} }} }}", n(30)) })),
+                None => Ok(json!({ "query": format!("query {{ streams(first: {}{from}{sort}) {{ {page} }} }}", n(30)) })),
             }
         }
         // The most watched categories (Twitch's directory).
@@ -1210,6 +1214,11 @@ mod tests {
         assert!(!twitch_query("live", &Value::Null).unwrap()["query"].as_str().unwrap().contains("after"));
         assert!(!twitch_query_after("categories", &Value::Null, Some("bad cursor")).unwrap()["query"].as_str().unwrap().contains("after"));
         assert!(!twitch_query_after("categories", &Value::Null, Some("x\"}")).unwrap()["query"].as_str().unwrap().contains("after"));
+        let sorted = twitch_query_page("liveSorted", &Value::Null, Some("abc="), None).unwrap();
+        assert!(sorted["query"].as_str().unwrap().contains("streams(first: 30, after: \"abc=\", options: { sort: VIEWER_COUNT })"));
+        let sorted_game = twitch_query_page("liveMoreSorted", &json!("AION 2"), None, Some(60)).unwrap();
+        assert!(sorted_game["query"].as_str().unwrap().contains("streams(first: 60, options: { sort: VIEWER_COUNT })"));
+        assert!(sorted_game["query"].as_str().unwrap().contains("broadcastSettings"), "the filters' fields");
         let long = twitch_query_page("live", &Value::Null, None, Some(60)).unwrap();
         assert!(long["query"].as_str().unwrap().contains("streams(first: 60)"));
         let capped = twitch_query_page("categories", &Value::Null, None, Some(500)).unwrap();
