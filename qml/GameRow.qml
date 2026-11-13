@@ -30,7 +30,11 @@ Item {
     property bool scheduleOpen: false
     signal scheduleClicked
 
-    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || scheduleShown
+    property bool bossShown: false
+    property bool bossOpen: false
+    signal bossClicked
+
+    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || scheduleShown || bossShown
     readonly property bool pinned: Companion.pins.indexOf('"game-row"') >= 0
 
     implicitWidth: row.implicitWidth + 36
@@ -125,6 +129,14 @@ Item {
             active: strip.scheduleOpen
             tip: strip.gameName + ": field bosses and events with their times, alerts before them"
             onClicked: strip.scheduleClicked()
+        }
+        GameButton {
+            visible: strip.bossShown
+            icon: "swords"
+            label: "Boss"
+            active: strip.bossOpen
+            tip: strip.gameName + ": boss calls and your cheat sheets (listens only)"
+            onClicked: strip.bossClicked()
         }
 
         Rectangle { width: 1; height: 18; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }

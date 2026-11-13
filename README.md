@@ -249,7 +249,8 @@ GC_DEMO=backdrop,unlocked,settings GC_SCREENSHOT=shot.png cargo run --no-default
 `GC_DEMO` takes `backdrop`, `unlocked`, `settings`, `shortcuts`, `about`,
 `radio`, `radio-playing`, `hidden`, `streams` (with `yt-playlists`,
 `yt-history`, `yt-trending`, `tw-categories`, `news`, `groups`), `video`,
-`chat`, `ytsettings`, `startmenu` (the start choice open).
+`chat`, `ytsettings`, `startmenu` (the start choice open), `dps`, `boss`
+(with `bossfight`, `ludra`, `sheets`, `fights`, `voice`).
 `GC_NO_TRAY=1` starts without the tray icon.
 
 ## How it is built

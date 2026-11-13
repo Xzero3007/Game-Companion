@@ -12,6 +12,7 @@
 //! dispatcher that feeds the parser; without it the crate is the parser
 //! alone (tests, replays).
 
+pub mod boss;
 pub mod capture;
 pub mod clock;
 pub mod combat;

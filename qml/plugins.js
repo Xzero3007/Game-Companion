@@ -26,7 +26,7 @@ var packages = [
             { id: "aion2.shugo", short: "S", name: "Shugo Cards", about: "Shugo cards and what they bring.", built: false },
             { id: "aion2.timers", short: "T", name: "Event Timers", about: "Field bosses (as the game tells them when you open a map) and the fixed events in your server's time, with alerts before the ones you pick.", built: true },
             { id: "aion2.characters", short: "CH", name: "Characters", about: "Your characters: Odyle energy and when it is full, the content each has left, the day's and week's limits.", built: true },
-            { id: "aion2.boss", short: "B", name: "Boss Notes", about: "Phases and hints with a countdown in fights.", built: false }
+            { id: "aion2.boss", short: "B", name: "Boss", about: "Boss calls spoken and shown big (what the game shows), your cheat sheets per boss and dungeon (Ludra), boss fights recorded.", built: true }
         ]
     },
     {
