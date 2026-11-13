@@ -4,6 +4,15 @@
 #include <QtCore/QMetaObject>
 #include <QtCore/QMargins>
 
+#include <climits>
+
+#include <QtCore/QDir>
+#include <QtCore/QFile>
+#include <QtCore/QJsonArray>
+#include <QtCore/QJsonDocument>
+#include <QtCore/QJsonObject>
+#include <QtCore/QSet>
+#include <QtCore/QStandardPaths>
 #include <QtCore/QTimer>
 #include <QtCore/QUrl>
 #include <QtGui/QFontDatabase>
@@ -40,23 +49,151 @@ NativeWindow::NativeWindow(QObject *parent)
 #ifdef GC_LAYER_SHELL
     m_layerShell = QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
 #endif
-    if (QScreen *s = screen()) {
-        connect(s, &QScreen::geometryChanged, this, &NativeWindow::screenChanged);
+    // The screen the user picked (settings.json "screen"), read only: the
+    // Rust side owns the file and writes it.
+    QFile settings(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/game-companion/settings.json"));
+    if (settings.open(QIODevice::ReadOnly)) {
+        m_preferred = QJsonDocument::fromJson(settings.read(4 << 20)).object().value(QStringLiteral("screen")).toString();
     }
+    connect(qGuiApp, &QGuiApplication::screenAdded, this, &NativeWindow::screensChanged);
+    connect(qGuiApp, &QGuiApplication::screenRemoved, this, &NativeWindow::screensChanged);
+    connect(qGuiApp, &QGuiApplication::primaryScreenChanged, this, &NativeWindow::screensChanged);
+    screensChanged();
+}
+
+// Screens came or went: KDE's primary screen again, and the one to watch.
+void NativeWindow::screensChanged()
+{
+    m_kdePrimary = kdePrimary();
+    QScreen *s = screen();
+    if (s != m_watched) {
+        if (m_watched) {
+            disconnect(m_watched, &QScreen::geometryChanged, this, &NativeWindow::screenChanged);
+        }
+        m_watched = s;
+        if (s) {
+            connect(s, &QScreen::geometryChanged, this, &NativeWindow::screenChanged);
+        }
+    }
+    emit screenChanged();
+}
+
+// Qt's primary screen on KWin is the first output KWin announced, not the
+// one KDE calls primary (checked on KWin 6.8): with two monitors the parts
+// landed on the wrong one. KWin keeps its choice in kwinoutputconfig.json:
+// "outputs" (each with its connectorName) and "setups" (for each set of
+// connected outputs: outputIndex, enabled, priority; 1 = primary).
+QString NativeWindow::kdePrimary() const
+{
+    QFile file(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/kwinoutputconfig.json"));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return QString();
+    }
+    QSet<QString> connected;
+    for (QScreen *s : QGuiApplication::screens()) {
+        connected.insert(s->name());
+    }
+    QJsonArray outputs;
+    QJsonArray setups;
+    for (const QJsonValue &part : QJsonDocument::fromJson(file.read(4 << 20)).array()) {
+        const QJsonObject o = part.toObject();
+        if (o.value(QStringLiteral("name")).toString() == QLatin1String("outputs")) {
+            outputs = o.value(QStringLiteral("data")).toArray();
+        } else if (o.value(QStringLiteral("name")).toString() == QLatin1String("setups")) {
+            setups = o.value(QStringLiteral("data")).toArray();
+        }
+    }
+    // The setup for exactly the connected outputs; its enabled output with
+    // the lowest priority.
+    for (const QJsonValue &setupValue : setups) {
+        const QJsonArray list = setupValue.toObject().value(QStringLiteral("outputs")).toArray();
+        QSet<QString> names;
+        QString best;
+        int bestPriority = INT_MAX;
+        for (const QJsonValue &entryValue : list) {
+            const QJsonObject entry = entryValue.toObject();
+            const int index = entry.value(QStringLiteral("outputIndex")).toInt(-1);
+            if (index < 0 || index >= outputs.size()) {
+                continue;
+            }
+            const QString name = outputs.at(index).toObject().value(QStringLiteral("connectorName")).toString();
+            if (name.isEmpty()) {
+                continue;
+            }
+            const bool enabled = entry.value(QStringLiteral("enabled")).toBool(true);
+            if (enabled) {
+                names.insert(name);
+            }
+            const int priority = entry.value(QStringLiteral("priority")).toInt(INT_MAX);
+            if (enabled && priority < bestPriority) {
+                bestPriority = priority;
+                best = name;
+            }
+        }
+        if (!best.isEmpty() && names == connected) {
+            return best;
+        }
+    }
+    return QString();
 }
 
 QScreen *NativeWindow::screen() const
 {
-    // GC_SCREEN=<name> picks another screen (for checks with two screens).
-    const QString wanted = qEnvironmentVariable("GC_SCREEN");
-    if (!wanted.isEmpty()) {
+    const auto named = [](const QString &name) -> QScreen * {
+        if (name.isEmpty()) {
+            return nullptr;
+        }
         for (QScreen *s : QGuiApplication::screens()) {
-            if (s->name() == wanted) {
+            if (s->name() == name) {
                 return s;
             }
         }
+        return nullptr;
+    };
+    // GC_SCREEN=<name> for checks; then the user's choice; then KDE's
+    // primary screen; then Qt's.
+    if (QScreen *s = named(qEnvironmentVariable("GC_SCREEN"))) {
+        return s;
+    }
+    if (QScreen *s = named(m_preferred)) {
+        return s;
+    }
+    if (QScreen *s = named(m_kdePrimary)) {
+        return s;
     }
     return QGuiApplication::primaryScreen();
+}
+
+QString NativeWindow::screenName() const
+{
+    return screen() ? screen()->name() : QString();
+}
+
+QString NativeWindow::screenList() const
+{
+    QJsonArray list;
+    for (QScreen *s : QGuiApplication::screens()) {
+        const QString model = s->model().isEmpty() ? s->manufacturer() : s->model();
+        QString label = s->name();
+        if (!model.isEmpty()) {
+            label += QStringLiteral(" · ") + model;
+        }
+        label += QStringLiteral(" · %1×%2").arg(s->geometry().width()).arg(s->geometry().height());
+        if (s->name() == m_kdePrimary) {
+            label += QStringLiteral(" (primary)");
+        }
+        list.append(QJsonObject{{QStringLiteral("id"), s->name()}, {QStringLiteral("name"), label}});
+    }
+    return QString::fromUtf8(QJsonDocument(list).toJson(QJsonDocument::Compact));
+}
+
+void NativeWindow::setPreferredScreen(const QString &name)
+{
+    if (name == m_preferred) {
+        return;
+    }
+    m_preferred = name;
+    screensChanged();
 }
 
 int NativeWindow::screenWidth() const

@@ -113,6 +113,24 @@ Panel {
             width: parent.width
             spacing: 10
 
+            Label { text: "Screen" }
+            Dropdown {
+                id: screenChoice
+                width: parent.width
+                z: 30
+                label: "Screen"
+                property string picked: Companion.chosenScreen()
+                options: [{ id: "", name: "KDE's primary screen" }].concat(JSON.parse(nativeWindow.screenList))
+                current: picked
+                onChosen: (id) => {
+                    picked = id
+                    Companion.saveScreen(id)
+                    nativeWindow.setPreferredScreen(id)
+                }
+            }
+            Hint { text: "Where the bar and the panels show. Now on " + nativeWindow.screenName + "." }
+
+            Item { width: 1; height: 6 }
             Label { text: "Panel opacity" }
             Level {
                 from: 0.05

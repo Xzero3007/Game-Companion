@@ -108,6 +108,11 @@ Window {
         target: Companion
         function onLockedChanged() { surface.input() }
     }
+    // Another screen (picked, or KDE's primary changed): placed there anew.
+    Connections {
+        target: nativeWindow
+        function onScreenChanged() { if (surface.attached) { nativeWindow.place(surface, surface.area); surface.input() } }
+    }
     Connections {
         target: surface.lockItem
         ignoreUnknownSignals: true

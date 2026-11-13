@@ -75,6 +75,14 @@ pub mod qobject {
         #[qinvokable]
         fn set_autostart_on(self: Pin<&mut Companion>, on: bool);
 
+        /// Keeps the screen the user picked ("" = KDE's primary screen).
+        #[qinvokable]
+        fn save_screen(self: Pin<&mut Companion>, name: &QString);
+
+        /// The screen the user picked, "" for KDE's primary screen.
+        #[qinvokable]
+        fn chosen_screen(self: &Companion) -> QString;
+
         /// Sets and keeps how solid the panels are.
         #[qinvokable]
         fn save_alpha(self: Pin<&mut Companion>, alpha: f64);
@@ -305,6 +313,15 @@ impl qobject::Companion {
     fn toggle_locked(self: Pin<&mut Self>) {
         let locked = !*self.locked();
         self.set_locked(locked);
+    }
+
+    fn save_screen(self: Pin<&mut Self>, name: &QString) {
+        let name: String = name.to_string().chars().filter(|c| !c.is_control()).take(64).collect();
+        settings::change(|s| s.screen = name);
+    }
+
+    fn chosen_screen(&self) -> QString {
+        QString::from(&settings::read(|s| s.screen.clone()))
     }
 
     fn set_autostart_on(mut self: Pin<&mut Self>, on: bool) {
