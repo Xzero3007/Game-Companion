@@ -313,6 +313,12 @@ void NativeWindow::setInput(QQuickWindow *window, bool all, const QVariantList &
         window->setMask(region);
     }
     window->setProperty("gcMask", region);
+    // Qt 6.9 and later give a Wayland surface its new input region without
+    // committing it: the compositor takes it only with the window's next
+    // frame. A part that does not repaint on lock or unlock (the game row)
+    // kept its old region and took no clicks until it was hidden and shown.
+    // One frame now commits the region (and the keyboard mode set after it).
+    window->update();
     // GC_DEBUG_INPUT=1: every input region given, for click problems on
     // the person's desktop (which part, its place, what takes clicks).
     static const bool debug = qEnvironmentVariableIsSet("GC_DEBUG_INPUT");
