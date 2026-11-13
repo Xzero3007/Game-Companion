@@ -26,8 +26,19 @@ Item {
     property bool charactersShown: false
     property bool charactersOpen: false
     signal charactersClicked
+    property bool scheduleShown: false
+    property bool scheduleOpen: false
+    signal scheduleClicked
 
-    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown
+    property bool bossShown: false
+    property bool bossOpen: false
+    signal bossClicked
+
+    property bool lootShown: false
+    property bool lootOpen: false
+    signal lootClicked
+
+    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || scheduleShown || bossShown || lootShown
     readonly property bool pinned: Companion.pins.indexOf('"game-row"') >= 0
 
     implicitWidth: row.implicitWidth + 36
@@ -114,6 +125,30 @@ Item {
             active: strip.charactersOpen
             tip: strip.gameName + ": your characters, their content and limits (listens only)"
             onClicked: strip.charactersClicked()
+        }
+        GameButton {
+            visible: strip.scheduleShown
+            icon: "schedule"
+            label: "Timers"
+            active: strip.scheduleOpen
+            tip: strip.gameName + ": field bosses and events with their times, alerts before them"
+            onClicked: strip.scheduleClicked()
+        }
+        GameButton {
+            visible: strip.bossShown
+            icon: "swords"
+            label: "Boss"
+            active: strip.bossOpen
+            tip: strip.gameName + ": boss calls and your cheat sheets (listens only)"
+            onClicked: strip.bossClicked()
+        }
+        GameButton {
+            visible: strip.lootShown
+            icon: "loot"
+            label: "Loot"
+            active: strip.lootOpen
+            tip: strip.gameName + ": items, drops, Closet and Shugo Cards (listens only)"
+            onClicked: strip.lootClicked()
         }
 
         Rectangle { width: 1; height: 18; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }

@@ -54,7 +54,13 @@ pub struct Engine {
     world: Arc<Mutex<World>>,
     /// Pet Finder: the pet collection per server.
     pets: Arc<Mutex<Pets>>,
+    /// What bosses do, for the Boss panel, and who to tell at once.
+    boss: Arc<Mutex<crate::boss::Feed>>,
+    boss_notify: Arc<Mutex<Option<Notify>>>,
 }
+
+/// Told (on the parser's thread) when bosses did something.
+pub type Notify = Arc<dyn Fn() + Send + Sync>;
 
 /// How often fights still on the meter are written to the history.
 const SAVE_EVERY: Duration = Duration::from_secs(30);
@@ -74,6 +80,10 @@ impl Engine {
             history: history.to_path_buf(),
             world: Arc::new(Mutex::new(World::default())),
             pets: Arc::new(Mutex::new(Pets::open(crate::pets::catalog(data_dir), Some(crate::pets::default_file())))),
+            boss: Arc::new(Mutex::new(crate::boss::Feed::new(
+                &std::fs::read_to_string(data_dir.join("boss/watch.json")).unwrap_or_default(),
+            ))),
+            boss_notify: Arc::new(Mutex::new(None)),
         };
         window_detector::set_running(true);
         let runner = Runner {
@@ -89,6 +99,8 @@ impl Engine {
             history: engine.history.clone(),
             world: engine.world.clone(),
             pets: engine.pets.clone(),
+            boss: engine.boss.clone(),
+            boss_notify: engine.boss_notify.clone(),
         };
         // The helper dies with the thread that started it (PR_SET_PDEATHSIG):
         // the runner starts it and lives as long as the engine runs.
@@ -143,6 +155,16 @@ impl Engine {
         character_of(calc.data_storage())
     }
 
+    /// The field bosses of the maps the player opened, when one was opened
+    /// since `seq` (`capture::boss_map`): the new count and JSON
+    /// [{"map", "seen" ms, "bosses": [{"id", "up", "time" ms}]}], only the
+    /// player's own side's maps (header 0). The Schedule's bosses.
+    pub fn boss_maps(&self, seq: u64) -> Option<(u64, serde_json::Value)> {
+        let calc = self.calculator.lock();
+        let (next, maps) = calc.as_ref()?.data_storage().boss_maps_since(seq)?;
+        Some((next, boss_maps_json(&maps)))
+    }
+
     /// The fight now, as the meter's page asked for it every 200 ms.
     pub fn snapshot(&self) -> DpsData {
         self.calculator.lock().as_mut().map_or_else(DpsData::new, |c| c.get_dps())
@@ -179,6 +201,35 @@ impl Engine {
         self.pets.lock().take()
     }
 
+    /// Who to tell at once when bosses did something (none: nobody).
+    pub fn on_boss(&self, notify: Option<Notify>) {
+        *self.boss_notify.lock() = notify;
+    }
+
+    /// What bosses did since the last call (casts, skills, buffs on and off).
+    pub fn boss_events(&self) -> Vec<serde_json::Value> {
+        self.boss.lock().take()
+    }
+
+    /// The monsters fought now (bosses first, at most 6) and the dungeon
+    /// you are in (0: none), as Boss Notes heard them (`events:combat`).
+    pub fn combat(&self) -> serde_json::Value {
+        let calc = self.calculator.lock();
+        let Some(calc) = calc.as_ref() else { return serde_json::json!({ "fought": [], "dungeon": 0 }) };
+        let (fought, dungeon) = calc.fought_now(crate::clock::now_ms());
+        self.boss.lock().set_fought(fought.iter().filter(|f| f.0.boss).map(|f| f.0.entity));
+        let fought: Vec<_> = fought
+            .iter()
+            .map(|(f, name, dungeon)| {
+                serde_json::json!({
+                    "entity": f.entity, "npc": f.npc, "name": name, "boss": f.boss,
+                    "hp": f.hp, "maxHp": f.max_hp, "since": f.first_hit, "dungeon": dungeon,
+                })
+            })
+            .collect();
+        serde_json::json!({ "fought": fought, "dungeon": dungeon })
+    }
+
     /// How many times fights were saved (to notice new ones).
     pub fn saved(&self) -> u64 {
         self.saved.load(Ordering::Relaxed)
@@ -199,6 +250,7 @@ impl Engine {
         window_detector::set_running(false);
         crate::capture::frame_tap::set(None);
         crate::platform::on_client_sent(None);
+        *self.boss_notify.lock() = None;
         if let Some(c) = self.calculator.lock().as_mut() {
             save_fights(c.snapshot_boss_fights_force(), &self.history, &self.saved);
         }
@@ -240,6 +292,8 @@ struct Runner {
     history: PathBuf,
     world: Arc<Mutex<World>>,
     pets: Arc<Mutex<Pets>>,
+    boss: Arc<Mutex<crate::boss::Feed>>,
+    boss_notify: Arc<Mutex<Option<Notify>>>,
 }
 
 impl Runner {
@@ -268,6 +322,8 @@ impl Runner {
             let world = self.world.clone();
             let pets = self.pets.clone();
             let storage = storage.clone();
+            let boss = self.boss.clone();
+            let boss_notify = self.boss_notify.clone();
             crate::capture::frame_tap::set(Some(Arc::new(move |packet: &[u8]| {
                 let len = crate::capture::stream_processor::read_varint(packet, 0).length;
                 if len <= 0 {
@@ -282,6 +338,14 @@ impl Runner {
                     let server = u32::from(storage.local_profile().server_id);
                     pets.lock().feed([opcode[0], opcode[1]], &packet[at + 2..], server, crate::clock::now_ms());
                 }
+                if boss.lock().feed([opcode[0], opcode[1]], &packet[at + 2..], crate::clock::now_ms()) {
+                    let notify = boss_notify.lock().clone();
+                    if let Some(notify) = notify {
+                        notify();
+                    }
+                }
+                // The areas' decoders (Closet, Shugo Cards, gathering).
+                crate::decoders::feed([opcode[0], opcode[1]], &packet[at + 2..], crate::clock::now_ms());
             })));
             let world = self.world.clone();
             crate::platform::on_client_sent(Some(Arc::new(move |len| world.lock().client_sent(len, std::time::Instant::now()))));
@@ -425,6 +489,23 @@ enum Ended {
     Stopped,
     /// It could not start, or ended with a reason (shown).
     Failed,
+}
+
+/// `Engine::boss_maps`' JSON.
+pub fn boss_maps_json(maps: &[crate::capture::boss_map::BossMap]) -> serde_json::Value {
+    let maps: Vec<_> = maps
+        .iter()
+        .filter(|m| m.header == 0)
+        .map(|m| {
+            let bosses: Vec<_> = m
+                .bosses
+                .iter()
+                .map(|b| serde_json::json!({ "id": b.id, "up": b.up, "time": b.time_ms }))
+                .collect();
+            serde_json::json!({ "map": m.map_id, "seen": m.seen_ms, "bosses": bosses })
+        })
+        .collect();
+    serde_json::Value::Array(maps)
 }
 
 /// `Engine::character` from what the parser keeps (the meter's

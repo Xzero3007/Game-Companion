@@ -1,0 +1,18 @@
+The Boss panel's data comes from A2 Tools' plugins (taengu/A2Tools-Plugins,
+https://github.com/taengu/A2Tools-Plugins, GPL-3.0):
+
+- Enhanced Boss Telegraph (Boss Callouts), plugins/boss-telegraph/bosses.js:
+  the bosses, their dungeons and names in ten languages, the lines the game
+  shows for their casts, skills and buffs, and the mechanics its author
+  checked by hand; built by its author from the game's NpcBehaviorCase,
+  NpcTalk, NpcData, Skill, SkillAbnormal, Dungeon and L10N tables. Taken
+  unchanged into qml/aion2/bossdata.js and watch.json by
+  tools/aion2-boss-import.py.
+- Its built-in voice, plugins/boss-telegraph/voice.js: every line in
+  English, made with Kokoro (https://huggingface.co/hexgrad/Kokoro-82M,
+  voice af_heart; the model and its voices are Apache 2.0), as Ogg Opus
+  clips in voice/.
+
+The rules for calls and sheets follow Boss Callouts' logic.js (GPL-3.0) and
+the Clicktrough Boss Notes plugin (Xzero3007/A2Tools-Clicktrough-Plugins,
+GPL-3.0).

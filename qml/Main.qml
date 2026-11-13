@@ -22,6 +22,9 @@ Overlay {
     property bool mapOpen: false
     property bool marketOpen: false
     property bool charactersOpen: false
+    property bool scheduleOpen: false
+    property bool bossOpen: false
+    property bool lootOpen: false
     /// The person closed the DPS panel: it stays closed when AION 2 starts.
     property bool dpsClosed: false
     /// The game id AION 2 runs under (its module stops when that one ends).
@@ -30,7 +33,7 @@ Overlay {
         aionId = id
         // The package and its meter can be switched off (Settings → Plugins).
         if (!Plugins.loads(plugins, "aion2")) return
-        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters"].some((id) => Plugins.choice(plugins, id).on)) return
+        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters", "aion2.timers", "aion2.boss", "aion2.inventory", "aion2.closet", "aion2.shugo"].some((id) => Plugins.choice(plugins, id).on)) return
         Aion2.start()
         if (!dpsClosed && Plugins.inBar(plugins, "aion2.dps")) dpsOpen = true
     }
@@ -56,6 +59,9 @@ Overlay {
         if (mapOpen) ids.push("map")
         if (marketOpen) ids.push("market")
         if (charactersOpen) ids.push("characters")
+        if (scheduleOpen) ids.push("schedule")
+        if (bossOpen) ids.push("boss")
+        if (lootOpen) ids.push("loot")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
@@ -66,6 +72,9 @@ Overlay {
         mapOpen = ids.indexOf("map") >= 0
         marketOpen = ids.indexOf("market") >= 0
         charactersOpen = ids.indexOf("characters") >= 0
+        scheduleOpen = ids.indexOf("schedule") >= 0
+        bossOpen = ids.indexOf("boss") >= 0
+        lootOpen = ids.indexOf("loot") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
@@ -80,6 +89,10 @@ Overlay {
         if (demo.indexOf("map") >= 0) mapOpen = true
         if (demo.indexOf("market") >= 0) marketOpen = true
         if (demo.indexOf("chars") >= 0) charactersOpen = true
+        if (demo.indexOf("schedule") >= 0) scheduleOpen = true
+        if (demo.indexOf("alert") >= 0) alertBanner.show("Bodyguard Teegant", "Verteron", Date.now() + 5 * 60000 + 30000)
+        if (demo.indexOf("boss") >= 0) bossOpen = true
+        if (demo.indexOf("loot") >= 0) lootOpen = demo.indexOf("shop") < 0 || demo.indexOf("panel") >= 0
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("games") >= 0) games.demo(demo)
@@ -245,6 +258,15 @@ Overlay {
             charactersShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.characters")) || root.charactersOpen || characterStore.demo
             charactersOpen: root.charactersOpen
             onCharactersClicked: root.charactersOpen = !root.charactersOpen
+            scheduleShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.timers")) || root.scheduleOpen || timerStore.demo
+            scheduleOpen: root.scheduleOpen
+            onScheduleClicked: root.scheduleOpen = !root.scheduleOpen
+            bossShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.boss")) || root.bossOpen
+            bossOpen: root.bossOpen
+            onBossClicked: root.bossOpen = !root.bossOpen
+            lootShown: (Aion2.active && root.lootInBar) || root.lootOpen || lootStore.demo
+            lootOpen: root.lootOpen
+            onLootClicked: root.lootOpen = !root.lootOpen
         }
     }
 
@@ -389,6 +411,113 @@ Overlay {
         }
     }
 
+    // The Schedule's memory and alerts (bosses the game told, fixed times).
+    TimerStore {
+        id: timerStore
+        characters: characterStore
+        onAlerted: (name, where, start) => alertBanner.show(name, where, start)
+    }
+
+    Surface {
+        wanted: root.scheduleOpen && root.onScreen("schedule")
+        stack: 3
+        part: SchedulePanel {
+            store: timerStore
+            defaultX: Math.max(24, (root.width - width) / 2 + 60)
+            defaultY: 170
+            onCloseClicked: root.scheduleOpen = false
+            onShowOnMap: (id, name) => { if (!root.mapUsable) return; root.mapOpen = true; Qt.callLater(() => mapPanel.focusBoss(id, name)) }
+        }
+    }
+
+    // An alert over the game: with the hub or without, never in the way
+    // for long (20 s, or a click).
+    Surface {
+        wanted: alertBanner.shown
+        stack: 6
+        part: AlertBanner {
+            id: alertBanner
+            store: timerStore
+            x: (root.width - width) / 2
+            y: Companion.shown ? bar.height * bar.scale + 52 : 8
+        }
+    }
+
+    // The Boss area: its rules run while the app runs (they only work
+    // while AION 2 runs and something is heard).
+    BossBrain { id: bossBrain }
+    readonly property bool bossUsable: Plugins.loads(plugins, "aion2") && Plugins.choice(plugins, "aion2.boss").on
+
+    Surface {
+        wanted: root.bossOpen && root.onScreen("boss")
+        stack: 3
+        part: BossPanel {
+            brain: bossBrain
+            defaultX: Math.max(24, (root.width - width) / 2 + 20)
+            defaultY: 150
+            onCloseClicked: root.bossOpen = false
+        }
+    }
+    // Your sheet over the game in a boss fight, the cheat sheet in its
+    // dungeon: with the hub or without.
+    Surface {
+        wanted: bossOverlay.wanted && root.bossUsable && (Aion2.active || bossBrain.demo.indexOf("bossfight") >= 0 || bossBrain.demo.indexOf("ludra") >= 0)
+        stack: 2
+        part: BossOverlay { id: bossOverlay; brain: bossBrain }
+    }
+    // The big call: only while a call runs.
+    Surface {
+        wanted: bossCall.wanted && root.bossUsable
+        stack: 6
+        part: BossCall { id: bossCall; brain: bossBrain }
+    }
+
+    // LOOT (Inventory, Closet, Shugo Cards): learns while the app runs;
+    // prices are the Market's, asked only while LOOT or the shop window shows.
+    function lootOn(id) { return Plugins.loads(plugins, "aion2") && Plugins.choice(plugins, id).on }
+    readonly property bool lootInBar: ["aion2.inventory", "aion2.closet", "aion2.shugo"].some((id) => Plugins.inBar(plugins, id))
+    PriceBook {
+        id: priceBook
+        demo: lootStore.demo
+        wanted: root.lootOpen || lootStore.windowWanted
+        gameServer: {
+            try { const e = JSON.parse(Aion2.fight).extras; if (e && e.server) return e.server } catch (x) { }
+            return lootStore.character && lootStore.character.serverId ? lootStore.character.serverId : 0
+        }
+    }
+    LootStore { id: lootStore; book: priceBook }
+
+    Surface {
+        wanted: root.lootOpen && root.onScreen("loot")
+        stack: 3
+        part: LootPanel {
+            store: lootStore
+            book: priceBook
+            itemsOn: root.lootOn("aion2.inventory") || lootStore.demo
+            closetOn: root.lootOn("aion2.closet") || lootStore.demo
+            cardsOn: root.lootOn("aion2.shugo") || lootStore.demo
+            defaultX: Math.max(24, (root.width - width) / 2 + 20)
+            defaultY: 170
+            onCloseClicked: root.lootOpen = false
+        }
+    }
+    // The Closet's window at the Black Cloud shop: takes the mouse while it
+    // shows, also locked (its list scrolls).
+    Surface {
+        id: closetSurface
+        wanted: lootStore.windowWanted && (root.lootOn("aion2.closet") || lootStore.demo) && (Aion2.active || lootStore.demo)
+        stack: 4
+        lockItem: closetWindow
+        part: ClosetWindow {
+            id: closetWindow
+            store: lootStore
+            book: priceBook
+            defaultX: Math.max(24, root.width - width - 60)
+            defaultY: 220
+            onCloseClicked: lootStore.dismiss()
+        }
+    }
+
     Surface {
         wanted: root.radioOpen && root.onScreen("radio")
         stack: 3
@@ -422,6 +551,7 @@ Overlay {
             id: settings
             pinnable: false
             mapSource: mapPanel
+            timerStore: timerStore
             defaultX: root.width - width - 24
             defaultY: 120
             onCloseClicked: root.settingsOpen = false

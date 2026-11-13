@@ -15,23 +15,50 @@ on:
 permissions:
   contents: write
 
+# A newer push to the same pull request replaces the run still going.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   arch:
     runs-on: ubuntu-latest
     container: archlinux:latest
+    env:
+      # Cargo's downloads and every build live in the checkout, so one cache
+      # holds them and makepkg's user can use them too.
+      CARGO_HOME: ${{ github.workspace }}/.cargo-home
+      CARGO_INCREMENTAL: "0"
     steps:
       - name: Install build tools and Qt
         run: |
           pacman -Syu --noconfirm --needed base-devel git rust clang \
             qt6-base qt6-declarative qt6-svg qt6-wayland layer-shell-qt xdg-desktop-portal polkit curl mpv libpcap libcap qt6-imageformats
       - uses: actions/checkout@v4
+      - name: Qt version (part of the cache key)
+        run: echo "QT_VERSION=$(pacman -Q qt6-base qt6-declarative | tr ' ' '-' | tr '\n' '_')" >> "$GITHUB_ENV"
+      # Builds kept between runs: only the changed crates compile again. A
+      # pull request reads the cache its base branch (beta) wrote.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cargo-home/registry
+            .cargo-home/git
+            target
+            packaging/arch/target
+          key: cargo-${{ env.QT_VERSION }}-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            cargo-${{ env.QT_VERSION }}-${{ hashFiles('Cargo.lock') }}-
+            cargo-${{ env.QT_VERSION }}-
       - name: Tests
         run: |
           cargo test --locked
           cargo test --locked -p aion2 --features live
       - name: Lint
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+      # The package (a release build) only for pushes, which publish it.
       - name: Package
+        if: github.event_name != 'pull_request'
         env:
           GC_BUILD: ${{ github.run_number }}
           GC_CHANNEL: ${{ github.ref == 'refs/heads/beta' && 'beta' || 'stable' }}
@@ -39,8 +66,9 @@ jobs:
           useradd -m builder
           chown -R builder "$GITHUB_WORKSPACE"
           cd packaging/arch
-          su builder -c "GC_BUILD=$GC_BUILD GC_CHANNEL=$GC_CHANNEL makepkg --noconfirm --nocheck"
+          su builder -c "CARGO_HOME=$CARGO_HOME CARGO_INCREMENTAL=0 GC_BUILD=$GC_BUILD GC_CHANNEL=$GC_CHANNEL makepkg --noconfirm --nocheck"
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
           name: game-companion-arch-package
           path: packaging/arch/*.pkg.tar.zst

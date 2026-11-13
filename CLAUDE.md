@@ -70,7 +70,11 @@ learnt, so nothing has to be asked or worked out again.
   cdn.betterttv.net), asked with the channel's public Twitch id only. The AION 2 Market's prices (Clicktrough's hourly copy on
   raw.githubusercontent.com/Xzero3007/A2Tools-DPS-Meter_Clicktrough/market-data/
   and aion2.exchange's API, read only) and the game's item icons from
-  assets.playnccdn.com, kept on disk (the person, 2026-11-13; src/market.rs). Brave Origin and Legcord are the
+  assets.playnccdn.com, kept on disk (the person, 2026-11-13; src/market.rs); Aion 2 Timers' field boss feed
+  (www.aion2timers.com/api/fieldboss.php?action=feed&server=<region-name>,
+  read only, off until switched on, every 5 min while the Schedule is open
+  or 15 while a boss alert waits; src/aion2timers.rs; the person,
+  2026-11-13). Brave Origin and Legcord are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
 - **Game modules only read** (like the AION 2 meter): never send anything to
@@ -411,6 +415,50 @@ learnt, so nothing has to be asked or worked out again.
   = "farming"), `needed` and `soulsLeft`; `qml/aion2/PetsTab.qml` is the
   list. Data and portraits: `node tools/aion2-pets-import.js`. Other
   threads read `Aion2.pets` (levels) rather than parse pet frames again.
+
+- Schedule (AION 2 Event Timers, 0.8.x, canvas page "Zeitplan (Event
+  Timers)", boards T1–T3): `qml/aion2/TimerStore.qml` (in Main, lives with
+  the app) keeps per server the bosses of every map the game told about
+  (`Aion2.bossMaps` from `Engine::boss_maps`, the parser's `01 91` boss map
+  sent when a map is opened; only home map and Abyss come) and the alert
+  choices, in aion2-timers.json; one single-shot Timer waits for the next
+  alert (`TK.nextAlert`), the banner (`AlertBanner.qml`, own surface, 20 s)
+  and `Aion2.chime` (`src/alert.rs`: a WAV made in code, played by pw-play,
+  paplay, aplay or mpv) / `Aion2.speak` (spd-say). Alerts only while AION 2
+  runs unless "Also while AION 2 is closed". `qml/aion2/timekit.js`: server
+  time per region (second digit of the server id; US/EU daylight rules in
+  code, Qt's JS has no time zones), next showings, boss rows. Fixed times:
+  `qml/aion2/schedule.js` from taengu's Event Timers (GPL-3.0) by
+  `tools/aion2-schedule-import.py <A2Tools-Plugins checkout>`. Aion 2
+  Timers' slugs (`asmo07`) map to world-map ids by matching the game's
+  return times (`TK.learn`), else by number (A2T? tag). Test:
+  `node tools/timekit-test.js`. `GC_DEMO=schedule[,events][,alert]`,
+  `settings,timers`.
+
+- Boss area (AION 2 "Kampf", the person 2026-11-13; canvas page "boss",
+  boards K1 to K5): Boss Notes and Boss Callouts (A2Tools' Enhanced Boss
+  Telegraph, GPL-3.0) in one panel `qml/aion2/BossPanel.qml` (NOW, SHEETS,
+  FIGHTS, VOICE), the big call `BossCall.qml` (own surface, only while a
+  call runs) and the sheet over the game `BossOverlay.qml`; the logic is
+  the plugins' logic.js ported as `.pragma library` files (`callouts.js`,
+  `bossnotes.js`), driven by `BossBrain.qml` (a ticker only while calls or
+  a fight run). Frames: `aion2::boss::Feed` reads cast/use/wave/buff
+  frames of the skills in `data/boss/watch.json` from bound casters and
+  hands them to QML as `Aion2.bossHeard`; `Aion2.combat` lists the fought
+  NPCs and the dungeon. Data: `tools/aion2-boss-import.py <A2Tools-Plugins
+  dir>` writes `qml/aion2/bossdata.js`, `watch.json` and the Kokoro voice
+  clips (`data/boss/voice`, played by mpv; own words by `spd-say`,
+  `src/voice.rs`). Cheat sheets per dungeon (Ludra first) in
+  `bossstarters.js`: starters from public guides, roles fade other roles'
+  rows. Stores "boss", "boss-sheets", "boss-fights". Not done yet: overlay
+  slots and resizing. `GC_DEMO=boss[,bossfight|,ludra][,sheets|,fights|,voice]`.
+
+- LOOT (`qml/aion2/LootPanel.qml`, `LootStore.qml`, `ClosetWindow.qml`,
+  `PriceBook.qml`; logic `lootkit.js` from `tools/aion2-loot-import.py`):
+  the Inventory, Closet and Shugo Cards plugins in one panel; game frames
+  through `crates/aion2/src/decoders.rs` → `Aion2.decoded`; files in
+  `~/.local/share/game-companion/aion2/loot/`. Details: docs/HANDOFF.md.
+  `short` is a reserved word in QML's JS: name helpers otherwise.
 
 ## Checking a change
 

@@ -57,6 +57,14 @@ pub mod qobject {
         /// (`aion2::pets`): JSON {"server", "synced" ms (0: never), "levels",
         /// "souls", "farmed"}, kept on disk between runs.
         #[qproperty(QString, pets)]
+        /// The field bosses of the maps the player opened in the game, as
+        /// it told them: JSON [{"map", "seen" ms, "bosses": [{"id", "up",
+        /// "time" ms}]}] ("[]" until a map is opened). The Schedule keeps them.
+        #[qproperty(QString, boss_maps)]
+        /// The monsters fought now and the dungeon you are in, for the Boss
+        /// panel: JSON {"fought": [{entity, npc, name, boss, hp, maxHp,
+        /// since, dungeon}], "dungeon": id (0 none)}.
+        #[qproperty(QString, combat)]
         type Aion2 = super::Aion2Rust;
 
         /// Starts reading (AION 2 started).
@@ -126,10 +134,84 @@ pub mod qobject {
         #[qinvokable]
         fn keep_store(self: &Aion2, key: &QString, json: &QString);
 
+        /// What bosses did (casts, skills, buffs on and off), at once: JSON
+        /// list of {t: cast|use|wave|added|removed, caster|entity, skill|
+        /// abnormal, instance, length, at}.
+        #[qsignal]
+        fn boss_heard(self: Pin<&mut Aion2>, events: QString);
+
+        /// Says a line with the module's voice: the built-in clip for it,
+        /// else (or with `own`) the computer's voice. `high` cuts off a low
+        /// line still being read. Volume 0 to 100, rate 0.5 to 2.
+        #[qinvokable]
+        fn say(self: &Aion2, text: &QString, high: bool, own: bool, volume: i32, rate: f64);
+
+        /// A short beep (Vakron's jump waves).
+        #[qinvokable]
+        fn beep(self: &Aion2, volume: i32);
+
+        /// Stops what the voice reads.
+        #[qinvokable]
+        fn hush(self: &Aion2);
+
+        /// Whether there is a built-in clip for these words.
+        #[qinvokable]
+        fn has_clip(self: &Aion2, text: &QString) -> bool;
+
+        /// Whether the computer's voice (spd-say) is installed.
+        #[qinvokable]
+        fn system_voice(self: &Aion2) -> bool;
+
+        /// The player's items as the old meter's `items` event had them
+        /// (`aion2::capture::items`): the containers, the changes and the
+        /// pickups since the last one. Each change of them, in order.
+        #[qsignal]
+        fn items_event(self: Pin<&mut Aion2>, json: QString);
+
+        /// The items now, without changes (an area starting).
+        #[qinvokable]
+        fn items_now(self: &Aion2) -> QString;
+
+        /// Frames the areas' decoders read (`aion2::decoders`), in order:
+        /// JSON [{"name", "at", "data"}].
+        #[qsignal]
+        fn decoded(self: Pin<&mut Aion2>, json: QString);
+
+        /// LOOT's own files (loot-<key>.json in the module's data folder),
+        /// "" for none.
+        #[qinvokable]
+        fn load_loot(self: &Aion2, key: &QString) -> QString;
+
+        /// Keeps one of LOOT's files (JSON, at most 4 MB), in the background.
+        #[qinvokable]
+        fn keep_loot(self: &Aion2, key: &QString, json: &QString);
+
         /// The game's servers by number, their English names: JSON
         /// {"1001": "Siel", ...} (the meter's list, in the package).
         #[qinvokable]
         fn server_names(self: &Aion2) -> QString;
+
+        /// Plays the Schedule's alert sound (one of `alert::SOUNDS`), in the
+        /// background, at `volume` (0 to 100).
+        #[qinvokable]
+        fn chime(self: &Aion2, sound: &QString, volume: i32);
+
+        /// Asks Aion 2 Timers for a server's field boss feed ("eu-marchutan");
+        /// the answer comes as `timers_got`.
+        #[qinvokable]
+        fn timers_get(self: Pin<&mut Aion2>, server: &QString);
+
+        /// Aion 2 Timers' answer: ok and the feed (JSON), or not and why.
+        #[qsignal]
+        fn timers_got(self: Pin<&mut Aion2>, ok: bool, body: QString);
+
+        /// Says `text` with the desktop's speech (speech-dispatcher), if any.
+        #[qinvokable]
+        fn speak(self: &Aion2, text: &QString);
+
+        /// Whether the desktop can speak (spd-say is there).
+        #[qinvokable]
+        fn can_speak(self: &Aion2) -> bool;
     }
 
     impl cxx_qt::Threading for Aion2 {}
@@ -147,6 +229,8 @@ pub struct Aion2Rust {
     world: QString,
     character: QString,
     pets: QString,
+    boss_maps: QString,
+    combat: QString,
     opened: QString,
     /// The live fight while a saved one is shown.
     live: String,
@@ -172,6 +256,8 @@ impl Default for Aion2Rust {
             world: QString::from("{}"),
             character: QString::from("null"),
             pets: QString::from("{}"),
+            boss_maps: QString::from("[]"),
+            combat: QString::from(r#"{"fought":[],"dungeon":0}"#),
             opened: QString::default(),
             live: EMPTY.to_string(),
             wanted: Arc::new(AtomicI32::new(0)),
@@ -263,9 +349,53 @@ impl qobject::Aion2 {
         let thread = self.qt_thread();
         let last = Arc::new(Mutex::new((String::new(), Status::Searching, String::new(), 0u64, String::from("null"))));
         let wanted = self.wanted.clone();
+        // What bosses do reaches QML at once (a cast bar lasts a second or two).
+        {
+            let weak = Arc::downgrade(&engine);
+            let thread = self.qt_thread();
+            let stop = stop.clone();
+            engine.on_boss(Some(Arc::new(move || {
+                let weak = weak.clone();
+                let stop = stop.clone();
+                let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| {
+                    let Some(engine) = weak.upgrade() else { return };
+                    let events = engine.boss_events();
+                    if !events.is_empty() && !stop.load(Ordering::Relaxed) {
+                        obj.boss_heard(QString::from(&serde_json::Value::from(events).to_string()));
+                    }
+                });
+            })));
+        }
+        let combat_seen = Arc::new(Mutex::new(String::new()));
+        let mut items_seq = aion2::capture::items::event_since(0).map_or(0, |e| e.0);
+        let mut decoded_seq = aion2::decoders::newest();
         let _ = std::thread::Builder::new().name("aion2".into()).spawn(move || {
+            let mut boss_seq = 0u64;
             while !stop.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_millis(500));
+                // The items and the decoded frames, as they come.
+                let items = aion2::capture::items::event_since(items_seq).map(|(seq, ev)| {
+                    items_seq = seq;
+                    ev.to_string()
+                });
+                let decoded = aion2::decoders::events_since(decoded_seq).map(|(seq, list)| {
+                    decoded_seq = seq;
+                    serde_json::Value::Array(list).to_string()
+                });
+                if items.is_some() || decoded.is_some() {
+                    let stop = stop.clone();
+                    let _ = thread.queue(move |mut obj: Pin<&mut qobject::Aion2>| {
+                        if stop.load(Ordering::Relaxed) {
+                            return;
+                        }
+                        if let Some(items) = &items {
+                            obj.as_mut().items_event(QString::from(items));
+                        }
+                        if let Some(decoded) = &decoded {
+                            obj.as_mut().decoded(QString::from(decoded));
+                        }
+                    });
+                }
                 let snapshot = engine.snapshot();
                 let mut fight = engine::summary(&snapshot);
                 fight["extras"] = engine.extras();
@@ -286,7 +416,28 @@ impl qobject::Aion2 {
                 let pets = engine.pets().map(|p| p.to_string());
                 let character = engine.character().to_string();
                 let character_changed = seen.4 != character;
-                if !fight_changed && !status_changed && !skills_changed && !history_changed && world.is_none() && pets.is_none() && !character_changed {
+                let combat = engine.combat().to_string();
+                let combat_changed = {
+                    let mut was = combat_seen.lock().unwrap_or_else(|p| p.into_inner());
+                    let changed = *was != combat;
+                    if changed {
+                        was.clone_from(&combat);
+                    }
+                    changed
+                };
+                if combat_changed {
+                    let stop = stop.clone();
+                    let _ = thread.queue(move |mut obj: Pin<&mut qobject::Aion2>| {
+                        if !stop.load(Ordering::Relaxed) {
+                            obj.as_mut().set_combat(QString::from(&combat));
+                        }
+                    });
+                }
+                let bosses = engine.boss_maps(boss_seq).map(|(next, maps)| {
+                    boss_seq = next;
+                    maps.to_string()
+                });
+                if !fight_changed && !status_changed && !skills_changed && !history_changed && world.is_none() && !character_changed && pets.is_none() && bosses.is_none() {
                     continue;
                 }
                 *seen = (fight.clone(), status.clone(), skills.clone(), saved, character.clone());
@@ -308,6 +459,9 @@ impl qobject::Aion2 {
                     }
                     if character_changed {
                         obj.as_mut().set_character(QString::from(&character));
+                    }
+                    if let Some(bosses) = &bosses {
+                        obj.as_mut().set_boss_maps(QString::from(bosses));
                     }
                     // A saved fight shown: the live one waits.
                     let showing_saved = !obj.opened().is_empty();
@@ -351,6 +505,7 @@ impl qobject::Aion2 {
         self.as_mut().set_active(false);
         self.as_mut().set_state(QString::from("off"));
         self.as_mut().set_character(QString::from("null"));
+        self.as_mut().set_combat(QString::from(r#"{"fought":[],"dungeon":0}"#));
     }
 
     fn reset(mut self: Pin<&mut Self>) {
@@ -494,8 +649,70 @@ impl qobject::Aion2 {
         });
     }
 
+    fn say(&self, text: &QString, high: bool, own: bool, volume: i32, rate: f64) {
+        crate::voice::say(crate::voice::Line {
+            text: text.to_string(),
+            high,
+            own,
+            volume: volume.clamp(0, 100) as u8,
+            rate: rate.clamp(0.5, 2.0) as f32,
+        });
+    }
+
+    fn beep(&self, volume: i32) {
+        crate::voice::beep(volume.clamp(0, 100) as u8);
+    }
+
+    fn hush(&self) {
+        crate::voice::hush();
+    }
+
+    fn has_clip(&self, text: &QString) -> bool {
+        crate::voice::clip_for(&text.to_string()).is_some()
+    }
+
+    fn system_voice(&self) -> bool {
+        crate::voice::system_voice()
+    }
+
+    fn items_now(&self) -> QString {
+        QString::from(&aion2::capture::items::event_now().to_string())
+    }
+
+    fn load_loot(&self, key: &QString) -> QString {
+        QString::from(&crate::market::load(&format!("loot-{key}")))
+    }
+
+    fn keep_loot(&self, key: &QString, json: &QString) {
+        self.keep_store(&QString::from(&format!("loot-{key}")), json);
+    }
+
     fn server_names(&self) -> QString {
         QString::from(&server_names_of(&aion2::data_dir().join("servers.json")))
+    }
+
+    fn chime(&self, sound: &QString, volume: i32) {
+        crate::alert::chime(&sound.to_string(), volume);
+    }
+
+    fn timers_get(self: Pin<&mut Self>, server: &QString) {
+        let server = server.to_string();
+        let thread = self.qt_thread();
+        let _ = std::thread::Builder::new().name("aion2-timers".into()).spawn(move || {
+            let (ok, body) = match crate::aion2timers::feed(&server) {
+                Ok(text) => (true, text),
+                Err(why) => (false, why),
+            };
+            let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| obj.timers_got(ok, QString::from(&body)));
+        });
+    }
+
+    fn speak(&self, text: &QString) {
+        crate::alert::speak(&text.to_string());
+    }
+
+    fn can_speak(&self) -> bool {
+        crate::alert::can_speak()
     }
 
     fn pick(mut self: Pin<&mut Self>, actor: i32) {

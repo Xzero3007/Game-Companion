@@ -49,7 +49,7 @@ pub fn get(url: &str) -> Result<String, String> {
 }
 
 /// curl's complaint in plain words.
-fn plain(err: &str) -> String {
+pub(crate) fn plain(err: &str) -> String {
     let lower = err.to_lowercase();
     if let Some(at) = lower.find("returned error: ") {
         let code: String = lower[at + 16..].chars().take_while(char::is_ascii_digit).collect();
@@ -121,9 +121,16 @@ fn is_png(bytes: &[u8]) -> bool {
 /// A module's own file beside settings.json (`aion2-<key>.json`): its
 /// choices, the last prices. Keys are short and plain.
 pub fn store_file(key: &str) -> Option<PathBuf> {
-    let ok = (1..=32).contains(&key.len()) && key.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    let ok = (1..=64).contains(&key.len()) && key.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
     if !ok {
         return None;
+    }
+    // LOOT keeps many small files (a day each, per character): in the
+    // module's data folder, not beside settings.json.
+    if let Some(rest) = key.strip_prefix("loot-") {
+        let dir = aion2::history::default_dir().parent()?.join("loot");
+        std::fs::create_dir_all(&dir).ok()?;
+        return Some(dir.join(format!("{rest}.json")));
     }
     crate::settings::Settings::path().map(|p| p.with_file_name(format!("aion2-{key}.json")))
 }
