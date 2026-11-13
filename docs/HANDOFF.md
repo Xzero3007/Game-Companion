@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.7 QA collection (2026-11-13): #17 game row input (entry below).
 - 0.8.6 QA collection (2026-11-13, MN: "dann beheb den engpass"): QA
   merges green PRs together and sets the version once; dev threads no
   longer rebase or bump. In it: #15 Pet Finder filters, #10 Event Timers
