@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.5 Pet Finder after MN's 0.8.3 test (2026-11-13, MN: "b aber doppelt so hohe zeilen"): a FROM row in the PETS tab (Verteron, Altgard, Abyss, Fire Temple, Draupnir, Krao Cave, Chest only; several at once, none = all; `settings.petFrom`), rows and portraits 92 px (`PetsTab.rowH`).
 - 0.8.4 Streams after MN's 0.8.2 test: Categories loaded more (longer
   list), All live still sent the same 30, so live lists now ask Twitch
   sorted by viewers (`options: { sort: VIEWER_COUNT }`, as Twitch's own

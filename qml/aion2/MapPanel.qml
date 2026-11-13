@@ -42,7 +42,8 @@ Panel {
         petFavs: [],
         petShow: "needed",
         petSort: "nearest",
-        petGenus: ""
+        petGenus: "",
+        petFrom: []
     })
     // The overlay map (MapOverlay, Settings → Plugins → Map): a small map
     // that follows you over the game. `w` > 0: a side set by its corner
