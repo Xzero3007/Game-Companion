@@ -557,6 +557,6 @@ mod tests {
         let history: serde_json::Value = serde_json::from_str(super::DEMO_HISTORY).unwrap();
         assert_eq!(history.as_array().map(|a| a.len()), Some(3));
         let skills: serde_json::Value = serde_json::from_str(super::DEMO_SKILLS).unwrap();
-        assert_eq!(skills.as_array().map(|a| a.len()), Some(5));
+        assert_eq!(skills.as_array().map(|a| a.len()), Some(7));
     }
 }
