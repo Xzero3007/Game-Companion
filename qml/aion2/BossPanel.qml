@@ -43,7 +43,7 @@ Panel {
     Component.onCompleted: {
         const d = nativeWindow.demo.split(",")
         for (const t of ["sheets", "fights", "voice"]) if (d.indexOf(t) >= 0) tab = t
-        if (d.indexOf("ludra") >= 0) bossKey = "eternal-ludra"
+        if (d.indexOf("ludra") >= 0 || d.indexOf("preview") >= 0) bossKey = "eternal-ludra"
     }
 
     // ---- small parts ----
@@ -379,6 +379,20 @@ Panel {
                             }
                         }
                         Line { width: parent.width; wrapMode: Text.WordWrap; elide: Text.ElideNone; color: Theme.dim(); font.pixelSize: 11; text: "Entries for other roles fade over the game. The cheat sheet shows by itself in this dungeon." }
+                        Row {
+                            spacing: 8
+                            Chip {
+                                readonly property bool shown: panel.brain && panel.brain.previewDungeon === panel.sheetDungeon
+                                text: shown ? "Close preview" : "Show over game"
+                                on: shown
+                                onClicked: shown ? panel.brain.stopPreview() : panel.brain.startPreview(panel.sheetDungeon, panel.bossKey)
+                            }
+                            Line {
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: Theme.dim(); font.pixelSize: 11
+                                text: "Try it outside the dungeon: ▶ on an entry plays it as in the fight."
+                            }
+                        }
                     }
 
                     // The game's calls.
@@ -468,7 +482,7 @@ Panel {
                                 id: entryCol
                                 visible: !entryRow.open
                                 x: 72; y: 5
-                                width: parent.width - 150
+                                width: parent.width - 180
                                 spacing: 1
                                 Line {
                                     width: parent.width; wrapMode: Text.WordWrap; elide: Text.ElideNone
@@ -484,6 +498,7 @@ Panel {
                                 anchors.right: parent.right
                                 anchors.rightMargin: 4
                                 y: 3
+                                IconButton { icon: "play"; tip: "Play this entry as in the fight"; onClicked: panel.brain.playEntry(panel.bossKey, entryRow.modelData) }
                                 IconButton { icon: "back"; rotation: 90; tip: "Earlier"; onClicked: panel.brain.moveEntry(panel.bossKey, entryRow.modelData.id, -1) }
                                 IconButton { icon: "edit"; tip: "Edit"; onClicked: panel.editing = entryRow.modelData.id }
                             }

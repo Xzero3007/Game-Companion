@@ -120,6 +120,72 @@ pub fn next_cursor(data: &Value, at: &str) -> Option<String> {
     valid_cursor(c).then(|| c.to_string())
 }
 
+/// Twitch's own directory query for All live (its web page's
+/// `BrowsePage_Popular`, as other players ask it). Twitch pages All live
+/// only this way: the written-out `streams(after: …)` query brought the
+/// same 30 for every cursor and length (MN's 0.8.2 and 0.8.6). Its id
+/// changes with Twitch's site, so the known ones are tried in turn.
+pub const BROWSE_POPULAR: [&str; 3] = [
+    "fb60a7f9b2fe8f9c9a080f41585bd4564bea9d3030f4d7cb8ab7f9e99b1cee67",
+    "97fed6737c9ef90e8552fb7d02bf4e5d20da0af3cad2a5492d9c93f94e95c29e",
+    "19cd6b171185fa3937c4fd6f80363a7a38a7dc269c43eb205732159bc932cb01",
+];
+
+/// The `BrowsePage_Popular` request with id `hash`: most watched first,
+/// from `after` on, `first` streams (30 by default).
+pub fn twitch_browse_query(hash: &str, after: Option<&str>, first: Option<usize>) -> Value {
+    let mut variables = json!({
+        "imageWidth": 50,
+        "limit": first.map_or(30, |f| f.clamp(1, TWITCH_LONGEST)),
+        "platformType": "all",
+        "options": {
+            "sort": "VIEWER_COUNT",
+            "freeformTags": null,
+            "tags": [],
+            "recommendationsContext": { "platform": "web" },
+            "requestID": "JIRA-VXP-2397",
+            "includeRestricted": ["SUB_ONLY_LIVE"],
+        },
+        "sortTypeIsRecency": false,
+        "includeIsDJ": true,
+        "includeCostreaming": true,
+    });
+    if let Some(c) = after.filter(|c| valid_cursor(c)) {
+        variables["cursor"] = json!(c);
+    }
+    json!({
+        "operationName": "BrowsePage_Popular",
+        "variables": variables,
+        "extensions": { "persistedQuery": { "version": 1, "sha256Hash": hash } },
+    })
+}
+
+/// Whether an answer to the directory query is a list of streams (not
+/// "PersistedQueryNotFound" or another refusal).
+pub fn browse_answered(data: &Value) -> bool {
+    data.get("_errors").is_none() && data.pointer("/streams/edges").is_some_and(Value::is_array)
+}
+
+/// All live through Twitch's directory query: the id that answered last
+/// first, then the others. None when none answers (the written-out query
+/// is asked then).
+pub fn twitch_browse(after: Option<&str>, first: Option<usize>) -> Option<Value> {
+    static WORKS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let start = WORKS.load(std::sync::atomic::Ordering::Relaxed);
+    for i in 0..BROWSE_POPULAR.len() {
+        let at = (start + i) % BROWSE_POPULAR.len();
+        match twitch(&twitch_browse_query(BROWSE_POPULAR[at], after, first), None) {
+            Ok(data) if browse_answered(&data) => {
+                WORKS.store(at, std::sync::atomic::Ordering::Relaxed);
+                return Some(data);
+            }
+            // A refused id ("PersistedQueryNotFound", a missing variable): the next.
+            _ => {}
+        }
+    }
+    None
+}
+
 /// Twitch's query for a list, from a page cursor on (live lists,
 /// categories, past broadcasts and clips page; the others ignore it).
 pub fn twitch_query_after(kind: &str, arg: &Value, after: Option<&str>) -> Result<Value, String> {
@@ -1417,5 +1483,34 @@ mod tests {
     fn channel_picture_from_youtube() {
         let pic = channel_picture("UCBR8-60-B28hp2BmDPdntcQ").unwrap();
         assert!(pic.starts_with("https://yt3.ggpht.com/"), "{pic}");
+    }
+    #[test]
+    fn twitch_browse_requests() {
+        let q = twitch_browse_query(BROWSE_POPULAR[0], Some("eyJzIjozMH0="), None);
+        assert_eq!(q["operationName"], "BrowsePage_Popular");
+        assert_eq!(q["variables"]["cursor"], "eyJzIjozMH0=");
+        assert_eq!(q["variables"]["limit"], 30);
+        assert_eq!(q["variables"]["options"]["sort"], "VIEWER_COUNT");
+        assert_eq!(q["extensions"]["persistedQuery"]["sha256Hash"], BROWSE_POPULAR[0]);
+        // The first page has no cursor; a longer list asks more, at most 100.
+        let q = twitch_browse_query(BROWSE_POPULAR[1], None, Some(500));
+        assert!(q["variables"].get("cursor").is_none());
+        assert_eq!(q["variables"]["limit"], 100);
+        assert!(twitch_browse_query(BROWSE_POPULAR[0], Some("a\"b"), None)["variables"].get("cursor").is_none());
+        // Its answer: streams with broadcasters, as the written-out query's.
+        let data = json!({ "streams": { "edges": [
+            { "cursor": "c1", "node": { "title": "One", "viewersCount": 900, "type": "live", "previewImageURL": "https://static-cdn.jtvnw.net/p.jpg",
+              "game": { "displayName": "Path of Exile" }, "broadcaster": { "login": "one", "displayName": "One", "profileImageURL": "" } } },
+            { "cursor": "c2", "node": { "title": "Two", "viewersCount": 800, "broadcaster": { "login": "two", "displayName": "Two" } } }
+        ], "pageInfo": { "hasNextPage": true } } });
+        assert!(browse_answered(&data));
+        assert_eq!(next_cursor(&data, "/streams").as_deref(), Some("c2"));
+        let cards = twitch_cards(&data);
+        assert_eq!(cards.len(), 2);
+        assert_eq!(cards[0]["login"], "one");
+        assert_eq!(cards[0]["game"], "Path of Exile");
+        // A refused id: not an answer.
+        assert!(!browse_answered(&json!({ "_errors": ["Twitch: PersistedQueryNotFound"] })));
+        assert!(!browse_answered(&json!({ "streams": null })));
     }
 }

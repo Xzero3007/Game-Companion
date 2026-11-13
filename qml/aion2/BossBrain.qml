@@ -303,6 +303,35 @@ QtObject {
         }
         return demo.indexOf("ludra") >= 0 ? "600082" : ""
     }
+    /// The cheat sheet shown by hand, outside its dungeon (SHEETS → "Show
+    /// over game", MN 2026-11-13: "how can I see the Ludra things?"). Not
+    /// kept: it ends with the app or "Close".
+    property string previewDungeon: ""
+    /// The entry played last in the preview (shown as the phase you are in).
+    property string previewPhase: ""
+    /// The boss tab the preview shows.
+    property string previewKey: ""
+    readonly property string shownDungeon: previewDungeon || dungeon
+    function startPreview(dungeonId, key) { previewPhase = ""; previewKey = key || ""; previewDungeon = dungeonId }
+    function stopPreview() {
+        previewDungeon = ""; previewPhase = ""
+        if (callItems.length && callItems[0].key === "sheet") callItems = []
+        Aion2.hush()
+    }
+    /// A sheet entry as the fight would bring it: the big call and its words.
+    function playEntry(key, e) {
+        previewPhase = e.id
+        if (previewDungeon) previewKey = key
+        const at = now()
+        const item = { key: "sheet", kind: "call", text: e.name, sub: bossName(key) + (e.role ? " · " + e.role : ""), start: at, end: at + 6000, until: at + 6000 }
+        callItems = [item]
+        sheetCall.restart()
+        say(e.name + (e.text ? ". " + e.text : ""), "high", true)
+    }
+    property Timer sheetCall: Timer {
+        interval: 6000
+        onTriggered: if (brain.callItems.length && brain.callItems[0].key === "sheet") brain.callItems = []
+    }
     function myRoles(dungeonId) { return ((prefs.roles || {})[dungeonId] || []) }
     function toggleRole(dungeonId, role) {
         const mine = myRoles(dungeonId).slice()
@@ -328,6 +357,8 @@ QtObject {
         try { fights = JSON.parse(Aion2.loadStore("boss-fights") || "[]") || [] } catch (e) { }
         start()
         if (demo.indexOf("bossfight") >= 0 || demo.indexOf("ludra") >= 0) Qt.callLater(demoFight)
+        // GC_DEMO=boss,sheets,preview: the Ludra sheet shown by hand, "Grid" played.
+        if (demo.indexOf("preview") >= 0) Qt.callLater(() => { brain.startPreview("600082", "eternal-ludra"); brain.playEntry("eternal-ludra", brain.sheet("eternal-ludra").entries[1]) })
     }
 
     // GC_DEMO=boss,bossfight: Thamon at 62 % with a sheet, the purple call

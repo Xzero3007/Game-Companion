@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.8 QA collection (2026-11-13): #19 Twitch All live through the directory query, #20 Boss cheat sheet preview (entries below).
 - 0.8.7 QA collection (2026-11-13): #17 game row input (entry below).
 - 0.8.6 QA collection (2026-11-13, MN: "dann beheb den engpass"): QA
   merges green PRs together and sets the version once; dev threads no
@@ -617,6 +618,14 @@ with MY ROLE, sheets per boss (own entries, the game's calls on/off, own
 words), fight summaries, voice settings. Version set by QA. Open: overlay
 slots 1-3 and resizing; the Ludra starter words are from public guides and
 unchecked (MN corrects them after a run); not tested against a live fight.
+
+## Branch `claude/project-thread-pv2u8z` (from beta): Boss cheat sheet preview
+
+MN (0.8.6 test): "how can I test or see the Ludra things?" SHEETS on a
+Ludra boss → "Show over game" shows the cheat sheet over the game outside
+the dungeon, with its boss tabs and a close button; ▶ on an entry (or a
+click on its row over the game while unlocked) plays it as in the fight:
+the big call for 6 s, the words spoken, the row marked as current.
 
 ## Testing
 

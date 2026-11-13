@@ -315,7 +315,12 @@ learnt, so nothing has to be asked or worked out again.
   time, at most `TWITCH_LONGEST` 100; that helped Categories). All live
   still sent the same 30 for cursor and length (0.8.2), so live lists ask
   `options: { sort: VIEWER_COUNT }` as Twitch's directory does
-  (`liveSorted`, `liveMoreSorted`), plain if Twitch refuses it; why a page failed shows under the
+  (`liveSorted`, `liveMoreSorted`), plain if Twitch refuses it. That still
+  sent the same 30 (0.8.6), so All live now asks Twitch's own directory
+  query first, the persisted `BrowsePage_Popular` (`twitch_browse`, the
+  known ids in `BROWSE_POPULAR` tried in turn, the one that answered kept;
+  cursor and `limit` as variables), the written-out query only if no id
+  answers; why a page failed shows under the
   list, `twitchMoreNote`;
   YouTube pages too: `load_more_youtube`, yt-dlp `--playlist-items`,
   subscriptions 60 a page from the kept 200), channel pictures (0.8.4:
@@ -451,7 +456,11 @@ learnt, so nothing has to be asked or worked out again.
   `src/voice.rs`). Cheat sheets per dungeon (Ludra first) in
   `bossstarters.js`: starters from public guides, roles fade other roles'
   rows. Stores "boss", "boss-sheets", "boss-fights". Not done yet: overlay
-  slots and resizing. `GC_DEMO=boss[,bossfight|,ludra][,sheets|,fights|,voice]`.
+  slots and resizing. Preview outside the dungeon (MN, 0.8.6 test): SHEETS →
+  "Show over game" (`previewDungeon`, `previewKey`, not kept), ▶ on an entry
+  or a click on its row over the game plays it (`playEntry`: big call and
+  voice, `previewPhase` marked current). `GC_DEMO=boss[,bossfight|,ludra][,sheets|,fights|,voice]`,
+  `boss,sheets,preview`.
 
 - LOOT (`qml/aion2/LootPanel.qml`, `LootStore.qml`, `ClosetWindow.qml`,
   `PriceBook.qml`; logic `lootkit.js` from `tools/aion2-loot-import.py`):
