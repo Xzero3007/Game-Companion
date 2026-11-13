@@ -409,13 +409,6 @@ fn steam_picture(roots: &[PathBuf], appid: u32) -> Option<PathBuf> {
     None
 }
 
-/// The public address of a Steam game's tall cover (Steam's store
-/// pictures). Only for a later download of missing covers, once the person
-/// agrees: nothing calls it to fetch anything yet.
-pub fn steam_cover_url(appid: u32) -> String {
-    format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/library_600x900.jpg")
-}
-
 /// The Steam account that signed in last (`loginusers.vdf`, MostRecent),
 /// as its `userdata` folder name (the 32-bit account id).
 fn steam_recent_user(root: &Path) -> Option<String> {
@@ -426,10 +419,12 @@ fn steam_recent_user(root: &Path) -> Option<String> {
     Some(account.to_string())
 }
 
-/// App ids this computer's Steam has seen for the account: apps it ran or
-/// set (localconfig.vdf, sharedconfig.vdf), apps it keeps library data or
-/// covers for. Owned games mostly, but not only (free weekends, demos,
-/// tools): `read_steam_known` keeps only what appinfo calls a game.
+/// App ids this computer's Steam has seen: apps the account ran or set
+/// (localconfig.vdf, sharedconfig.vdf), apps Steam keeps library data or
+/// covers for (appcache/librarycache holds those of every account that
+/// signed in here, and family sharing's). Owned games mostly, but not only
+/// (free weekends, demos, tools): `read_steam_known` keeps only what
+/// appinfo calls a game; hence "Known to Steam on this PC".
 pub(crate) fn steam_seen_apps(root: &Path) -> BTreeSet<u32> {
     let number = |s: &str| s.trim().parse::<u32>().ok().filter(|&n| n > 0);
     let mut apps = BTreeSet::new();
@@ -498,7 +493,6 @@ pub fn read_steam_known(home: &Path, installed: &[Game]) -> Vec<Game> {
             game.steam_appid = Some(appid);
             game.installed = false;
             game.picture = steam_picture(&roots, appid);
-            game.cover_url = Some(steam_cover_url(appid));
             game.note = "Known to Steam on this PC".into();
             games.push(game);
         }
@@ -539,8 +533,7 @@ pub fn read_steam(home: &Path) -> Vec<Game> {
                 let mut game = Game::new(format!("steam:{appid}"), name, "steam", format!("steam://rungameid/{appid}"));
                 game.steam_appid = Some(appid);
                 game.picture = steam_picture(&roots, appid);
-                game.cover_url = Some(steam_cover_url(appid));
-                if !installdir.is_empty() && !installdir.contains(['/', '\\']) {
+                    if !installdir.is_empty() && !installdir.contains(['/', '\\']) {
                     game.dirs.push(format!("/steamapps/common/{installdir}/"));
                 }
                 games.push(game);
@@ -695,7 +688,13 @@ fn lutris_rows(db: &Path) -> (Vec<LutrisRow>, Vec<LutrisServiceGame>) {
     };
     Connection::open_with_flags(uri, read_only | OpenFlags::SQLITE_OPEN_URI)
         .and_then(both)
-        .or_else(|_| Connection::open_with_flags(db, read_only).and_then(both))
+        .or_else(|_| {
+            // Lutris may be writing: wait a moment rather than read nothing.
+            Connection::open_with_flags(db, read_only).and_then(|conn| {
+                conn.busy_timeout(std::time::Duration::from_millis(500))?;
+                both(conn)
+            })
+        })
         .unwrap_or_default()
 }
 
@@ -879,6 +878,11 @@ pub fn read_heroic(home: &Path) -> Vec<Game> {
                 // games: unless it says not).
                 let flag = game.get("is_installed").and_then(Value::as_bool);
                 entry.installed = if runner == "sideload" { flag != Some(false) } else { flag == Some(true) };
+                // An added game Heroic marks as not installed has no store
+                // to install it from.
+                if !entry.installed && runner == "sideload" {
+                    continue;
+                }
                 if !entry.installed {
                     entry.processes.clear();
                     entry.dirs.clear();
@@ -1550,7 +1554,6 @@ mod tests {
         assert_eq!(games[1].launch, "steam://install/40");
         assert!(games[1].picture.as_ref().unwrap().ends_with("librarycache/40/header.jpg"));
         assert!(games[3].picture.as_ref().unwrap().ends_with("60/0a1b2c/library_600x900.jpg"));
-        assert_eq!(games[1].cover_url.as_deref(), Some(steam_cover_url(40).as_str()));
         // Detection looks only at the installed one.
         let watch = watch_list(&compose(&games, &GamesSettings::default()), &GamesSettings::default());
         assert_eq!(watch.iter().filter(|g| g.launcher == "steam").count(), 1);
@@ -1666,14 +1669,14 @@ mod tests {
         lutris.dirs = dir_needle("/home/p/Games/Other/").into_iter().collect();
         let games = [steam, lutris];
         let root = temp("dirs");
-        process(&root, 1, "bash", b"/bin/bash -c ls /steamapps/common/some gamer/ ");
-        process(&root, 2, "steamwebhelper", b"/home/p/.steam/steamwebhelper ");
+        process(&root, 1, "bash", b"/bin/bash\0-c\0ls /steamapps/common/some gamer/\0");
+        process(&root, 2, "steamwebhelper", b"/home/p/.steam/steamwebhelper\0");
         assert_eq!(scan_running(&root, &games), None);
         // Proton's wrapper: the game's folder further along (Windows form).
-        process(&root, 3, "python3", b"python3 /x/proton waitforexitandrun Z:\\home\\p\\.steam\\steamapps\\common\\Some Game\\g.exe ");
+        process(&root, 3, "python3", b"python3\0/x/proton\0waitforexitandrun\0Z:\\home\\p\\.steam\\steamapps\\common\\Some Game\\g.exe\0");
         assert_eq!(scan_running(&root, &games).as_deref(), Some("steam:5"));
         let root = temp("dirs2");
-        process(&root, 4, "Main-Thread", b"/home/p/Games/other/bin/game ");
+        process(&root, 4, "Main-Thread", b"/home/p/Games/other/bin/game\0");
         assert_eq!(scan_running(&root, &games).as_deref(), Some("lutris:2"));
         assert_eq!(dir_needle("/home/p"), None);
         assert_eq!(dir_needle("relative/a/b"), None);

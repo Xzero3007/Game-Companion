@@ -24,6 +24,10 @@ pub struct AppMeta {
 const MAGIC_27: u32 = 0x0756_4427;
 const MAGIC_28: u32 = 0x0756_4428;
 const MAGIC_29: u32 = 0x0756_4429;
+/// Limits against broken files: one entry, the v29 key table, one key.
+const MAX_ENTRY: usize = 16 << 20;
+const MAX_STRINGS: usize = 1 << 20;
+const MAX_STRING: usize = 4096;
 
 /// Binary KeyValues types.
 const KV_MAP: u8 = 0;
@@ -173,7 +177,7 @@ fn read_into(path: &Path, wanted: &BTreeSet<u32>, found: &mut HashMap<u32, AppMe
     };
     let mut strings: Option<Vec<String>> = None;
     if magic == MAGIC_29 {
-        // v29 (Steam, December 2024): keys are numbers into a table at
+        // v29 (Steam, June 2024): keys are numbers into a table at
         // the end of the file.
         let mut b = [0u8; 8];
         r.read_exact(&mut b).ok()?;
@@ -181,10 +185,14 @@ fn read_into(path: &Path, wanted: &BTreeSet<u32>, found: &mut HashMap<u32, AppMe
         let start = r.stream_position().ok()?;
         r.seek(SeekFrom::Start(offset)).ok()?;
         let count = read_u32(&mut r)? as usize;
-        let mut table = Vec::with_capacity(count.min(1 << 20));
+        // A broken file must not make us build a huge table.
+        if count > MAX_STRINGS {
+            return None;
+        }
+        let mut table = Vec::with_capacity(count);
         for _ in 0..count {
             let mut s = Vec::new();
-            r.read_until(0, &mut s).ok()?;
+            (&mut r).take(MAX_STRING as u64).read_until(0, &mut s).ok()?;
             if s.pop() != Some(0) {
                 return None;
             }
@@ -200,6 +208,10 @@ fn read_into(path: &Path, wanted: &BTreeSet<u32>, found: &mut HashMap<u32, AppMe
             return Some(());
         }
         let size = read_u32(&mut r)? as usize;
+        // Real entries are kilobytes; a size beyond that is a broken file.
+        if size > MAX_ENTRY {
+            return None;
+        }
         if !wanted.contains(&appid) {
             r.seek_relative(size as i64).ok()?;
             continue;
