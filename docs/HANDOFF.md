@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.7 QA collection (2026-11-13): #17 game row input (entry below).
 - 0.8.6 QA collection (2026-11-13, MN: "dann beheb den engpass"): QA
   merges green PRs together and sets the version once; dev threads no
   longer rebase or bump. In it: #15 Pet Finder filters, #10 Event Timers
@@ -73,6 +74,7 @@ new session (or the same one after a usage limit) carries on from here.
   list), and that the A2T names match (A2T? = guessed by number).
 
 - Pet Finder filters after MN's 0.8.3 test (2026-11-13, MN: "b aber doppelt so hohe zeilen"): a FROM row in the PETS tab (Verteron, Altgard, Abyss, Fire Temple, Draupnir, Krao Cave, Chest only; several at once, none = all; `settings.petFrom`), rows and portraits 92 px (`PetsTab.rowH`).
+- Game row input after MN's 0.8.5 test (branch `gamerow-input`, 2026-11-13, MN: "ich kann die zweite zeile noch immer nicht direkt anklicken"). The real cause: from Qt 6.9 on, `QWindow::setMask` on Wayland sends `set_input_region` without a `wl_surface.commit` (qtbase `QWaylandWindow::updateInputRegion`), so the compositor takes the region only with the next frame. The bar repaints on lock/unlock (its lock icon), the game row does not, so it kept its locked one-pixel region. `NativeWindow::setInput` now calls `window->update()` after the mask: one frame commits it. Reproduced with PySide6 6.10 under `weston --backend=headless-backend.so` and `WAYLAND_DEBUG=client` (needs `QT_IM_MODULE=none`, Qt crashes without a seat): without the frame no commit follows `set_input_region`, with it one does (software and OpenGL). Qt 6.4 (the sandbox's) still commits in `setMask`, so the app itself cannot show it here.
 - 0.8.5 Fixes after MN's test of 0.8.2 (branch `aion-fixes2`,
   2026-11-13). The game row's buttons took no clicks on KWin when it first
   showed, until the hub was hidden and shown: a layer surface shown for
