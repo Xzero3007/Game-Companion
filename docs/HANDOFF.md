@@ -24,6 +24,19 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.7.0 beta (branch `integration` merged into beta, 2026-11-13): launch
+  options and Proton per game (checker, suggestions by Proton build,
+  CachyOS, ProtonDB extract, UI per boards L1-L3), tray icon and autostart
+  choice, second start shows the hub, YouTube library / Twitch categories,
+  VODs, clips, chat (from the thread "FreeTube und Streamlink-GUI
+  ablösen"), not-installed games for Steam/Heroic/Lutris with INSTALL,
+  "Installed only", covers from more local caches. Each part had a QA
+  review and its findings fixed. Open: cover downloads (the person's
+  decision pending; `Game.cover_url` holds Heroic's own URLs, no Steam CDN
+  address until agreed); CLAUDE.md still describes the old "already
+  running" second start and lacks tray/launch-options entries (an edit
+  was refused by the permission check: ask the person).
+
 - 0.4.2: every part on the primary screen (two monitors).
 - 0.4.3: steady dragging (`Surface.held`), outline text under half
   opacity, no unlocked frame.

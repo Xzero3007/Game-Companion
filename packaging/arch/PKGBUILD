@@ -1,6 +1,6 @@
 # Builds Game Companion from this checkout: `cd packaging/arch && makepkg -si`
 pkgname=game-companion
-pkgver=0.6.0
+pkgver=0.7.0
 pkgrel=1
 pkgdesc="One overlay for every game on Linux (KDE Plasma, Wayland)"
 arch=(x86_64)
