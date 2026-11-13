@@ -18,6 +18,7 @@ mod launch_check;
 mod launch_demo;
 mod launch_options;
 mod market;
+mod meter_import;
 mod native;
 mod protondb;
 mod radio;

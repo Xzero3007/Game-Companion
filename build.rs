@@ -56,6 +56,7 @@ fn main() {
         QmlFile::from("qml/aion2/LootStore.qml"),
         QmlFile::from("qml/aion2/LootPanel.qml"),
         QmlFile::from("qml/aion2/ClosetWindow.qml"),
+        QmlFile::from("qml/aion2/FarmWindow.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();

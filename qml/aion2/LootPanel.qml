@@ -83,6 +83,7 @@ Panel {
         else if (a.step) stepRound(a.step)
         else if (a.kindOf) { const k = Object.assign({}, st.kinds); k[a.kindOf] = a.v; store.set("kinds", k) }
         else if (a.window) store.showWindow(a.window)
+        else if (a.meter) store.readMeter()
         else if (a.more) { shown += 250; refresh() }
     }
     property int shown: 250
@@ -168,7 +169,9 @@ Panel {
         out.controls.push([drop("Character", store.viewKey() || "", charOptions(), "view", 230),
             chip("Inventory", list === "inv", { set: "list", v: "inv" }), chip("Character storage", list === "char", { set: "list", v: "char" }), chip("Server storage", list === "acc", { set: "list", v: "acc" })])
         out.controls.push([chip("Sellable only", st.sellableOnly, { set: "sellableOnly", v: !st.sellableOnly }),
-            chip("Sort: " + ({ value: "Worth", name: "Name", count: "Count", grade: "Grade" })[st.sort || "value"], false, { set: "sort", v: ({ value: "name", name: "count", count: "grade", grade: "value" })[st.sort || "value"] })])
+            chip("Sort: " + ({ value: "Worth", name: "Name", count: "Count", grade: "Grade" })[st.sort || "value"], false, { set: "sort", v: ({ value: "name", name: "count", count: "grade", grade: "value" })[st.sort || "value"] }),
+            chip(store.meterBusy ? "Reading the meter…" : "Take over the meter's data", false, { meter: true })])
+        if (store.meterNote) out.rows.push(text(store.meterNote, Theme.textSoft()))
         out.search = "items"
         const sk = store.stock(store.viewKey())
         let hint = ""
@@ -183,7 +186,8 @@ Panel {
     // ---------- DROPS ----------
     function buildDrops(out) {
         const sub = ["session", "days", "dungeons"].indexOf(st.drops) >= 0 ? st.drops : "session"
-        out.controls.push([chip("Session", sub === "session", { set: "drops", v: "session" }), chip("Farm days", sub === "days", { set: "drops", v: "days" }), chip("Dungeons", sub === "dungeons", { set: "drops", v: "dungeons" })])
+        out.controls.push([chip("Session", sub === "session", { set: "drops", v: "session" }), chip("Farm days", sub === "days", { set: "drops", v: "days" }), chip("Dungeons", sub === "dungeons", { set: "drops", v: "dungeons" }),
+            chip("Farm window", st.farmWindow !== false, { set: "farmWindow", v: st.farmWindow === false })])
         if (sub === "session") buildSession(out)
         else if (sub === "days") buildDays(out)
         else buildDungeons(out)
@@ -364,7 +368,8 @@ Panel {
     function buildCloset(out) {
         const sub = ["merchant", "missing", "combine"].indexOf(st.closetTab) >= 0 ? st.closetTab : "merchant"
         out.controls.push([chip("Merchant", sub === "merchant", { set: "closetTab", v: "merchant" }), chip("Missing", sub === "missing", { set: "closetTab", v: "missing" }), chip("Combine and extract", sub === "combine", { set: "closetTab", v: "combine" })])
-        out.controls.push([chip("Open at the shop", st.shopWindow !== false, { set: "shopWindow", v: st.shopWindow === false }), chip("Show the window", false, { window: "shop" }), chip("Exchange", false, { window: "exchange" })])
+        out.controls.push([chip("Open at the merchant", st.shopWindow !== false, { set: "shopWindow", v: st.shopWindow === false }), chip("Open at the Shop and Market", st.marketWindow === true, { set: "marketWindow", v: st.marketWindow !== true })])
+        out.controls.push([chip("Show the window", false, { window: "shop" }), chip("Exchange", false, { window: "exchange" })])
         const n = store.closet ? store.closet.size : null
         out.rows.push(text(n == null ? "Log in while the companion runs: the game sends your closet at login." : n + " of " + LK.L.GOAL + " skins for Empty Closet" + (n >= LK.L.GOAL ? ": reached" : " · " + (LK.L.GOAL - n) + " to go") + " · closet as of " + when(store.closetAt), Theme.textSoft()))
         if (sub === "merchant") buildMerchant(out)
@@ -379,7 +384,7 @@ Panel {
     }
     function buildMerchant(out) {
         const now = Date.now()
-        const why = store.windowWanted ? "open (at the shop or the closet)" : store.dismissed ? "closed with its × until you leave the shop" : st.shopWindow === false ? "off: switch on Open at the shop" : "opens when you open the Black Cloud shop or the closet"
+        const why = store.windowWanted ? (store.hereBy === "hand" ? "open (by hand)" : store.hereBy === "market" ? "open (at the Shop or Market)" : "open (at the merchant or the closet)") : store.dismissed ? "closed with its × until you leave" : st.shopWindow === false ? "off at the merchant: switch on Open at the merchant" : "opens at the Black Cloud merchant and the closet" + (st.marketWindow === true ? ", and at the Shop and Market" : "")
         out.rows.push(text("Shop window: " + why + (store.lastStock ? " · last shop list " + clock(store.lastStock.at) + (store.lastStock.owner ? " (" + store.lastStock.owner + ")" : "") : "")))
         const w = [0.1, 0.16]
         let any = false
@@ -456,14 +461,16 @@ Panel {
         if (t) out.rows.push(text(t, gold))
         const a = store.advise()
         const has = !!store.closet
-        const w = [0.11, 0.2, 0.09, 0.12, 0.1, 0.17]
+        // Four short columns, the rest as a line under each grade: seven
+        // columns were cut off in a panel of normal width (MN, 2026-11-13).
+        const w = [0.2, 0.32, 0.24]
         out.rows.push(group("Combining"))
-        out.rows.push(head(["Grade", "Lack", "Next grade", "New", "Kina", "Spares", "Verdict"], w))
+        out.rows.push(head(["Grade", "You lack", "Next grade", "Verdict"], w))
         for (const x of a.combined.rows) {
             const vd = combineVerdicts[x.verdict] || ["–", ""]
-            out.rows.push(cells([[x.name, gradeColors[x.grade] || ""], has ? x.lackSame + " / " + x.totalSame : "–",
-                has ? (x.assumed ? (x.next || "next") + " (" + Math.round(x.up * 100) + "%)" : x.lackNext + " / " + x.totalNext + " " + x.next + " (" + Math.round(x.up * 100) + "%)") : "–",
-                has ? pct(x.yieldNew) : "–", has && x.kinah ? "≈ " + shortK(x.kinah) : "–", has ? x.spares + (x.possible ? " (" + x.possible + "×)" : "") : "–", has ? vd : "–"], w))
+            out.rows.push(cells([[x.name, gradeColors[x.grade] || ""], has ? x.lackSame + " of " + x.totalSame : "–",
+                has ? (x.assumed ? (x.next || "next") : x.next + " · lack " + x.lackNext) + " · " + Math.round(x.up * 100) + "% up" : "–", has ? vd : "–"], w))
+            if (has) out.rows.push(text("New skin per combine " + pct(x.yieldNew) + (x.kinah ? " · ≈ " + shortK(x.kinah) + " Kinah per new skin" : "") + " · " + x.spares + " spare " + (x.spares === 1 ? "piece" : "pieces") + (x.possible ? ", enough for " + x.possible + "×" : "")))
         }
         out.rows.push(group("Extract settings"))
         const set = has ? LK.L.extractSettings(a.extracted) : null
@@ -497,6 +504,8 @@ Panel {
             .concat(["all", "shugo", "di"].map((k) => chip((k === "all" ? "All" : k === "di" ? "Invasion" : "Shugo") + " " + store.cardRounds(k).length, (st.cardKind || "all") === k, { set: "cardKind", v: k }))))
         out.controls.push([chip("Last round", sub === "round", { set: "cards", v: "round" }), chip("Gold", sub === "gold", { set: "cards", v: "gold" }), chip("Places", sub === "places", { set: "cards", v: "places" }), chip("Items", sub === "items", { set: "cards", v: "items" })])
         const list = store.cardRounds()
+        // Rounds the game sent that this version can't read (kept as they came).
+        if (store.odd.length) out.rows.push(text(store.odd.length + (store.odd.length === 1 ? " round" : " rounds") + " came that this version can't read yet (kept; the last at " + clock(store.odd[store.odd.length - 1].at) + ").", Theme.textSoft()))
         const prices = book ? book.prices : new Map()
         const hist = book ? book.hist : null
         if (sub === "round") {

@@ -60,6 +60,33 @@ new session (or the same one after a usage limit) carries on from here.
   floater, notifications (no pop-ups), the Map's region names (zone names
   instead). `GC_DEMO=loot[,items|drops|closet|cards][,days|dungeons|missing|combine|gold|places|itemlist|char|acc][,shop]`;
   the rules without Qt: `node tools/lootkit-test.js`.
+  MN's test of 0.8.6 (2026-11-13), PR after #12: the shop window opens at
+  the merchant again (its 6 m were taken as 6 cm: positions are in cm);
+  own switches "Open at the merchant" (default on) and "Open at the
+  Market" (off; the Market sends the same `shop-open` frame, so one with
+  no merchant stock within 4 s counts as the Market, `marketTimer`); the
+  window is one list (420 px + its grow) that scrolls and grows, the
+  Exchange rows have icons, "Pets you still need" (Pet Finder's level-0
+  pets, chests first, `petsNeeded`), and `Surface` re-applies the input
+  region when the lock item changes size. Combine and extract: four
+  columns plus a line under each grade. The old meter's data:
+  `src/meter_import.rs` reads `$XDG_DATA_HOME/com.a2tools.dps-meter/
+  plugin-data/{inventory,closet,shugo-cards}/*.json` (local, read only,
+  in the background, `Aion2.meterRead` → `meterGot`), `takeMeter` adds
+  what LOOT lacks (LOOT's own data wins), once by itself (`meterTaken`)
+  and again by ITEMS → "Take over the meter's data". The farm window
+  `FarmWindow.qml` (panel `farm-window`; MN chose worth per hour and gold
+  items; also in dungeons; keys and tickets while there are any): opens
+  when a gain comes in the open world or a dungeon (`farmCheck` on the
+  day's last stint), goes in a town, 10 min after the last open-world gain
+  or with × until the next place; DROPS → "Farm window" switch.
+  `GC_DEMO=loot,farm[,dungeon]`. MN's second test: the `shop-open` frame
+  comes from the game's cash Shop too (not only the Market), so only the
+  merchant's stock opens the window by default ("Open at the Shop and
+  Market" off); the window goes also on estimated positions (30 m; exact
+  6 m). CARDS: a Dimensional Invasion round did not arrive on MN's 0.8.6;
+  `rest` now takes 16 KB (was 4 KB) and CARDS says how many rounds came
+  unread (`store.odd`): check on the next test.
 - Event Timers / Schedule (branch `claude/project-thread-xz7nqt`, PR against
   beta, version from QA; 2026-11-13; MN chose "Ja, Aion 2 Timers gleich mit"
   on the canvas page "Zeitplan (Event Timers)", boards T1–T3). TIMERS in the

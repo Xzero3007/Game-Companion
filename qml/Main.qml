@@ -518,6 +518,19 @@ Overlay {
         }
     }
 
+    // The farm window: opens by itself while you farm (open world or a
+    // dungeon); click-through while locked.
+    Surface {
+        wanted: lootStore.farmWanted && (root.lootOn("aion2.inventory") || lootStore.demo) && (Aion2.active || lootStore.demo)
+        stack: 4
+        part: FarmWindow {
+            store: lootStore
+            defaultX: Math.max(24, root.width - width - 60)
+            defaultY: 120
+            onCloseClicked: lootStore.dismissFarm()
+        }
+    }
+
     Surface {
         wanted: root.radioOpen && root.onScreen("radio")
         stack: 3

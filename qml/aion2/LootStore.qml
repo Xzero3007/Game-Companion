@@ -2,6 +2,7 @@ import QtQuick
 import GameCompanion
 import "lootkit.js" as LK
 import "marketkit.js" as MK
+import "chartickets.js" as T
 
 // What the LOOT panel shows, learnt while the app runs (shared inside the
 // AION 2 package, like CharacterStore): the Clicktrough Inventory, Closet
@@ -29,7 +30,7 @@ QtObject {
     property var settings: ({
         tab: "items", list: "inv", sort: "value", sellableOnly: false, search: {}, fee: 10, view: null,
         drops: "session", source: "all", breakMin: 180, statSource: "open", statMetric: "kinah", farmWho: null,
-        closetTab: "merchant", shopWindow: true, popupMinutes: 3, windowView: "shop", lucky: false, kind: "all", grade: "all", order: "price",
+        closetTab: "merchant", shopWindow: true, marketWindow: false, farmWindow: true, popupMinutes: 3, windowView: "shop", lucky: false, kind: "all", grade: "all", order: "price",
         cards: "round", cardKind: "all", kinds: {}, cardChar: "all"
     })
     function set(key, value) {
@@ -169,6 +170,7 @@ QtObject {
         noteSummary()
         put("f-" + farmKey + "-" + LK.F.dayName(farmDay.day), farmDay)
         put("f-" + farmKey, farmLists[farmKey] || [])
+        farmCheck()
         changed()
     }
     /// The day an event at `at` counts in, for the one playing (loaded or new).
@@ -243,6 +245,76 @@ QtObject {
         return key ? charSums(key) : []
     }
 
+    // ---------- the farm window (MN, 2026-11-13) ----------
+    // Opens by itself when Kinah or loot comes in in the open world (toward
+    // the daily 1,000,000 Kinah) or in a dungeon (what this run brought);
+    // goes in a town, 10 minutes after the last gain in the open world, or
+    // with its × until the next place. Settings: Drops → "Farm window".
+    property real zoneSince: 0
+    property bool farmShown: false
+    property bool farmDismissed: false
+    readonly property bool farmWanted: farmShown && !farmDismissed && settings.farmWindow !== false
+    property Timer farmIdle: Timer { interval: 600000; onTriggered: store.farmShown = false }
+    function farmCheck() {
+        if (!farmDay || farmKey !== currentKey()) return
+        const k = LK.F.zoneSource(zone)
+        if (k !== "open" && k !== "dungeon") return farmGone()
+        const st = farmDay.stints[farmDay.stints.length - 1]
+        if (!st || st.src !== k || st.to < zoneSince - 1000 || Date.now() - st.to > 600000) return
+        if (!(st.kinah > 0 || st.n > 0)) return
+        farmShown = true
+        if (k === "open") farmIdle.restart()
+        else farmIdle.stop()
+    }
+    function farmGone() { farmShown = false; farmIdle.stop() }
+    function farmPlace(z) {
+        const before = LK.F.zoneSource(zone), now = LK.F.zoneSource(z)
+        // From one field to the next it stays; a dungeon is a run of its own.
+        if (before === "open" && now === "open") return
+        zoneSince = Date.now()
+        farmDismissed = false
+        farmGone()
+    }
+    function dismissFarm() { farmDismissed = true; changed() }
+    /// What the farm window shows.
+    function farmNow() {
+        const d = farmDay && farmKey === currentKey() ? farmDay : null
+        const mode = LK.F.zoneSource(zone) === "dungeon" ? "dungeon" : "open"
+        const none = { kinah: 0, active: 0, gold: 0, worth: 0, n: 0 }
+        const src = d ? d.src || {} : {}
+        const open = Object.assign({}, none, src.open || {})
+        let gold = 0, worth = 0
+        for (const k in src) { gold += src[k].gold || 0; worth += src[k].worth || 0 }
+        const hours = (open.active || 0) / 3600000
+        const run = { kinah: 0, gold: 0, worth: 0, n: 0, from: null }
+        if (d && mode === "dungeon") for (const st of d.stints) {
+            if (st.to < zoneSince - 1000 || st.zone !== Number(zone)) continue
+            run.kinah += st.kinah || 0; run.gold += st.gold || 0; run.worth += st.worth || 0; run.n += st.n || 0
+            if (run.from == null || st.from < run.from) run.from = st.from
+        }
+        return {
+            mode: mode, place: placeLabel(),
+            kinah: d && d.counter ? d.counter.last : open.kinah, cap: LK.C.KINA_DAILY, capAt: d && d.cap ? d.cap.at : null,
+            // Kinah and the loot's worth per hour of open-world farming.
+            perHour: hours >= 0.05 ? (open.kinah + open.worth) / hours : null, hours: hours,
+            gold: gold, worth: worth, run: run, keys: farmKeys()
+        }
+    }
+    /// The keys and tickets the character has now (MN: Shugo, Dimensional
+    /// Invasion and the tickets, while there are any): [{ name, left, max }].
+    function farmKeys() {
+        const counts = character && character.contentCounts || {}
+        const out = []
+        for (const id in counts) {
+            const t = T.TICKETS[id], v = counts[id]
+            if (!t || t[4] || !Array.isArray(v)) continue
+            const left = (Number(v[0]) || 0) + (Number(v[1]) || 0)
+            if (left > 0) out.push({ id: id, name: t[0], left: left, max: t[1] || 0, server: !!t[3] })
+        }
+        for (const k of out) if (out.some((o) => o !== k && o.name === k.name)) k.name += k.server ? " (server)" : " (character)"
+        return out.sort((a, b) => a.name.localeCompare(b.name))
+    }
+
     // ---------- Drops: dungeon runs ----------
     property var runLists: ({})
     property var energyLast: null
@@ -301,7 +373,11 @@ QtObject {
     /// Closed with its × until you come back.
     property bool dismissed: false
     /// The shop window shows now.
-    readonly property bool windowWanted: !dismissed && settings.shopWindow !== false && here
+    /// "market": the game's Shop or Market opened (a shop opening with no
+    /// merchant's stock after it), "hand": the Closet tab's button. Each place has its
+    /// own switch (MN, 2026-11-13: at the merchant yes, at the Market no).
+    readonly property bool windowWanted: !dismissed && here
+        && (hereBy === "hand" || (hereBy === "market" ? settings.marketWindow === true : settings.shopWindow !== false))
     readonly property int goal: LK.L.GOAL
     function saveCloset() {
         put("closet", { ids: closet ? Array.from(closet) : [], at: closetAt, chars: closetChars, seen: seen.slice(-1500), learned: learned })
@@ -329,9 +405,13 @@ QtObject {
     function showWindow(view) {
         if (view) set("windowView", view)
         dismissed = false
-        arrived(hereBy || "shop")
+        arrived("hand")
     }
     property Timer hereTimer: Timer { interval: 180000; onTriggered: store.left() }
+    /// The Market and the merchant send the same opening frame; the merchant
+    /// sends its stock right after, the Market nothing: a shop opening with
+    /// no stock within 4 s was the Market.
+    property Timer marketTimer: Timer { interval: 4000; onTriggered: if (!store.here || store.hereBy === "market") store.arrived("market") }
     function closetKey() {
         const c = character
         return c && c.name ? LK.C.charKey(c.serverId, c.name) : "unknown"
@@ -353,7 +433,7 @@ QtObject {
         }
         lastStock = { at: Date.now(), owner: character ? character.name : "" }
         saveCloset()
-        if (Date.now() - stock.at < 60000) arrived("shop")
+        if (Date.now() - stock.at < 60000) { marketTimer.stop(); arrived("shop") }
     }
     function decodedCloset(e) {
         const d = e.data, at = Number(e.at) || Date.now()
@@ -383,7 +463,8 @@ QtObject {
         } else if (e.name === "shop-open") {
             if (Date.now() - at > 60000) return
             lastShopOpen = Date.now()
-            arrived("shop")
+            if (here && hereBy !== "market") return
+            marketTimer.restart()
         }
     }
     function closetWorld(w) {
@@ -391,9 +472,11 @@ QtObject {
         if (here && hereZone == null && w.zone != null) hereZone = w.zone
         if (!here) return
         const me = w.me
-        if (!me || !me.exact || !isFinite(me.x) || !isFinite(me.y)) return
-        if (!anchor) anchor = { x: me.x, y: me.y }
-        else if (Math.hypot(me.x - anchor.x, me.y - anchor.y) > 6) left()
+        if (!me || !isFinite(me.x) || !isFinite(me.y)) return
+        // Positions are in cm. An exact one says 6 m away; the estimated
+        // ones (about 10 m off) count from 30 m (MN: it stayed open).
+        if (!anchor || (me.exact && !anchor.exact)) anchor = { x: me.x, y: me.y, exact: !!me.exact }
+        else if (Math.hypot(me.x - anchor.x, me.y - anchor.y) > (me.exact && anchor.exact ? 600 : 3000)) left()
     }
     function closetItems(it) {
         if (it.snapshotAt && here && hereBy === "closet" && Date.now() - hereSince < 15000) left()
@@ -425,6 +508,31 @@ QtObject {
             }
         } catch (e) { }
         return ""
+    }
+    /// The pets you don't have yet (Pet Finder's levels), each with where it
+    /// comes from: chests first (the merchant's and the Battle Pass' boxes),
+    /// then the monsters that drop its soul. MN, 2026-11-13.
+    property var petCatalog: null
+    function petsNeeded() {
+        if (typeof Aion2.petData !== "function") return { synced: false, rows: [] }
+        try {
+            if (!petCatalog) petCatalog = JSON.parse(Aion2.petData())
+            const p = JSON.parse(Aion2.pets || "{}")
+            if (demo && !(p.synced > 0)) { p.synced = 1; p.levels = {}; for (const id in petCatalog.pets) if (Number(id) % 4) p.levels[id] = 2 }
+            const lv = p.levels || {}
+            const rows = []
+            for (const id in petCatalog.pets || {}) {
+                const d = petCatalog.pets[id]
+                if (!d || !d.name || (lv[id] || 0) > 0) continue
+                const chests = (d.chests || []).map((c) => String(c.name).replace("Chestt", "Chest").replace(/\s*\(Bound\)/, "") + (c.chance ? " " + c.chance : "") + (c.from && c.from.length ? " (" + c.from.join(", ") + ")" : ""))
+                const drops = (d.drops || []).slice().sort((a, b) => (b.spawns || 0) - (a.spawns || 0))
+                const drop = drops.length ? drops[0].name + " · " + (drops[0].zone || drops[0].region || "") + (drops.length > 1 ? " +" + (drops.length - 1) : "") : ""
+                if (!chests.length && !drop) continue
+                rows.push({ id: id, name: d.name, genus: d.genus || "", chest: chests.length > 0, from: chests.length ? chests.join("; ") + (drop ? " · or " + drop : "") : drop })
+            }
+            rows.sort((a, b) => Number(b.chest) - Number(a.chest) || a.name.localeCompare(b.name))
+            return { synced: p.synced > 0, rows: rows }
+        } catch (e) { return { synced: false, rows: [] } }
     }
     /// The offers to show at the shop: the stock opened last this hour (all
     /// its tabs, skins and pets), with whose it is.
@@ -588,6 +696,7 @@ QtObject {
     function takeWorld(w) {
         const z = Number(w.zone)
         if (z > 0 && z !== zone) {
+            farmPlace(z)
             zone = z
             runs((l) => LK.DG.enter(l, z, Date.now()))
         }
@@ -596,6 +705,115 @@ QtObject {
     property Connections prices: Connections {
         target: store.book
         function onRevisionChanged() { store.farmPrices(); store.changed() }
+    }
+
+    // ---------- the old meter's data (MN, 2026-11-13) ----------
+    /// What the last take-over brought, for the panel ("" before one).
+    property string meterNote: ""
+    property bool meterBusy: false
+    /// Reads the Clicktrough meter's Inventory, Closet and Shugo Cards files
+    /// (local, read only) and adds what LOOT lacks: once by itself, again
+    /// with the Items tab's button. What LOOT has itself wins.
+    function readMeter() {
+        if (demo || meterBusy || typeof Aion2.meterRead !== "function") return
+        meterBusy = true
+        changed()
+        Aion2.meterRead()
+    }
+    property Connections meterAnswer: Connections {
+        target: Aion2
+        ignoreUnknownSignals: true
+        function onMeterGot(json) { store.takeMeter(json) }
+    }
+    function takeMeter(json) {
+        meterBusy = false
+        let m = {}
+        try { m = JSON.parse(json) || {} } catch (e) { }
+        const inv = m.inventory || {}, cl = m.closet || {}, sc = m["shugo-cards"] || {}
+        const n = { chars: 0, days: 0, runs: 0, sessions: 0, rounds: 0, closet: false }
+        // Characters and their items.
+        if (Array.isArray(inv.chars)) {
+            const known = {}
+            for (const c of chars) known[c.key] = true
+            const add = inv.chars.filter((c) => c && typeof c.key === "string" && /^c-/.test(c.key) && !known[c.key])
+            if (add.length) { chars = chars.concat(add); put("chars", chars); n.chars = add.length }
+        }
+        for (const k in inv) {
+            const v = inv[k]
+            if (!v || typeof v !== "object") continue
+            if (/^c-[0-9a-z?-]+$/.test(k) && !Array.isArray(v)) {
+                const have = stock(k)
+                if (!have || (Number(v.at) || 0) > (Number(have.at) || 0) && !have.exactAt) { stocks[k] = v; put("s-" + k, v) }
+            } else if (/^acc-\d+$/.test(k)) {
+                const sid = k.slice(4), have = account(sid)
+                if (!have) { accounts[sid] = v; put(k, v) }
+            } else if (/^fc-/.test(k) && Array.isArray(v)) {
+                const key = k.slice(1), list = farmList(key), days = {}
+                for (const x of list) days[x.day] = true
+                const add = v.filter((x) => x && isFinite(x.day) && !days[x.day])
+                if (add.length) { farmLists[key] = list.concat(add).sort((a, b) => a.day - b.day).slice(-farmDays); put("f-" + key, farmLists[key]); n.days += add.length }
+            } else if (/^fc-.+-\d{8}$/.test(k) && !Array.isArray(v)) {
+                if (!get("f-" + k.slice(1))) put("f-" + k.slice(1), v)
+            } else if (/^dc-/.test(k) && Array.isArray(v)) {
+                const key = k.slice(1), list = runList(key), have = {}
+                for (const r of list) have[r.from] = true
+                const add = v.filter((r) => r && isFinite(r.from) && !have[r.from])
+                if (add.length) { runLists[key] = list.concat(add).sort((a, b) => b.from - a.from); put("d-" + key, runLists[key]); n.runs += add.length }
+            }
+        }
+        // Sessions: the meter's last one counts as an earlier session.
+        const old = (Array.isArray(inv.sessions) ? inv.sessions : []).filter((x) => x && isFinite(x.start)).map(LK.C.normalize)
+        if (inv.session && inv.session.start) { const cur = LK.C.normalize(inv.session); if (!LK.C.isEmpty(cur)) old.push(LK.C.summary(cur)) }
+        const starts = {}
+        for (const h of history) starts[h.start] = true
+        starts[session.start] = true
+        const addS = old.filter((x) => !starts[x.start])
+        if (addS.length) { history = history.concat(addS).sort((a, b) => b.start - a.start).slice(0, keepSessions); put("sessions", history); n.sessions = addS.length }
+        // The closet.
+        let closetChanged = false
+        if (cl.closet && Array.isArray(cl.closet.ids) && cl.closet.ids.length && (!closet || (Number(cl.closet.at) || 0) > closetAt)) {
+            closet = new Map(cl.closet.ids.map((e) => (Array.isArray(e) ? [e[0], e[1]] : [e, 1])))
+            closetAt = Number(cl.closet.at) || 0
+            closetChanged = n.closet = true
+        }
+        if (cl.chars && typeof cl.chars === "object") {
+            for (const k in cl.chars) {
+                const c = cl.chars[k]
+                if (!c || !c.name || c.name === "?") continue
+                const key = LK.C.charKey(c.serverId, c.name)
+                if (!closetChars[key]) { closetChars[key] = { name: c.name, serverId: c.serverId, stocks: c.stocks || {} }; closetChanged = true }
+            }
+        }
+        if (Array.isArray(cl.seen) && cl.seen.length) {
+            const mark = (x) => x.at + "|" + x.tab
+            const have = {}
+            for (const x of seen) have[mark(x)] = true
+            const add = cl.seen.filter((x) => x && isFinite(x.at) && !have[mark(x)]).map((x) => Object.assign({}, x, { "char": typeof x["char"] === "string" && x["char"].indexOf(":") > 0 ? LK.C.charKey(Number(x["char"].split(":")[0]), x["char"].slice(x["char"].indexOf(":") + 1)) : x["char"] }))
+            if (add.length) { seen = seen.concat(add).sort((a, b) => a.at - b.at).slice(-1500); closetChanged = true }
+        }
+        if (cl.learned && typeof cl.learned === "object") {
+            for (const k in cl.learned) if (!(k in learned)) { learned[k] = cl.learned[k]; closetChanged = true }
+        }
+        if (closetChanged) saveCloset()
+        // The card rounds.
+        if (Array.isArray(sc.rounds) && sc.rounds.length) {
+            const have = {}
+            for (const r of rounds) have[r.key + "|" + r.at] = true
+            const add = sc.rounds.filter((r) => r && Array.isArray(r.cards) && !have[r.key + "|" + r.at])
+            if (add.length) { rounds = rounds.concat(add).sort((x, y) => x.at - y.at).slice(-1500); put("cards", { rounds: rounds, odd: odd }); n.rounds = add.length }
+        }
+        const found = Object.keys(inv).length + Object.keys(cl).length + Object.keys(sc).length
+        const parts = []
+        if (n.chars) parts.push(n.chars + " characters")
+        if (n.days) parts.push(n.days + " farm days")
+        if (n.runs) parts.push(n.runs + " dungeon runs")
+        if (n.sessions) parts.push(n.sessions + " sessions")
+        if (n.closet) parts.push("the closet")
+        if (n.rounds) parts.push(n.rounds + " card rounds")
+        meterNote = !found ? "No data of the Clicktrough meter found on this computer."
+            : parts.length ? "Taken over from the Clicktrough meter: " + parts.join(", ") + "."
+            : "The Clicktrough meter's data is already here."
+        set("meterTaken", Date.now())
     }
 
     Component.onCompleted: {
@@ -626,6 +844,7 @@ QtObject {
             }
         }
         try { const ch = JSON.parse(Aion2.character); if (ch && ch.name) takeCharacter(ch) } catch (e) { }
+        if (!settings.meterTaken) readMeter()
         revision++
     }
     // Written at once when the app ends.
@@ -693,6 +912,28 @@ QtObject {
             list.push(LK.F.summary(day))
         }
         farmLists[key] = list
+        // Today, for the farm window (GC_DEMO=loot,farm or loot,farm,dungeon).
+        const dm = nativeWindow.demo.split(",")
+        if (dm.indexOf("farm") >= 0) {
+            const dz0 = Number(Object.keys(LK.DG.RATES || {})[0]) || 600001
+            const inDungeon = dm.indexOf("dungeon") >= 0
+            let day = LK.F.newDay(now - 2 * h)
+            for (let k = 0; k < 30; k++) {
+                const t = now - 2 * h + k * 3 * 60000
+                day = LK.F.addCounter(day, 18000 * (k + 1), t, 1, "Demo field")
+                day = LK.F.addItems(day, ev(t + 1000, pick(k % 7 === 0 ? 4 : 2, k), 1), 1, (it, n) => 20000 * n, "Demo field")
+            }
+            zone = 1
+            if (inDungeon) {
+                zone = dz0
+                zoneSince = now - 15 * 60000
+                for (let k = 0; k < 6; k++) day = LK.F.addItems(day, ev(now - 14 * 60000 + k * 120000, k % 2 ? LK.C.KINA : pick(k % 3 === 0 ? 4 : 2, k), k % 2 ? 42000 : 1), dz0, (it, n) => 35000 * n, "Demo dungeon")
+            }
+            farmKey = key
+            farmDay = day
+            farmShown = true
+            character = Object.assign({}, character, { contentCounts: { "1": [9, 0], "8": [4, 0], "4": [2, 0], "102": [0, 0] } })
+        }
         // Dungeon runs: a dungeon of the rate table.
         const zones = Object.keys(LK.DG.RATES || {})
         const dz = zones.length ? Number(zones[0]) : 600001
