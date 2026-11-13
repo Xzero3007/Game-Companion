@@ -86,6 +86,32 @@ pub mod qobject {
         /// Keeps the Map's choices (JSON, at most 64 KB).
         #[qinvokable]
         fn save_map_settings(self: &Aion2, json: &QString);
+
+        /// Asks the Market's price sources for `url` (Clicktrough's copy or
+        /// aion2.exchange only); the answer comes as `web_got(id, ...)`.
+        #[qinvokable]
+        fn web_get(self: Pin<&mut Aion2>, id: i32, url: &QString);
+
+        /// An answer of `web_get`: ok and the text, or not and why.
+        #[qsignal]
+        fn web_got(self: Pin<&mut Aion2>, id: i32, ok: bool, body: QString);
+
+        /// A game icon as a file URL when it is kept, else "" and it is
+        /// downloaded once (`icon_ready` then).
+        #[qinvokable]
+        fn icon(self: Pin<&mut Aion2>, name: &QString) -> QString;
+
+        /// An icon is kept now.
+        #[qsignal]
+        fn icon_ready(self: Pin<&mut Aion2>, name: QString);
+
+        /// A module's own file (aion2-<key>.json), "" for none.
+        #[qinvokable]
+        fn load_store(self: &Aion2, key: &QString) -> QString;
+
+        /// Keeps a module's own file (JSON, at most 4 MB), in the background.
+        #[qinvokable]
+        fn keep_store(self: &Aion2, key: &QString, json: &QString);
     }
 
     impl cxx_qt::Threading for Aion2 {}
@@ -107,6 +133,8 @@ pub struct Aion2Rust {
     /// `picked`, for the watch thread.
     wanted: Arc<AtomicI32>,
     engine: Option<Arc<Engine>>,
+    /// Icons being downloaded (asked once each).
+    icons_asked: Arc<Mutex<std::collections::HashSet<String>>>,
     /// Ends the watch thread of the engine that runs now.
     watching: Option<Arc<AtomicBool>>,
 }
@@ -126,6 +154,7 @@ impl Default for Aion2Rust {
             live: EMPTY.to_string(),
             wanted: Arc::new(AtomicI32::new(0)),
             engine: None,
+            icons_asked: Arc::default(),
             watching: None,
         }
     }
@@ -361,6 +390,55 @@ impl qobject::Aion2 {
                 let _ = std::fs::rename(&tmp, &path);
             }
         }
+    }
+
+    fn web_get(self: Pin<&mut Self>, id: i32, url: &QString) {
+        let url = url.to_string();
+        let thread = self.qt_thread();
+        let _ = std::thread::Builder::new().name("aion2-market".into()).spawn(move || {
+            let (ok, body) = match crate::market::get(&url) {
+                Ok(text) => (true, text),
+                Err(why) => (false, why),
+            };
+            let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| obj.web_got(id, ok, QString::from(&body)));
+        });
+    }
+
+    fn icon(self: Pin<&mut Self>, name: &QString) -> QString {
+        let name = name.to_string();
+        if let Some(path) = crate::market::icon_file(&name) {
+            return QString::from(&format!("file://{}", path.display()));
+        }
+        if !crate::market::icon_name_ok(&name) || std::env::var("GC_NO_ICON_DOWNLOADS").is_ok_and(|v| !v.is_empty() && v != "0") {
+            return QString::default();
+        }
+        let asked = self.icons_asked.clone();
+        if !asked.lock().unwrap_or_else(|p| p.into_inner()).insert(name.clone()) {
+            return QString::default();
+        }
+        let thread = self.qt_thread();
+        let _ = std::thread::Builder::new().name("aion2-icon".into()).spawn(move || {
+            // One at a time across the app: the icon server is asked gently.
+            static TURN: Mutex<()> = Mutex::new(());
+            let _turn = TURN.lock().unwrap_or_else(|p| p.into_inner());
+            if crate::market::fetch_icon(&name).is_ok() {
+                let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| obj.icon_ready(QString::from(&name)));
+            }
+        });
+        QString::default()
+    }
+
+    fn load_store(&self, key: &QString) -> QString {
+        QString::from(&crate::market::load(&key.to_string()))
+    }
+
+    fn keep_store(&self, key: &QString, json: &QString) {
+        let (key, json) = (key.to_string(), json.to_string());
+        let _ = std::thread::Builder::new().name("aion2-store".into()).spawn(move || {
+            static TURN: Mutex<()> = Mutex::new(());
+            let _turn = TURN.lock().unwrap_or_else(|p| p.into_inner());
+            crate::market::keep(&key, &json);
+        });
     }
 
     fn pick(mut self: Pin<&mut Self>, actor: i32) {

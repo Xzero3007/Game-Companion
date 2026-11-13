@@ -176,6 +176,11 @@ impl DpsCalculator {
         self.ping_tracker.current_ping_ms()
     }
 
+    /// Game Companion: the player's server (the game's number, 0 unknown).
+    pub fn server_id(&self) -> u16 {
+        self.data_storage.fight_server_id()
+    }
+
     /// Game Companion: Odyle energy (basic, charged), as the game last sent it.
     pub fn odyle_energy(&self) -> Option<(u32, u32)> {
         self.data_storage.odyle_energy()

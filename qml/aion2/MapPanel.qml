@@ -175,6 +175,11 @@ Panel {
         saveTimer.restart()
         refresh()
     }
+    /// Where a gathered material grows (the Market's map button).
+    function focusGather(name) {
+        const f = MK.M.gatherFor(name)
+        if (f) setFocus(f)
+    }
     function showFocusOn(k) {
         const s = Object.assign({}, settings)
         const here = whereAmI()

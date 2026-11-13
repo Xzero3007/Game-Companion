@@ -21,6 +21,9 @@ Item {
     property bool mapShown: false
     property bool mapOpen: false
     signal mapClicked
+    property bool marketShown: false
+    property bool marketOpen: false
+    signal marketClicked
     /// The running game has a module (purple); else it just shows its name.
     property bool gameHasModule: false
     property bool streamsOpen: false
@@ -137,6 +140,14 @@ Item {
             active: bar.mapOpen
             tip: "AION 2: map with your position (listens only)"
             onClicked: bar.mapClicked()
+        }
+        HudButton {
+            visible: bar.marketShown
+            icon: "market"
+            label: "Market"
+            active: bar.marketOpen
+            tip: "AION 2: your server's market prices"
+            onClicked: bar.marketClicked()
         }
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter
