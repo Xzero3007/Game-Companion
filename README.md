@@ -18,11 +18,22 @@ to the game.
 - **Global shortcuts through KDE**, suggested as:
   - `Alt+Q`: lock or unlock the overlay
   - `Alt+Y`: hide or show the hub (pinned things stay)
+  - `Alt+M`: show or hide the AION 2 overlay map
 
   Plasma asks once to confirm them. Change them in System Settings →
   Keyboard → Shortcuts → Game Companion.
-- **The bar** at the top centre (the "Edge HUD" design): the name, the game
-  module (none yet), lock, settings, hide.
+- **The bar** at the top centre (the "Edge HUD" design): the name, Games,
+  Radio, TV, lock, settings, hide. Under it, a smaller **game row** with the
+  running game's buttons (AION 2: DPS, Map, Market, Chars), shown only while
+  it has any; its pin keeps it on screen while the hub is hidden.
+- **Overlay map** (AION 2): a small map that follows you over the game, as
+  the old meter's. Right-click MAP in the game row or press `Alt+M`.
+  Unlocked, its title strip picks S, M, L or XL and closes it, it moves by
+  the strip, the corner sizes it and the wheel zooms; locked, only the map
+  shows and clicks go to the game. Settings → Plugins → AION 2 → Map →
+  OVERLAY: opacity (the marks stay solid), mark size, the Map's layers or
+  its own, hidden in dungeons, arenas or the Abyss, and three kept places
+  (a right-click keeps where it is now).
 - **Panels remember where they were left and their size**: unlocked, the
   gold corner at a panel's bottom right makes it wider or narrower (the
   radio's list also taller); a double-click on it gives back its own size.

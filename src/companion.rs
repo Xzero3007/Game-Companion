@@ -111,6 +111,10 @@ pub mod qobject {
         #[qsignal]
         fn updates_requested(self: Pin<&mut Companion>);
 
+        /// A shortcut other than lock and toggle was pressed (`map-overlay`).
+        #[qsignal]
+        fn shortcut_pressed(self: Pin<&mut Companion>, id: QString);
+
         /// Keeps the screen the user picked ("" = KDE's primary screen).
         #[qinvokable]
         fn save_screen(self: Pin<&mut Companion>, name: &QString);
@@ -405,7 +409,7 @@ impl cxx_qt::Initialize for qobject::Companion {
                         let _ = fire_thread.queue(move |obj: Pin<&mut qobject::Companion>| match id.as_str() {
                             "lock" => obj.toggle_locked(),
                             "toggle" => obj.toggle_shown(),
-                            _ => {}
+                            other => obj.shortcut_pressed(QString::from(other)),
                         });
                     },
                 )

@@ -18,6 +18,12 @@ Panel {
     property string renaming: ""
     property string layoutMessage: ""
     minWidth: 400
+    /// The Map panel: the overlay map's settings are kept in its own.
+    property var mapSource: null
+    function keyOf(id) {
+        for (const k of keys) if (k.id === id) return k.key
+        return ""
+    }
     signal saveLayoutRequested(string name)
     signal loadLayoutRequested(string name)
     Component.onCompleted: {
@@ -121,7 +127,11 @@ Panel {
                     readonly property var c: Plugins.choice(pluginsPage.all, p.id)
                     readonly property bool usable: !pluginsPage.pack.game || Plugins.loads(pluginsPage.all, pluginsPage.pack.id)
                     width: pluginsPage.width
-                    height: Math.max(48, plugText.implicitHeight + 16)
+                    readonly property real headHeight: Math.max(48, plugText.implicitHeight + 16)
+                    // The Map's overlay map: its settings fold out under it.
+                    readonly property bool hasOverlay: p.id === "aion2.map" && !!settings.mapSource
+                    property bool expanded: hasOverlay && nativeWindow.demo.indexOf("overlay") >= 0
+                    height: headHeight + (expanded ? overlayBox.height + 12 : 0)
                     opacity: (p.fixed || c.on) && usable ? 1 : 0.55
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
                     Rectangle {
@@ -186,14 +196,22 @@ Panel {
                         anchors.right: parent.right
                         y: 10
                         spacing: 8
+                        SmallToggle {
+                            visible: plugRow.hasOverlay
+                            width: 92
+                            text: "OVERLAY " + (plugRow.expanded ? "▴" : "▾")
+                            on: plugRow.expanded
+                            tip: "The overlay map's settings"
+                            onClicked: plugRow.expanded = !plugRow.expanded
+                        }
                         // Where its button sits: the bar, or none.
                         SmallToggle {
                             visible: !plugRow.p.fixed
                             enabled: plugRow.c.on
                             width: 78
-                            text: plugRow.c.place === "bar" ? "IN BAR" : "HIDDEN"
+                            text: plugRow.c.place === "bar" ? "IN ROW" : "HIDDEN"
                             on: plugRow.c.on && plugRow.c.place === "bar"
-                            tip: "Whether its button shows in the bar"
+                            tip: "Whether its button shows in the game's row under the bar"
                             onClicked: Companion.setPlugin(plugRow.p.id, plugRow.c.on, plugRow.c.place === "bar" ? "hidden" : "bar")
                         }
                         SmallToggle {
@@ -204,6 +222,15 @@ Panel {
                             tip: plugRow.p.fixed ? "Part of Game Companion itself" : "Switch the plugin on or off"
                             onClicked: Companion.setPlugin(plugRow.p.id, !plugRow.c.on, plugRow.c.place)
                         }
+                    }
+                    Loader {
+                        id: overlayBox
+                        active: plugRow.expanded
+                        x: 42
+                        y: plugRow.headHeight
+                        width: plugRow.width - 42
+                        height: item ? item.implicitHeight : 0
+                        sourceComponent: OverlaySettings { map: settings.mapSource }
                     }
                 }
             }
@@ -999,6 +1026,196 @@ Panel {
             Hint { text: "One overlay for every game on Linux. Free software under the GNU GPL 3.0." }
             Hint { text: "The overlay works without the internet. It goes online only for the radio you play, Twitch and YouTube in Streams, SponsorBlock when you switch it on, and to look for its own updates on GitHub." }
             Hint { text: "Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project Authors, both under the SIL Open Font License 1.1." }
+        }
+    }
+
+    // A line of the overlay map's settings: its name, then its choices.
+    component OverlayLine: Row {
+        property string label
+        default property alias content: holder.data
+        width: parent ? parent.width : 400
+        spacing: 10
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow
+            width: 92
+            height: 24
+            verticalAlignment: Text.AlignVCenter
+            text: parent.label
+            color: Theme.muted()
+            font.family: Theme.body
+            font.pixelSize: 12
+        }
+        Flow { id: holder; width: parent.width - 102; spacing: 6 }
+    }
+
+    // The overlay map's settings (canvas board O2Settings): on, size,
+    // opacity, marks, what it shows, where it hides, places 1 to 3.
+    component OverlaySettings: Column {
+        id: ovs
+        property var map
+        readonly property var o: map.settings.overlay
+        spacing: 8
+        OverlayLine {
+            label: "Overlay map"
+            Chip { text: ovs.o.on ? "Shown over the game" : "Off"; on: ovs.o.on; onClicked: ovs.map.toggleOverlay() }
+        }
+        OverlayLine {
+            label: "Size"
+            Repeater {
+                model: ["s", "m", "l", "xl"]
+                delegate: Chip {
+                    required property string modelData
+                    text: modelData
+                    on: ovs.o.w <= 0 && ovs.o.size === modelData
+                    onClicked: ovs.map.changeOverlay({ size: modelData, w: 0, slot: -1 })
+                }
+            }
+        }
+        OverlayLine {
+            label: "Opacity"
+            HudSlider {
+                width: 150
+                from: 0.1
+                to: 1
+                value: ovs.o.opacity
+                onChanging: (v) => ovs.map.changeOverlay({ opacity: v })
+                onMoved: (v) => ovs.map.changeOverlay({ opacity: v })
+            }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                height: 24
+                verticalAlignment: Text.AlignVCenter
+                textFormat: Text.StyledText
+                text: Math.round(ovs.o.opacity * 100) + " % <font color='" + Theme.dim() + "'>(marks stay solid)</font>"
+                color: Theme.accent
+                font.family: Theme.body
+                font.pixelSize: 12
+            }
+        }
+        OverlayLine {
+            label: "Marks"
+            Repeater {
+                model: [1, 1.25, 1.5, 1.75]
+                delegate: Chip {
+                    required property real modelData
+                    text: Math.round(modelData * 100) + " %"
+                    on: Math.abs(ovs.o.markScale - modelData) < 0.01
+                    onClicked: ovs.map.changeOverlay({ markScale: modelData })
+                }
+            }
+        }
+        OverlayLine {
+            label: "Shows"
+            Chip { text: "The Map's layers"; on: !ovs.o.own; onClicked: ovs.map.changeOverlay({ own: false }) }
+            Chip { text: "Own choice"; on: ovs.o.own; onClicked: ovs.map.changeOverlay({ own: true }) }
+        }
+        OverlayLine {
+            visible: ovs.o.own
+            label: ""
+            Repeater {
+                model: [["pets", "Pets"], ["monsters", "Monsters"], ["gather", "Gathering"], ["cubes", "Hidden Cubes"], ["monoliths", "Feathers"],
+                        ["kibelisks", "Kibelisks"], ["places", "Places"], ["services", "Services"], ["quests", "Quests"], ["npcs", "NPCs"]]
+                delegate: Chip {
+                    required property var modelData
+                    text: modelData[1]
+                    on: !!ovs.o.layers[modelData[0]]
+                    onClicked: {
+                        const l = Object.assign({}, ovs.o.layers)
+                        l[modelData[0]] = !l[modelData[0]]
+                        ovs.map.changeOverlay({ layers: l })
+                    }
+                }
+            }
+        }
+        OverlayLine {
+            label: "Hide in"
+            Repeater {
+                model: [["instance", "Dungeons"], ["arena", "Arena"], ["abyss", "Abyss"]]
+                delegate: Chip {
+                    required property var modelData
+                    text: modelData[1]
+                    on: !!ovs.o.hideIn[modelData[0]]
+                    onClicked: {
+                        const h = Object.assign({}, ovs.o.hideIn)
+                        h[modelData[0]] = !h[modelData[0]]
+                        ovs.map.changeOverlay({ hideIn: h })
+                    }
+                }
+            }
+        }
+        OverlayLine {
+            label: "Places"
+            Repeater {
+                model: 3
+                delegate: Rectangle {
+                    id: slotBox
+                    required property int index
+                    readonly property bool kept: !!ovs.o.slots[index]
+                    readonly property bool current: ovs.o.slot === index
+                    property bool justKept: false
+                    width: 34
+                    height: 24
+                    color: current ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.14) : slotMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : "transparent"
+                    border.color: current || justKept ? Theme.accent : "#3a3842"
+                    opacity: kept || justKept ? 1 : 0.6
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                        anchors.centerIn: parent
+                        text: slotBox.justKept ? "✓" : String(slotBox.index + 1)
+                        color: slotBox.current || slotBox.justKept ? Theme.accent : Theme.muted()
+                        font.family: Theme.display
+                        font.pixelSize: 11
+                        font.weight: Font.Bold
+                    }
+                    Timer { id: slotKeptTimer; interval: 900; onTriggered: slotBox.justKept = false }
+                    MouseArea {
+                        id: slotMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: (mouse) => {
+                            if (mouse.button === Qt.RightButton) { ovs.map.keepSlot(slotBox.index); slotBox.justKept = true; slotKeptTimer.restart() }
+                            else ovs.map.useSlot(slotBox.index)
+                        }
+                    }
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Place " + (index + 1) + " (right-click: keep where it is now)"
+                }
+            }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                height: 24
+                verticalAlignment: Text.AlignVCenter
+                text: "right-click keeps where it is now"
+                color: Theme.dim()
+                font.family: Theme.body
+                font.pixelSize: 11
+            }
+        }
+        OverlayLine {
+            label: "Shortcut"
+            Rectangle {
+                width: keyText.implicitWidth + 16
+                height: 24
+                color: "transparent"
+                border.color: "#3a3842"
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    id: keyText
+                    anchors.centerIn: parent
+                    text: (settings.keyOf("map-overlay") || "Alt+M").toUpperCase()
+                    color: Theme.textSoft()
+                    font.family: Theme.display
+                    font.pixelSize: 11
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1
+                }
+            }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                width: parent.width - keyText.implicitWidth - 24
+                topPadding: 4
+                wrapMode: Text.WordWrap
+                text: "or right-click MAP in the game row. KDE keeps the keys (Shortcuts tab)."
+                color: Theme.dim()
+                font.family: Theme.body
+                font.pixelSize: 11
+            }
         }
     }
 
