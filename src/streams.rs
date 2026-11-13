@@ -97,8 +97,43 @@ pub fn video_id_of(text: &str) -> Option<String> {
     valid_video_id(id).then(|| id.to_string())
 }
 
+/// A page cursor Twitch gave (opaque, kept short and plain).
+pub fn valid_cursor(c: &str) -> bool {
+    !c.is_empty() && c.len() <= 500 && c.chars().all(|c| c.is_ascii_graphic())
+}
+
 /// Twitch's query for a list.
 pub fn twitch_query(kind: &str, arg: &Value) -> Result<Value, String> {
+    twitch_query_after(kind, arg, None)
+}
+
+/// Where the next page of a list starts: the last entry's cursor while
+/// Twitch says there is more (`/game/streams`, `/streams`, `/games`,
+/// `/user/videos` or `/user/clips`).
+pub fn next_cursor(data: &Value, at: &str) -> Option<String> {
+    let conn = data.pointer(at)?;
+    if conn.pointer("/pageInfo/hasNextPage").and_then(Value::as_bool) == Some(false) {
+        return None;
+    }
+    let c = conn.get("edges")?.as_array()?.last()?.get("cursor")?.as_str()?;
+    valid_cursor(c).then(|| c.to_string())
+}
+
+/// Twitch's query for a list, from a page cursor on (live lists,
+/// categories, past broadcasts and clips page; the others ignore it).
+pub fn twitch_query_after(kind: &str, arg: &Value, after: Option<&str>) -> Result<Value, String> {
+    let after = after.filter(|c| valid_cursor(c));
+    // The first page asks exactly as before; only later pages name a cursor.
+    let (decl, from, tail) = match after {
+        Some(_) => ("$a: Cursor", ", after: $a", ", $a: Cursor"),
+        None => ("", "", ""),
+    };
+    let vars = |mut v: Value| {
+        if let (Some(a), Some(o)) = (after, v.as_object_mut()) {
+            o.insert("a".into(), json!(a));
+        }
+        v
+    };
     match kind {
         "search" => {
             let text = arg.as_str().map(str::trim).filter(|t| !t.is_empty() && t.len() <= 100).ok_or("no search words")?;
@@ -131,17 +166,26 @@ pub fn twitch_query(kind: &str, arg: &Value) -> Result<Value, String> {
         }
         "live" | "liveMore" => {
             let fields = if kind == "liveMore" { STREAM_MORE } else { STREAM };
+            let page = format!("edges {{ cursor node {{ {fields} }} }} pageInfo {{ hasNextPage }}");
             match arg.as_str().map(str::trim).filter(|g| !g.is_empty()) {
                 Some(game) if game.len() <= 100 => Ok(json!({
-                    "query": format!("query($g: String!) {{ game(name: $g) {{ streams(first: 30) {{ edges {{ node {{ {fields} }} }} }} }} }}"),
-                    "variables": { "g": game },
+                    "query": format!("query($g: String!{tail}) {{ game(name: $g) {{ streams(first: 30{from}) {{ {page} }} }} }}"),
+                    "variables": vars(json!({ "g": game })),
                 })),
                 Some(_) => Err("not a game".into()),
-                None => Ok(json!({ "query": format!("query {{ streams(first: 30) {{ edges {{ node {{ {fields} }} }} }} }}") })),
+                None if after.is_some() => Ok(json!({
+                    "query": format!("query({decl}) {{ streams(first: 30{from}) {{ {page} }} }}"),
+                    "variables": vars(json!({})),
+                })),
+                None => Ok(json!({ "query": format!("query {{ streams(first: 30) {{ {page} }} }}") })),
             }
         }
         // The most watched categories (Twitch's directory).
-        "categories" => Ok(json!({ "query": format!("query {{ games(first: 40) {{ edges {{ node {{ {CATEGORY} }} }} }} }}") })),
+        "categories" if after.is_some() => Ok(json!({
+            "query": format!("query({decl}) {{ games(first: 40{from}) {{ edges {{ cursor node {{ {CATEGORY} }} }} pageInfo {{ hasNextPage }} }} }}"),
+            "variables": vars(json!({})),
+        })),
+        "categories" => Ok(json!({ "query": format!("query {{ games(first: 40) {{ edges {{ cursor node {{ {CATEGORY} }} }} pageInfo {{ hasNextPage }} }} }}") })),
         "searchCategories" => {
             let text = arg.as_str().map(str::trim).filter(|t| !t.is_empty() && t.len() <= 100).ok_or("no search words")?;
             Ok(json!({
@@ -153,16 +197,16 @@ pub fn twitch_query(kind: &str, arg: &Value) -> Result<Value, String> {
         "videos" => {
             let login = arg.as_str().map(str::trim).filter(|l| valid_login(l)).ok_or("not a channel name")?;
             Ok(json!({
-                "query": "query($l: String!) { user(login: $l) { videos(first: 30, sort: TIME) { edges { node { id title lengthSeconds publishedAt viewCount previewThumbnailURL(width: 320, height: 180) game { displayName } } } } } }",
-                "variables": { "l": login.to_ascii_lowercase() },
+                "query": format!("query($l: String!{tail}) {{ user(login: $l) {{ videos(first: 30{from}, sort: TIME) {{ edges {{ cursor node {{ id title lengthSeconds publishedAt viewCount previewThumbnailURL(width: 320, height: 180) game {{ displayName }} }} }} pageInfo {{ hasNextPage }} }} }} }}"),
+                "variables": vars(json!({ "l": login.to_ascii_lowercase() })),
             }))
         }
         // A channel's most watched clips of the last month.
         "clips" => {
             let login = arg.as_str().map(str::trim).filter(|l| valid_login(l)).ok_or("not a channel name")?;
             Ok(json!({
-                "query": "query($l: String!) { user(login: $l) { clips(first: 30, criteria: { period: LAST_MONTH, sort: VIEWS_DESC }) { edges { node { slug title durationSeconds viewCount createdAt thumbnailURL } } } } }",
-                "variables": { "l": login.to_ascii_lowercase() },
+                "query": format!("query($l: String!{tail}) {{ user(login: $l) {{ clips(first: 30{from}, criteria: {{ period: LAST_MONTH, sort: VIEWS_DESC }}) {{ edges {{ cursor node {{ slug title durationSeconds viewCount createdAt thumbnailURL }} }} pageInfo {{ hasNextPage }} }} }} }}"),
+                "variables": vars(json!({ "l": login.to_ascii_lowercase() })),
             }))
         }
         // The signed-in user's followed channels that are live (only
@@ -1056,6 +1100,18 @@ mod tests {
         let q = twitch_query("channels", &json!(["Good", "bad name", "x"])).unwrap();
         assert_eq!(q["variables"]["l"], json!(["good", "x"]));
         assert!(twitch_query("live", &json!("AION 2")).unwrap()["query"].as_str().unwrap().contains("game(name"));
+        let q = twitch_query_after("live", &Value::Null, Some("abc=")).unwrap();
+        assert_eq!(q["variables"]["a"], "abc=");
+        assert!(q["query"].as_str().unwrap().contains("after: $a"));
+        assert!(!twitch_query("live", &Value::Null).unwrap()["query"].as_str().unwrap().contains("$a"));
+        assert!(!twitch_query_after("categories", &Value::Null, Some("bad cursor")).unwrap()["query"].as_str().unwrap().contains("$a"));
+        let v = twitch_query_after("videos", &json!("someone"), Some("xyz")).unwrap();
+        assert_eq!(v["variables"]["a"], "xyz");
+        assert!(v["query"].as_str().unwrap().contains("after: $a, sort"));
+        let page = json!({ "streams": { "edges": [{ "cursor": "c1" }, { "cursor": "c2" }], "pageInfo": { "hasNextPage": true } } });
+        assert_eq!(next_cursor(&page, "/streams").as_deref(), Some("c2"));
+        let end = json!({ "streams": { "edges": [{ "cursor": "c1" }], "pageInfo": { "hasNextPage": false } } });
+        assert_eq!(next_cursor(&end, "/streams"), None);
         assert!(twitch_query("other", &Value::Null).is_err());
     }
 
