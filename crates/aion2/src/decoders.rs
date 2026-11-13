@@ -20,7 +20,7 @@ use serde_json::{Map, Value};
 const MAX_FIELDS: usize = 32;
 const MAX_LIST: u64 = 4096;
 const MAX_DEPTH: u8 = 2;
-const MAX_REST: usize = 4096;
+const MAX_REST: usize = 16384;
 /// Decoded frames kept for the app.
 const KEEP: usize = 256;
 
@@ -302,7 +302,7 @@ mod tests {
         let d = spec(r#"{"name":"shop","opcode":"91 56","fields":[
             {"name":"tab","type":"u8"},{"name":"count","type":"u8"},{"name":"body","type":"rest"}]}"#);
         assert_eq!(d.decode(&[103, 10, 0xab, 0x01]).unwrap(), serde_json::json!({"tab": 103, "count": 10, "body": "ab01"}));
-        assert!(d.decode(&vec![0; 5000]).is_none());
+        assert!(d.decode(&vec![0; 20000]).is_none());
     }
 
     #[test]

@@ -70,6 +70,7 @@ fn main() {
         QmlFile::from("qml/aion2/ArmoryHistory.qml"),
         QmlFile::from("qml/aion2/ArmorySkillRow.qml"),
         QmlFile::from("qml/aion2/ArmoryGearDetails.qml"),
+        QmlFile::from("qml/aion2/FarmWindow.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();

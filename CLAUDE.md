@@ -469,6 +469,10 @@ learnt, so nothing has to be asked or worked out again.
   the Inventory, Closet and Shugo Cards plugins in one panel; game frames
   through `crates/aion2/src/decoders.rs` → `Aion2.decoded`; files in
   `~/.local/share/game-companion/aion2/loot/`. Details: docs/HANDOFF.md.
+  The old meter's Inventory/Closet/Shugo files are read once (local, read
+  only, `src/meter_import.rs`; MN, 2026-11-13). The farm window
+  `FarmWindow.qml` opens itself while farming; the shop window's switches
+  are per place (merchant, Market). Positions in `Aion2.world` are in cm.
   `short` is a reserved word in QML's JS: name helpers otherwise.
 
 - Armory (MN 2026-11-13, canvas page "Armory mit Builds", boards AR1–AR4):

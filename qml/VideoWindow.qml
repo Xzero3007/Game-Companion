@@ -585,13 +585,6 @@ Item {
         font.weight: Font.Bold
         font.letterSpacing: 3
     }
-    Rectangle {
-        visible: !Companion.locked
-        anchors.top: parent.top
-        width: parent.width
-        height: 2
-        color: Theme.accent
-    }
 
     // The pointer anywhere on the window, its buttons too, keeps the bars;
     // they go a moment after it leaves (no flicker between the buttons).
@@ -1184,8 +1177,8 @@ Item {
         anchors.bottomMargin: win.showBars ? 64 : 14
         width: skipText.implicitWidth + 28
         height: 34
+        // No gold frame on a video (MN): the gold label is enough.
         color: skipMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.25) : Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.85)
-        border.color: Theme.accent
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: skipText
             anchors.centerIn: parent
@@ -1212,7 +1205,6 @@ Item {
         width: Math.min(parent.width - 40, nextColumn.implicitWidth + 32)
         height: nextColumn.implicitHeight + 24
         color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.9)
-        Rectangle { width: parent.width; height: 2; color: Theme.accent }
         Column {
             id: nextColumn
             anchors.centerIn: parent
@@ -1258,9 +1250,11 @@ Item {
         return h > 0 ? h + ":" + two(m) + ":" + two(sec) : m + ":" + two(sec)
     }
 
-    // The size corner (unlocked): 16:9 kept.
+    // The size corner (unlocked, with the bars while the pointer is on the
+    // video): 16:9 kept. No gold edge otherwise (MN: it was in the way
+    // while watching).
     Item {
-        visible: !Companion.locked && !win.fullScreen
+        visible: !Companion.locked && !win.fullScreen && (win.showBars || sizeMouse.pressed)
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         width: 18
@@ -1277,6 +1271,7 @@ Item {
             }
         }
         MouseArea {
+            id: sizeMouse
             anchors.fill: parent
             anchors.margins: -4
             cursorShape: Qt.SizeFDiagCursor
