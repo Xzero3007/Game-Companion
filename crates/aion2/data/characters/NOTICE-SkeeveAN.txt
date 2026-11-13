@@ -1,0 +1,33 @@
+The item names and grades, the gear's and crafting items' icon names and the
+content tickets (names, highest counts, resets) in data.js come from
+SkeeveAN's Aion-DPS-Meter, https://github.com/SkeeveAN/Aion-DPS-Meter
+(Client/assets/aion2/items/item_names.json, items/item_icons.json,
+craft/item_icons.json, tickets/tickets.json), read there from the game
+client. The meter's patch 0034, which reads your items from the game for
+this plugin, follows that project's reading of the inventory and the drops
+(Aion2Stock.cs, Aion2Loot.cs). That project's tooling and data are under
+this license:
+
+MIT License
+
+Copyright (c) 2026 SkeeveTV
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+The names and game data are the game's: AION 2 belongs to NCSOFT.

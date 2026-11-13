@@ -124,6 +124,20 @@ impl Engine {
         })
     }
 
+    /// Who plays and what the game said of them, as the meter's
+    /// `character` event gave it to plugins (Roster): name, server, class,
+    /// level, combat power, gear score, and from the entry list (only once
+    /// it is known to be theirs) Odyle energy, content counts, shop limits,
+    /// crafts, Kinah today, Abyss Points, the Abyss passages' times and when
+    /// the game last said each. With it the Abyss artifacts' holders as the
+    /// game last told them (`abyss`, null before). Null before anyone is
+    /// known.
+    pub fn character(&self) -> serde_json::Value {
+        let calc = self.calculator.lock();
+        let Some(calc) = calc.as_ref() else { return serde_json::Value::Null };
+        character_of(calc.data_storage())
+    }
+
     /// The fight now, as the meter's page asked for it every 200 ms.
     pub fn snapshot(&self) -> DpsData {
         self.calculator.lock().as_mut().map_or_else(DpsData::new, |c| c.get_dps())
@@ -396,6 +410,64 @@ enum Ended {
     Failed,
 }
 
+/// `Engine::character` from what the parser keeps (the meter's
+/// `plugins::character`, with the class in English).
+pub fn character_of(storage: &DataStorage) -> serde_json::Value {
+    let p = storage.local_profile();
+    if p.name.is_none() {
+        return serde_json::Value::Null;
+    }
+    // Owner, energy, counts, times, shop limits, crafts, Kinah and Abyss
+    // Points from one moment: a login's list replaces them all at once.
+    let list = storage.entry_list();
+    let theirs = matches!((list.owner.as_deref(), p.name.as_deref()), (Some(o), Some(n)) if o.trim() == n.trim());
+    let odyle = list
+        .odyle_energy
+        .filter(|_| theirs)
+        .map(|(basic, charged)| serde_json::json!({ "basic": basic, "charged": charged }));
+    let content = (theirs && !list.counts.is_empty()).then(|| serde_json::json!(list.counts));
+    let shop = (theirs && !list.shop_limits.is_empty()).then(|| serde_json::json!(list.shop_limits));
+    let crafts = (theirs && !list.crafts.is_empty()).then(|| serde_json::json!(list.crafts));
+    let abyss = storage.abyss_artifacts_since(0).map(|(_, state, seen_ms)| {
+        let secs = |ms: i64| (ms > 0).then_some(ms / 1000);
+        let wars: Vec<_> = state
+            .wars
+            .iter()
+            .map(|w| serde_json::json!({ "event": w.event_id, "since": secs(w.since_ms), "until": secs(w.until_ms) }))
+            .collect();
+        let artifacts: Vec<_> = state
+            .artifacts
+            .iter()
+            .map(|a| serde_json::json!({ "id": a.id, "event": a.event_id(), "owner": a.owner.name() }))
+            .collect();
+        serde_json::json!({ "observedAt": seen_ms / 1000, "wars": wars, "artifacts": artifacts })
+    });
+    serde_json::json!({
+        "name": p.name,
+        "serverId": (p.server_id != 0).then_some(p.server_id),
+        "level": p.level,
+        "class": p.class.map(|c| crate::job_name(c.class_name())),
+        "combatPower": p.combat_power,
+        "gearScore": p.gear_score,
+        "odyleEnergy": odyle,
+        "contentCounts": content,
+        "shopLimits": shop,
+        "crafts": crafts,
+        "kinahToday": list.kinah_today.filter(|_| theirs),
+        "abyssPoints": list.abyss_points.filter(|_| theirs).map(|(p, l)| [p, l]),
+        "contentTimes": Some(list.times).filter(|t| theirs && !t.is_empty()),
+        "seenAt": theirs.then(|| serde_json::json!({
+            "odyleEnergy": list.seen.odyle_energy,
+            "contentCounts": list.seen.counts,
+            "shopLimits": list.seen.shop_limits,
+            "crafts": list.seen.crafts,
+            "kinahToday": list.seen.kinah_today,
+            "abyssPoints": list.seen.abyss_points,
+        })),
+        "abyss": abyss,
+    })
+}
+
 /// The fight as the panel shows it: rows by damage, the fight's time (ms)
 /// and its target.
 pub fn summary(data: &DpsData) -> serde_json::Value {
@@ -536,6 +608,26 @@ fn dot_skill_ids(data_dir: &Path) -> HashSet<i32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_character_as_the_meter_gave_it_to_plugins() {
+        let storage = DataStorage::new();
+        assert!(character_of(&storage).is_null());
+        storage.set_local_character_name(Some("Nully".into()));
+        storage.note_self_profile("Nully", Some(crate::entity::job_class::JobClass::Elementalist), Some(45));
+        storage.note_self_gear_score("Nully", 3100);
+        storage.note_self_combat_power("Nully", 41_210);
+        let c = character_of(&storage);
+        assert_eq!(c["name"], "Nully");
+        assert_eq!(c["class"], "Spiritmaster");
+        assert_eq!(c["level"], 45);
+        assert_eq!(c["gearScore"], 3100);
+        assert_eq!(c["combatPower"], 41_210);
+        // Nothing of the entry list until it is known to be theirs.
+        assert!(c["odyleEnergy"].is_null());
+        assert!(c["seenAt"].is_null());
+        assert!(c["abyss"].is_null());
+    }
 
     #[test]
     fn a_missing_helper_says_so_and_the_tables_load() {

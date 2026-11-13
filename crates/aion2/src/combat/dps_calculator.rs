@@ -186,6 +186,12 @@ impl DpsCalculator {
         self.data_storage.odyle_energy()
     }
 
+    /// Game Companion: what the parser keeps (who plays, their entry list,
+    /// the Abyss artifacts), for the Characters area.
+    pub fn data_storage(&self) -> &Arc<DataStorage> {
+        &self.data_storage
+    }
+
     pub fn get_dps(&mut self) -> DpsData {
         // A zone change flushed combat data; drop our cached snapshot and saved-target
         // state so the meter resets this cycle instead of returning the stale snapshot.

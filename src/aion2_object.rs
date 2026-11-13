@@ -49,6 +49,10 @@ pub mod qobject {
         /// The world around the player for the map: JSON {"zone", "me"
         /// {x,y,z}, "mobs", "objects", ...} ("{}" until something is known).
         #[qproperty(QString, world)]
+        /// Who plays and what the game said of them (the meter's
+        /// `character` event, `Engine::character`): JSON, "null" before
+        /// anyone is known.
+        #[qproperty(QString, character)]
         type Aion2 = super::Aion2Rust;
 
         /// Starts reading (AION 2 started).
@@ -112,6 +116,11 @@ pub mod qobject {
         /// Keeps a module's own file (JSON, at most 4 MB), in the background.
         #[qinvokable]
         fn keep_store(self: &Aion2, key: &QString, json: &QString);
+
+        /// The game's servers by number, their English names: JSON
+        /// {"1001": "Siel", ...} (the meter's list, in the package).
+        #[qinvokable]
+        fn server_names(self: &Aion2) -> QString;
     }
 
     impl cxx_qt::Threading for Aion2 {}
@@ -127,6 +136,7 @@ pub struct Aion2Rust {
     skills: QString,
     history: QString,
     world: QString,
+    character: QString,
     opened: QString,
     /// The live fight while a saved one is shown.
     live: String,
@@ -150,6 +160,7 @@ impl Default for Aion2Rust {
             skills: QString::from("[]"),
             history: QString::from("[]"),
             world: QString::from("{}"),
+            character: QString::from("null"),
             opened: QString::default(),
             live: EMPTY.to_string(),
             wanted: Arc::new(AtomicI32::new(0)),
@@ -230,7 +241,7 @@ impl qobject::Aion2 {
 
         // Every half second: the fight and the state, to QML only on change.
         let thread = self.qt_thread();
-        let last = Arc::new(Mutex::new((String::new(), Status::Searching, String::new(), 0u64)));
+        let last = Arc::new(Mutex::new((String::new(), Status::Searching, String::new(), 0u64, String::from("null"))));
         let wanted = self.wanted.clone();
         let _ = std::thread::Builder::new().name("aion2".into()).spawn(move || {
             while !stop.load(Ordering::Relaxed) {
@@ -252,10 +263,12 @@ impl qobject::Aion2 {
                 let saved = engine.saved();
                 let history_changed = seen.3 != saved;
                 let world = engine.world().map(|w| w.to_string());
-                if !fight_changed && !status_changed && !skills_changed && !history_changed && world.is_none() {
+                let character = engine.character().to_string();
+                let character_changed = seen.4 != character;
+                if !fight_changed && !status_changed && !skills_changed && !history_changed && world.is_none() && !character_changed {
                     continue;
                 }
-                *seen = (fight.clone(), status.clone(), skills.clone(), saved);
+                *seen = (fight.clone(), status.clone(), skills.clone(), saved, character.clone());
                 let list = history_changed.then(|| history::list(&history::default_dir()).to_string());
                 drop(seen);
                 let stop = stop.clone();
@@ -268,6 +281,9 @@ impl qobject::Aion2 {
                     }
                     if let Some(world) = &world {
                         obj.as_mut().set_world(QString::from(world));
+                    }
+                    if character_changed {
+                        obj.as_mut().set_character(QString::from(&character));
                     }
                     // A saved fight shown: the live one waits.
                     let showing_saved = !obj.opened().is_empty();
@@ -310,6 +326,7 @@ impl qobject::Aion2 {
         }
         self.as_mut().set_active(false);
         self.as_mut().set_state(QString::from("off"));
+        self.as_mut().set_character(QString::from("null"));
     }
 
     fn reset(mut self: Pin<&mut Self>) {
@@ -433,12 +450,23 @@ impl qobject::Aion2 {
     }
 
     fn keep_store(&self, key: &QString, json: &QString) {
-        let (key, json) = (key.to_string(), json.to_string());
+        // The newest of a key is written, whichever thread comes first: a
+        // thread finding its key taken by a later one's write does nothing.
+        static PENDING: Mutex<Option<std::collections::HashMap<String, String>>> = Mutex::new(None);
+        let key = key.to_string();
+        PENDING.lock().unwrap_or_else(|p| p.into_inner()).get_or_insert_with(Default::default).insert(key.clone(), json.to_string());
         let _ = std::thread::Builder::new().name("aion2-store".into()).spawn(move || {
             static TURN: Mutex<()> = Mutex::new(());
             let _turn = TURN.lock().unwrap_or_else(|p| p.into_inner());
-            crate::market::keep(&key, &json);
+            let json = PENDING.lock().unwrap_or_else(|p| p.into_inner()).as_mut().and_then(|m| m.remove(&key));
+            if let Some(json) = json {
+                crate::market::keep(&key, &json);
+            }
         });
+    }
+
+    fn server_names(&self) -> QString {
+        QString::from(&server_names_of(&aion2::data_dir().join("servers.json")))
     }
 
     fn pick(mut self: Pin<&mut Self>, actor: i32) {
@@ -450,6 +478,22 @@ impl qobject::Aion2 {
             self.open_fight(&opened);
         }
     }
+}
+
+/// The servers' English names from the meter's list ({"servers": {"1001":
+/// {"en": "Siel", ...}}}), "{}" when it can't be read.
+fn server_names_of(path: &std::path::Path) -> String {
+    let Ok(text) = std::fs::read_to_string(path) else { return "{}".into() };
+    let Ok(doc) = serde_json::from_str::<serde_json::Value>(&text) else { return "{}".into() };
+    let names: serde_json::Map<String, serde_json::Value> = doc["servers"]
+        .as_object()
+        .map(|all| {
+            all.iter()
+                .filter_map(|(id, n)| n["en"].as_str().map(|en| (id.clone(), serde_json::Value::from(en))))
+                .collect()
+        })
+        .unwrap_or_default();
+    serde_json::Value::Object(names).to_string()
 }
 
 /// The Map's choices, beside settings.json.
@@ -486,6 +530,14 @@ const DEMO_SKILLS: &str = r#"[
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn server_names_in_english() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("crates/aion2/data/servers.json");
+        let names: serde_json::Value = serde_json::from_str(&super::server_names_of(&path)).unwrap();
+        assert_eq!(names["1001"], "Siel");
+        assert_eq!(super::server_names_of(std::path::Path::new("/nonexistent")), "{}");
+    }
+
     #[test]
     fn the_demo_and_the_empty_fight_read() {
         for text in [super::DEMO, super::EMPTY] {

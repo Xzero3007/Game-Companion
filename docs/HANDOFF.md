@@ -24,6 +24,33 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.7.8 Characters (branch `aion-characters`, 2026-11-13; MN chose "Ja, aber
+  ohne Checkliste" on the design canvas page "Charaktere (Bereich 1)",
+  boards C1–C3; plan in /mnt/project-files/game-companion/
+  aion-plugins-plan.md): the old Roster / Content Overview and the
+  Inventory plugin's limits as one panel `characters` (plugin
+  `aion2.characters`, bar button CHARS), tabs Roster, Content, Limits.
+  The parser hands out who plays as the meter's `character` event did
+  (`aion2::engine::character_of`, with the Abyss artifacts as `abyss`) →
+  `Aion2.character` (changed only when it changes). The **characters
+  store** (`qml/aion2/CharacterStore.qml`, one in Main.qml, lives as long
+  as the app; `aion2-characters.json`) merges it with `charkit.js`
+  `merge` (the Roster's rules: values stamped with when the game said
+  them, energy refills +15 / 3 h, caps 840/560 by membership, content
+  recharges, corridors from the passages and the siege as the game told
+  it, no a2tools feed). Other areas read `characterStore.state`. The
+  game's other entries (keys, reward counts, usage times) are kept as
+  `tickets` / `times` with names from `qml/aion2/chartickets.js`
+  (`tools/aion2-tickets-import.py` from the Inventory plugin's data.js,
+  SkeeveAN, MIT). `Aion2.serverNames()` from the meter's servers.json.
+  `GC_DEMO=chars` (made-up characters). The rules without Qt:
+  `node tools/charkit-test.js`. Not built: the Daily Checklist (MN),
+  Armory (needs NC's pages: MN's yes first). The item catalogue and
+  "prices only through Market" get their own shared parts when a second
+  area needs them (Inventory); today only Market uses them.
+  `Aion2.keepStore` now writes the newest of a key whatever thread comes
+  first.
+
 - 0.7.2 to 0.7.5 beta (branch `aion-plugins`, 2026-11-13): texts wrap
   instead of being cut (launch options, trend words, game cards); Settings
   → Plugins (qml/plugins.js catalogue, settings `plugins` / `packages`,
