@@ -103,6 +103,8 @@ impl Engine {
         let mut helper = self.helper.lock();
         if let Some(child) = helper.as_mut()
             && let Ok(Some(code)) = child.try_wait()
+            // Ended quietly (the game is gone): the runner starts it again.
+            && !code.success()
         {
             return Status::Failed(format!("the capture helper ended ({code})"));
         }
@@ -196,9 +198,15 @@ impl Runner {
         let ping = Arc::new(PingTracker::new());
         *self.calculator.lock() = Some(DpsCalculator::new(storage.clone(), skills.clone(), npcs.clone(), ping.clone()));
         let mut dispatcher = CaptureDispatcher::new(storage.clone(), skills, npcs, self.detector.clone(), ping);
+        dispatcher.set_dot_skill_ids(dot_skill_ids(&self.data_dir));
+        if !self.running.load(Ordering::SeqCst) {
+            return;
+        }
         // Every frame the parser reads also goes to the world (as the
         // meter's `events:world` for plugins).
-        {
+        // Checked again just before: a stop during the loading leaves the
+        // hooks alone (they are global).
+        if self.running.load(Ordering::SeqCst) {
             let world = self.world.clone();
             let storage = storage.clone();
             crate::capture::frame_tap::set(Some(Arc::new(move |packet: &[u8]| {
@@ -214,10 +222,34 @@ impl Runner {
             let world = self.world.clone();
             crate::platform::on_client_sent(Some(Arc::new(move |len| world.lock().client_sent(len, std::time::Instant::now()))));
         }
-        dispatcher.set_dot_skill_ids(dot_skill_ids(&self.data_dir));
-        if !self.running.load(Ordering::SeqCst) {
-            return;
+
+        let (tx, rx) = tokio::sync::mpsc::channel(4096);
+        // The parser, on a thread of its own, for every helper run.
+        std::thread::spawn(move || {
+            let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_time().build() else { return };
+            runtime.block_on(dispatcher.run(rx));
+        });
+
+        // The helper ends by itself 10 s after AION 2 is gone (exit 0);
+        // while the engine still runs (the game started again from its
+        // launcher), it starts again.
+        let mut last_save = std::time::Instant::now();
+        while self.running.load(Ordering::SeqCst) {
+            match self.run_helper(&tx, &storage, &mut last_save) {
+                Ended::Quietly => std::thread::sleep(Duration::from_secs(2)),
+                Ended::Stopped | Ended::Failed => return,
+            }
         }
+    }
+
+    /// One run of the helper: started, fed with the detector's state, until
+    /// it ends or the engine stops.
+    fn run_helper(
+        &self,
+        tx: &tokio::sync::mpsc::Sender<crate::capture::captured_payload::CapturedPayload>,
+        storage: &Arc<DataStorage>,
+        last_save: &mut std::time::Instant,
+    ) -> Ended {
 
         let child = Command::new(&self.helper)
             .stdin(Stdio::piped())
@@ -228,7 +260,7 @@ impl Runner {
             Ok(child) => child,
             Err(e) => {
                 *self.failure.lock() = Some(format!("the capture helper did not start ({}): {e}", self.helper.display()));
-                return;
+                return Ended::Failed;
             }
         };
         let stdout = child.stdout.take();
@@ -239,15 +271,15 @@ impl Runner {
             if !self.running.load(Ordering::SeqCst) {
                 let _ = child.kill();
                 let _ = child.wait();
-                return;
+                return Ended::Stopped;
             }
             *slot = Some(child);
         }
 
-        let (tx, rx) = tokio::sync::mpsc::channel(4096);
         // Helper → parser.
         if let Some(stdout) = stdout {
             let running = self.running.clone();
+            let tx = tx.clone();
             std::thread::spawn(move || {
                 let mut input = BufReader::with_capacity(1 << 16, stdout);
                 while running.load(Ordering::Relaxed) {
@@ -274,18 +306,20 @@ impl Runner {
                 }
             });
         }
-        // The parser, on a thread of its own.
-        std::thread::spawn(move || {
-            let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_time().build() else { return };
-            runtime.block_on(dispatcher.run(rx));
-        });
-
         // The detector's state → helper, so its filter follows the game;
         // fights to the history every 30 s.
         let mut last = None;
         let mut quiet = 0;
-        let mut last_save = std::time::Instant::now();
         while self.running.load(Ordering::Relaxed) {
+            // Ended by itself: quietly (the game is gone), or with a reason.
+            let ended = self.child.lock().as_mut().and_then(|c| c.try_wait().ok().flatten());
+            if let Some(code) = ended {
+                if code.success() && self.failure.lock().is_none() {
+                    *self.child.lock() = None;
+                    return Ended::Quietly;
+                }
+                return Ended::Failed;
+            }
             let state = State {
                 port: self.detector.locked_port_now(),
                 last_parsed_ms: self.detector.last_parsed_at_ms(),
@@ -297,13 +331,15 @@ impl Runner {
             if last != Some(state) || quiet >= 5 {
                 quiet = 0;
                 last = Some(state);
-                let Some(pipe) = stdin.as_mut() else { break };
-                if pipe.write_all(state.line().as_bytes()).and_then(|_| pipe.flush()).is_err() {
-                    break;
+                // A closed pipe: the helper is ending; its exit is seen above.
+                if let Some(pipe) = stdin.as_mut()
+                    && pipe.write_all(state.line().as_bytes()).and_then(|_| pipe.flush()).is_err()
+                {
+                    stdin = None;
                 }
             }
             if last_save.elapsed() >= SAVE_EVERY {
-                last_save = std::time::Instant::now();
+                *last_save = std::time::Instant::now();
                 if storage.damage_generation() > 0 {
                     let records = self.calculator.try_lock().and_then(|mut c| c.as_mut().map(|c| c.snapshot_boss_fights()));
                     if let Some(records) = records {
@@ -313,7 +349,18 @@ impl Runner {
             }
             std::thread::sleep(Duration::from_secs(1));
         }
+        Ended::Stopped
     }
+}
+
+/// How one run of the helper ended.
+enum Ended {
+    /// By itself without a reason: AION 2 is gone.
+    Quietly,
+    /// The engine stopped.
+    Stopped,
+    /// It could not start, or ended with a reason (shown).
+    Failed,
 }
 
 /// The fight as the panel shows it: rows by damage, the fight's time (ms)
@@ -418,6 +465,32 @@ mod tests {
         assert!(!dot_skill_ids(&data).is_empty());
         assert!(engine.snapshot().map.is_empty());
         engine.stop();
+    }
+
+    #[test]
+    fn a_helper_that_ends_quietly_starts_again_and_one_that_fails_does_not() {
+        use std::os::unix::fs::PermissionsExt;
+        let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::env::temp_dir().join(format!("gc-engine-restart-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for (name, end) in [("quiet", "exit 0"), ("loud", "echo broken >&2; exit 1")] {
+            let script = dir.join(name);
+            let runs = dir.join(format!("{name}.runs"));
+            std::fs::write(&script, format!("#!/bin/sh\necho run >> {}\n{end}\n", runs.display())).unwrap();
+            std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let engine = Engine::start(&script, &data, "en", &dir.join("history"));
+            std::thread::sleep(Duration::from_secs(8));
+            let count = std::fs::read_to_string(&runs).unwrap_or_default().lines().count();
+            if name == "quiet" {
+                assert!(count >= 2, "started {count} times");
+                assert!(!matches!(engine.status(), Status::Failed(_)));
+            } else {
+                assert_eq!(count, 1);
+                assert!(matches!(engine.status(), Status::Failed(ref why) if why == "broken"));
+            }
+            engine.stop();
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

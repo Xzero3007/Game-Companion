@@ -357,6 +357,18 @@ unsafe impl Sync for PcapLib {}
 /// Manages pcap device handles and captures TCP traffic from network interfaces.
 /// Loads the OS's pcap library at runtime (`platform::pcap::LIBRARIES`) — no SDK
 /// needed at compile time.
+/// Set by the capture helper: a capture never runs without its filter.
+/// Where libpcap has no filter or the filter cannot be set, the helper
+/// ends (exit code 3) instead of capturing everything.
+pub static REQUIRE_FILTER: AtomicBool = AtomicBool::new(false);
+
+fn filter_required_or_exit(label: &str, why: &str) {
+    if REQUIRE_FILTER.load(Ordering::SeqCst) {
+        eprintln!("FILTER_FAILED: no capture filter on {label}: {why}; not capturing without one");
+        std::process::exit(3);
+    }
+}
+
 pub struct PcapCapturer {
     running: Arc<AtomicBool>,
     sender: mpsc::Sender<CapturedPayload>,
@@ -612,6 +624,9 @@ fn start_capture_thread(
             // SAFETY: a live handle and an error buffer of libpcap's size.
             nonblocking = unsafe { (f.setnonblock)(handle, 1, errbuf.as_mut_ptr() as *mut c_char) } == 0;
         }
+        if pcap.filter.is_none() {
+            filter_required_or_exit(&label, "libpcap has no pcap_setfilter");
+        }
         while running.load(Ordering::SeqCst) {
             let now = now_ms();
             if pcap.filter.is_some() && !filter_failed && !shared.unfiltered.load(Ordering::Relaxed) {
@@ -651,6 +666,7 @@ fn start_capture_thread(
                     // narrower one still in place, so a failed widening never
                     // leaves the capture on the old port.
                     Err(e) => {
+                        filter_required_or_exit(&label, &e);
                         warn!("No capture filter on {}: {}", label, e);
                         if let Err(e) = pcap.set_filter(handle, "") {
                             warn!("Could not clear the capture filter on {}: {}", label, e);

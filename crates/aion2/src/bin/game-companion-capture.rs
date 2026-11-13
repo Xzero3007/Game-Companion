@@ -57,6 +57,8 @@ fn main() {
     while !aion2_runs() {
         std::thread::sleep(Duration::from_secs(2));
     }
+    // Never without the filter (see REQUIRE_FILTER).
+    aion2::capture::pcap_capturer::REQUIRE_FILTER.store(true, std::sync::atomic::Ordering::SeqCst);
     let (tx, mut rx) = tokio::sync::mpsc::channel(4096);
     let capturer = PcapCapturer::new(tx, detector);
     capturer.start();
