@@ -51,6 +51,8 @@ Rectangle {
                         anchors.left: parent.left
                         anchors.leftMargin: 12
                         anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - 20
+                        elide: Text.ElideRight
                         text: modelData.name
                         color: parent.chosenNow ? Theme.accent : Theme.textSoft()
                         font.family: Theme.display

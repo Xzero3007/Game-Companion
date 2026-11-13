@@ -67,6 +67,7 @@ Overlay {
         if (demo.indexOf("jellyvideo") >= 0) jellyfinVideo.demo()
         if (nativeWindow.testVideo.length > 0) Qt.callLater(() => twitchVideo.playFile(nativeWindow.testVideo))
         if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
+        Streams.begin()
     }
 
 
@@ -284,11 +285,11 @@ Overlay {
             id: streams
             defaultX: 520
             defaultY: 120
-            playingTwitch: twitchVideo.item && twitchVideo.item.kind === "twitch" ? twitchVideo.item.id : ""
+            playingTwitch: twitchVideo.item ? twitchVideo.item.id : ""
             playingYoutube: youtubeVideo.item && youtubeVideo.item.kind === "youtube" ? youtubeVideo.item.id : ""
             playingJellyfin: jellyfinVideo.item ? jellyfinVideo.item.id : ""
             onCloseClicked: root.streamsOpen = false
-            onPlayRequested: (what) => (what.kind === "twitch" ? twitchVideo : what.kind === "jellyfin" ? jellyfinVideo : youtubeVideo).play(what)
+            onPlayRequested: (what) => (what.kind.indexOf("twitch") === 0 ? twitchVideo : what.kind === "jellyfin" ? jellyfinVideo : youtubeVideo).play(what)
         }
     }
 

@@ -507,6 +507,44 @@ impl StreamsRust {
         if demo.contains("youtube") {
             self.tab = q("youtube");
         }
+        // GC_DEMO=streams,youtube,yt-<view> or streams,tw-<view>: that list.
+        for part in demo.split(',') {
+            if let Some(v) = part.strip_prefix("yt-") {
+                self.tab = q("youtube");
+                self.youtube_view = q(v);
+                if v == "trending" {
+                    self.trend_section = q("tr");
+                }
+            }
+            if let Some(v) = part.strip_prefix("tw-") {
+                self.tab = q("twitch");
+                self.twitch_view = q(v);
+                if v == "categories" {
+                    let c: Vec<Value> = [("Just Chatting", 312_000), ("Path of Exile 2", 48_000), ("AION 2", 21_000), ("Lost Ark", 9_000), ("Sim Racing", 4_000), ("Music", 3_000)]
+                        .iter()
+                        .map(|(n, v)| json!({ "name": n, "title": n, "viewers": v, "picture": "" }))
+                        .collect();
+                    self.twitch = q(&Value::Array(c).to_string());
+                }
+                if v == "recordings" {
+                    let r: Vec<Value> = (0..4)
+                        .map(|i| json!({ "kind": if i == 3 { "clip" } else { "vod" }, "id": format!("10{i}"), "title": format!("Raid night part {}", i + 1),
+                            "length": 3600 + i * 900, "published": "2026-11-11T20:00:00Z", "views": 1200 - i * 100, "picture": "", "game": "AION 2" }))
+                        .collect();
+                    self.twitch = q(&Value::Array(r).to_string());
+                }
+            }
+        }
+        if demo.contains("news") {
+            self.alerts = true;
+            self.live_news = q(&json!([{ "login": "streamer_two", "name": "streamer_two", "title": "Raid night, come along", "game": "AION 2", "at": 0 }]).to_string());
+            self.live_new_count = 1;
+        }
+        if demo.contains("groups") {
+            self.groups = q("[\"Gaming\",\"Tech\"]");
+            self.channels = q(&json!([{ "id": "UCaaaaaaaaaaaaaaaaaaaaaa", "name": "channel_name", "groups": ["Gaming"], "freetube": false },
+                { "id": "UCbbbbbbbbbbbbbbbbbbbbbb", "name": "another_channel", "groups": ["Tech"], "freetube": false }]).to_string());
+        }
         if demo.contains("jellyfin") {
             self.tab = q("jellyfin");
         }

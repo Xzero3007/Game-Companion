@@ -22,6 +22,7 @@ fn main() {
         QmlFile::from("qml/StreamsPanel.qml"),
         QmlFile::from("qml/VideoWindow.qml"),
         QmlFile::from("qml/Picker.qml"),
+        QmlFile::from("qml/Chip.qml"),
         QmlFile::from("qml/WheelScroll.qml"),
         QmlFile::from("qml/JellyfinSignIn.qml"),
         QmlFile::from("qml/Surface.qml"),

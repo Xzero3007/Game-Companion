@@ -10,7 +10,7 @@ Panel {
     panelId: "streams"
     title: "Streams"
     icon: "tv"
-    width: 480
+    width: 520
     minWidth: 420
     stretchy: true
 
@@ -29,6 +29,7 @@ Panel {
     readonly property bool onTwitch: Streams.tab === "twitch"
     readonly property bool onJelly: Streams.tab === "jellyfin"
     readonly property var jellyList: JSON.parse(Jellyfin.items)
+    readonly property var listModel: listKind === "jelly" ? jellyList : listKind === "playlists" ? playlistsShown : onTwitch ? twitchList : youtubeList
     readonly property var jfAccount: Jellyfin.account.length > 0 ? JSON.parse(Jellyfin.account) : null
     /// Jellyfin's libraries: the way in (library, show, season), each
     /// `{ id, type, collection, seriesId, name }`.
@@ -36,13 +37,47 @@ Panel {
     property bool editingGame: false
     /// YouTube: the channel whose videos show ("" for none).
     property var channel: null
+    /// The open thing of a list: a YouTube playlist {id, name}, a Twitch
+    /// category {name, title} or a Twitch channel's recordings {login, name}.
+    property var arg: null
+    readonly property var groups: JSON.parse(Streams.groups)
+    readonly property var filters: JSON.parse(Streams.filters)
+    readonly property var searchFilter: JSON.parse(Streams.searchFilter)
+    readonly property var twitchFilter: JSON.parse(Streams.twitchFilter)
+    readonly property var liveNews: JSON.parse(Streams.liveNews)
+    readonly property var alertsOff: JSON.parse(Streams.alertsOff)
+    readonly property var playlists: JSON.parse(Library.playlists)
+    /// The playlists as the tab shows them: narrowed by the search, sorted.
+    property string playlistSort: "played"
+    readonly property var playlistsShown: {
+        const t = search.text.trim().toLowerCase()
+        let l = playlists.filter((p) => !t || p.name.toLowerCase().indexOf(t) >= 0 || (matchVideos && p.titles.indexOf(t) >= 0))
+        const by = { played: (a, b) => b.played - a.played || b.updated - a.updated, created: (a, b) => b.created - a.created,
+                     updated: (a, b) => b.updated - a.updated, az: (a, b) => a.name.localeCompare(b.name), za: (a, b) => b.name.localeCompare(a.name) }
+        return l.sort(by[playlistSort] || by.played)
+    }
+    property bool matchVideos: false
+    readonly property string ytView: Streams.youtubeView
+    readonly property string twView: Streams.twitchView
+    /// What the list shows: "jelly", "twitch", "categories", "recordings",
+    /// "video", "channels" or "playlists".
+    readonly property string listKind: onJelly ? "jelly"
+        : onTwitch ? (twView === "categories" ? "categories" : twView === "recordings" ? "recordings" : "twitch")
+        : ytView === "channels" ? "channels" : ytView === "playlists" ? "playlists" : "video"
+    readonly property var channelsShown: Streams.group ? channels.filter((c) => c.groups.indexOf(Streams.group) >= 0) : channels
+    /// The search field serves the search, and narrows the history, the
+    /// playlists and Twitch's categories.
+    readonly property bool searchShown: onJelly ? (!!jfAccount && Jellyfin.view === "search")
+        : onTwitch ? (twView === "search" || twView === "categories")
+        : (ytView === "search" || ytView === "history" || ytView === "playlists")
 
     // The count, or how far a long load is (YouTube's subscriptions).
     badge: onJelly ? (Jellyfin.state === "ready" && jfAccount ? Jellyfin.message.toUpperCase() : "")
         : onTwitch ? (Streams.twitchState === "ready" ? Streams.twitchMessage.toUpperCase() : "")
+        : ytView === "playlists" ? playlists.length + " PLAYLISTS"
         : (Streams.youtubeState === "ready" || Streams.youtubeState === "loading" ? Streams.youtubeMessage.toUpperCase() : "")
     readonly property bool tiles: Streams.grid
-    readonly property bool channelsView: Streams.tab === "youtube" && Streams.youtubeView === "channels"
+    readonly property bool channelsView: listKind === "channels"
 
     // Back and forth through tabs, lists, searches and channels, as in a
     // browser: { tab, view, text, channel }.
@@ -52,7 +87,7 @@ Panel {
     readonly property bool canForward: at < history.length - 1
     function stateNow() {
         return { tab: Streams.tab, view: onJelly ? Jellyfin.view : onTwitch ? Streams.twitchView : Streams.youtubeView,
-                 text: search.text, channel: channel, path: jfPath }
+                 text: search.text, channel: channel, path: jfPath, arg: arg }
     }
     function go(s) {
         let h = history.slice(0, at + 1)
@@ -69,14 +104,25 @@ Panel {
         if (Streams.tab !== s.tab) Streams.chooseTab(s.tab)
         search.text = s.text || ""
         channel = s.channel || null
+        arg = s.arg || null
         if (s.tab === "jellyfin") {
             jfPath = s.path || []
             if (s.view === "folder" && jfPath.length > 0) Jellyfin.load("folder", JSON.stringify(jfPath[jfPath.length - 1]))
             else Jellyfin.load(s.view === "folder" ? "libraries" : s.view, s.view === "search" ? search.text : "")
         } else if (s.tab === "twitch") {
-            Streams.loadTwitch(s.view, s.view === "search" ? search.text : "")
+            if (s.view === "category" && arg) Streams.loadTwitch("category", arg.name)
+            else if (s.view === "recordings" && arg) Streams.loadTwitch("recordings", arg.login)
+            else Streams.loadTwitch(s.view === "category" || s.view === "recordings" ? "game" : s.view,
+                                    s.view === "search" || s.view === "categories" ? search.text : "")
         } else if (s.view === "channel" && channel) {
             Streams.loadYoutube("channel", channel.id)
+        } else if (s.view === "playlist" && arg) {
+            Streams.loadYoutube("playlist", arg.id)
+        } else if (s.view === "trending") {
+            Streams.loadYoutube("trending", s.text || Streams.trendSection)
+            search.text = ""
+        } else if (s.view === "history") {
+            Streams.loadYoutube("history", search.text)
         } else {
             Streams.loadYoutube(s.view === "channel" ? "channels" : s.view, s.view === "search" ? search.text : "")
         }
@@ -102,6 +148,8 @@ Panel {
         loadedOnce = true
         Streams.refreshAccount()
         if (Streams.youtubeView === "channel") Streams.loadYoutube("channels", "")
+        if (Streams.youtubeView === "playlist") Streams.loadYoutube("playlists", "")
+        if (Streams.twitchView === "category" || Streams.twitchView === "recordings") Streams.loadTwitch("game", "")
         history = [stateNow()]
         at = 0
         reload()
@@ -114,16 +162,23 @@ Panel {
             else Jellyfin.load(Jellyfin.view === "folder" ? "libraries" : Jellyfin.view, "")
         } else if (onTwitch) {
             if (Streams.twitchView === "search") { if (search.text.trim().length > 0) Streams.loadTwitch("search", search.text) }
-            else Streams.loadTwitch(Streams.twitchView, "")
+            else if (twView === "category" && arg) Streams.loadTwitch("category", arg.name)
+            else if (twView === "recordings" && arg) Streams.loadTwitch("recordings", arg.login)
+            else Streams.loadTwitch(twView === "categories" ? "categories" : Streams.twitchView, twView === "categories" ? search.text : "")
         } else {
             if (Streams.youtubeView === "search") { if (search.text.trim().length > 0) Streams.loadYoutube("search", search.text) }
             else if (Streams.youtubeView === "channel" && channel) Streams.loadYoutube("channel", channel.id)
-            else if (Streams.youtubeView === "channels") return
+            else if (ytView === "playlist" && arg) Streams.loadYoutube("playlist", arg.id)
+            else if (ytView === "history") Streams.loadYoutube("history", search.text)
+            else if (ytView === "trending") Streams.loadYoutube("trending", Streams.trendSection)
+            else if (Streams.youtubeView === "channels" || ytView === "playlists") return
             else Streams.loadYoutube(Streams.youtubeView === "channel" ? "subscriptions" : Streams.youtubeView, "")
         }
     }
     function runSearch() {
         const text = search.text.trim()
+        if (onTwitch && twView === "categories") { Streams.loadTwitch("categories", text); return }
+        if (!onTwitch && !onJelly && (ytView === "history" || ytView === "playlists")) return
         if (text.length === 0) return
         if (Streams.tab === "youtube") {
             // A pasted link plays at once.
@@ -165,6 +220,137 @@ Panel {
         const m = Math.round(s / 60)
         if (m < 1) return "under a minute left"
         return (m >= 60 ? Math.floor(m / 60) + " h " + (m % 60) + " min" : m + " min") + " left"
+    }
+    /// Plays a YouTube video; inside a playlist (or a list played through)
+    /// the rest follows.
+    function playVideo(v, queue, index) {
+        panel.playRequested({ kind: "youtube", id: v.id, title: v.title, name: v.channel, video: v,
+                              queue: queue || null, index: index || 0, loop: loopList, playlist: arg && ytView === "playlist" ? arg.id : "" })
+    }
+    property bool loopList: false
+    function playAll(shuffle) {
+        let q = youtubeList.slice()
+        if (q.length === 0) return
+        if (shuffle) for (let i = q.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = q[i]; q[i] = q[j]; q[j] = t }
+        if (arg) Library.played(arg.id)
+        playVideo(q[0], q, 0)
+    }
+    function playTwitch(c) {
+        panel.playRequested({ kind: "twitch", id: c.login, name: c.name, game: c.game, title: c.title })
+    }
+    function playRecording(r) {
+        panel.playRequested({ kind: r.kind === "clip" ? "twitchclip" : "twitchvod", id: r.id, name: arg ? arg.name : "", title: r.title, login: arg ? arg.login : "" })
+    }
+    function openRecordings(c) {
+        go({ tab: "twitch", view: "recordings", text: "", channel: null, arg: { login: c.login, name: c.name } })
+    }
+    function openPlaylist(p) {
+        go({ tab: "youtube", view: "playlist", text: "", channel: null, arg: { id: p.id, name: p.name } })
+    }
+    // The menu beside a video or channel: placed by the button, kept inside
+    // the panel.
+    property var menuFor: null
+    property string menuKind: ""
+    function openMenu(button, kind, what) {
+        const at = button.mapToItem(panel, 0, button.height)
+        menuFor = what
+        menuKind = kind
+        menuButton = button
+        menu.options = menuOptions(kind, what)
+        menu.x = Math.max(4, Math.min(at.x - menu.width + button.width, panel.width - menu.width - 4))
+        menu.y = Math.max(4, Math.min(at.y, panel.height - menu.height - 4))
+        menu.open = true
+    }
+    function menuOptions(kind, w) {
+        if (kind === "video") {
+            const m = JSON.parse(Library.mark(w.id))
+            let o = [{ id: "add", name: "Add to playlist ▸" }]
+            if (ytView === "playlist" && arg) {
+                o.push({ id: "remove", name: "Remove from playlist" })
+                if (!tiles) o.push({ id: "up", name: "Move up" }, { id: "down", name: "Move down" })
+            }
+            o.push({ id: "watched", name: m.done ? "Mark as not watched" : "Mark as watched" })
+            if (ytView === "history") o.push({ id: "forget", name: "Remove from history" })
+            if (w.channelId || w.channel) o.push({ id: "hide", name: "Hide this channel" })
+            return o
+        }
+        if (kind === "add") {
+            let o = playlists.map((p) => ({ id: "to:" + p.id, name: (JSON.parse(Library.mark(w.id)).lists.indexOf(p.id) >= 0 ? "✓ " : "") + p.name }))
+            o.push({ id: "new", name: "+ New playlist" })
+            return o
+        }
+        if (kind === "twitch") {
+            let o = [{ id: "recordings", name: "Past broadcasts & clips" }]
+            if (Streams.alerts) o.push({ id: "alert", name: alertsOff.indexOf(w.login.toLowerCase()) >= 0 ? "Live notes on" : "No live notes" })
+            return o
+        }
+        if (kind === "channel") {
+            let o = [{ id: "sub", name: w.freetube ? "Subscribe here" : "Unsubscribe" }]
+            o = o.concat(groups.map((g) => ({ id: "group:" + g, name: (w.groups.indexOf(g) >= 0 ? "✓ " : "") + g })))
+            o.push({ id: "newgroup", name: "+ New group" })
+            o.push({ id: "hide", name: "Hide this channel" })
+            return o
+        }
+        if (kind === "playlist") {
+            return [{ id: "rename", name: "Rename" }, { id: "quick", name: w.quick ? "✓ Bookmark list" : "Make bookmark list" }, { id: "delete", name: "Delete…" }]
+        }
+        if (kind === "filter") return w.options
+        return []
+    }
+    function menuChosen(id) {
+        const w = menuFor
+        menu.open = false
+        if (!w) return
+        const json = JSON.stringify(w)
+        if (menuKind === "video") {
+            const index = youtubeList.findIndex((v) => v.id === w.id)
+            if (id === "add") { Qt.callLater(() => openMenu(menuButton, "add", w)); return }
+            if (id === "remove") Library.removeFrom(arg.id, w.id)
+            else if (id === "up" && index > 0) Library.moveIn(arg.id, index, index - 1)
+            else if (id === "down" && index >= 0 && index < youtubeList.length - 1) Library.moveIn(arg.id, index, index + 1)
+            else if (id === "watched") Library.setWatched(json, !JSON.parse(Library.mark(w.id)).done)
+            else if (id === "forget") { Library.forget(w.id); Streams.loadYoutube("history", search.text) }
+            else if (id === "hide") { Streams.toggleHiddenChannel(w.channelId || "", w.channel || ""); reload() }
+        } else if (menuKind === "add") {
+            if (id === "new") {
+                const pid = Library.create("Playlist " + (playlists.length + 1))
+                if (pid) Library.addTo(pid, json)
+            } else if (id.indexOf("to:") === 0) {
+                const pid = id.slice(3)
+                if (JSON.parse(Library.mark(w.id)).lists.indexOf(pid) >= 0) Library.removeFrom(pid, w.id)
+                else Library.addTo(pid, json)
+            }
+        } else if (menuKind === "twitch") {
+            if (id === "recordings") openRecordings(w)
+            else if (id === "alert") Streams.toggleAlert(w.login)
+        } else if (menuKind === "channel") {
+            if (id === "sub") Streams.toggleChannel(w.id, w.name)
+            else if (id.indexOf("group:") === 0) Streams.toggleChannelGroup(w.id, id.slice(6))
+            else if (id === "newgroup") { groupFor = w; newGroup.text = ""; newGroup.focusInput() }
+            else if (id === "hide") Streams.toggleHiddenChannel(w.id, w.name)
+        } else if (menuKind === "playlist") {
+            if (id === "rename") { renaming = true; renameField.text = w.name; renameField.focusInput() }
+            else if (id === "quick") Library.makeQuick(w.id)
+            else if (id === "delete") deleting = true
+        } else if (menuKind === "filter") {
+            w.choose(id)
+        }
+    }
+    property Item menuButton: null
+    property var groupFor: null
+    property bool renaming: false
+    property bool deleting: false
+    property bool naming: false
+    /// The open playlist as the library has it now.
+    readonly property var openList: arg && ytView === "playlist" ? (playlists.find((p) => p.id === arg.id) || null) : null
+    Connections {
+        target: Library
+        // An open playlist follows its changes.
+        function onListsRevisionChanged() { if (!panel.onTwitch && !panel.onJelly && panel.ytView === "playlist" && panel.arg) Streams.loadYoutube("playlist", panel.arg.id) }
+    }
+    Connections {
+        target: Streams
+        function onLiveNewCountChanged() { if (panel.visible && panel.onTwitch && (panel.twView === "following" || panel.twView === "favourites")) Streams.seenNews() }
     }
     function since(iso) {
         if (!iso) return ""
@@ -286,9 +472,9 @@ Panel {
             }
         }
 
-        // The game's preset, in purple.
+        // The game's preset, in purple (not over one's own lists).
         Rectangle {
-            visible: !panel.onJelly
+            visible: !panel.onJelly && (panel.onTwitch || ["playlists", "playlist", "history"].indexOf(panel.ytView) < 0)
             width: parent.width
             height: panel.editingGame ? gameEdit.implicitHeight + 20 : 44
             color: Qt.rgba(155 / 255, 107 / 255, 232 / 255, 0.14)
@@ -396,15 +582,14 @@ Panel {
             width: parent.width
             height: 36
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
-            Row {
+            TabStrip {
                 visible: panel.onTwitch
-                height: parent.height
-                spacing: 16
-                ListTab { name: "game"; label: panel.game.name; purple: true; twitch: true }
-                ListTab { name: "following"; label: "Following"; twitch: true }
+                ListTab { name: "game"; label: panel.game.name; purple: true; twitch: true; also: ["category"] }
+                ListTab { name: "following"; label: "Following"; twitch: true; count: Streams.liveNewCount }
                 ListTab { name: "favourites"; label: "Favorites"; twitch: true }
+                ListTab { name: "categories"; label: "Categories"; twitch: true }
                 ListTab { name: "live"; label: "All live"; twitch: true }
-                ListTab { name: "search"; label: ""; searchIcon: true; twitch: true }
+                ListTab { name: "search"; label: ""; searchIcon: true; twitch: true; also: ["recordings"] }
             }
             Row {
                 visible: panel.onJelly
@@ -415,20 +600,21 @@ Panel {
                 ListTab { name: "libraries"; label: "Libraries"; site: "jellyfin" }
                 ListTab { name: "search"; label: ""; searchIcon: true; site: "jellyfin" }
             }
-            Row {
+            TabStrip {
                 visible: Streams.tab === "youtube"
-                height: parent.height
-                spacing: 16
-                ListTab { name: "game"; label: panel.game.name + " new"; purple: true }
+                ListTab { name: "game"; label: panel.game.name; purple: true }
                 ListTab { name: "subscriptions"; label: "Subscriptions" }
-                ListTab { name: "channels"; label: "My channels" }
+                ListTab { name: "trending"; label: "Trending" }
+                ListTab { name: "playlists"; label: "Playlists"; also: ["playlist"] }
+                ListTab { name: "history"; label: "History" }
+                ListTab { name: "channels"; label: "Channels"; also: ["channel"] }
                 ListTab { name: "search"; label: ""; searchIcon: true }
             }
         }
 
         // Search
         Rectangle {
-            visible: (panel.onJelly ? (!!panel.jfAccount && Jellyfin.view) : panel.onTwitch ? Streams.twitchView : Streams.youtubeView) === "search"
+            visible: panel.searchShown
             width: parent.width
             height: 36
             color: "#1b1a20"
@@ -458,15 +644,263 @@ Panel {
                 clip: true
                 maximumLength: 100
                 onAccepted: panel.runSearch()
+                // The history narrows as one types (it is here already).
+                onTextChanged: if (!panel.onTwitch && !panel.onJelly && panel.ytView === "history" && panel.visible) Streams.loadYoutube("history", text)
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     visible: search.text.length === 0
                     text: panel.onJelly ? "A film, a show or an episode, then Enter"
-                        : panel.onTwitch ? "A channel's name, then Enter" : "Search words or a video's link, then Enter"
+                        : panel.onTwitch ? (panel.twView === "categories" ? "A game or category, then Enter" : "A channel's name, then Enter")
+                        : panel.ytView === "history" ? "Search what you watched"
+                        : panel.ytView === "playlists" ? "Search playlists"
+                        : "Search words or a video's link, then Enter"
                     color: Theme.dim()
                     font: search.font
                 }
                 Accessible.name: panel.onJelly ? "Search Jellyfin" : panel.onTwitch ? "Search Twitch" : "Search YouTube"
             }
+        }
+
+        // YouTube's Trending: Gaming, and football by competition.
+        Flow {
+            visible: !panel.onTwitch && !panel.onJelly && panel.ytView === "trending"
+            width: parent.width
+            spacing: 6
+            Chip { text: "Gaming"; on: Streams.trendSection === "gaming"; onClicked: panel.go({ tab: "youtube", view: "trending", text: "gaming", channel: null }) }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                height: 24; verticalAlignment: Text.AlignVCenter; leftPadding: 8; rightPadding: 2
+                text: "FOOTBALL"; color: Theme.dim(); font.family: Theme.display; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.2 }
+            Repeater {
+                model: [["europe", "Europe"], ["national", "National teams"], ["tr", "Süper Lig"], ["de", "Bundesliga"], ["en", "Premier League"],
+                        ["fr", "Ligue 1"], ["it", "Serie A"], ["es", "LaLiga"]]
+                delegate: Chip {
+                    required property var modelData
+                    text: modelData[1]
+                    on: Streams.trendSection === modelData[0]
+                    onClicked: panel.go({ tab: "youtube", view: "trending", text: modelData[0], channel: null })
+                }
+            }
+        }
+
+        // Subscriptions and channels: one group of them, or all.
+        Flow {
+            visible: !panel.onTwitch && !panel.onJelly && (panel.ytView === "subscriptions" || panel.ytView === "channels") && panel.groups.length > 0
+            width: parent.width
+            spacing: 6
+            Chip { text: "All"; on: !Streams.group; onClicked: { Streams.chooseGroup(""); panel.reload() } }
+            Repeater {
+                model: panel.groups
+                delegate: Chip {
+                    required property string modelData
+                    text: modelData
+                    on: Streams.group === modelData
+                    onClicked: { Streams.chooseGroup(modelData); if (panel.ytView === "subscriptions") panel.reload() }
+                }
+            }
+        }
+
+        // A new group for a channel (from its menu).
+        Row {
+            visible: panel.groupFor !== null
+            width: parent.width
+            spacing: 8
+            Field { id: newGroup; width: parent.width - groupOk.width - groupCancel.width - 16; placeholder: "New group for " + (panel.groupFor ? panel.groupFor.name : ""); onAccepted: groupOk.clicked() }
+            TextButton { id: groupOk; text: "Add"; onClicked: { if (newGroup.text.trim()) Streams.toggleChannelGroup(panel.groupFor.id, newGroup.text); panel.groupFor = null } }
+            TextButton { id: groupCancel; text: "Cancel"; onClicked: panel.groupFor = null }
+        }
+
+        // YouTube's search: sort, when, how long.
+        Flow {
+            visible: !panel.onTwitch && !panel.onJelly && panel.ytView === "search"
+            width: parent.width
+            spacing: 6
+            FilterChip {
+                key: "sort"; label: "Sort"
+                options: [{ id: "relevance", name: "Relevance" }, { id: "date", name: "Newest" }, { id: "views", name: "Most viewed" }]
+                current: panel.searchFilter.sort
+            }
+            FilterChip {
+                key: "date"; label: "Uploaded"
+                options: [{ id: "any", name: "Any time" }, { id: "today", name: "Today" }, { id: "week", name: "This week" }, { id: "month", name: "This month" }, { id: "year", name: "This year" }]
+                current: panel.searchFilter.date
+            }
+            FilterChip {
+                key: "length"; label: "Length"
+                options: [{ id: "any", name: "Any" }, { id: "short", name: "Under 4 min" }, { id: "medium", name: "4 to 20 min" }, { id: "long", name: "Over 20 min" }]
+                current: panel.searchFilter.length
+            }
+        }
+
+        // The playlists: sort, search in their videos too, a new one.
+        Item {
+            visible: !panel.onTwitch && !panel.onJelly && panel.ytView === "playlists"
+            width: parent.width
+            height: panel.naming ? 32 : 24
+            Row {
+                visible: !panel.naming
+                spacing: 6
+                Chip {
+                    id: sortChip
+                    readonly property var names: ({ played: "Last played", created: "Newest", updated: "Last changed", az: "A to Z", za: "Z to A" })
+                    text: "Sort: " + names[panel.playlistSort]
+                    onClicked: panel.openMenu(sortChip, "filter", { options: Object.keys(names).map((k) => ({ id: k, name: names[k] })), choose: (id) => panel.playlistSort = id })
+                }
+                Chip { text: "Search in videos"; on: panel.matchVideos; onClicked: panel.matchVideos = !panel.matchVideos }
+            }
+            Chip {
+                visible: !panel.naming
+                anchors.right: parent.right
+                text: "+ New playlist"
+                on: true
+                onClicked: { panel.naming = true; newList.text = ""; newList.focusInput() }
+            }
+            Row {
+                visible: panel.naming
+                width: parent.width
+                spacing: 8
+                Field { id: newList; width: parent.width - listOk.width - listCancel.width - 16; placeholder: "The new playlist's name"; onAccepted: listOk.clicked() }
+                TextButton { id: listOk; height: 32; text: "Create"; onClicked: { if (newList.text.trim()) Library.create(newList.text); panel.naming = false } }
+                TextButton { id: listCancel; height: 32; text: "Cancel"; onClicked: panel.naming = false }
+            }
+        }
+
+        // An open playlist: back, its name, play all, shuffle, loop.
+        Item {
+            visible: !panel.onTwitch && !panel.onJelly && panel.ytView === "playlist" && panel.arg !== null
+            width: parent.width
+            height: panel.renaming || panel.deleting ? 34 : 28
+            Row {
+                visible: !panel.renaming && !panel.deleting
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 10
+                TextButton { height: 28; text: "‹ Playlists"; onClicked: panel.go({ tab: "youtube", view: "playlists", text: "", channel: null }) }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.min(implicitWidth, panel.width - 380)
+                    elide: Text.ElideRight
+                    text: panel.openList ? panel.openList.name : (panel.arg ? panel.arg.name : "")
+                    color: Theme.text(); font.family: Theme.body; font.pixelSize: 13; font.weight: Font.DemiBold }
+                HudIcon {
+                    visible: !!panel.openList && panel.openList.quick
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "bookmark"; size: 13; lineWidth: 2.2; filled: true; color: Theme.accent
+                }
+            }
+            Row {
+                visible: !panel.renaming && !panel.deleting
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                IconButton { icon: "play"; iconSize: 14; color: Theme.accent; tip: "Play all"; onClicked: panel.playAll(false) }
+                IconButton { icon: "shuffle"; iconSize: 15; color: Theme.muted(); tip: "Play all, shuffled"; onClicked: panel.playAll(true) }
+                IconButton { icon: "loop"; iconSize: 15; color: panel.loopList ? Theme.accent : Theme.muted(); tip: panel.loopList ? "Loop: on" : "Loop: off"; onClicked: panel.loopList = !panel.loopList }
+                IconButton { id: listMore; icon: "more"; iconSize: 15; color: Theme.muted(); tip: "Rename, bookmark list, delete"; onClicked: if (panel.openList) panel.openMenu(listMore, "playlist", panel.openList) }
+            }
+            Row {
+                visible: panel.renaming
+                width: parent.width
+                spacing: 8
+                Field { id: renameField; width: parent.width - renameOk.width - renameCancel.width - 16; placeholder: "Name"; onAccepted: renameOk.clicked() }
+                TextButton { id: renameOk; height: 32; text: "Rename"; onClicked: { Library.rename(panel.arg.id, renameField.text); panel.renaming = false } }
+                TextButton { id: renameCancel; height: 32; text: "Cancel"; onClicked: panel.renaming = false }
+            }
+            Row {
+                visible: panel.deleting
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 10
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Delete “" + (panel.arg ? panel.arg.name : "") + "”?"
+                    color: Theme.text(); font.family: Theme.body; font.pixelSize: 13 }
+                TextButton { height: 30; text: "Delete"; danger: true; onClicked: { Library.removePlaylist(panel.arg.id); panel.deleting = false; panel.go({ tab: "youtube", view: "playlists", text: "", channel: null }) } }
+                TextButton { height: 30; text: "Keep"; onClicked: panel.deleting = false }
+            }
+        }
+
+        // The history: leave watched videos out of the lists, clear it.
+        Item {
+            visible: !panel.onTwitch && !panel.onJelly && panel.ytView === "history"
+            width: parent.width
+            height: 24
+            Chip { text: "Hide watched in lists"; on: panel.filters.watched; onClicked: Streams.setHideWatched(!panel.filters.watched) }
+            Row {
+                anchors.right: parent.right
+                spacing: 6
+                Chip { id: clearChip; property bool sure: false; text: sure ? "Really clear?" : "Clear history"; on: sure
+                    onClicked: { if (sure) { Library.clearHistory(); Streams.loadYoutube("history", ""); sure = false } else { sure = true; clearAgain.restart() } }
+                    Timer { id: clearAgain; interval: 4000; onTriggered: clearChip.sure = false }
+                }
+            }
+        }
+
+        // Twitch: who went live since the last look (live notes on).
+        Column {
+            visible: panel.onTwitch && Streams.alerts && panel.liveNews.length > 0 && (panel.twView === "following" || panel.twView === "favourites" || panel.twView === "game")
+            width: parent.width
+            spacing: 2
+            Repeater {
+                model: panel.liveNews.slice(0, 3)
+                delegate: Rectangle {
+                    required property var modelData
+                    width: parent.width
+                    height: 30
+                    color: newsMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(1, 1, 1, 0.03)
+                    Rectangle { width: 2; height: parent.height; color: Theme.red }
+                    Row {
+                        x: 12
+                        width: parent.width - 24
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 8
+                        Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 7; height: 7; color: Theme.red }
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - 60
+                            elide: Text.ElideRight
+                            text: "<b>" + modelData.name + "</b> went live" + (modelData.game ? " · " + modelData.game : "") + (modelData.title ? " · " + modelData.title : "")
+                            textFormat: Text.StyledText
+                            color: Theme.textSoft(); font.family: Theme.body; font.pixelSize: 12 }
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "WATCH"; color: Theme.accent; font.family: Theme.display; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.2 }
+                    }
+                    MouseArea { id: newsMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: panel.playTwitch({ login: modelData.login, name: modelData.name, game: modelData.game, title: modelData.title }) }
+                }
+            }
+        }
+
+        // Twitch's live lists: order, reruns, languages.
+        Flow {
+            visible: panel.onTwitch && (panel.twView === "game" || panel.twView === "live" || panel.twView === "category")
+            width: parent.width
+            spacing: 6
+            Chip {
+                id: twSort
+                text: panel.twitchFilter.sort === "new" ? "Sort: Just started" : "Sort: Most viewers"
+                onClicked: panel.openMenu(twSort, "filter", { options: [{ id: "viewers", name: "Most viewers" }, { id: "new", name: "Just started" }],
+                                                               choose: (id) => { Streams.changeTwitchFilter("sort", id); panel.reload() } })
+            }
+            Chip {
+                id: twLang
+                readonly property var sets: [["", "All languages"], ["de", "German"], ["en", "English"], ["tr", "Turkish"], ["de,en", "German + English"], ["de,en,tr", "German, English, Turkish"]]
+                readonly property string now: panel.twitchFilter.languages.join(",")
+                text: { const f = sets.find((x) => x[0] === now); return f ? f[1] : now.toUpperCase() }
+                on: now.length > 0
+                onClicked: panel.openMenu(twLang, "filter", { options: sets.map((x) => ({ id: x[0] || "all", name: x[1] })),
+                                                               choose: (id) => { Streams.changeTwitchFilter("languages", id === "all" ? "" : id); panel.reload() } })
+            }
+            Chip { text: "No reruns"; on: panel.twitchFilter.reruns; onClicked: { Streams.changeTwitchFilter("reruns", panel.twitchFilter.reruns ? "off" : "on"); panel.reload() } }
+        }
+
+        // A Twitch category or a channel's recordings: the way back.
+        Row {
+            visible: panel.onTwitch && (panel.twView === "category" || panel.twView === "recordings") && panel.arg !== null
+            spacing: 10
+            TextButton { height: 28; text: panel.twView === "category" ? "‹ Categories" : "‹ Back"
+                onClicked: panel.twView === "category" ? panel.go({ tab: "twitch", view: "categories", text: "", channel: null }) : panel.back() }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                anchors.verticalCenter: parent.verticalCenter
+                text: panel.arg ? (panel.twView === "category" ? panel.arg.title : panel.arg.name + " · past broadcasts and clips") : ""
+                color: Theme.text(); font.family: Theme.body; font.pixelSize: 13; font.weight: Font.DemiBold }
         }
 
         // Jellyfin: where in the libraries (a click goes back there).
@@ -521,9 +955,10 @@ Panel {
             x: -14
             width: parent.width + 28
             // Rows: four; tiles: two rows of them.
-            height: (panel.tiles && !panel.channelsView ? Math.max(79 * 4, grid.cellHeight * 2) : 79 * 4) + panel.grow
+            height: (panel.tiles && !panel.channelsView ? Math.max(79 * 4, Math.min(grid.cellHeight * 2, 79 * 5)) : 79 * 4) + panel.grow
             clip: true
-            readonly property int columns: Math.max(2, Math.min(4, Math.floor((width - 16) / 230)))
+            readonly property int columns: panel.listKind === "categories" ? Math.max(3, Math.min(7, Math.floor((width - 16) / 120)))
+                : Math.max(2, Math.min(4, Math.floor((width - 16) / 230)))
             readonly property int channelColumns: Math.max(2, Math.min(5, Math.floor((width - 16) / 190)))
             readonly property Flickable shown: panel.channelsView ? (panel.tiles ? channelGrid : channelList) : (panel.tiles ? grid : list)
             // The mouse's back and forward buttons.
@@ -538,8 +973,8 @@ Panel {
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 visible: !panel.channelsView && !panel.tiles
-                model: visible ? (panel.onJelly ? panel.jellyList : panel.onTwitch ? panel.twitchList : panel.youtubeList) : []
-                delegate: panel.onJelly ? jellyRow : panel.onTwitch ? twitchRow : videoRow
+                model: visible ? panel.listModel : []
+                delegate: ({ jelly: jellyRow, twitch: twitchRow, categories: categoryRow, recordings: recordingRow, playlists: playlistRow, video: videoRow })[panel.listKind] || videoRow
                 onAtYEndChanged: if (atYEnd && panel.onJelly && Jellyfin.hasMore) Jellyfin.more()
             }
             GridView {
@@ -551,9 +986,10 @@ Panel {
                 boundsBehavior: Flickable.StopAtBounds
                 visible: !panel.channelsView && panel.tiles
                 cellWidth: Math.floor(width / listArea.columns)
-                cellHeight: Math.round((cellWidth - 12) * 9 / 16) + (panel.onJelly ? 58 : 78)
-                model: visible ? (panel.onJelly ? panel.jellyList : panel.onTwitch ? panel.twitchList : panel.youtubeList) : []
-                delegate: panel.onJelly ? jellyTile : panel.onTwitch ? twitchTile : videoTile
+                cellHeight: panel.listKind === "categories" ? Math.round((cellWidth - 12) * 4 / 3) + 50
+                    : Math.round((cellWidth - 12) * 9 / 16) + (panel.onJelly || panel.listKind === "playlists" ? 58 : 78)
+                model: visible ? panel.listModel : []
+                delegate: ({ jelly: jellyTile, twitch: twitchTile, categories: categoryTile, recordings: recordingTile, playlists: playlistTile, video: videoTile })[panel.listKind] || videoTile
                 onAtYEndChanged: if (atYEnd && panel.onJelly && Jellyfin.hasMore) Jellyfin.more()
             }
             ListView {
@@ -562,7 +998,7 @@ Panel {
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 visible: panel.channelsView && !panel.tiles
-                model: visible ? panel.channels : []
+                model: visible ? panel.channelsShown : []
                 delegate: channelRow
             }
             GridView {
@@ -575,7 +1011,7 @@ Panel {
                 visible: panel.channelsView && panel.tiles
                 cellWidth: Math.floor(width / listArea.channelColumns)
                 cellHeight: 62
-                model: visible ? panel.channels : []
+                model: visible ? panel.channelsShown : []
                 delegate: channelTile
             }
             WheelScroll { flick: list; step: 79 * 2 }
@@ -587,7 +1023,7 @@ Panel {
                 width: parent.width - 60
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                readonly property string st: panel.onJelly ? Jellyfin.state : panel.onTwitch ? Streams.twitchState : Streams.youtubeState
+                readonly property string st: panel.onJelly ? Jellyfin.state : panel.onTwitch ? Streams.twitchState : panel.listKind === "playlists" ? "ready" : Streams.youtubeState
                 readonly property int count: listArea.shown.count
                 visible: (st === "loading" && count === 0) || st === "failed" || (st !== "loading" && count === 0)
                 text: st === "loading" ? "Loading…"
@@ -596,7 +1032,11 @@ Panel {
                         : Jellyfin.view === "continue" ? "Nothing half watched right now."
                         : Jellyfin.view === "nextup" ? "No next episodes right now."
                         : st === "idle" ? "" : "Nothing in here.")
-                    : panel.channelsView ? "No channels yet: FreeTube's subscriptions show here, and channels you keep with the star beside a video."
+                    : panel.channelsView ? (Streams.group ? "No channels in this group yet: a channel's menu (⋯) puts it in one." : "No channels yet: subscribe with the star beside a video, or take over FreeTube's in Settings → Streams.")
+                    : panel.listKind === "playlists" ? (panel.playlists.length === 0 ? "No playlists yet: + New playlist, or the bookmark beside a video starts “Watch later”." : "No playlist matches.")
+                    : !panel.onTwitch && panel.ytView === "playlist" ? "Nothing in here yet: a video's menu (⋯) adds it."
+                    : !panel.onTwitch && panel.ytView === "history" ? (search.text ? "Nothing watched matches." : "Nothing watched yet.")
+                    : panel.onTwitch && Streams.twitchView === "recordings" ? "No past broadcasts or clips."
                     : (panel.onTwitch ? Streams.twitchView : Streams.youtubeView) === "search" ? "Type, then Enter."
                     : panel.onTwitch && Streams.twitchView === "favourites" ? "No favorites yet: the star beside a channel keeps it."
                     : panel.onTwitch && Streams.twitchView === "following" ? "You follow no channels yet."
@@ -625,7 +1065,8 @@ Panel {
                         : panel.onTwitch
                         ? (panel.account.streamlink ? "Ad-free via Streamlink" : "Through yt-dlp (install streamlink for no ad breaks)")
                           + (panel.account.user && panel.account.user !== "?" && panel.account.user !== "…" ? " · signed in as " + panel.account.user : "")
-                        : "Subscriptions read from FreeTube · search via yt-dlp"
+                        : panel.ytView === "playlists" || panel.ytView === "playlist" || panel.ytView === "history" ? "Kept on this computer only · nothing goes out"
+                        : (Streams.freetubeLive ? "Subscriptions read from FreeTube" : "Your subscriptions") + " · search via yt-dlp"
                     color: Theme.dim()
                     font.family: Theme.body
                     font.pixelSize: 11
@@ -642,6 +1083,25 @@ Panel {
                 onClicked: { if (!panel.onJelly) Streams.forget(); panel.reload() }
             }
         }
+    }
+
+    // The menu beside a video, a channel or a playlist (one, moved there).
+    Picker {
+        id: menu
+        parent: panel
+        z: 50
+        width: 220
+        maxHeight: 260
+        current: ""
+        onChosen: (id) => panel.menuChosen(id)
+    }
+    // A click elsewhere closes the menu.
+    MouseArea {
+        parent: panel
+        anchors.fill: parent
+        z: 49
+        visible: menu.open
+        onClicked: menu.open = false
     }
 
     Component {
@@ -663,8 +1123,8 @@ Panel {
                 id: rowMouse
                 anchors.fill: parent
                 hoverEnabled: true
-                cursorShape: row.modelData.live ? Qt.PointingHandCursor : Qt.ArrowCursor
-                onClicked: if (row.modelData.live) panel.playRequested({ kind: "twitch", id: row.modelData.login, name: row.modelData.name, game: row.modelData.game, title: row.modelData.title })
+                cursorShape: Qt.PointingHandCursor
+                onClicked: row.modelData.live ? panel.playTwitch(row.modelData) : panel.openRecordings(row.modelData)
             }
             Thumb {
                 id: thumb
@@ -711,7 +1171,7 @@ Panel {
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
-                    text: row.modelData.live ? row.modelData.title : "Offline"
+                    text: row.modelData.live ? row.modelData.title : "Offline · past broadcasts and clips"
                     color: Theme.textSoft()
                     font.family: Theme.body
                     font.pixelSize: 12
@@ -732,19 +1192,23 @@ Panel {
                     font.pixelSize: 11
                 }
             }
-            IconButton {
+            Row {
                 id: star
                 anchors.right: parent.right
-                anchors.rightMargin: 8
+                anchors.rightMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
-                width: 34
-                height: 34
-                icon: "star"
-                iconSize: 16
-                filled: row.fav
-                color: row.fav ? Theme.accent : Theme.dim()
-                tip: row.fav ? "Remove from favorites" : "Add to favorites"
-                onClicked: Streams.toggleFavourite(row.modelData.login)
+                IconButton {
+                    width: 32
+                    height: 34
+                    icon: "star"
+                    iconSize: 16
+                    filled: row.fav
+                    color: row.fav ? Theme.accent : Theme.dim()
+                    tip: row.fav ? "Remove from favorites" : "Add to favorites"
+                    onClicked: Streams.toggleFavourite(row.modelData.login)
+                }
+                IconButton { id: twMore; width: 26; height: 34; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Past broadcasts and clips, live notes"
+                    onClicked: panel.openMenu(twMore, "twitch", row.modelData) }
             }
         }
     }
@@ -756,8 +1220,10 @@ Panel {
             required property var modelData
             width: ListView.view.width
             height: 79
+            required property int index
             readonly property bool current: panel.playingYoutube === modelData.id
-            readonly property bool kept: !!modelData.channelId && panel.channels.some((c) => c.id === modelData.channelId && !c.freetube)
+            readonly property bool kept: !!modelData.channelId && panel.channels.some((c) => c.id === modelData.channelId)
+            readonly property var mark: Library.revision >= 0 ? JSON.parse(Library.mark(modelData.id)) : null
             Rectangle {
                 anchors.fill: parent
                 color: row.current ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.10) : (rowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.03) : "transparent")
@@ -769,13 +1235,14 @@ Panel {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: panel.playRequested({ kind: "youtube", id: row.modelData.id, title: row.modelData.title, name: row.modelData.channel })
+                onClicked: panel.ytView === "playlist" ? panel.playVideo(row.modelData, panel.youtubeList, row.index) : panel.playVideo(row.modelData)
             }
             Thumb {
                 id: thumb
                 x: 14
                 anchors.verticalCenter: parent.verticalCenter
                 source: row.modelData.picture
+                YtProgress { mark: row.mark }
                 Rectangle {
                     visible: row.modelData.duration > 0 || row.modelData.live
                     anchors.right: parent.right
@@ -830,20 +1297,25 @@ Panel {
                     }
                 }
             }
-            IconButton {
+            Row {
                 id: star
-                visible: !!row.modelData.channelId
                 anchors.right: parent.right
-                anchors.rightMargin: 8
+                anchors.rightMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
-                width: 34
-                height: 34
-                icon: "star"
-                iconSize: 16
-                filled: row.kept
-                color: row.kept ? Theme.accent : Theme.dim()
-                tip: row.kept ? "Remove the channel from My channels" : "Keep the channel in My channels"
-                onClicked: Streams.toggleChannel(row.modelData.channelId, row.modelData.channel)
+                BookmarkButton { video: row.modelData; mark: row.mark; width: 30; height: 34 }
+                IconButton {
+                    visible: !!row.modelData.channelId
+                    width: 30
+                    height: 34
+                    icon: "star"
+                    iconSize: 16
+                    filled: row.kept
+                    color: row.kept ? Theme.accent : Theme.dim()
+                    tip: row.kept ? "Unsubscribe from " + row.modelData.channel : "Subscribe to " + row.modelData.channel
+                    onClicked: Streams.toggleChannel(row.modelData.channelId, row.modelData.channel)
+                }
+                IconButton { id: rowMore; width: 26; height: 34; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Playlists, watched, hide"
+                    onClicked: panel.openMenu(rowMore, "video", row.modelData) }
             }
         }
     }
@@ -880,26 +1352,31 @@ Panel {
                     font.weight: Font.DemiBold
                 }
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                    text: row.modelData.freetube ? "From FreeTube" : "Kept here"
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: [row.modelData.freetube ? "From FreeTube" : "Subscribed"].concat(row.modelData.groups).join(" · ")
                     color: Theme.dim()
                     font.family: Theme.body
                     font.pixelSize: 11
                 }
             }
-            IconButton {
+            Row {
                 id: star
-                visible: !row.modelData.freetube
                 anchors.right: parent.right
-                anchors.rightMargin: 8
+                anchors.rightMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
-                width: 34
-                height: 34
-                icon: "star"
-                iconSize: 16
-                filled: true
-                color: Theme.accent
-                tip: "Remove the channel"
-                onClicked: Streams.toggleChannel(row.modelData.id, row.modelData.name)
+                IconButton {
+                    width: 32
+                    height: 34
+                    icon: "star"
+                    iconSize: 16
+                    filled: !row.modelData.freetube
+                    color: row.modelData.freetube ? Theme.dim() : Theme.accent
+                    tip: row.modelData.freetube ? "Subscribe here (not only in FreeTube)" : "Unsubscribe"
+                    onClicked: Streams.toggleChannel(row.modelData.id, row.modelData.name)
+                }
+                IconButton { id: chMore; width: 26; height: 34; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Groups, hide"
+                    onClicked: panel.openMenu(chMore, "channel", row.modelData) }
             }
         }
     }
@@ -957,7 +1434,7 @@ Panel {
             readonly property bool fav: panel.favs.indexOf(modelData.login.toLowerCase()) >= 0
             picture: modelData.live ? modelData.picture : modelData.avatar
             dimmed: !modelData.live
-            onClicked: if (modelData.live) panel.playRequested({ kind: "twitch", id: modelData.login, name: modelData.name, game: modelData.game, title: modelData.title })
+            onClicked: modelData.live ? panel.playTwitch(modelData) : panel.openRecordings(modelData)
             Rectangle {
                 parent: tile.thumb
                 visible: tile.modelData.live
@@ -1016,7 +1493,7 @@ Panel {
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
                     elide: Text.ElideRight
-                    text: tile.modelData.live ? tile.modelData.title : "Offline"
+                    text: tile.modelData.live ? tile.modelData.title : "Offline · past broadcasts"
                     color: Theme.textSoft()
                     font.family: Theme.body
                     font.pixelSize: 12
@@ -1037,19 +1514,23 @@ Panel {
                     font.pixelSize: 11
                 }
             }
-            IconButton {
+            Row {
                 id: tileStar
                 anchors.right: parent.right
                 anchors.rightMargin: -6
                 y: -6
-                width: 30
-                height: 30
-                icon: "star"
-                iconSize: 15
-                filled: tile.fav
-                color: tile.fav ? Theme.accent : Theme.dim()
-                tip: tile.fav ? "Remove from favorites" : "Add to favorites"
-                onClicked: Streams.toggleFavourite(tile.modelData.login)
+                IconButton {
+                    width: 26
+                    height: 30
+                    icon: "star"
+                    iconSize: 15
+                    filled: tile.fav
+                    color: tile.fav ? Theme.accent : Theme.dim()
+                    tip: tile.fav ? "Remove from favorites" : "Add to favorites"
+                    onClicked: Streams.toggleFavourite(tile.modelData.login)
+                }
+                IconButton { id: twTileMore; width: 24; height: 30; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Past broadcasts and clips, live notes"
+                    onClicked: panel.openMenu(twTileMore, "twitch", tile.modelData) }
             }
         }
     }
@@ -1059,10 +1540,22 @@ Panel {
         Tile {
             id: tile
             required property var modelData
+            required property int index
             current: panel.playingYoutube === modelData.id
-            readonly property bool kept: !!modelData.channelId && panel.channels.some((c) => c.id === modelData.channelId && !c.freetube)
+            readonly property bool kept: !!modelData.channelId && panel.channels.some((c) => c.id === modelData.channelId)
+            readonly property var mark: Library.revision >= 0 ? JSON.parse(Library.mark(modelData.id)) : null
             picture: modelData.picture
-            onClicked: panel.playRequested({ kind: "youtube", id: modelData.id, title: modelData.title, name: modelData.channel })
+            onClicked: panel.ytView === "playlist" ? panel.playVideo(modelData, panel.youtubeList, index) : panel.playVideo(modelData)
+            YtProgress { parent: tile.thumb; mark: tile.mark }
+            BookmarkButton {
+                parent: tile.thumb
+                visible: tile.hovered || (!!tile.mark && tile.mark.quick)
+                video: tile.modelData
+                mark: tile.mark
+                x: 2; y: 2
+                width: 28; height: 28
+                Rectangle { anchors.fill: parent; z: -1; color: Qt.rgba(0, 0, 0, 0.6) }
+            }
             Rectangle {
                 parent: tile.thumb
                 visible: tile.modelData.duration > 0 || tile.modelData.live
@@ -1121,20 +1614,24 @@ Panel {
                     font.pixelSize: 11
                 }
             }
-            IconButton {
+            Row {
                 id: tileStar
-                visible: !!tile.modelData.channelId
                 anchors.right: parent.right
                 anchors.rightMargin: -6
                 y: -6
-                width: visible ? 30 : 0
-                height: 30
-                icon: "star"
-                iconSize: 15
-                filled: tile.kept
-                color: tile.kept ? Theme.accent : Theme.dim()
-                tip: tile.kept ? "Remove the channel from My channels" : "Keep the channel in My channels"
-                onClicked: Streams.toggleChannel(tile.modelData.channelId, tile.modelData.channel)
+                IconButton {
+                    visible: !!tile.modelData.channelId
+                    width: visible ? 26 : 0
+                    height: 30
+                    icon: "star"
+                    iconSize: 15
+                    filled: tile.kept
+                    color: tile.kept ? Theme.accent : Theme.dim()
+                    tip: tile.kept ? "Unsubscribe from " + tile.modelData.channel : "Subscribe to " + tile.modelData.channel
+                    onClicked: Streams.toggleChannel(tile.modelData.channelId, tile.modelData.channel)
+                }
+                IconButton { id: tileMore; width: 24; height: 30; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Playlists, watched, hide"
+                    onClicked: panel.openMenu(tileMore, "video", tile.modelData) }
             }
         }
     }
@@ -1175,7 +1672,9 @@ Panel {
                     font.weight: Font.DemiBold
                 }
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                    text: tile.modelData.freetube ? "From FreeTube" : "Kept here"
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: [tile.modelData.freetube ? "From FreeTube" : "Subscribed"].concat(tile.modelData.groups).join(" · ")
                     color: Theme.dim()
                     font.family: Theme.body
                     font.pixelSize: 11
@@ -1183,18 +1682,16 @@ Panel {
             }
             IconButton {
                 id: tileStar
-                visible: !tile.modelData.freetube
                 anchors.right: parent.right
-                anchors.rightMargin: 6
+                anchors.rightMargin: 4
                 anchors.verticalCenter: parent.verticalCenter
-                width: visible ? 30 : 4
+                width: 24
                 height: 30
-                icon: "star"
+                icon: "more"
                 iconSize: 15
-                filled: true
-                color: Theme.accent
-                tip: "Remove the channel"
-                onClicked: Streams.toggleChannel(tile.modelData.id, tile.modelData.name)
+                color: Theme.dim()
+                tip: "Groups, subscribe, hide"
+                onClicked: panel.openMenu(tileStar, "channel", tile.modelData)
             }
         }
     }
@@ -1303,6 +1800,266 @@ Panel {
             WatchedButton { id: tileWatched; item: tile.modelData; anchors.right: parent.right; anchors.rightMargin: -6; y: -6 }
         }
     }
+
+    function viewers(n) { return Number(n || 0).toLocaleString(Qt.locale("en_US"), "f", 0) }
+
+    // Twitch's categories: box art, name, viewers; a click shows its streams.
+    Component {
+        id: categoryTile
+        Item {
+            id: tile
+            required property var modelData
+            width: GridView.view.cellWidth
+            height: GridView.view.cellHeight
+            Rectangle { anchors.fill: parent; anchors.margins: 3; color: catMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent" }
+            Thumb {
+                id: art
+                x: 6; y: 6
+                width: parent.width - 12
+                height: Math.round(width * 4 / 3)
+                source: tile.modelData.picture
+            }
+            Column {
+                x: 6
+                anchors.top: art.bottom
+                anchors.topMargin: 5
+                width: parent.width - 12
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    width: parent.width; elide: Text.ElideRight
+                    text: tile.modelData.title
+                    color: Theme.text(); font.family: Theme.body; font.pixelSize: 12; font.weight: Font.DemiBold }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    width: parent.width; elide: Text.ElideRight
+                    text: panel.viewers(tile.modelData.viewers) + " viewers"
+                    color: Theme.dim(); font.family: Theme.body; font.pixelSize: 11 }
+            }
+            MouseArea { id: catMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                onClicked: panel.go({ tab: "twitch", view: "category", text: "", channel: null, arg: { name: tile.modelData.name, title: tile.modelData.title } }) }
+        }
+    }
+    Component {
+        id: categoryRow
+        Item {
+            id: row
+            required property var modelData
+            width: ListView.view.width
+            height: 79
+            Rectangle { anchors.fill: parent; color: catRowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.03) : "transparent" }
+            Rectangle { anchors.bottom: parent.bottom; x: 14; width: parent.width - 28; height: 1; color: Theme.rowLine }
+            Thumb { id: art; x: 14; anchors.verticalCenter: parent.verticalCenter; width: 48; height: 64; source: row.modelData.picture }
+            Column {
+                anchors.left: art.right; anchors.leftMargin: 12; anchors.right: parent.right; anchors.rightMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    width: parent.width; elide: Text.ElideRight
+                    text: row.modelData.title
+                    color: Theme.text(); font.family: Theme.body; font.pixelSize: 13; font.weight: Font.DemiBold }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    text: panel.viewers(row.modelData.viewers) + " viewers"
+                    color: Theme.dim(); font.family: Theme.body; font.pixelSize: 11 }
+            }
+            MouseArea { id: catRowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                onClicked: panel.go({ tab: "twitch", view: "category", text: "", channel: null, arg: { name: row.modelData.name, title: row.modelData.title } }) }
+        }
+    }
+
+    // A Twitch channel's past broadcasts and clips.
+    Component {
+        id: recordingRow
+        Item {
+            id: row
+            required property var modelData
+            width: ListView.view.width
+            height: 79
+            readonly property bool current: panel.playingTwitch === modelData.id
+            Rectangle { anchors.fill: parent; color: row.current ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.10) : (recMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.03) : "transparent") }
+            Rectangle { anchors.bottom: parent.bottom; x: 14; width: parent.width - 28; height: 1; color: Theme.rowLine }
+            Thumb {
+                id: thumb
+                x: 14
+                anchors.verticalCenter: parent.verticalCenter
+                source: row.modelData.picture
+                RecordingBadges { item: row.modelData }
+            }
+            Column {
+                anchors.left: thumb.right; anchors.leftMargin: 12; anchors.right: parent.right; anchors.rightMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    width: parent.width; maximumLineCount: 2; wrapMode: Text.WordWrap; elide: Text.ElideRight
+                    text: row.modelData.title
+                    color: row.current ? Theme.accent : Theme.text(); font.family: Theme.body; font.pixelSize: 13; font.weight: Font.DemiBold; lineHeight: 1.1 }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    width: parent.width; elide: Text.ElideRight
+                    text: [panel.viewers(row.modelData.views) + " views", row.modelData.game, panel.ago(row.modelData.published)].filter((t) => t).join(" · ")
+                    color: Theme.dim(); font.family: Theme.body; font.pixelSize: 11 }
+            }
+            MouseArea { id: recMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: panel.playRecording(row.modelData) }
+        }
+    }
+    Component {
+        id: recordingTile
+        Tile {
+            id: tile
+            required property var modelData
+            current: panel.playingTwitch === modelData.id
+            picture: modelData.picture
+            onClicked: panel.playRecording(modelData)
+            RecordingBadges { parent: tile.thumb; item: tile.modelData }
+            Column {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                spacing: 2
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    width: parent.width; maximumLineCount: 2; wrapMode: Text.WordWrap; elide: Text.ElideRight
+                    text: tile.modelData.title
+                    color: tile.current ? Theme.accent : Theme.text(); font.family: Theme.body; font.pixelSize: 12; font.weight: Font.DemiBold; lineHeight: 1.05 }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    width: parent.width; elide: Text.ElideRight
+                    text: [panel.viewers(tile.modelData.views) + " views", panel.ago(tile.modelData.published)].filter((t) => t).join(" · ")
+                    color: Theme.dim(); font.family: Theme.body; font.pixelSize: 11 }
+            }
+        }
+    }
+    component RecordingBadges: Item {
+        property var item
+        anchors.fill: parent
+        Rectangle {
+            x: 4; y: 4
+            width: kindText.implicitWidth + 8
+            height: kindText.implicitHeight + 2
+            color: item && item.kind === "clip" ? Theme.purple : Qt.rgba(0, 0, 0, 0.75)
+            Text { id: kindText; anchors.centerIn: parent; text: item && item.kind === "clip" ? "CLIP" : "PAST BROADCAST"; color: "#ffffff"; font.pixelSize: 9; font.weight: Font.Bold; font.family: Theme.body }
+        }
+        Rectangle {
+            visible: !!item && item.length > 0
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: 4
+            width: lenText.implicitWidth + 8
+            height: lenText.implicitHeight + 2
+            color: Qt.rgba(0, 0, 0, 0.75)
+            Text { id: lenText; anchors.centerIn: parent; text: item ? panel.clock(item.length) : ""; color: Theme.text(); font.family: Theme.body; font.pixelSize: 10; font.weight: Font.DemiBold }
+        }
+    }
+
+    // The playlists: first video's picture, the count, the bookmark list marked.
+    Component {
+        id: playlistTile
+        Tile {
+            id: tile
+            required property var modelData
+            picture: modelData.picture
+            onClicked: panel.openPlaylist(modelData)
+            PlaylistCount { parent: tile.thumb; item: tile.modelData }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                anchors.left: parent.left
+                anchors.right: tileMark.left
+                elide: Text.ElideRight
+                text: tile.modelData.name
+                color: Theme.text(); font.family: Theme.body; font.pixelSize: 13; font.weight: Font.DemiBold }
+            IconButton {
+                id: tileMark
+                anchors.right: parent.right
+                anchors.rightMargin: -6
+                y: -7
+                width: 28; height: 30
+                icon: "bookmark"; iconSize: 14; filled: tile.modelData.quick
+                color: tile.modelData.quick ? Theme.accent : Theme.dim()
+                tip: tile.modelData.quick ? "The bookmark list" : "Make this the bookmark list"
+                onClicked: Library.makeQuick(tile.modelData.id)
+            }
+        }
+    }
+    Component {
+        id: playlistRow
+        Item {
+            id: row
+            required property var modelData
+            width: ListView.view.width
+            height: 79
+            Rectangle { anchors.fill: parent; color: plMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.03) : "transparent" }
+            Rectangle { anchors.bottom: parent.bottom; x: 14; width: parent.width - 28; height: 1; color: Theme.rowLine }
+            MouseArea { id: plMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: panel.openPlaylist(row.modelData) }
+            Thumb { id: thumb; x: 14; anchors.verticalCenter: parent.verticalCenter; source: row.modelData.picture; PlaylistCount { item: row.modelData } }
+            Column {
+                anchors.left: thumb.right; anchors.leftMargin: 12; anchors.right: rowMark.left
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    width: parent.width; elide: Text.ElideRight
+                    text: row.modelData.name
+                    color: Theme.text(); font.family: Theme.body; font.pixelSize: 13; font.weight: Font.DemiBold }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    width: parent.width; elide: Text.ElideRight
+                    text: row.modelData.count + (row.modelData.count === 1 ? " video" : " videos") + (row.modelData.played > 0 ? " · played " + panel.ago(new Date(row.modelData.played * 1000).toISOString()) : "")
+                    color: Theme.dim(); font.family: Theme.body; font.pixelSize: 11 }
+            }
+            IconButton {
+                id: rowMark
+                anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
+                width: 34; height: 34
+                icon: "bookmark"; iconSize: 15; filled: row.modelData.quick
+                color: row.modelData.quick ? Theme.accent : Theme.dim()
+                tip: row.modelData.quick ? "The bookmark list" : "Make this the bookmark list"
+                onClicked: Library.makeQuick(row.modelData.id)
+            }
+        }
+    }
+    component PlaylistCount: Rectangle {
+        property var item
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: Math.max(34, parent.width * 0.3)
+        color: Qt.rgba(0, 0, 0, 0.65)
+        Column {
+            anchors.centerIn: parent
+            spacing: 2
+            Text { anchors.horizontalCenter: parent.horizontalCenter; text: item ? String(item.count) : ""; color: Theme.text(); font.family: Theme.display; font.pixelSize: 16; font.weight: Font.Bold }
+            HudIcon { anchors.horizontalCenter: parent.horizontalCenter; name: "list"; size: 13; lineWidth: 2.2; color: Theme.text() }
+        }
+    }
+
+    // How far a YouTube video is watched (this computer's history): the
+    // gold line, and a check mark once watched.
+    component YtProgress: Item {
+        property var mark
+        anchors.fill: parent
+        Rectangle {
+            visible: !!mark && mark.p > 0.01 && !mark.done
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 3
+            color: "#3a3842"
+            Rectangle { width: parent.width * (mark ? mark.p : 0); height: 3; color: Theme.accent }
+        }
+        Rectangle {
+            visible: !!mark && mark.done
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 4
+            width: 18
+            height: 18
+            color: Theme.accent
+            HudIcon { anchors.centerIn: parent; name: "check"; size: 12; lineWidth: 2.6; color: "#0c0c0f" }
+        }
+    }
+
+    // The bookmark: the video into the bookmark list ("Watch later") or out.
+    component BookmarkButton: IconButton {
+        property var video
+        property var mark
+        readonly property bool on: !!mark && mark.quick
+        icon: "bookmark"
+        iconSize: 15
+        filled: on
+        color: on ? Theme.accent : Theme.dim()
+        tip: on ? "Remove from the bookmark list" : "Bookmark (into “" + panel.quickName + "”)"
+        onClicked: Library.toggleQuick(JSON.stringify(video))
+    }
+    readonly property string quickName: (playlists.find((p) => p.quick) || { name: "Watch later" }).name
 
     // How far an item is watched: a thin gold line along the picture's foot;
     // a watched one gets a check mark.
@@ -1430,8 +2187,13 @@ Panel {
         property bool twitch: false
         /// "twitch", "youtube" or "jellyfin" (twitch: true says "twitch").
         property string site: twitch ? "twitch" : "youtube"
-        readonly property bool current: (site === "jellyfin" ? (Jellyfin.view === "folder" ? "libraries" : Jellyfin.view)
-            : site === "twitch" ? Streams.twitchView : (Streams.youtubeView === "channel" ? "channels" : Streams.youtubeView)) === name
+        /// Views that belong to this tab too (an open playlist, a channel).
+        property var also: []
+        /// A red count beside the label (channels gone live).
+        property int count: 0
+        readonly property string viewNow: site === "jellyfin" ? (Jellyfin.view === "folder" ? "libraries" : Jellyfin.view)
+            : site === "twitch" ? Streams.twitchView : Streams.youtubeView
+        readonly property bool current: viewNow === name || also.indexOf(viewNow) >= 0
         width: searchIcon ? 20 : tabRow.implicitWidth
         height: parent.height
         Row {
@@ -1447,6 +2209,14 @@ Panel {
                 font.pixelSize: 13
                 font.weight: Font.Bold
                 font.letterSpacing: 1.5
+            }
+            Rectangle {
+                visible: count > 0
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(16, countText.implicitWidth + 8)
+                height: 16
+                color: Theme.red
+                Text { id: countText; anchors.centerIn: parent; text: String(count); color: "#ffffff"; font.family: Theme.body; font.pixelSize: 10; font.weight: Font.Bold }
             }
             HudIcon {
                 visible: searchIcon
@@ -1475,9 +2245,43 @@ Panel {
         Accessible.name: searchIcon ? "Search" : label
     }
 
+    // A row of list tabs that scrolls sideways when the panel is narrow.
+    component TabStrip: Flickable {
+        default property alias tabs: strip.data
+        width: parent.width
+        height: parent.height
+        contentWidth: strip.implicitWidth
+        contentHeight: height
+        flickableDirection: Flickable.HorizontalFlick
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+        Row {
+            id: strip
+            height: parent.height
+            spacing: 14
+        }
+    }
+
+    // A filter of the YouTube search: a chip opening its choices.
+    component FilterChip: Chip {
+        id: fc
+        property string key
+        property string label
+        property var options: []
+        property string current
+        text: label + ": " + ((options.find((o) => o.id === current) || {}).name || current)
+        on: current !== "any" && current !== "relevance"
+        onClicked: panel.openMenu(fc, "filter", { options: options, choose: (id) => {
+            Streams.changeSearchFilter(key, id)
+            if (search.text.trim().length > 0) Streams.loadYoutube("search", search.text)
+        } })
+    }
+
     component Field: Rectangle {
         property alias text: input.text
         property string placeholder
+        signal accepted
+        function focusInput() { input.forceActiveFocus() }
         height: 32
         color: "#1b1a20"
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: input.activeFocus ? Theme.accent : "#3a3842" }
@@ -1494,6 +2298,7 @@ Panel {
             font.pixelSize: 13
             maximumLength: 80
             clip: true
+            onAccepted: parent.accepted()
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 visible: input.text.length === 0
