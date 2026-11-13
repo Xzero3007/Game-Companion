@@ -24,6 +24,9 @@ Item {
     property bool marketShown: false
     property bool marketOpen: false
     signal marketClicked
+    property bool charactersShown: false
+    property bool charactersOpen: false
+    signal charactersClicked
     /// The running game has a module (purple); else it just shows its name.
     property bool gameHasModule: false
     property bool streamsOpen: false
@@ -148,6 +151,14 @@ Item {
             active: bar.marketOpen
             tip: "AION 2: your server's market prices"
             onClicked: bar.marketClicked()
+        }
+        HudButton {
+            visible: bar.charactersShown
+            icon: "characters"
+            label: "Chars"
+            active: bar.charactersOpen
+            tip: "AION 2: your characters, their content and limits (listens only)"
+            onClicked: bar.charactersClicked()
         }
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter
