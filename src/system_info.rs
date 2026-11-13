@@ -8,7 +8,17 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Value};
 
 /// The tools a suggestion can use, by the program's name.
-pub const TOOLS: &[&str] = &["gamemoderun", "mangohud", "gamescope", "obs-gamecapture", "prime-run"];
+pub const TOOLS: &[&str] = &[
+    "gamemoderun",
+    "mangohud",
+    "gamescope",
+    "obs-gamecapture",
+    "prime-run",
+    "game-performance",
+    "powerprofilesctl",
+    "dlss-swapper",
+    "dlss-swapper-dll",
+];
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Gpu {
@@ -54,9 +64,76 @@ pub struct SystemInfo {
     /// The Vulkan HDR layer (vk-hdr-layer, `VK_LAYER_hdr_wsi`) is installed,
     /// for the system or in the user's own data folder.
     pub hdr_layer: bool,
+    /// `/etc/os-release`'s ID and ID_LIKE words ("cachyos", ["arch"]).
+    pub os_id: String,
+    pub os_like: Vec<String>,
+    /// "amd", "intel", "deck" (the Steam Deck's APU) or "".
+    pub cpu_vendor: String,
+    /// ananicy-cpp runs (a process named so in /proc).
+    pub ananicy: bool,
+    /// The DRM card driving the main screen ("card1"), "" when unknown.
+    pub display_card: String,
 }
 
 impl SystemInfo {
+    /// CachyOS, by os-release.
+    pub fn cachyos(&self) -> bool {
+        self.os_id == "cachyos" || self.os_like.iter().any(|l| l == "cachyos")
+    }
+
+    /// The distribution's family as ProtonDB's groups name it ("cachyos",
+    /// "arch", "steamos", "bazzite", "fedora", "debian", "nixos", "suse",
+    /// "gentoo", "other"; "" when os-release was not read).
+    pub fn distro_group(&self) -> &'static str {
+        let id = self.os_id.as_str();
+        let like = |w: &str| self.os_like.iter().any(|l| l == w);
+        if id.is_empty() {
+            return "";
+        }
+        if self.cachyos() {
+            "cachyos"
+        } else if id == "steamos" {
+            "steamos"
+        } else if id == "bazzite" {
+            "bazzite"
+        } else if matches!(id, "arch" | "endeavouros" | "manjaro" | "garuda" | "artix") || like("arch") {
+            "arch"
+        } else if matches!(id, "fedora" | "nobara") || like("fedora") {
+            "fedora"
+        } else if matches!(id, "debian" | "ubuntu" | "linuxmint" | "pop" | "zorin" | "elementary" | "kali") || like("debian") || like("ubuntu") {
+            "debian"
+        } else if id == "nixos" {
+            "nixos"
+        } else if id.starts_with("opensuse") || id == "suse" || like("suse") || like("opensuse") {
+            "suse"
+        } else if id == "gentoo" {
+            "gentoo"
+        } else {
+            "other"
+        }
+    }
+
+    /// The NVIDIA driver's major version (580 for "580.95.05").
+    pub fn nvidia_major(&self) -> Option<u32> {
+        self.nvidia_version.as_deref()?.split('.').next()?.parse().ok()
+    }
+
+    /// The vendor of the graphics a game runs on: NVIDIA with prime-run,
+    /// else the card driving the main screen, else the only vendor (or the
+    /// separate card's: NVIDIA, then AMD). "deck" on a Steam Deck.
+    pub fn gpu_in_use(&self, prime_run: bool) -> String {
+        if self.cpu_vendor == "deck" {
+            return "deck".into();
+        }
+        if prime_run && self.has_gpu("nvidia") {
+            return "nvidia".into();
+        }
+        if let Some(g) = self.gpus.iter().find(|g| !self.display_card.is_empty() && g.card == self.display_card) {
+            return g.vendor.clone();
+        }
+        ["nvidia", "amd", "intel"].iter().find(|v| self.has_gpu(v)).map(|v| v.to_string()).unwrap_or_default()
+    }
+
     pub fn has_tool(&self, name: &str) -> bool {
         self.tools.iter().any(|(n, _)| n == name)
     }
@@ -92,6 +169,12 @@ impl SystemInfo {
                 "refresh": d.refresh.unwrap_or(0), "hdr": d.hdr,
             })).unwrap_or(Value::Null),
             "hdrLayer": self.hdr_layer,
+            "os": self.os_id,
+            "osLike": self.os_like,
+            "cachyos": self.cachyos(),
+            "cpuVendor": self.cpu_vendor,
+            "ananicy": self.ananicy,
+            "displayCard": self.display_card,
         })
     }
 }
@@ -115,6 +198,27 @@ pub fn detect(root: &Path, config: &Path, env: &dyn Fn(&str) -> Option<String>, 
         .find_map(|l| l.strip_prefix("model name").and_then(|r| r.split_once(':')).map(|(_, v)| v.trim().to_string()))
         .unwrap_or_default();
     info.threads = cpuinfo.lines().filter(|l| l.starts_with("processor")).count() as u32;
+    let vendor_id = cpuinfo.lines().find_map(|l| l.strip_prefix("vendor_id").and_then(|r| r.split_once(':')).map(|(_, v)| v.trim().to_string())).unwrap_or_default();
+    // The Steam Deck's APU ("AMD Custom APU 0405" / "0932").
+    info.cpu_vendor = if info.cpu.contains("Custom APU 0405") || info.cpu.contains("Custom APU 0932") {
+        "deck".into()
+    } else if vendor_id == "AuthenticAMD" || info.cpu.starts_with("AMD") {
+        "amd".into()
+    } else if vendor_id == "GenuineIntel" || info.cpu.contains("Intel") {
+        "intel".into()
+    } else {
+        String::new()
+    };
+    let os = Some(read("/etc/os-release")).filter(|t| !t.is_empty()).unwrap_or_else(|| read("/usr/lib/os-release"));
+    let field = |key: &str| {
+        os.lines()
+            .find_map(|l| l.strip_prefix(key).and_then(|r| r.strip_prefix('=')))
+            .map(|v| v.trim().trim_matches(|c| c == '"' || c == '\'').to_ascii_lowercase())
+            .unwrap_or_default()
+    };
+    info.os_id = field("ID");
+    info.os_like = field("ID_LIKE").split_whitespace().map(str::to_string).collect();
+    info.ananicy = process_running(&at("/proc"), "ananicy-cpp");
     info.ram_mb = read("/proc/meminfo")
         .lines()
         .find_map(|l| l.strip_prefix("MemTotal:").and_then(|r| r.split_whitespace().next()).and_then(|n| n.parse::<u64>().ok()))
@@ -145,7 +249,29 @@ pub fn detect(root: &Path, config: &Path, env: &dyn Fn(&str) -> Option<String>, 
     info.hdr_layer = layer_dirs.iter().filter_map(|d| std::fs::read_dir(d).ok()).flat_map(|d| d.flatten()).any(|e| hdr_layer(&e.path()));
     let connected = connected_outputs(&at("/sys/class/drm"));
     info.display = main_display(&config.join("kwinoutputconfig.json"), &connected, screen);
+    if let Some(d) = &info.display {
+        info.display_card = card_of(&at("/sys/class/drm"), &d.name);
+    }
     info
+}
+
+/// Whether a process with this name runs (by `/proc/<pid>/comm`).
+fn process_running(proc_root: &Path, name: &str) -> bool {
+    let Ok(entries) = std::fs::read_dir(proc_root) else { return false };
+    entries
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().bytes().all(|b| b.is_ascii_digit()))
+        .any(|e| std::fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == name))
+}
+
+/// The card a connector belongs to ("card1" for "card1-DP-2").
+fn card_of(drm: &Path, connector: &str) -> String {
+    let Ok(entries) = std::fs::read_dir(drm) else { return String::new() };
+    entries
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .find_map(|n| n.split_once('-').filter(|(c, rest)| c.starts_with("card") && *rest == connector).map(|(c, _)| c.to_string()))
+        .unwrap_or_default()
 }
 
 /// Whether this user may open the file for reading and writing (what
@@ -426,6 +552,41 @@ mod tests {
         let env = |k: &str| if k == "HOME" { Some("/home/u".to_string()) } else { fake_env(k) };
         let info = detect(&root, &root.join("home/.config"), &env, "");
         assert!(info.hdr_layer && info.ntsync);
+    }
+
+    #[test]
+    fn reads_distribution_processor_and_ananicy() {
+        let root = fake_root("distro");
+        write(&root.join("etc/os-release"), "NAME=\"CachyOS Linux\"\nID=cachyos\nID_LIKE=arch\n");
+        write(&root.join("proc/812/comm"), "ananicy-cpp\n");
+        write(&root.join("proc/cpuinfo"), "processor\t: 0\nvendor_id\t: AuthenticAMD\nmodel name\t: AMD Ryzen 7 7800X3D 8-Core Processor\n");
+        tool(&root.join("usr/bin/game-performance"));
+        tool(&root.join("usr/bin/powerprofilesctl"));
+        let info = detect(&root, &root.join("home/.config"), &fake_env, "");
+        assert!(info.cachyos() && info.ananicy);
+        assert_eq!((info.os_id.as_str(), info.os_like.clone()), ("cachyos", vec!["arch".to_string()]));
+        assert_eq!(info.distro_group(), "cachyos");
+        assert_eq!(info.cpu_vendor, "amd");
+        assert!(info.has_tool("game-performance") && info.has_tool("powerprofilesctl"));
+        assert_eq!(info.nvidia_major(), Some(580));
+        // The main screen (DP-2) hangs on card1, the NVIDIA card.
+        assert_eq!(info.display_card, "card1");
+        assert_eq!(info.gpu_in_use(false), "nvidia");
+        // Other distributions by their family.
+        let group = |id: &str, like: &str| SystemInfo { os_id: id.into(), os_like: like.split_whitespace().map(str::to_string).collect(), ..Default::default() }.distro_group();
+        assert_eq!(group("endeavouros", "arch"), "arch");
+        assert_eq!(group("nobara", "fedora"), "fedora");
+        assert_eq!(group("bazzite", "fedora"), "bazzite");
+        assert_eq!(group("linuxmint", "ubuntu debian"), "debian");
+        assert_eq!(group("opensuse-tumbleweed", "opensuse suse"), "suse");
+        assert_eq!(group("", ""), "");
+        // A laptop's built-in graphics drive the screen: AMD unless prime-run.
+        let laptop = SystemInfo {
+            gpus: vec![Gpu { vendor: "amd".into(), driver: "amdgpu".into(), card: "card0".into() }, Gpu { vendor: "nvidia".into(), driver: "nvidia".into(), card: "card1".into() }],
+            display_card: "card0".into(),
+            ..Default::default()
+        };
+        assert_eq!((laptop.gpu_in_use(false).as_str(), laptop.gpu_in_use(true).as_str()), ("amd", "nvidia"));
     }
 
     #[test]

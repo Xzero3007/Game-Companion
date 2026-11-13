@@ -20,7 +20,9 @@ use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
 use crate::games::{self, Game, GameOptions, GamesSettings, Matcher, OwnGame};
+use crate::launch_check;
 use crate::launch_options::{self, Places};
+use crate::protondb;
 use crate::settings;
 use crate::system_info;
 
@@ -134,11 +136,35 @@ pub mod qobject {
         #[qinvokable]
         fn launch_options(self: &Games, id: &QString) -> i32;
 
-        /// Options that fit this computer and this game. Answer: JSON
-        /// `[{"id","label","explanation","option","recommended","why",
-        /// "group","applied"}]` (one per group can be on).
+        /// Options that fit this computer and this game's Proton build,
+        /// the current options checked, and what others use (ProtonDB,
+        /// Steam games). Answer: JSON `{"suggestions":[{"id","label",
+        /// "explanation","option","recommended","why","warning","group",
+        /// "applied","flavours":[..],"popular":<usage>|null}],"context":
+        /// {"flavour","label","sure","cachyos"},"check":<as checkOptions>,
+        /// "warnings":[..],"others":{"title","reports","export","months",
+        /// "source","groups":[{"group","label","reports"}],"proton":
+        /// [{"variant","label","count","share"}],"options":[{"kind","name",
+        /// "value","text","usage":<usage>,"check":<token>}]}|null}`; one
+        /// per group can be on. `<usage>` is `{"count","reports","share",
+        /// "similar":[{"group","label","count","reports","share"}],"like":
+        /// {..}}` (`like`: the first of this PC's groups, GPU, distro, CPU,
+        /// with 5 reports or more, else all reports).
         #[qinvokable]
         fn suggestions(self: &Games, id: &QString) -> i32;
+
+        /// Checks launch options word by word for the game's Proton build
+        /// (`text` "" = the game's current options). Answer: JSON
+        /// `{"text","proton":{"flavour","label","sure","cachyos"},"tokens":
+        /// [{"text","kind","name","value","status","explanation","note",
+        /// "warning","replacement","fix","source","flags":[{"flag","status",
+        /// "note","suggestion"}]}],"problems":[{"kind","message","name"}],
+        /// "summary":{"ok",..},"fixed","error"}`. status: ok, outdated,
+        /// invalid, no_effect, not_recommended, unknown; fix: the word's
+        /// replacement ("" = take it out) or null; fixed: the whole text
+        /// with every fix ("" when none or not safely possible).
+        #[qinvokable]
+        fn check_options(self: &Games, id: &QString, text: &QString) -> i32;
 
         /// The game's launch options with the suggestions in `chosen` (a
         /// JSON list of ids: the ones to have on; applied ones left out are
@@ -171,7 +197,8 @@ pub mod qobject {
         /// [{"vendor","driver","card"}],"nvidiaVersion","cpu","threads",
         /// "ramMb","kernel","tools":[..],"session","desktop","ntsync",
         /// "display":{"name","width","height","refresh","hdr"}|null,
-        /// "hdrLayer"}`.
+        /// "hdrLayer","os","osLike":[..],"cachyos","cpuVendor","ananicy",
+        /// "displayCard"}`.
         #[qinvokable]
         fn system_info(self: &Games) -> i32;
     }
@@ -686,13 +713,25 @@ impl qobject::Games {
     fn suggestions(&self, id: &QString) -> i32 {
         let id = id.to_string();
         self.work(move || {
-            let Some(places) = places() else { return Answer::json(json!([])) };
+            let Some(places) = places() else { return Answer::json(json!({"suggestions": [], "warnings": [], "others": null})) };
             let current = launch_options::read(&places, &id, own_command(&id).as_deref());
             if !current.supported {
-                return Answer::json(json!([]));
+                return Answer::json(json!({"suggestions": [], "warnings": [], "others": null}));
             }
-            let list = launch_options::suggest(&system(), &current, &tools(&places, false));
-            Answer { json: launch_options::suggestions_json(&list), rebuild: false }
+            let pdb = launch_options::steam_appid(&id).and_then(|appid| protondb::load(&protondb::data_path()?, appid));
+            Answer::json(launch_check::suggestions_answer(&system(), &current, &tools(&places, false), pdb))
+        })
+    }
+
+    fn check_options(&self, id: &QString, text: &QString) -> i32 {
+        let id = id.to_string();
+        let text = text.to_string();
+        self.work(move || {
+            let Some(places) = places() else { return Answer::json(json!({"error": "No home folder"})) };
+            let current = launch_options::read(&places, &id, own_command(&id).as_deref());
+            let text = if text.trim().is_empty() { current.text.clone() } else { text };
+            let ctx = launch_check::context(&system(), &current, &tools(&places, false));
+            Answer::json(launch_check::check(&text, &ctx).to_json(&text))
         })
     }
 

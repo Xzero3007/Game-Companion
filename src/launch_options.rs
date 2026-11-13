@@ -81,6 +81,16 @@ fn program(word: &str) -> &str {
     word.rsplit('/').next().unwrap_or(word)
 }
 
+/// A word's program name (`/usr/bin/gamemoderun` → `gamemoderun`).
+pub fn program_name(word: &str) -> &str {
+    program(word)
+}
+
+/// A program that starts a new wrapper before `%command%`.
+pub fn is_wrapper(program: &str) -> bool {
+    WRAPPERS.contains(&program)
+}
+
 fn order(word: &str) -> usize {
     WRAPPER_ORDER.iter().position(|w| *w == program(word)).unwrap_or(WRAPPER_ORDER.len() / 2)
 }
@@ -362,7 +372,7 @@ fn steam_config(home: &Path) -> Option<PathBuf> {
     games::steam_roots(home).into_iter().map(|r| r.join("config/config.vdf")).find(|f| f.is_file())
 }
 
-fn steam_appid(id: &str) -> Option<&str> {
+pub fn steam_appid(id: &str) -> Option<&str> {
     id.strip_prefix("steam:").filter(|a| !a.is_empty() && a.bytes().all(|b| b.is_ascii_digit()))
 }
 
@@ -876,6 +886,8 @@ pub enum Flavour {
     Ge(u32, u32),
     CachyOs,
     Experimental,
+    /// Valve's Proton Hotfix (the newest numbered one, patched).
+    Hotfix,
     /// Valve's numbered Proton (major).
     Valve(u32),
     Unknown,
@@ -896,6 +908,9 @@ pub fn flavour(name: &str) -> Flavour {
     if lower.contains("experimental") {
         return Flavour::Experimental;
     }
+    if lower.contains("hotfix") && lower.contains("proton") {
+        return Flavour::Hotfix;
+    }
     if let Some(rest) = lower.strip_prefix("proton_").or_else(|| lower.strip_prefix("proton ")) {
         if rest.starts_with(|c: char| c.is_ascii_digit()) {
             // "proton_513" is 5.13, "proton_9" and "proton_10" whole.
@@ -914,21 +929,26 @@ pub fn flavour(name: &str) -> Flavour {
 }
 
 impl Flavour {
-    /// Wine's Wayland driver behind `PROTON_ENABLE_WAYLAND`.
+    /// Wine's Wayland driver behind `PROTON_ENABLE_WAYLAND`: GE-Proton 10
+    /// and proton-cachyos ("Valve's Protons do not include
+    /// winewayland.drv", proton-cachyos README).
     pub fn wayland(self) -> bool {
-        matches!(self, Flavour::Ge(m, _) if m >= 10) || matches!(self, Flavour::CachyOs | Flavour::Experimental) || matches!(self, Flavour::Valve(m) if m >= 10)
+        matches!(self, Flavour::Ge(m, _) if m >= 10) || self == Flavour::CachyOs
     }
 
-    /// `PROTON_ENABLE_HDR` (needs the Wayland driver).
-    pub fn hdr(self) -> bool {
-        matches!(self, Flavour::Ge(m, _) if m >= 10) || matches!(self, Flavour::CachyOs | Flavour::Experimental)
+    /// NTSync on by default when /dev/ntsync is there: GE-Proton from 10-10,
+    /// proton-cachyos 11, Valve's Proton 11 (proton-cachyos changelog).
+    pub fn ntsync_default(self) -> bool {
+        matches!(self, Flavour::Ge(m, r) if m > 10 || (m == 10 && r >= 10))
+            || matches!(self, Flavour::CachyOs | Flavour::Experimental | Flavour::Hotfix)
+            || matches!(self, Flavour::Valve(m) if m >= 11)
     }
 
-    /// `PROTON_USE_NTSYNC`. GE: from GE-Proton10-9 on, to be safe (when
-    /// GE added the switch is not verified; earlier builds of 10 may have
-    /// it too).
-    pub fn ntsync(self) -> bool {
-        matches!(self, Flavour::Ge(m, r) if m > 10 || (m == 10 && r >= 9)) || matches!(self, Flavour::CachyOs)
+    /// Has the upscaler download options (PROTON_FSR4_UPGRADE,
+    /// PROTON_DLSS_UPGRADE), PROTON_LOCAL_SHADER_CACHE,
+    /// PROTON_NVIDIA_LIBS and PROTON_USE_OPTISCALER.
+    pub fn extras(self) -> bool {
+        matches!(self, Flavour::Ge(m, _) if m >= 10) || self == Flavour::CachyOs
     }
 }
 
@@ -1259,24 +1279,37 @@ pub fn set_tool(places: &Places, tools: &[Tool], id: &str, name: &str, now: u64)
 pub struct Suggestion {
     pub id: &'static str,
     pub label: String,
-    /// What it does, in one plain sentence.
+    /// What it does, when it helps, its risks: one or two plain sentences.
     pub explanation: String,
     /// Steam's form, e.g. "gamemoderun %command%".
     pub option: String,
+    /// Surely helps here. Never set because others use it.
     pub recommended: bool,
-    /// Why it fits this computer.
+    /// Why it fits this computer and this game's Proton.
     pub why: String,
+    /// A risk to know before turning it on ("" = none).
+    pub warning: String,
     /// Suggestions in one group exclude each other.
     pub group: &'static str,
     /// Already in the game's options.
     pub applied: bool,
+    /// The builds its parts work with ("valve", "experimental", "ge",
+    /// "cachyos", "wine", "native"), from data/launch-options.json.
+    pub flavours: Vec<&'static str>,
+    /// How many ProtonDB reports for this game use it (systems like this
+    /// one first), when known; it raises the rank, never `recommended`.
+    pub popular: Option<Value>,
+    /// Its share for the rank (0 when unknown).
+    pub share: f64,
 }
 
 impl Suggestion {
     fn to_json(&self) -> Value {
         json!({
             "id": self.id, "label": self.label, "explanation": self.explanation, "option": self.option,
-            "recommended": self.recommended, "why": self.why, "group": self.group, "applied": self.applied,
+            "recommended": self.recommended, "why": self.why, "warning": self.warning, "group": self.group,
+            "applied": self.applied, "flavours": self.flavours,
+            "popular": self.popular.clone().unwrap_or(Value::Null),
         })
     }
 }
@@ -1284,7 +1317,7 @@ impl Suggestion {
 /// The Proton build a game will use, as far as can be told: its own
 /// choice, Steam's default for all games, else (Steam) the newest of
 /// Valve's numbered Protons installed, which Steam picks by itself.
-fn proton_in_use(current: &Current, tools: &[Tool]) -> Option<(Flavour, String)> {
+pub fn proton_in_use(current: &Current, tools: &[Tool]) -> Option<(Flavour, String)> {
     let label_of = |name: &str| tools.iter().find(|t| t.name == name).map(|t| t.label.clone()).unwrap_or_else(|| name.to_string());
     let chosen = [current.tool.as_str(), if current.launcher == "steam" { current.global_tool.as_str() } else { "" }]
         .into_iter()
@@ -1311,22 +1344,61 @@ fn proton_in_use(current: &Current, tools: &[Tool]) -> Option<(Flavour, String)>
     None
 }
 
-/// Options that fit this computer and this game, each only when what it
-/// needs is there.
+/// Options that fit this computer and this game's Proton build, each only
+/// when what it needs is there. Changing the build changes the list.
 pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Suggestion> {
     let mut out: Vec<Suggestion> = Vec::new();
-    let mut add = |id: &'static str, label: &str, explanation: &str, option: String, recommended: bool, why: String, group: &'static str| {
-        out.push(Suggestion { id, label: label.into(), explanation: explanation.into(), option, recommended, why, group, applied: false });
+    let mut add = |id: &'static str, label: &str, explanation: &str, option: String, recommended: bool, why: String, group: &'static str, warning: &str| {
+        let flavours = crate::launch_check::option_info(&option).0;
+        out.push(Suggestion {
+            id,
+            label: label.into(),
+            explanation: explanation.into(),
+            option,
+            recommended,
+            why,
+            warning: warning.into(),
+            group,
+            applied: false,
+            flavours,
+            popular: None,
+            share: 0.0,
+        });
     };
+    let cachyos = sys.cachyos();
+    let game_performance = sys.has_tool("game-performance");
+    let ppd = sys.has_tool("powerprofilesctl");
+    if game_performance {
+        add(
+            "game_performance",
+            "game-performance",
+            "CachyOS's wrapper: switches to the performance power profile (and a running scx scheduler to its gaming mode) while the game runs, and back afterwards.",
+            "game-performance %command%".into(),
+            cachyos && ppd,
+            if cachyos { "CachyOS's own wrapper is installed; the CachyOS wiki suggests it." } else { "game-performance is installed." }.into(),
+            "performance",
+            if ppd { "" } else { "Needs power-profiles-daemon, which is not installed (powerprofilesctl not found)." },
+        );
+    }
     if sys.has_tool("gamemoderun") {
+        let instead = cachyos && game_performance;
+        let mut why = "GameMode is installed.".to_string();
+        if instead {
+            why.push_str(" On CachyOS, game-performance does this job instead.");
+        }
         add(
             "gamemode",
             "GameMode",
-            "Asks the system for full processor speed and priority while the game runs.",
+            "Feral's GameMode: asks the system for full processor speed and priority while the game runs.",
             "gamemoderun %command%".into(),
-            true,
-            "GameMode is installed.".into(),
-            "",
+            !instead && !sys.ananicy,
+            why,
+            "performance",
+            if sys.ananicy {
+                "ananicy-cpp is running: GameMode and ananicy-cpp both change process priorities and get in each other's way (CachyOS wiki). Stop ananicy-cpp first (systemctl stop ananicy-cpp) or use game-performance."
+            } else {
+                ""
+            },
         );
     }
     if sys.hybrid() && sys.has_tool("prime-run") {
@@ -1337,6 +1409,7 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
             "prime-run %command%".into(),
             true,
             "This computer has an NVIDIA card next to other graphics, and prime-run is installed.".into(),
+            "",
             "",
         );
     }
@@ -1349,6 +1422,7 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
             false,
             "MangoHud is installed. With Gamescope it is turned on by gamescope's --mangoapp instead.".into(),
             "",
+            "",
         );
     }
     if sys.has_tool("obs-gamecapture") {
@@ -1359,6 +1433,7 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
             "obs-gamecapture %command%".into(),
             false,
             "obs-vkcapture is installed.".into(),
+            "",
             "",
         );
     }
@@ -1374,6 +1449,7 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
             false,
             format!("gamescope is installed; uses your main screen ({}, {size}).{nvidia_note}", d.name),
             "display",
+            "",
         );
         if d.hdr {
             add(
@@ -1384,6 +1460,7 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
                 false,
                 format!("HDR is on for {} in KDE's display settings.", d.name),
                 "display",
+                "",
             );
         }
     }
@@ -1394,41 +1471,38 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
     let only_proton = if sure { "" } else { " Only for games that run through Proton." };
     let in_use = if proton { proton_in_use(current, tools) } else { None };
     if let Some((f, label)) = in_use {
-        if sys.ntsync && f.ntsync() {
-            add(
-                "ntsync",
-                "NTSync",
-                "Uses the kernel's Windows-style sync driver, which makes many games run smoother.",
-                "PROTON_USE_NTSYNC=1 %command%".into(),
-                sure,
-                format!("/dev/ntsync is there and {label} supports it.{only_proton}"),
-                "",
-            );
-        }
-        let wayland = sys.session == "wayland" && f.wayland();
-        if wayland {
+        let hdr_screen = sys.display.as_ref().is_some_and(|d| d.hdr);
+        let wayland_warning = crate::launch_check::find("env", "PROTON_ENABLE_WAYLAND").map(|e| e.warning.clone()).unwrap_or_default();
+        if sys.session == "wayland" && f.wayland() {
+            let hdr_note = if matches!(f, Flavour::Ge(..)) && hdr_screen { " With it, GE-Proton detects HDR by itself (HDR is on for your main screen)." } else { "" };
             add(
                 "wayland",
                 "Native Wayland",
-                "Runs the game as a Wayland window instead of through XWayland; some games or overlays may not work.",
+                "Runs the game as a Wayland window instead of through XWayland; can lower latency, but some games, launchers or overlays may not work.",
                 "PROTON_ENABLE_WAYLAND=1 %command%".into(),
                 false,
-                format!("You use a Wayland session and {label} has the Wayland driver.{only_proton}"),
+                format!("You use a Wayland session and {label} has Wine's Wayland driver.{hdr_note}{only_proton}"),
                 "display",
+                &wayland_warning,
             );
         }
-        let hdr_screen = sys.display.as_ref().is_some_and(|d| d.hdr);
-        if hdr_screen && wayland && f.hdr() {
+        if hdr_screen && f == Flavour::CachyOs {
+            // proton-cachyos: DXVK_HDR (PROTON_ENABLE_HDR is retired there),
+            // ENABLE_HDR_WSI only on NVIDIA drivers older than 595.
+            let old_nvidia = sys.nvidia_driver() && sys.nvidia_major().is_some_and(|m| m < 595);
+            let option = if old_nvidia { "ENABLE_HDR_WSI=1 DXVK_HDR=1 %command%" } else { "DXVK_HDR=1 %command%" };
+            let driver_note = if old_nvidia { " Your NVIDIA driver is older than 595, so ENABLE_HDR_WSI=1 comes with it." } else { "" };
             add(
                 "proton_hdr",
-                "HDR (Proton)",
-                "Turns on HDR for games that support it, through Proton's Wayland driver.",
-                "PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 %command%".into(),
+                "HDR (proton-cachyos)",
+                "Turns on HDR for games that support it; the screen must have HDR on in KDE's display settings.",
+                option.into(),
                 false,
-                format!("HDR is on in KDE's display settings and {label} supports it.{only_proton}"),
-                "display",
+                format!("HDR is on in KDE's display settings; proton-cachyos takes DXVK_HDR=1 for HDR (its README).{driver_note}{only_proton}"),
+                "",
+                "",
             );
-        } else if hdr_screen && sys.hdr_layer {
+        } else if hdr_screen && sys.hdr_layer && !f.wayland() {
             add(
                 "hdr_wsi",
                 "HDR (Vulkan layer)",
@@ -1437,28 +1511,92 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
                 false,
                 format!("HDR is on in KDE's display settings and the Vulkan HDR layer is installed.{only_proton}"),
                 "display",
+                "",
             );
         }
-    }
-    if proton && sys.has_gpu("nvidia") && sys.nvidia_driver() {
-        // Only of use when the game runs on the NVIDIA card: sure on a
-        // computer with NVIDIA cards alone, not with other graphics beside.
-        let hybrid = sys.hybrid();
-        let why = if hybrid {
-            format!("NVIDIA's own driver is in use, but other graphics are there too: only of use when the game runs on the NVIDIA card (e.g. with prime-run).{only_proton}")
-        } else {
-            format!("NVIDIA's own driver is in use.{only_proton}")
-        };
-        add("nvapi", "NVIDIA features (DLSS, Reflex)", "Lets Windows games find NVIDIA's features such as DLSS and Reflex.", "PROTON_ENABLE_NVAPI=1 %command%".into(), sure && !hybrid, why, "");
+        if sys.ntsync && f.ntsync_default() {
+            add(
+                "no_ntsync",
+                "Turn NTSync off (troubleshooting)",
+                "Turns off NTSync, the kernel's Windows-style synchronisation that usually makes games smoother. Only for a game that hangs or crashes with it.",
+                "PROTON_NO_NTSYNC=1 %command%".into(),
+                false,
+                format!("{label} uses NTSync by itself (/dev/ntsync is there), so nothing needs turning on.{only_proton}"),
+                "",
+                "",
+            );
+        }
+        if f.extras() {
+            let downloads = if f == Flavour::CachyOs { "proton-cachyos" } else { "GE-Proton" };
+            if sys.has_gpu("amd") {
+                add(
+                    "fsr4_upgrade",
+                    "FSR 4 upgrade",
+                    &format!("Upgrades games that have FSR 3.1 to FSR 4. {downloads} downloads the FSR4 DLL (amdxcffx64.dll) itself when the game starts."),
+                    "PROTON_FSR4_UPGRADE=1 %command%".into(),
+                    false,
+                    format!("An AMD card and {label}; only of use in games with FSR 3.1.{only_proton}"),
+                    "",
+                    "",
+                );
+            }
+            if sys.nvidia_driver() {
+                add(
+                    "dlss_upgrade",
+                    "DLSS upgrade",
+                    &format!("Uses newer DLSS DLLs and the latest DLSS preset than the game ships. {downloads} downloads the DLSS DLLs itself when the game starts."),
+                    "PROTON_DLSS_UPGRADE=1 %command%".into(),
+                    false,
+                    format!("NVIDIA's driver and {label}; only of use in games with DLSS.{only_proton}"),
+                    "",
+                    "",
+                );
+            }
+            add(
+                "local_shader_cache",
+                "Shader cache per game",
+                "Keeps a shader cache per game in the Steam library even with Steam's shader pre-caching off, so the game stutters less after the first run.",
+                "PROTON_LOCAL_SHADER_CACHE=1 %command%".into(),
+                false,
+                format!("{label} has this option.{only_proton}"),
+                "",
+                "",
+            );
+            if sys.nvidia_driver() {
+                let warning = crate::launch_check::find("env", "PROTON_NVIDIA_LIBS").map(|e| e.warning.clone()).unwrap_or_default();
+                add(
+                    "nvidia_libs",
+                    "NVIDIA libraries (PhysX, CUDA)",
+                    "Adds replacements for NVIDIA libraries Proton lacks (CUDA, NVENC, NVML, OptiX), e.g. for hardware PhysX. Only when a game needs them.",
+                    "PROTON_NVIDIA_LIBS=1 %command%".into(),
+                    false,
+                    format!("NVIDIA's driver and {label}.{only_proton}"),
+                    "",
+                    &warning,
+                );
+            }
+            let warning = crate::launch_check::find("env", "PROTON_USE_OPTISCALER").map(|e| e.warning.clone()).unwrap_or_default();
+            add(
+                "optiscaler",
+                "OptiScaler",
+                "Puts OptiScaler into the game, which can swap its upscaler (DLSS, FSR, XeSS) for another.",
+                "PROTON_USE_OPTISCALER=1 %command%".into(),
+                false,
+                format!("{label} can put OptiScaler in by itself.{only_proton}"),
+                "",
+                &warning,
+            );
+        }
     }
     if sys.nvidia_driver() {
         add(
             "nv_shader_cache",
             "Keep NVIDIA's shader cache",
-            "Stops the NVIDIA driver from clearing its shader cache, so games stutter less after the first run.",
+            "Stops the NVIDIA driver from cleaning up its shader cache when it grows past its limit, so games stutter less after the first run.",
             "__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1 %command%".into(),
             true,
             "NVIDIA's own driver is in use.".into(),
+            "",
             "",
         );
     }
@@ -1470,8 +1608,8 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
     out
 }
 
-pub fn suggestions_json(list: &[Suggestion]) -> String {
-    Value::Array(list.iter().map(Suggestion::to_json).collect()).to_string()
+pub fn suggestions_json(list: &[Suggestion]) -> Value {
+    Value::Array(list.iter().map(Suggestion::to_json).collect())
 }
 
 // ------------------------------------------------------- text editing ----
@@ -1549,6 +1687,22 @@ fn lex(text: &str) -> Result<Vec<Tok>, String> {
         out.push(Tok { start, end: i.min(b.len()), op: false });
     }
     Ok(out)
+}
+
+/// A word as the shell splits it: (word without quotes, byte range,
+/// operator).
+pub type Word = (String, (usize, usize), bool);
+
+/// The text's words as the shell splits them.
+pub fn lex_words(text: &str) -> Result<Vec<Word>, String> {
+    check_text(text)?;
+    let toks = lex(text)?;
+    Ok(toks.iter().map(|t| (unquoted(text, t), (t.start, t.end), t.op)).collect())
+}
+
+/// `NAME=value` with a valid name.
+pub fn is_assignment(word: &str) -> bool {
+    assignment(word).is_some()
 }
 
 /// A token's text as one word without its quotes ("" for operators).
@@ -2063,9 +2217,13 @@ mod tests {
         assert_eq!(flavour("proton_63"), Flavour::Valve(6));
         assert_eq!(flavour("Proton 9.0"), Flavour::Valve(9));
         assert_eq!(flavour("lutris-7.2"), Flavour::Unknown);
-        assert!(Flavour::Ge(10, 9).ntsync() && Flavour::Ge(11, 1).ntsync());
-        assert!(!Flavour::Ge(10, 8).ntsync() && !Flavour::Ge(9, 27).ntsync() && !Flavour::Valve(10).ntsync());
-        assert!(Flavour::Valve(10).wayland() && !Flavour::Valve(9).wayland());
+        assert_eq!(flavour("proton_hotfix"), Flavour::Hotfix);
+        assert_eq!(flavour("proton-cachyos-slr (11.0-20261015)"), Flavour::CachyOs);
+        assert!(Flavour::Ge(10, 10).ntsync_default() && Flavour::Ge(11, 1).ntsync_default() && Flavour::Valve(11).ntsync_default());
+        assert!(!Flavour::Ge(10, 9).ntsync_default() && !Flavour::Valve(10).ntsync_default());
+        // Valve's builds have no Wayland driver.
+        assert!(Flavour::Ge(10, 1).wayland() && Flavour::CachyOs.wayland());
+        assert!(!Flavour::Valve(11).wayland() && !Flavour::Experimental.wayland() && !Flavour::Ge(9, 27).wayland());
     }
 
     #[test]
@@ -2321,14 +2479,22 @@ mod tests {
         let current = read(&p, "steam:10", None);
         let list = suggest(&system(true, true), &current, &tools);
         let ids: Vec<&str> = list.iter().map(|s| s.id).collect();
-        assert_eq!(ids, ["gamemode", "prime_run", "mangohud", "gamescope", "gamescope_hdr", "ntsync", "wayland", "proton_hdr", "nvapi", "nv_shader_cache"]);
+        assert_eq!(
+            ids,
+            ["gamemode", "prime_run", "mangohud", "gamescope", "gamescope_hdr", "wayland", "no_ntsync", "fsr4_upgrade", "dlss_upgrade", "local_shader_cache", "nvidia_libs", "optiscaler", "nv_shader_cache"]
+        );
         let gamescope = &list[3];
         assert_eq!(gamescope.option, "gamescope -W 2560 -H 1440 -r 165 -f -- %command%");
-        assert!(list.iter().all(|s| !s.explanation.is_empty() && !s.why.is_empty()));
-        assert!(list[5].why.contains("GE-Proton10-25"));
+        assert!(list.iter().all(|s| !s.explanation.is_empty() && !s.why.is_empty() && !s.flavours.is_empty()));
+        assert!(list[5].why.contains("GE-Proton10-25") && list[5].why.contains("detects HDR"));
+        assert!(list[5].warning.contains("experimental"));
+        assert_eq!(list[5].flavours, ["ge", "cachyos"]);
+        assert!(list.iter().find(|s| s.id == "fsr4_upgrade").unwrap().explanation.contains("GE-Proton downloads the FSR4 DLL"));
+        // Proton's own options are never recommended; NTSync is on by itself.
+        assert!(list.iter().filter(|s| s.flavours.iter().all(|f| *f != "native")).all(|s| !s.recommended));
 
         // An AMD desktop with Steam's default (Valve's Proton 10): no
-        // NVIDIA options, no NTSync (not in Valve's build), no HDR.
+        // NVIDIA options, no Wayland driver (not in Valve's builds), no HDR.
         let current = read(&p, "steam:20", None);
         assert_eq!(current.tool, "");
         let mut sys = system(false, false);
@@ -2336,10 +2502,47 @@ mod tests {
         let mut no_global = current.clone();
         no_global.global_tool.clear();
         let ids: Vec<&str> = suggest(&sys, &no_global, &tools).iter().map(|s| s.id).collect();
-        assert_eq!(ids, ["gamemode", "wayland"]);
-        // Steam's default for all games (proton_9): no Wayland driver yet.
+        assert_eq!(ids, ["gamemode"]);
+        // Steam's default for all games (proton_9): the same.
         let ids: Vec<&str> = suggest(&sys, &current, &tools).iter().map(|s| s.id).collect();
         assert_eq!(ids, ["gamemode"]);
+        // Changing the Proton changes the suggestions: proton-cachyos on an
+        // AMD computer with HDR on.
+        let mut cachy = current.clone();
+        cachy.tool = "proton-cachyos-slr".into();
+        cachy.proton = Some(true);
+        let hdr = system(false, true);
+        let list = suggest(&hdr, &cachy, &tools);
+        let ids: Vec<&str> = list.iter().map(|s| s.id).collect();
+        assert_eq!(ids, ["gamemode", "mangohud", "gamescope", "gamescope_hdr", "wayland", "proton_hdr", "no_ntsync", "fsr4_upgrade", "local_shader_cache", "optiscaler"]);
+        let hdr_option = &list.iter().find(|s| s.id == "proton_hdr").unwrap().option;
+        assert_eq!(hdr_option, "DXVK_HDR=1 %command%");
+        assert!(list.iter().find(|s| s.id == "fsr4_upgrade").unwrap().explanation.contains("proton-cachyos downloads the FSR4 DLL"));
+        // On NVIDIA drivers older than 595, ENABLE_HDR_WSI comes with it.
+        let mut old = system(true, true);
+        old.nvidia_version = Some("580.95.05".into());
+        let list = suggest(&old, &cachy, &tools);
+        assert_eq!(list.iter().find(|s| s.id == "proton_hdr").unwrap().option, "ENABLE_HDR_WSI=1 DXVK_HDR=1 %command%");
+        // Valve's Proton 11: NTSync by default, HDR through the Vulkan layer.
+        let mut valve = cachy.clone();
+        valve.tool = "proton_11".into();
+        let ids: Vec<&str> = suggest(&hdr, &valve, &tools).iter().map(|s| s.id).collect();
+        assert_eq!(ids, ["gamemode", "mangohud", "gamescope", "gamescope_hdr", "hdr_wsi", "no_ntsync"]);
+        // CachyOS: game-performance instead of GameMode, warned about
+        // ananicy-cpp.
+        let mut cachyos = system(false, false);
+        cachyos.os_id = "cachyos".into();
+        cachyos.ananicy = true;
+        for t in ["game-performance", "powerprofilesctl"] {
+            cachyos.tools.push((t.into(), PathBuf::from("/usr/bin").join(t)));
+        }
+        let list = suggest(&cachyos, &cachy, &tools);
+        let perf: Vec<(&str, bool, &str)> = list.iter().filter(|s| s.group == "performance").map(|s| (s.id, s.recommended, s.group)).collect();
+        assert_eq!(perf, [("game_performance", true, "performance"), ("gamemode", false, "performance")]);
+        assert!(list.iter().find(|s| s.id == "gamemode").unwrap().warning.contains("ananicy-cpp"));
+        cachyos.tools.retain(|(t, _)| t != "powerprofilesctl");
+        let gp = suggest(&cachyos, &cachy, &tools).into_iter().find(|s| s.id == "game_performance").unwrap();
+        assert!(!gp.recommended && gp.warning.contains("power-profiles-daemon"));
         // A game known not to run on Proton gets no Proton options.
         let mut native = current.clone();
         native.proton = Some(false);
@@ -2358,27 +2561,27 @@ mod tests {
         let tools = all_tools(&p);
         let current = read(&p, "steam:10", None);
         let list = suggest(&system(true, true), &current, &tools);
-        let chosen: Vec<String> = ["gamemode", "ntsync", "gamescope", "gamescope_hdr", "nvapi", "mangohud"].iter().map(|s| s.to_string()).collect();
+        let chosen: Vec<String> = ["gamemode", "local_shader_cache", "gamescope", "gamescope_hdr", "nv_shader_cache", "mangohud"].iter().map(|s| s.to_string()).collect();
         let text = combine(&current, &list, &chosen).unwrap();
         // One of a group (gamescope wins over gamescope_hdr); MangoHud runs
         // as gamescope's --mangoapp; the old text stays at the end.
-        assert_eq!(text, "PROTON_USE_NTSYNC=1 PROTON_ENABLE_NVAPI=1 gamemoderun gamescope -W 2560 -H 1440 -r 165 -f --mangoapp -- %command% -novid");
+        assert_eq!(text, "PROTON_LOCAL_SHADER_CACHE=1 __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1 gamemoderun gamescope -W 2560 -H 1440 -r 165 -f --mangoapp -- %command% -novid");
         // Already there: the text stays as it was, and "applied" says so.
         let again = steam_current(&text);
         let list = suggest(&system(true, true), &again, &tools);
         assert_eq!(combine(&again, &list, &chosen).unwrap(), text);
         let applied: Vec<&str> = list.iter().filter(|s| s.applied).map(|s| s.id).collect();
-        assert_eq!(applied, ["gamemode", "mangohud", "gamescope", "ntsync", "nvapi"]);
+        assert_eq!(applied, ["gamemode", "mangohud", "gamescope", "local_shader_cache", "nv_shader_cache"]);
         // Everything taken out again.
         assert_eq!(combine(&again, &list, &[]).unwrap(), "%command% -novid");
         // Gamescope out, MangoHud kept: it gets its own wrapper.
-        let keep = ids(&["gamemode", "mangohud", "ntsync", "nvapi"]);
-        assert_eq!(combine(&again, &list, &keep).unwrap(), "PROTON_USE_NTSYNC=1 PROTON_ENABLE_NVAPI=1 gamemoderun mangohud %command% -novid");
+        let keep = ids(&["gamemode", "mangohud", "local_shader_cache", "nv_shader_cache"]);
+        assert_eq!(combine(&again, &list, &keep).unwrap(), "PROTON_LOCAL_SHADER_CACHE=1 __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1 gamemoderun mangohud %command% -novid");
         assert_eq!(combine(&current, &suggest(&system(true, true), &current, &tools), &[]).unwrap(), "-novid");
         // Own entries.
         let own = read(&p, "own:1", Some("wine ~/a.exe"));
         let list = suggest(&system(false, false), &own, &tools);
-        assert!(list.iter().all(|s| s.id != "ntsync"));
+        assert!(list.iter().all(|s| s.id != "local_shader_cache"));
         assert_eq!(combine(&own, &list, &ids(&["gamemode"])).unwrap(), "gamemoderun wine ~/a.exe");
         let own = read(&p, "own:1", Some("WINEPREFIX=$HOME/p mangohud wine ~/a.exe"));
         let list = suggest(&system(false, false), &own, &tools);
@@ -2418,22 +2621,22 @@ mod tests {
         };
         // Shell syntax around the game's command stays as it is.
         assert_eq!(edit("%command% > log 2>&1", &["gamemode"]).unwrap(), "gamemoderun %command% > log 2>&1");
-        assert_eq!(edit("FOO=$HOME/x %command% -novid", &["ntsync"]).unwrap(), "PROTON_USE_NTSYNC=1 FOO=$HOME/x %command% -novid");
+        assert_eq!(edit("FOO=$HOME/x %command% -novid", &["local_shader_cache"]).unwrap(), "PROTON_LOCAL_SHADER_CACHE=1 FOO=$HOME/x %command% -novid");
         assert_eq!(
-            edit("echo start; %command% && echo done | tee x", &["gamemode", "ntsync"]).unwrap(),
-            "echo start; PROTON_USE_NTSYNC=1 gamemoderun %command% && echo done | tee x"
+            edit("echo start; %command% && echo done | tee x", &["gamemode", "local_shader_cache"]).unwrap(),
+            "echo start; PROTON_LOCAL_SHADER_CACHE=1 gamemoderun %command% && echo done | tee x"
         );
         assert_eq!(edit("A='x  y'   %command%   \"a  b\"", &["gamemode"]).unwrap(), "A='x  y'   gamemoderun %command%   \"a  b\"");
         // %command% inside quotes: in front, never a second %command%.
-        assert_eq!(edit("bash -c \"cd /x && %command%\"", &["gamemode", "ntsync"]).unwrap(), "PROTON_USE_NTSYNC=1 gamemoderun bash -c \"cd /x && %command%\"");
+        assert_eq!(edit("bash -c \"cd /x && %command%\"", &["gamemode", "local_shader_cache"]).unwrap(), "PROTON_LOCAL_SHADER_CACHE=1 gamemoderun bash -c \"cd /x && %command%\"");
         // Wrappers take their order; a changed value is replaced in place.
         assert_eq!(edit("mangohud %command%", &["gamemode"]).unwrap(), "gamemoderun mangohud %command%");
-        assert_eq!(edit("X=1 PROTON_USE_NTSYNC=0 %command%", &["ntsync"]).unwrap(), "X=1 PROTON_USE_NTSYNC=1 %command%");
+        assert_eq!(edit("X=1 PROTON_LOCAL_SHADER_CACHE=0 %command%", &["local_shader_cache"]).unwrap(), "X=1 PROTON_LOCAL_SHADER_CACHE=1 %command%");
         assert_eq!(edit("gamescope -f -- %command%", &["mangohud"]).unwrap(), "gamescope --mangoapp -f -- %command%");
         assert_eq!(edit("", &["gamemode"]).unwrap(), "gamemoderun %command%");
-        assert_eq!(edit("-novid", &["ntsync"]).unwrap(), "PROTON_USE_NTSYNC=1 %command% -novid");
+        assert_eq!(edit("-novid", &["local_shader_cache"]).unwrap(), "PROTON_LOCAL_SHADER_CACHE=1 %command% -novid");
         // Taking one out removes only its own word.
-        let current = steam_current("PROTON_LOG=1 PROTON_USE_NTSYNC=1 gamemoderun mangohud %command% > log");
+        let current = steam_current("PROTON_LOG=1 PROTON_LOCAL_SHADER_CACHE=1 gamemoderun mangohud %command% > log");
         let list = suggest(&sys, &current, &tools);
         assert_eq!(combine(&current, &list, &ids(&["mangohud"])).unwrap(), "PROTON_LOG=1 mangohud %command% > log");
         // Gamescope swapped for gamescope with HDR.
@@ -2464,32 +2667,28 @@ mod tests {
         let tools = all_tools(&p);
         let rec = |sys: &SystemInfo, current: &Current| -> Vec<(&'static str, bool)> { suggest(sys, current, &tools).iter().map(|s| (s.id, s.recommended)).collect() };
         let nvidia_only = SystemInfo { gpus: vec![Gpu { vendor: "nvidia".into(), driver: "nvidia".into(), card: "card0".into() }], ..system(false, false) };
-        // A game on GE-Proton: NTSync and NVAPI recommended on an NVIDIA-only
-        // computer, NVAPI not on a hybrid one.
+        // A game on GE-Proton: the shader cache and GameMode recommended, no
+        // Proton switch.
         let current = read(&p, "steam:10", None);
         let list = rec(&nvidia_only, &current);
-        assert!(list.contains(&("ntsync", true)) && list.contains(&("nvapi", true)));
-        assert!(rec(&system(true, false), &current).contains(&("nvapi", false)));
-        // A Steam game without its own choice might be native: shown, not
-        // recommended, "only for Proton".
+        assert!(list.contains(&("nv_shader_cache", true)) && list.contains(&("gamemode", true)));
+        assert!(list.contains(&("dlss_upgrade", false)) && !list.iter().any(|(id, _)| *id == "nvapi" || *id == "ntsync"));
+        // A Steam game without its own choice might be native: shown, "only
+        // for Proton".
         let mut current = read(&p, "steam:20", None);
         assert_eq!(current.proton, None);
         current.global_tool = "GE-Proton10-25".into();
         let list = suggest(&nvidia_only, &current, &tools);
-        let ntsync = list.iter().find(|s| s.id == "ntsync").unwrap();
-        assert!(!ntsync.recommended && ntsync.why.contains("Only for games that run through Proton"));
-        assert!(list.iter().any(|s| s.id == "nvapi" && !s.recommended));
+        let cache = list.iter().find(|s| s.id == "local_shader_cache").unwrap();
+        assert!(!cache.recommended && cache.why.contains("Only for games that run through Proton"));
         // Once Steam has made a Proton prefix for it, it surely runs on Proton.
         std::fs::create_dir_all(steam.join("steamapps/compatdata/20/pfx")).unwrap();
-        let mut current = read(&p, "steam:20", None);
+        let current = read(&p, "steam:20", None);
         assert_eq!(current.proton, Some(true));
-        current.global_tool = "GE-Proton10-25".into();
-        assert!(rec(&nvidia_only, &current).contains(&("ntsync", true)));
         // Gamescope and the Wayland driver exclude each other.
         let list = suggest(&system(false, true), &read(&p, "steam:10", None), &tools);
         let group = |id: &str| list.iter().find(|s| s.id == id).map(|s| s.group).unwrap();
         assert_eq!(group("gamescope"), group("wayland"));
-        assert_eq!(group("gamescope"), group("proton_hdr"));
     }
 
     #[test]
