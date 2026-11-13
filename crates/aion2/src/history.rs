@@ -27,6 +27,19 @@ fn file_of(dir: &Path, id: &str) -> Option<PathBuf> {
 
 /// One fight in the list: what the panel shows of it, without the details.
 fn list_entry(r: &FightRecord) -> serde_json::Value {
+    // Each named player's damage (the Armory puts a character's boss fights
+    // beside its build): [[name, damage]], the most first.
+    let mut damage: std::collections::HashMap<i32, i64> = std::collections::HashMap::new();
+    for s in &r.details.skills {
+        *damage.entry(s.actor_id).or_default() += s.dmg as i64;
+    }
+    let mut players: Vec<(String, i64)> = r
+        .actors
+        .iter()
+        .filter(|a| !a.nickname.is_empty())
+        .filter_map(|a| damage.get(&a.actor_id).map(|d| (a.nickname.clone(), *d)))
+        .collect();
+    players.sort_by(|a, b| b.1.cmp(&a.1));
     serde_json::json!({
         "id": r.id,
         "boss": r.boss_name,
@@ -35,6 +48,7 @@ fn list_entry(r: &FightRecord) -> serde_json::Value {
         "total": r.total_damage,
         "jobs": r.jobs.iter().map(|j| crate::job_name(j)).collect::<Vec<_>>(),
         "train": r.is_train,
+        "players": players,
     })
 }
 
@@ -155,7 +169,8 @@ pub fn remove(dir: &Path, id: &str) -> bool {
 }
 
 /// The saved fights, newest first: JSON [{"id","boss","start","duration",
-/// "total","jobs","train"}]. Reads only the index.
+/// "total","jobs","train","players"}] ("players" [[name, damage]] in fights
+/// saved since the Armory came). Reads only the index.
 pub fn list(dir: &Path) -> serde_json::Value {
     serde_json::Value::Array(read_index(dir).fights)
 }

@@ -56,6 +56,20 @@ fn main() {
         QmlFile::from("qml/aion2/LootStore.qml"),
         QmlFile::from("qml/aion2/LootPanel.qml"),
         QmlFile::from("qml/aion2/ClosetWindow.qml"),
+        QmlFile::from("qml/aion2/AUi.qml"),
+        QmlFile::from("qml/aion2/ArmoryStore.qml"),
+        QmlFile::from("qml/aion2/ArmoryPanel.qml"),
+        QmlFile::from("qml/aion2/ArmoryOverview.qml"),
+        QmlFile::from("qml/aion2/ArmoryGear.qml"),
+        QmlFile::from("qml/aion2/ArmorySoul.qml"),
+        QmlFile::from("qml/aion2/ArmorySkills.qml"),
+        QmlFile::from("qml/aion2/ArmoryDaevanion.qml"),
+        QmlFile::from("qml/aion2/ArmoryStats.qml"),
+        QmlFile::from("qml/aion2/ArmoryGoals.qml"),
+        QmlFile::from("qml/aion2/ArmoryBuilds.qml"),
+        QmlFile::from("qml/aion2/ArmoryHistory.qml"),
+        QmlFile::from("qml/aion2/ArmorySkillRow.qml"),
+        QmlFile::from("qml/aion2/ArmoryGearDetails.qml"),
         QmlFile::from("qml/aion2/FarmWindow.qml"),
     ]);
 
@@ -110,6 +124,8 @@ fn main() {
             "qml/aion2/callouts.js",
             "qml/aion2/bossstarters.js",
             "qml/aion2/lootkit.js",
+            "qml/aion2/armorykit.js",
+            "qml/aion2/buildkit.js",
         ]);
     // SAFETY: only adds include paths and a define to the C++ build.
     let builder = unsafe {
