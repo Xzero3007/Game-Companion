@@ -53,6 +53,10 @@ pub mod qobject {
         /// `character` event, `Engine::character`): JSON, "null" before
         /// anyone is known.
         #[qproperty(QString, character)]
+        /// Pet Finder: the pet collection of the server last played on
+        /// (`aion2::pets`): JSON {"server", "synced" ms (0: never), "levels",
+        /// "souls", "farmed"}, kept on disk between runs.
+        #[qproperty(QString, pets)]
         type Aion2 = super::Aion2Rust;
 
         /// Starts reading (AION 2 started).
@@ -86,6 +90,11 @@ pub mod qobject {
         /// The Map's own choices (layers, follow, zoom ...), JSON ("{}" none).
         #[qinvokable]
         fn map_settings(self: &Aion2) -> QString;
+
+        /// Pet Finder's tables (pets.json in the module's data: names,
+        /// genus, where each pet's souls drop), "{}" when missing.
+        #[qinvokable]
+        fn pet_data(self: &Aion2) -> QString;
 
         /// Keeps the Map's choices (JSON, at most 64 KB).
         #[qinvokable]
@@ -137,6 +146,7 @@ pub struct Aion2Rust {
     history: QString,
     world: QString,
     character: QString,
+    pets: QString,
     opened: QString,
     /// The live fight while a saved one is shown.
     live: String,
@@ -161,6 +171,7 @@ impl Default for Aion2Rust {
             history: QString::from("[]"),
             world: QString::from("{}"),
             character: QString::from("null"),
+            pets: QString::from("{}"),
             opened: QString::default(),
             live: EMPTY.to_string(),
             wanted: Arc::new(AtomicI32::new(0)),
@@ -213,6 +224,14 @@ impl cxx_qt::Initialize for qobject::Aion2 {
             self.as_mut().set_active(true);
             self.as_mut().set_world(QString::from(DEMO_WORLD));
         }
+        // GC_DEMO=…,pets: a made-up collection, Fossa being farmed.
+        let demo_pets = std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "pets"));
+        let pets = if demo_pets {
+            demo_pets_json()
+        } else {
+            aion2::pets::load_shown(&aion2::pets::default_file()).to_string()
+        };
+        self.as_mut().set_pets(QString::from(&pets));
         if std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "dps")) {
             self.as_mut().set_active(true);
             self.as_mut().set_state(QString::from("reading"));
@@ -264,9 +283,10 @@ impl qobject::Aion2 {
                 let saved = engine.saved();
                 let history_changed = seen.3 != saved;
                 let world = engine.world().map(|w| w.to_string());
+                let pets = engine.pets().map(|p| p.to_string());
                 let character = engine.character().to_string();
                 let character_changed = seen.4 != character;
-                if !fight_changed && !status_changed && !skills_changed && !history_changed && world.is_none() && !character_changed {
+                if !fight_changed && !status_changed && !skills_changed && !history_changed && world.is_none() && pets.is_none() && !character_changed {
                     continue;
                 }
                 *seen = (fight.clone(), status.clone(), skills.clone(), saved, character.clone());
@@ -282,6 +302,9 @@ impl qobject::Aion2 {
                     }
                     if let Some(world) = &world {
                         obj.as_mut().set_world(QString::from(world));
+                    }
+                    if let Some(pets) = &pets {
+                        obj.as_mut().set_pets(QString::from(pets));
                     }
                     if character_changed {
                         obj.as_mut().set_character(QString::from(&character));
@@ -397,6 +420,11 @@ impl qobject::Aion2 {
         QString::from(if ok { text.as_str() } else { "{}" })
     }
 
+    fn pet_data(&self) -> QString {
+        let text = std::fs::read_to_string(aion2::data_dir().join("pets").join("pets.json")).unwrap_or_default();
+        QString::from(if text.trim_start().starts_with('{') { text.as_str() } else { "{}" })
+    }
+
     fn save_map_settings(&self, json: &QString) {
         let text = json.to_string();
         if text.len() > 64 * 1024 || !serde_json::from_str::<serde_json::Value>(&text).is_ok_and(|v| v.is_object()) {
@@ -500,6 +528,30 @@ fn server_names_of(path: &std::path::Path) -> String {
 /// The Map's choices, beside settings.json.
 fn map_settings_file() -> Option<PathBuf> {
     crate::settings::Settings::path().map(|p| p.with_file_name("aion2-map.json"))
+}
+
+/// A made-up collection for screenshots (GC_DEMO=…,pets): every pet of the
+/// tables at some level, Fossa (1004) farmed a minute ago.
+fn demo_pets_json() -> String {
+    let text = std::fs::read_to_string(aion2::data_dir().join("pets").join("pets.json")).unwrap_or_default();
+    let data: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
+    let mut levels = serde_json::Map::new();
+    let mut souls = serde_json::Map::new();
+    if let Some(pets) = data["pets"].as_object() {
+        for (i, id) in pets.keys().enumerate() {
+            let level = [3, 1, 0, 2, 3, 3, 1][i % 7];
+            if level > 0 {
+                levels.insert(id.clone(), level.into());
+            }
+            if level < 3 {
+                souls.insert(id.clone(), ((i * 7) % [5, 25, 75][level as usize]).into());
+            }
+        }
+    }
+    levels.insert("1004".into(), 2.into());
+    souls.insert("1004".into(), 61.into());
+    let now = aion2::clock::now_ms();
+    serde_json::json!({ "server": 2001, "synced": now - 3_600_000, "levels": levels, "souls": souls, "farmed": { "1004": now - 60_000 } }).to_string()
 }
 
 /// A made-up world for screenshots (GC_DEMO=map): Verteron.

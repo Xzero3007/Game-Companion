@@ -1139,6 +1139,10 @@ Panel {
             }
         }
         OverlayLine {
+            label: "Pets"
+            Chip { text: "Line for the pet you farm"; on: ovs.o.farm !== false; onClicked: ovs.map.changeOverlay({ farm: ovs.o.farm === false }) }
+        }
+        OverlayLine {
             label: "Hide in"
             Repeater {
                 model: [["instance", "Dungeons"], ["arena", "Arena"], ["abyss", "Abyss"]]

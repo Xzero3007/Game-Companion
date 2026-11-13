@@ -24,6 +24,21 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- Pet Finder in the Map (branch `claude/project-thread-xbwq5u`, 2026-11-13;
+  MN chose "Ja, so bauen" on canvas page "Pet Finder in der Map", backlog
+  A6). `aion2::pets` reads the pet frames (00 90 list at login, 0D 90 souls,
+  14 90 level) with Pet Finder's checks, fed from the engine's frame tap
+  (only `xx 90`), kept per server in ~/.local/share/game-companion/aion2/
+  pets.json; `Aion2.pets` (JSON) and `Aion2.petData()` (crates/aion2/data/
+  pets/pets.json, made by `node tools/aion2-pets-import.js <plugins>/
+  pet-finder`, with 294 portraits). The Map has MAP and PETS tabs
+  (`qml/aion2/PetsTab.qml`); favourites (`settings.petFavs`), the pet farmed
+  (a soul in 30 min) and every pet not at level 3 feed mapkit's `tracked`,
+  `needed` and `souls`, which the map already understood. Overlay map: a
+  farming line (`overlay.farm`). Left for later: the Black Cloud Merchant
+  (Handel area), a voice/sound for a favourite nearby (shared voice).
+  `GC_DEMO=map,pets[,petstab][,petopen][,overlay]`. Open: real frames on
+  MN's game (layouts from Pet Finder, untested against this parser live).
 - 0.8.2 Streams after MN's 0.7.7 test (branch `claude/project-thread-lncux3`,
   2026-11-13; MN said "ja" to the plan). Twitch "Load more": Twitch sent
   the first page again for a cursor, so when a page brings nothing new the

@@ -396,6 +396,14 @@ learnt, so nothing has to be asked or worked out again.
   the meter's sharing ring are left out: nothing captured is written down. Check the helper in the sandbox: copy
   /bin/bash to a folder as `game-companion` and run the helper from it
   (`libpcap0.8` installed), loopback traffic on a port other than 80/443.
+- Pet Finder (Map's PETS tab, 2026-11-13): `aion2::pets` (frames 00/0D/14
+  90, Pet Finder's checks, catalogue from `data/pets/pets.json`), kept per
+  server in `~/.local/share/game-companion/aion2/pets.json`; QML gets
+  `Aion2.pets` and `Aion2.petData()`. MapPanel turns it into mapkit's
+  `tracked` (favourites `settings.petFavs` = "pinned", a soul within 30 min
+  = "farming"), `needed` and `soulsLeft`; `qml/aion2/PetsTab.qml` is the
+  list. Data and portraits: `node tools/aion2-pets-import.js`. Other
+  threads read `Aion2.pets` (levels) rather than parse pet frames again.
 
 ## Checking a change
 

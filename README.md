@@ -34,6 +34,15 @@ to the game.
   OVERLAY: opacity (the marks stay solid), mark size, the Map's layers or
   its own, hidden in dungeons, arenas or the Abyss, and three kept places
   (a right-click keeps where it is now).
+- **Pet Finder** (AION 2): the Map's PETS tab. Every pet's level (0 to 3)
+  and the souls it still needs, as the game says at login and with every
+  soul (kept per server; start the app before logging in), its portrait and
+  genus, how far its nearest spawn point is, and a click shows where its
+  souls drop (monster, level, chance, region, chests). ★ makes a pet a
+  favourite the map follows (with the pet you are farming); "Show on map"
+  shows that monster's spawn points and the way there (Kibelisk or
+  walking). The overlay map has a line for the pet you farm (souls and how
+  far), off in Settings → Plugins → AION 2 → Map → OVERLAY.
 - **Panels remember where they were left and their size**: unlocked, the
   gold corner at a panel's bottom right makes it wider or narrower (the
   radio's list also taller); a double-click on it gives back its own size.

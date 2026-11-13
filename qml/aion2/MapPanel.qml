@@ -36,7 +36,13 @@ Panel {
         lastKey: "",
         focus: null,
         markScale: 1.25,
-        overlay: overlayDefaults
+        overlay: overlayDefaults,
+        // Pet Finder (the PETS tab): favourites (pet ids), the list's choices.
+        tab: "map",
+        petFavs: [],
+        petShow: "needed",
+        petSort: "nearest",
+        petGenus: ""
     })
     // The overlay map (MapOverlay, Settings → Plugins → Map): a small map
     // that follows you over the game. `w` > 0: a side set by its corner
@@ -46,7 +52,8 @@ Panel {
         own: false,
         layers: { pets: true, monsters: false, gather: false, cubes: true, monoliths: false, kibelisks: true, places: true, services: false, quests: false, npcs: false },
         hideIn: { instance: true, arena: true, abyss: false },
-        slot: -1, slots: [null, null, null]
+        slot: -1, slots: [null, null, null],
+        farm: true
     })
     /// The overlay map's part (Main sets it): places are kept from where it is.
     property Item overlayItem: null
@@ -63,7 +70,16 @@ Panel {
             s.overlay = o
             settings = s
         } catch (e) { }
+        // GC_DEMO=map,pets,petstab: the PETS tab, Fossa a favourite and one open.
+        const demo = nativeWindow.demo.split(",")
+        if (demo.indexOf("pets") >= 0) {
+            const s = Object.assign({}, settings)
+            s.petFavs = ["1004", "1005", "1003"]
+            if (demo.indexOf("petstab") >= 0) s.tab = "pets"
+            settings = s
+        }
         takeWorld()
+        takePets()
     }
     Timer { id: saveTimer; interval: 600; onTriggered: Aion2.saveMapSettings(JSON.stringify(panel.settings)) }
     function change(key, value) {
@@ -112,11 +128,81 @@ Panel {
     property real heading: 0
     property var headingFrom: null
     property var learned: ({})
-    readonly property var tracked: new Map()
     Connections {
         target: Aion2
         function onWorldChanged() { panel.takeWorld() }
+        function onPetsChanged() { panel.takePets() }
     }
+
+    // ---- Pet Finder: the collection the game sent, the favourites ----
+    // (Clicktrough's Pet Finder, the Pet Soul Tracker's list: canvas page
+    // "Pet Finder in der Map", MN 2026-11-13.) What the map follows comes
+    // from here: favourites ("pinned"), the pets given a soul in the last 30
+    // minutes ("farming"), every pet not at level 3 ("needed").
+    readonly property var petData: { try { return JSON.parse(Aion2.petData()) } catch (e) { return ({}) } }
+    property var pets: ({ synced: 0, levels: {}, souls: {}, farmed: {} })
+    property var tracked: new Map()
+    /// Pets not at level 3 (ids as strings); null before the game sent the list.
+    property var needed: null
+    /// Souls each pet still needs to level 3 (id -> count); null before.
+    property var soulsLeft: null
+    /// The pet farmed last (a soul in the last 30 minutes): { id, name, level, souls, goal }.
+    property var farming: null
+    /// A favourite's monster is around you now (a dot on the PETS tab).
+    property bool favAround: false
+    readonly property var petGoals: [5, 25, 75]
+    readonly property var petToMax: [105, 100, 75, 0]
+    function petName(id) { const p = petData.pets ? petData.pets[id] : null; return p ? p.name : "Pet " + id }
+    function petLevel(id) { return pets.levels[id] || 0 }
+    function petToGo(id) { const l = petLevel(id); return Math.max(0, petToMax[l] - (l < 3 ? (pets.souls[id] || 0) : 0)) }
+    function isFav(id) { return (settings.petFavs || []).indexOf(String(id)) >= 0 }
+    function toggleFav(id) {
+        const f = (settings.petFavs || []).slice()
+        const i = f.indexOf(String(id))
+        if (i >= 0) f.splice(i, 1); else f.push(String(id))
+        change("petFavs", f)
+        takePets()
+    }
+    function takePets() {
+        let p = null
+        try { p = JSON.parse(Aion2.pets) } catch (e) { }
+        p = Object.assign({ synced: 0, levels: {}, souls: {}, farmed: {} }, p || {})
+        // A favourite that reaches level 3 stops being one (the map no
+        // longer follows it); one made a favourite at level 3 stays.
+        const before = pets.levels || {}
+        const favs = (settings.petFavs || []).filter((id) => !((before[id] || 0) < 3 && (p.levels[id] || 0) >= 3 && pets.synced > 0))
+        if (favs.length !== (settings.petFavs || []).length) {
+            const s = Object.assign({}, settings); s.petFavs = favs; settings = s; saveTimer.restart()
+        }
+        pets = p
+        const t = new Map()
+        const now = Date.now()
+        let last = null
+        for (const id of Object.keys(p.farmed || {})) {
+            const at = p.farmed[id]
+            if (now - at > 30 * 60 * 1000 || (p.levels[id] || 0) >= 3) continue
+            t.set(String(id), { mark: "farming", name: petName(id) })
+            if (!last || at > last.at) last = { id: String(id), at: at }
+        }
+        for (const id of favs) t.set(String(id), { mark: "pinned", name: petName(id) })
+        tracked = t
+        if (p.synced > 0) {
+            const n = new Set()
+            const left = {}
+            for (const id of Object.keys(petData.pets || {})) {
+                if (petLevel(id) < 3) { n.add(String(id)); left[id] = petToGo(id) }
+            }
+            needed = n
+            soulsLeft = left
+        } else {
+            needed = null
+            soulsLeft = null
+        }
+        farming = last ? { id: last.id, name: petName(last.id), level: petLevel(last.id), souls: p.souls[last.id] || 0, goal: petGoals[petLevel(last.id)] || 0 } : null
+        refresh()
+    }
+    /// Once a minute while a pet is farmed: the farming ends 30 minutes after its last soul.
+    Timer { interval: 60000; repeat: true; running: panel.farming !== null; onTriggered: panel.takePets() }
     function takeWorld() {
         let w = null
         try { w = JSON.parse(Aion2.world) } catch (e) { }
@@ -164,7 +250,7 @@ Panel {
             const s = Object.assign({}, settings); s.lastKey = inZone; settings = s; saveTimer.restart()
         }
         key = k
-        built = MK.M.build({ key: k, world: world, tracked: tracked, needed: null, heading: heading, layers: settings.layers,
+        built = MK.M.build({ key: k, world: world, tracked: tracked, needed: needed, heading: heading, layers: settings.layers,
             gatherKinds: settings.gatherKinds, petsMode: settings.petsMode, focus: settings.focus, nextFor: settings.nextFor })
         map.marks = built.marks
         const me = world ? world.me : null
@@ -188,7 +274,13 @@ Panel {
             noteText = (me.exact ? "Your position" : "Your position (about, from what's around you" + since + ")")
                 + (where.guess ? " · map as last time" : "")
         }
-        nearKinds = settings.layers.pets && onThisMap ? MK.M.nearestKinds({ key: k, world: world, tracked: tracked, needed: null, souls: null }) : []
+        nearKinds = settings.layers.pets && onThisMap ? MK.M.nearestKinds({ key: k, world: world, tracked: tracked, needed: needed, souls: soulsLeft }) : []
+        let fav = false
+        for (const n of (world && world.npcs) || []) {
+            const pet = MK.D.npcPets[n[1]]
+            if (pet != null && isFav(pet)) { fav = true; break }
+        }
+        favAround = fav
     }
     onWidthChanged: if (settings.follow) refreshLater.restart()
     Timer { id: refreshLater; interval: 50; onTriggered: panel.refresh() }
@@ -244,6 +336,61 @@ Panel {
     }
 
     Column {
+        width: parent.width
+        spacing: 8
+
+        // The tabs: MAP and PETS (Pet Finder).
+        Item {
+            width: parent.width
+            height: 32
+            Row {
+                spacing: 18
+                Repeater {
+                    model: [["map", "Map"], ["pets", "Pets"]]
+                    delegate: Item {
+                        required property var modelData
+                        readonly property bool current: (panel.settings.tab || "map") === modelData[0]
+                        width: tabText.implicitWidth + (dot.visible ? 10 : 0)
+                        height: 32
+                        Text {
+                            id: tabText
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData[1].toUpperCase()
+                            color: parent.current ? Theme.accent : (tabMouse.containsMouse ? Theme.text() : Theme.muted())
+                            font.family: Theme.display
+                            font.pixelSize: 12
+                            font.weight: Font.Bold
+                            font.letterSpacing: 1.5
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                        // A favourite's monster is around you.
+                        Rectangle {
+                            id: dot
+                            visible: modelData[0] === "pets" && panel.favAround && !parent.current
+                            anchors.right: parent.right
+                            y: 8
+                            width: 6
+                            height: 6
+                            color: Theme.accent
+                        }
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: parent.current ? Theme.accent : "transparent" }
+                        MouseArea { id: tabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: panel.change("tab", modelData[0]) }
+                        Accessible.role: Accessible.PageTab
+                        Accessible.name: modelData[1]
+                    }
+                }
+            }
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
+        }
+
+        PetsTab {
+            visible: panel.settings.tab === "pets"
+            width: parent.width
+            map: panel
+        }
+
+        Column {
+        visible: panel.settings.tab !== "pets"
         width: parent.width
         spacing: 8
 
@@ -561,11 +708,12 @@ Panel {
         Text {
             width: parent.width
             wrapMode: Text.WordWrap
-            text: "Listens only. Maps: the game's own; data from SkeeveAN's Aion-DPS-Meter (MIT), the AION2 Interactive Map (CC BY-NC 4.0, Yihao Liu), A2 Tools' Pet Soul Tracker (GPL-3.0) and Aion 2 Timers."
+            text: "Listens only. Maps: the game's own; data from SkeeveAN's Aion-DPS-Meter (MIT), the AION2 Interactive Map (CC BY-NC 4.0, Yihao Liu), A2 Tools' Pet Soul Tracker (GPL-3.0), PetTracker (GPLv3) and Aion 2 Timers."
             color: Theme.dim()
             font.family: Theme.body
             font.pixelSize: 10
             style: Theme.textStyle(); styleColor: Theme.shadow
+        }
         }
     }
     property alias map: mapView

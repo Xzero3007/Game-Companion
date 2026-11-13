@@ -21,6 +21,7 @@ use crate::combat::ping_tracker::PingTracker;
 use crate::entity::dps_data::DpsData;
 use crate::i18n::lookup::{self, NpcLookup, SkillLookup};
 use crate::history;
+use crate::pets::Pets;
 use crate::world::World;
 use crate::link::{self, State};
 use crate::platform::window_detector;
@@ -51,6 +52,8 @@ pub struct Engine {
     history: PathBuf,
     /// The world around the player (zone, place, monsters, objects).
     world: Arc<Mutex<World>>,
+    /// Pet Finder: the pet collection per server.
+    pets: Arc<Mutex<Pets>>,
 }
 
 /// How often fights still on the meter are written to the history.
@@ -70,6 +73,7 @@ impl Engine {
             saved: Arc::new(AtomicU64::new(0)),
             history: history.to_path_buf(),
             world: Arc::new(Mutex::new(World::default())),
+            pets: Arc::new(Mutex::new(Pets::open(crate::pets::catalog(data_dir), Some(crate::pets::default_file())))),
         };
         window_detector::set_running(true);
         let runner = Runner {
@@ -84,6 +88,7 @@ impl Engine {
             saved: engine.saved.clone(),
             history: engine.history.clone(),
             world: engine.world.clone(),
+            pets: engine.pets.clone(),
         };
         // The helper dies with the thread that started it (PR_SET_PDEATHSIG):
         // the runner starts it and lives as long as the engine runs.
@@ -169,6 +174,11 @@ impl Engine {
         world.due(now).then(|| world.snapshot(now, crate::clock::now_ms()))
     }
 
+    /// The pet collection shown, when it changed (written to disk then).
+    pub fn pets(&self) -> Option<serde_json::Value> {
+        self.pets.lock().take()
+    }
+
     /// How many times fights were saved (to notice new ones).
     pub fn saved(&self) -> u64 {
         self.saved.load(Ordering::Relaxed)
@@ -229,6 +239,7 @@ struct Runner {
     saved: Arc<AtomicU64>,
     history: PathBuf,
     world: Arc<Mutex<World>>,
+    pets: Arc<Mutex<Pets>>,
 }
 
 impl Runner {
@@ -255,6 +266,7 @@ impl Runner {
         // hooks alone (they are global).
         if self.running.load(Ordering::SeqCst) {
             let world = self.world.clone();
+            let pets = self.pets.clone();
             let storage = storage.clone();
             crate::capture::frame_tap::set(Some(Arc::new(move |packet: &[u8]| {
                 let len = crate::capture::stream_processor::read_varint(packet, 0).length;
@@ -265,6 +277,11 @@ impl Runner {
                 let Some(opcode) = packet.get(at..at + 2) else { return };
                 let me = storage.local_player_id();
                 world.lock().feed([opcode[0], opcode[1]], &packet[at + 2..], me, std::time::Instant::now());
+                // Pet Finder's frames (`xx 90`): whose server it is only then.
+                if opcode[1] == 0x90 {
+                    let server = u32::from(storage.local_profile().server_id);
+                    pets.lock().feed([opcode[0], opcode[1]], &packet[at + 2..], server, crate::clock::now_ms());
+                }
             })));
             let world = self.world.clone();
             crate::platform::on_client_sent(Some(Arc::new(move |len| world.lock().client_sent(len, std::time::Instant::now()))));

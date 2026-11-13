@@ -18,14 +18,13 @@ var packages = [
         about: "Loads only while AION 2 runs. Listens only: nothing is sent to the game.",
         plugins: [
             { id: "aion2.dps", short: "M", name: "DPS Meter", about: "Damage and healing of you and your party, skills (Details) and Battle History.", built: true },
-            { id: "aion2.map", short: "MP", name: "Map", about: "The map you are on with your position, spawns, gathering spots, bosses and NPCs; a small map that follows you.", built: true },
+            { id: "aion2.map", short: "MP", name: "Map", about: "The map you are on with your position, spawns, gathering spots, bosses and NPCs; a small map that follows you. Its PETS tab is Pet Finder: your pets' levels, the souls they need and where they drop.", built: true },
             { id: "aion2.market", short: "MK", name: "Market", about: "Your server's market: usual prices, anomalies, materials and what recipes cost.", built: true },
             { id: "aion2.inventory", short: "I", name: "Inventory", about: "Inventory, storage and drop rates.", built: false },
             { id: "aion2.closet", short: "C", name: "Closet", about: "Skins you have and still miss.", built: false },
             { id: "aion2.armory", short: "A", name: "Armory", about: "Gear and its upgrades.", built: false },
             { id: "aion2.shugo", short: "S", name: "Shugo Cards", about: "Shugo cards and what they bring.", built: false },
             { id: "aion2.timers", short: "T", name: "Event Timers", about: "Field bosses and events with their times.", built: false },
-            { id: "aion2.pets", short: "P", name: "Pet Finder", about: "Pets, their souls and where to farm them.", built: false },
             { id: "aion2.characters", short: "CH", name: "Characters", about: "Your characters: Odyle energy and when it is full, the content each has left, the day's and week's limits.", built: true },
             { id: "aion2.boss", short: "B", name: "Boss Notes", about: "Phases and hints with a countdown in fights.", built: false }
         ]
