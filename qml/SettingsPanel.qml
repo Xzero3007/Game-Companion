@@ -9,7 +9,8 @@ Panel {
     title: "Settings"
     width: 440
 
-    property string tab: nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0 ? "streams" : "general"
+    property string tab: nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0
+        || nativeWindow.demo.indexOf("ytsettings") >= 0 ? "streams" : "general"
     property var keys: JSON.parse(Companion.shortcuts)
     readonly property var layouts: JSON.parse(Companion.layouts)
     /// The layout being renamed ("" for none).
@@ -330,12 +331,13 @@ Panel {
             onVisibleChanged: if (visible) Streams.refreshAccount()
             property string part: nativeWindow.demo.indexOf("sponsor") >= 0 ? "sponsorblock"
                 : nativeWindow.demo.indexOf("jellyfin") >= 0 ? "jellyfin"
-                : nativeWindow.demo.indexOf("hwdec") >= 0 ? "videos" : "twitch"
+                : nativeWindow.demo.indexOf("hwdec") >= 0 ? "videos"
+                : nativeWindow.demo.indexOf("ytsettings") >= 0 ? "youtube" : "twitch"
 
             Row {
                 spacing: 16
                 Repeater {
-                    model: [["twitch", "Twitch"], ["sponsorblock", "SponsorBlock"], ["jellyfin", "Jellyfin"], ["videos", "Videos"]]
+                    model: [["twitch", "Twitch"], ["youtube", "YouTube"], ["sponsorblock", "SponsorBlock"], ["jellyfin", "Jellyfin"], ["videos", "Videos"]]
                     delegate: Item {
                         required property var modelData
                         readonly property bool chosen: parent.parent.part === modelData[0]
@@ -421,8 +423,99 @@ Panel {
             }
 
             Item { width: 1; height: 4 }
+            Label { text: "Live notes" }
+            OnOff {
+                width: parent.width
+                text: "Tell me when followed or favorite channels go live"
+                on: Streams.alerts
+                onToggled: Streams.switchAlerts(!Streams.alerts)
+            }
+            Hint { text: "Asks Twitch every two minutes while on. A red count shows on the Streams panel's Following tab and the channels show at the top of the list; no pop-up, no sound. Leave one channel out with ⋯ beside it." }
+
+            Item { width: 1; height: 4 }
             Label { text: "Preset search for the game" }
             Hint { text: "Now: " + parent.game.name + " · Twitch category \u201c" + parent.game.twitch + "\u201d · YouTube \u201c" + parent.game.youtube + "\u201d. Change it with CHANGE in the Streams panel; with game detection, each game brings its own." }
+            }
+
+            Column {
+            visible: parent.part === "youtube"
+            width: parent.width
+            spacing: 10
+            readonly property var filters: JSON.parse(Streams.filters)
+            readonly property var words: JSON.parse(Streams.trendWords)
+            Label { text: "FreeTube" }
+            Row {
+                spacing: 10
+                TextButton {
+                    text: Streams.freetubeLive ? "Take over from FreeTube" : "Take over again"
+                    onClicked: takeNote.text = Streams.takeFreetube()
+                }
+            }
+            Hint {
+                id: takeNote
+                text: Streams.freetubeLive
+                    ? "Now FreeTube's subscriptions are read from its file as they are. Taking over copies its subscriptions (with its profiles as groups), playlists, bookmark list and history into Game Companion once; then FreeTube is no longer needed. FreeTube's files are only read."
+                    : "Your subscriptions, playlists and history live here now. Taking over again adds what is new in FreeTube (nothing is doubled)."
+            }
+
+            Item { width: 1; height: 4 }
+            Label { text: "In the lists" }
+            OnOff { width: parent.width; text: "Leave Shorts out"; on: parent.filters.shorts; onToggled: Streams.setHideShorts(!parent.filters.shorts) }
+            OnOff { width: parent.width; text: "Leave watched videos out"; on: parent.filters.watched; onToggled: Streams.setHideWatched(!parent.filters.watched) }
+            Row {
+                width: parent.width
+                spacing: 8
+                NameField {
+                    id: wordsField
+                    width: parent.width - wordsSave.width - 8
+                    placeholder: "Words whose videos never show, with commas"
+                    maxLength: 400
+                    text: parent.parent.filters.words.join(", ")
+                    onAccepted: wordsSave.clicked()
+                }
+                TextButton { id: wordsSave; text: "Save"; onClicked: Streams.setHiddenWords(wordsField.text) }
+            }
+            Flow {
+                visible: parent.filters.channels.length > 0
+                width: parent.width
+                spacing: 6
+                Repeater {
+                    model: parent.parent.filters.channels
+                    delegate: Chip {
+                        required property var modelData
+                        text: modelData.name + "  ×"
+                        onClicked: Streams.toggleHiddenChannel(modelData.id, modelData.name)
+                    }
+                }
+            }
+            Hint { text: parent.filters.channels.length > 0 ? "Hidden channels: a click shows one again. Hide one with ⋯ beside its video." : "Hide a channel with ⋯ beside one of its videos." }
+
+            Item { width: 1; height: 4 }
+            Label { text: "Trending: search words" }
+            Repeater {
+                model: [["gaming", "Gaming"], ["europe", "Europe"], ["national", "National teams"], ["tr", "Süper Lig"], ["de", "Bundesliga"],
+                        ["en", "Premier League"], ["fr", "Ligue 1"], ["it", "Serie A"], ["es", "LaLiga"]]
+                delegate: Row {
+                    required property var modelData
+                    width: parent.width
+                    spacing: 8
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 110
+                        elide: Text.ElideRight
+                        text: modelData[1]
+                        color: Theme.textSoft(); font.family: Theme.body; font.pixelSize: 12 }
+                    NameField {
+                        id: trendField
+                        width: parent.width - 118
+                        maxLength: 400
+                        placeholder: "Search words, with commas (empty: as it came)"
+                        text: (JSON.parse(Streams.trendWords)[modelData[0]] || []).join(", ")
+                        onAccepted: Streams.changeTrendWords(modelData[0], text)
+                    }
+                }
+            }
+            Hint { text: "Each part asks YouTube's search (through yt-dlp) for this week's videos with these words and mixes the answers; Gaming takes this week's most watched. Enter saves a line." }
             }
 
             Column {
