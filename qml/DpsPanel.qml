@@ -16,6 +16,9 @@ Panel {
     tag: narrow ? "" : "AION 2"
     width: 512
     minWidth: 280
+    stretchy: true
+    // Down to two rows.
+    minGrow: -42 * 4
     maxWidth: 900
     badge: clock(fight.time)
     actionText: Aion2.opened.length > 0 ? "" : "Reset"
@@ -183,323 +186,343 @@ Panel {
 
         Item { width: 1; height: 10 }
 
-        // DAMAGE and HEALING: a row per player (a click shows their skills).
-        Column {
-            visible: panel.tab === "damage" || panel.tab === "healing"
+        // The lists keep one height (dragged taller or shorter at the corner)
+        // and scroll: the panel's window keeps its size while a fight counts.
+        Item {
             width: parent.width
-            spacing: 4
-            Repeater {
-                model: rowsModel
-                delegate: Item {
-                    required property int index
-                    required property int actor
-                    required property string name
-                    required property string job
-                    required property bool me
-                    required property real value
-                    required property real perSecond
-                    required property real share
+            height: 42 * 6 + panel.grow
+            clip: true
+            Flickable {
+                id: listFlick
+                anchors.fill: parent
+                contentWidth: width
+                contentHeight: lists.height
+                boundsBehavior: Flickable.StopAtBounds
+                interactive: !Companion.locked
+                Column {
+                    id: lists
+                    width: listFlick.width
+                // DAMAGE and HEALING: a row per player (a click shows their skills).
+                Column {
+                    visible: panel.tab === "damage" || panel.tab === "healing"
                     width: parent.width
-                    height: 38
-                    Rectangle { anchors.fill: parent; color: "#1b1a20" }
-                    Rectangle {
-                        height: parent.height
-                        width: parent.width * Math.max(0, Math.min(1, value / panel.most))
-                        color: me ? Qt.rgba(0.878, 0.647, 0.149, 0.32) : Qt.rgba(1, 1, 1, 0.08)
+                    spacing: 4
+                    Repeater {
+                        model: rowsModel
+                        delegate: Item {
+                            required property int index
+                            required property int actor
+                            required property string name
+                            required property string job
+                            required property bool me
+                            required property real value
+                            required property real perSecond
+                            required property real share
+                            width: parent.width
+                            height: 38
+                            Rectangle { anchors.fill: parent; color: "#1b1a20" }
+                            Rectangle {
+                                height: parent.height
+                                width: parent.width * Math.max(0, Math.min(1, value / panel.most))
+                                color: me ? Qt.rgba(0.878, 0.647, 0.149, 0.32) : Qt.rgba(1, 1, 1, 0.08)
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                id: rank
+                                anchors.left: parent.left
+                                anchors.leftMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 16
+                                text: index + 1
+                                color: Theme.dim()
+                                font.family: Theme.display
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                anchors.left: rank.right
+                                anchors.leftMargin: 10
+                                anchors.right: perSecondText.left
+                                anchors.rightMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                elide: Text.ElideRight
+                                text: name + (job.length > 0 && name.indexOf("[") !== 0 ? "  ·  " + job : "")
+                                color: me ? Theme.accent : Theme.text()
+                                font.family: Theme.body
+                                font.pixelSize: 13
+                                font.weight: me ? Font.Bold : Font.Medium
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                id: perSecondText
+                                anchors.right: shareText.left
+                                anchors.rightMargin: 8
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: panel.number(perSecond)
+                                color: Theme.text()
+                                font.family: Theme.display
+                                font.pixelSize: 15
+                                font.weight: Font.Bold
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                id: shareText
+                                anchors.right: parent.right
+                                anchors.rightMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 44
+                                horizontalAlignment: Text.AlignRight
+                                text: Math.round(share) + "%"
+                                color: Theme.muted()
+                                font.family: Theme.body
+                                font.pixelSize: 12
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                enabled: !Companion.locked && Aion2.opened.length === 0
+                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: { Aion2.pick(me ? 0 : actor); panel.tab = "skills" }
+                            }
+                            Accessible.role: Accessible.ListItem
+                            Accessible.name: name + ", " + perSecondText.text + (panel.healing ? " healing" : " damage") + " per second, " + shareText.text
+                        }
                     }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        id: rank
-                        anchors.left: parent.left
-                        anchors.leftMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 16
-                        text: index + 1
-                        color: Theme.dim()
-                        font.family: Theme.display
-                        font.pixelSize: 14
-                        font.weight: Font.Bold
-                    }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        anchors.left: rank.right
-                        anchors.leftMargin: 10
-                        anchors.right: perSecondText.left
-                        anchors.rightMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        elide: Text.ElideRight
-                        text: name + (job.length > 0 && name.indexOf("[") !== 0 ? "  ·  " + job : "")
-                        color: me ? Theme.accent : Theme.text()
-                        font.family: Theme.body
-                        font.pixelSize: 13
-                        font.weight: me ? Font.Bold : Font.Medium
-                    }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        id: perSecondText
-                        anchors.right: shareText.left
-                        anchors.rightMargin: 8
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: panel.number(perSecond)
-                        color: Theme.text()
-                        font.family: Theme.display
-                        font.pixelSize: 15
-                        font.weight: Font.Bold
-                    }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        id: shareText
-                        anchors.right: parent.right
-                        anchors.rightMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 44
-                        horizontalAlignment: Text.AlignRight
-                        text: Math.round(share) + "%"
-                        color: Theme.muted()
-                        font.family: Theme.body
-                        font.pixelSize: 12
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        enabled: !Companion.locked && Aion2.opened.length === 0
-                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: { Aion2.pick(me ? 0 : actor); panel.tab = "skills" }
-                    }
-                    Accessible.role: Accessible.ListItem
-                    Accessible.name: name + ", " + perSecondText.text + (panel.healing ? " healing" : " damage") + " per second, " + shareText.text
-                }
-            }
-            // Nothing counted yet: what the module is doing.
-            Item {
-                visible: rowsModel.count === 0
-                width: parent.width
-                height: visible ? stateText.height + (retry.visible ? retry.height + 8 : 0) : 0
-                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                    id: stateText
-                    width: parent.width
-                    topPadding: 18
-                    bottomPadding: 18
-                    horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.Wrap
-                    text: Aion2.opened.length > 0 ? "Nothing was counted in this fight."
-                        : Aion2.state === "failed" ? "Cannot read the game: " + Aion2.problem
-                        : Aion2.state === "off" ? "Starts by itself when AION 2 runs."
-                        : Aion2.state === "searching" ? "Looking for the game's connection…"
-                        : "Waiting for the first hit."
-                    color: Aion2.state === "failed" && Aion2.opened.length === 0 ? Theme.red : Theme.muted()
-                    font.family: Theme.body
-                    font.pixelSize: 13
-                }
-                TextButton {
-                    id: retry
-                    visible: Aion2.state === "failed" && Aion2.opened.length === 0
-                    anchors.top: stateText.bottom
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    implicitHeight: 28
-                    text: "Try again"
-                    onClicked: if (!Companion.locked) { Aion2.stop(); Aion2.start() }
-                }
-            }
-        }
-
-        // SKILLS: the picked player's skills.
-        Column {
-            visible: panel.tab === "skills"
-            width: parent.width
-            spacing: 4
-            Item {
-                width: parent.width
-                height: 18
-                Repeater {
-                    model: [["Skill", 10, false], ["Casts", 186, true], ["Damage", 106, true], ["Crit", 52, true], ["%", 10, true]]
-                    delegate: Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        required property var modelData
-                        x: modelData[2] ? parent.width - modelData[1] - implicitWidth : modelData[1]
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: modelData[0].toUpperCase()
-                        color: Theme.dim()
-                        font.family: Theme.display
-                        font.pixelSize: 11
-                        font.weight: Font.Bold
-                        font.letterSpacing: 1.5
-                    }
-                }
-            }
-            Repeater {
-                model: panel.tab === "skills" ? panel.skills : []
-                delegate: Item {
-                    required property var modelData
-                    width: parent.width
-                    height: 32
-                    Rectangle { anchors.fill: parent; color: "#1b1a20" }
-                    Rectangle {
-                        height: parent.height
-                        width: parent.width * Math.max(0, Math.min(1, modelData.damage / Math.max(1, panel.mostSkill)))
-                        color: Qt.rgba(1, 1, 1, 0.08)
-                    }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        anchors.left: parent.left
-                        anchors.leftMargin: 10
-                        anchors.right: casts.left
-                        anchors.rightMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        elide: Text.ElideRight
-                        text: modelData.name
-                        color: Theme.text()
-                        font.family: Theme.body
-                        font.pixelSize: 13
-                    }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        id: casts
-                        anchors.right: parent.right
-                        anchors.rightMargin: 186
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: modelData.casts
-                        color: Theme.muted()
-                        font.family: Theme.body
-                        font.pixelSize: 12
-                    }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        anchors.right: parent.right
-                        anchors.rightMargin: 106
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: panel.number(modelData.damage)
-                        color: Theme.text()
-                        font.family: Theme.display
-                        font.pixelSize: 14
-                        font.weight: Font.Bold
-                    }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        anchors.right: parent.right
-                        anchors.rightMargin: 52
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: Math.round(modelData.crit) + "%"
-                        color: Theme.muted()
-                        font.family: Theme.body
-                        font.pixelSize: 12
-                    }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        anchors.right: parent.right
-                        anchors.rightMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: Math.round(modelData.share) + "%"
-                        color: Theme.muted()
-                        font.family: Theme.body
-                        font.pixelSize: 12
-                    }
-                    Accessible.role: Accessible.ListItem
-                    Accessible.name: modelData.name + ", " + modelData.casts + " casts, " + panel.number(modelData.damage) + " damage"
-                }
-            }
-            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                visible: panel.skills.length === 0
-                width: parent.width
-                topPadding: 18
-                bottomPadding: 18
-                horizontalAlignment: Text.AlignHCenter
-                text: Aion2.opened.length > 0 ? "Skills are shown for the live fight."
-                    : "No skills counted yet. A click on a player in Damage shows theirs."
-                wrapMode: Text.Wrap
-                color: Theme.muted()
-                font.family: Theme.body
-                font.pixelSize: 13
-            }
-        }
-
-        // HISTORY: the saved boss fights, newest first (a click shows one).
-        Column {
-            visible: panel.tab === "history"
-            width: parent.width
-            spacing: 4
-            Repeater {
-                model: panel.tab === "history" ? panel.history.slice(0, 30) : []
-                delegate: Item {
-                    required property var modelData
-                    readonly property bool current: modelData.id === Aion2.opened
-                    width: parent.width
-                    height: 44
-                    Rectangle {
-                        anchors.fill: parent
-                        color: current ? Qt.rgba(0.878, 0.647, 0.149, 0.18) : (fightMouse.containsMouse ? "#24222a" : "#1b1a20")
-                    }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        id: bossText
-                        anchors.left: parent.left
-                        anchors.leftMargin: 10
-                        anchors.right: totalText.left
-                        anchors.rightMargin: 10
-                        y: 6
-                        elide: Text.ElideRight
-                        text: modelData.boss.length > 0 ? modelData.boss : "Unknown target"
-                        color: current ? Theme.accent : Theme.text()
-                        font.family: Theme.body
-                        font.pixelSize: 13
-                        font.weight: Font.Medium
-                    }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        anchors.left: bossText.left
-                        anchors.right: bossText.right
-                        anchors.top: bossText.bottom
-                        anchors.topMargin: 2
-                        elide: Text.ElideRight
-                        text: panel.when(modelData.start) + " · " + panel.clock(modelData.duration) + (modelData.train ? " · training" : "")
-                        color: Theme.dim()
-                        font.family: Theme.body
-                        font.pixelSize: 11
-                    }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        id: totalText
-                        anchors.right: removeButton.left
-                        anchors.rightMargin: 6
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: panel.compact(modelData.total)
-                        color: Theme.text()
-                        font.family: Theme.display
-                        font.pixelSize: 15
-                        font.weight: Font.Bold
-                    }
-                    MouseArea {
-                        id: fightMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        enabled: !Companion.locked
-                        onClicked: { Aion2.openFight(modelData.id); panel.tab = "damage" }
-                    }
+                    // Nothing counted yet: what the module is doing.
                     Item {
-                        id: removeButton
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 32
-                        height: 32
-                        HudIcon {
-                            anchors.centerIn: parent
-                            name: "close"
-                            size: 12
-                            lineWidth: 2
-                            color: removeMouse.containsMouse ? Theme.red : Theme.dim()
+                        visible: rowsModel.count === 0
+                        width: parent.width
+                        height: visible ? stateText.height + (retry.visible ? retry.height + 8 : 0) : 0
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                            id: stateText
+                            width: parent.width
+                            topPadding: 18
+                            bottomPadding: 18
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.Wrap
+                            text: Aion2.opened.length > 0 ? "Nothing was counted in this fight."
+                                : Aion2.state === "failed" ? "Cannot read the game: " + Aion2.problem
+                                : Aion2.state === "off" ? "Starts by itself when AION 2 runs."
+                                : Aion2.state === "searching" ? "Looking for the game's connection…"
+                                : "Waiting for the first hit."
+                            color: Aion2.state === "failed" && Aion2.opened.length === 0 ? Theme.red : Theme.muted()
+                            font.family: Theme.body
+                            font.pixelSize: 13
                         }
-                        MouseArea {
-                            id: removeMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            enabled: !Companion.locked
-                            onClicked: Aion2.removeFight(modelData.id)
+                        TextButton {
+                            id: retry
+                            visible: Aion2.state === "failed" && Aion2.opened.length === 0
+                            anchors.top: stateText.bottom
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            implicitHeight: 28
+                            text: "Try again"
+                            onClicked: if (!Companion.locked) { Aion2.stop(); Aion2.start() }
                         }
-                        Accessible.role: Accessible.Button
-                        Accessible.name: "Remove this fight"
                     }
-                    Accessible.role: Accessible.ListItem
-                    Accessible.name: bossText.text + ", " + totalText.text + " damage"
+                }
+
+                // SKILLS: the picked player's skills.
+                Column {
+                    visible: panel.tab === "skills"
+                    width: parent.width
+                    spacing: 4
+                    Item {
+                        width: parent.width
+                        height: 18
+                        Repeater {
+                            model: [["Skill", 10, false], ["Casts", 186, true], ["Damage", 106, true], ["Crit", 52, true], ["%", 10, true]]
+                            delegate: Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                required property var modelData
+                                x: modelData[2] ? parent.width - modelData[1] - implicitWidth : modelData[1]
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData[0].toUpperCase()
+                                color: Theme.dim()
+                                font.family: Theme.display
+                                font.pixelSize: 11
+                                font.weight: Font.Bold
+                                font.letterSpacing: 1.5
+                            }
+                        }
+                    }
+                    Repeater {
+                        model: panel.tab === "skills" ? panel.skills : []
+                        delegate: Item {
+                            required property var modelData
+                            width: parent.width
+                            height: 32
+                            Rectangle { anchors.fill: parent; color: "#1b1a20" }
+                            Rectangle {
+                                height: parent.height
+                                width: parent.width * Math.max(0, Math.min(1, modelData.damage / Math.max(1, panel.mostSkill)))
+                                color: Qt.rgba(1, 1, 1, 0.08)
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                anchors.left: parent.left
+                                anchors.leftMargin: 10
+                                anchors.right: casts.left
+                                anchors.rightMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                elide: Text.ElideRight
+                                text: modelData.name
+                                color: Theme.text()
+                                font.family: Theme.body
+                                font.pixelSize: 13
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                id: casts
+                                anchors.right: parent.right
+                                anchors.rightMargin: 186
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.casts
+                                color: Theme.muted()
+                                font.family: Theme.body
+                                font.pixelSize: 12
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                anchors.right: parent.right
+                                anchors.rightMargin: 106
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: panel.number(modelData.damage)
+                                color: Theme.text()
+                                font.family: Theme.display
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                anchors.right: parent.right
+                                anchors.rightMargin: 52
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: Math.round(modelData.crit) + "%"
+                                color: Theme.muted()
+                                font.family: Theme.body
+                                font.pixelSize: 12
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                anchors.right: parent.right
+                                anchors.rightMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: Math.round(modelData.share) + "%"
+                                color: Theme.muted()
+                                font.family: Theme.body
+                                font.pixelSize: 12
+                            }
+                            Accessible.role: Accessible.ListItem
+                            Accessible.name: modelData.name + ", " + modelData.casts + " casts, " + panel.number(modelData.damage) + " damage"
+                        }
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        visible: panel.skills.length === 0
+                        width: parent.width
+                        topPadding: 18
+                        bottomPadding: 18
+                        horizontalAlignment: Text.AlignHCenter
+                        text: Aion2.opened.length > 0 ? "Skills are shown for the live fight."
+                            : "No skills counted yet. A click on a player in Damage shows theirs."
+                        wrapMode: Text.Wrap
+                        color: Theme.muted()
+                        font.family: Theme.body
+                        font.pixelSize: 13
+                    }
+                }
+
+                // HISTORY: the saved boss fights, newest first (a click shows one).
+                Column {
+                    visible: panel.tab === "history"
+                    width: parent.width
+                    spacing: 4
+                    Repeater {
+                        model: panel.tab === "history" ? panel.history.slice(0, 30) : []
+                        delegate: Item {
+                            required property var modelData
+                            readonly property bool current: modelData.id === Aion2.opened
+                            width: parent.width
+                            height: 44
+                            Rectangle {
+                                anchors.fill: parent
+                                color: current ? Qt.rgba(0.878, 0.647, 0.149, 0.18) : (fightMouse.containsMouse ? "#24222a" : "#1b1a20")
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                id: bossText
+                                anchors.left: parent.left
+                                anchors.leftMargin: 10
+                                anchors.right: totalText.left
+                                anchors.rightMargin: 10
+                                y: 6
+                                elide: Text.ElideRight
+                                text: modelData.boss.length > 0 ? modelData.boss : "Unknown target"
+                                color: current ? Theme.accent : Theme.text()
+                                font.family: Theme.body
+                                font.pixelSize: 13
+                                font.weight: Font.Medium
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                anchors.left: bossText.left
+                                anchors.right: bossText.right
+                                anchors.top: bossText.bottom
+                                anchors.topMargin: 2
+                                elide: Text.ElideRight
+                                text: panel.when(modelData.start) + " · " + panel.clock(modelData.duration) + (modelData.train ? " · training" : "")
+                                color: Theme.dim()
+                                font.family: Theme.body
+                                font.pixelSize: 11
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                id: totalText
+                                anchors.right: removeButton.left
+                                anchors.rightMargin: 6
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: panel.compact(modelData.total)
+                                color: Theme.text()
+                                font.family: Theme.display
+                                font.pixelSize: 15
+                                font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                id: fightMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: !Companion.locked
+                                onClicked: { Aion2.openFight(modelData.id); panel.tab = "damage" }
+                            }
+                            Item {
+                                id: removeButton
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 32
+                                height: 32
+                                HudIcon {
+                                    anchors.centerIn: parent
+                                    name: "close"
+                                    size: 12
+                                    lineWidth: 2
+                                    color: removeMouse.containsMouse ? Theme.red : Theme.dim()
+                                }
+                                MouseArea {
+                                    id: removeMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    enabled: !Companion.locked
+                                    onClicked: Aion2.removeFight(modelData.id)
+                                }
+                                Accessible.role: Accessible.Button
+                                Accessible.name: "Remove this fight"
+                            }
+                            Accessible.role: Accessible.ListItem
+                            Accessible.name: bossText.text + ", " + totalText.text + " damage"
+                        }
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        visible: panel.history.length === 0
+                        width: parent.width
+                        topPadding: 18
+                        bottomPadding: 18
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.Wrap
+                        text: "Boss fights are kept here (on this computer only)."
+                        color: Theme.muted()
+                        font.family: Theme.body
+                        font.pixelSize: 13
+                    }
+                }
                 }
             }
-            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                visible: panel.history.length === 0
-                width: parent.width
-                topPadding: 18
-                bottomPadding: 18
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-                text: "Boss fights are kept here (on this computer only)."
-                color: Theme.muted()
-                font.family: Theme.body
-                font.pixelSize: 13
-            }
+            WheelScroll { flick: listFlick; step: 42 * 3 }
         }
 
         Item { width: 1; height: 10 }

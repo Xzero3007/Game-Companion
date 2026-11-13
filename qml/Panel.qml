@@ -36,6 +36,8 @@ Item {
     /// The height the user added (for the panel's list or video to use).
     property real grow: 0
     property real maxGrow: 700
+    /// Below 0: the list can be made shorter than it starts.
+    property real minGrow: 0
     /// Its own width, before the user changed it.
     property real ownWidth: 0
     /// How solid its ground is (the opacity setting; the chat goes clearer).
@@ -58,7 +60,7 @@ Item {
         if (saved.length > 0) {
             const p = JSON.parse(saved)
             width = resizable && p.w > 0 ? Math.max(minWidth, Math.min(p.w, maxWidth)) : ownWidth
-            grow = resizable && stretchy ? Math.max(0, Math.min(p.grow || 0, maxGrow)) : 0
+            grow = resizable && stretchy ? Math.max(minGrow, Math.min(p.grow || 0, maxGrow)) : 0
             x = p.x
             y = p.y
         } else {
@@ -295,7 +297,7 @@ Item {
                 panel.width = Math.max(panel.minWidth, Math.min(startWidth + p.x - start.x, panel.maxWidth, room))
                 if (panel.stretchy) {
                     const below = panel.parent ? panel.parent.height - panel.y - panel.height + panel.grow : panel.maxGrow
-                    panel.grow = Math.max(0, Math.min(startGrow + p.y - start.y, panel.maxGrow, below))
+                    panel.grow = Math.max(panel.minGrow, Math.min(startGrow + p.y - start.y, panel.maxGrow, below))
                 }
             }
             onReleased: { panel.remember(); hold(false) }

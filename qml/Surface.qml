@@ -88,7 +88,11 @@ Window {
         height: surface.screenH
     }
 
-    onAreaChanged: if (attached) { nativeWindow.place(surface, area); input() }
+    onAreaChanged: if (attached) { nativeWindow.place(surface, area); input(); settleInput.restart() }
+    // The compositor takes a new size a moment later: the input region is
+    // given again then, so a resized window never keeps a stale one (the
+    // DPS panel took no clicks after its first fight grew it, on KWin).
+    Timer { id: settleInput; interval: 250; onTriggered: surface.applyInput() }
     onVisibleChanged: if (visible) input()
     Component.onCompleted: {
         if (part) { part.parent = home; part.z = stack }
