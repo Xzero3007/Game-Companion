@@ -118,7 +118,7 @@ Panel {
                 id: screenChoice
                 width: parent.width
                 z: 30
-                label: "Screen"
+                label: "Show on"
                 property string picked: Companion.chosenScreen()
                 options: [{ id: "", name: "KDE's primary screen" }].concat(JSON.parse(nativeWindow.screenList))
                 current: picked

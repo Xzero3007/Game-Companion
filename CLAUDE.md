@@ -9,8 +9,14 @@ learnt, so nothing has to be asked or worked out again.
   **English**: UI texts, README, code comments, commit messages, issues.
 - Uses Arch with KDE Plasma on Wayland. Two monitors: the main one (Qt's
   primary screen) with the game and the meter, and an Acer X34A (DP-1, at
-  0,0, left of it) with Brave. Every part stays on the primary screen
-  (`NativeWindow::screen`; `place` gives each window that screen's origin
+  0,0, left of it) with Brave. Every part stays on KDE's primary screen
+  (0.4.5: Qt's primaryScreen on KWin is the first output KWin announced, not
+  KDE's primary, found on real KWin 6.8; `NativeWindow::kdePrimary` reads
+  `~/.config/kwinoutputconfig.json`: the "setups" entry whose enabled
+  outputs equal the connected ones, its output with the lowest priority,
+  1-based there, mapped by outputIndex to "outputs"[i].connectorName =
+  QScreen::name(); Settings → Display "Show on" overrides it, settings
+  `screen`; `NativeWindow::screen`; `place` gives each window that screen's origin
   plus its place, else Qt moves it to the screen at that point: 0.4.1 drew
   on the Acer). Check with an offscreen `configfile` of two screens,
   `GC_SCREEN=<name>` (the offscreen platform makes the one at 0,0 primary)
