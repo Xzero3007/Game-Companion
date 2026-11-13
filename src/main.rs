@@ -5,6 +5,7 @@ mod games;
 mod games_object;
 mod jellyfin;
 mod jellyfin_object;
+mod launch_options;
 mod native;
 mod radio;
 mod radio_object;
@@ -13,8 +14,10 @@ mod shortcuts;
 mod sponsorblock;
 mod streams;
 mod streams_object;
+mod system_info;
 mod updater;
 mod updates_object;
+mod vdf_edit;
 
 fn main() {
     if std::env::args().any(|a| a == "--version") {

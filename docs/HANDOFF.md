@@ -54,6 +54,16 @@ Agreed with the person 2026-11-13 (see CLAUDE.md plan step 4):
   (step 5).
 - Later wishes (the person, 2026-11-13, to plan together): set launch
   options for games in the launchers; something for Proton.
+  Backend done on branch `launch-options` (not merged, no UI yet):
+  `src/launch_options.rs` (Steam localconfig.vdf / config.vdf, Lutris yml,
+  Heroic GamesConfig; suggestions; Proton list), `src/system_info.rs`
+  (GPU, driver, CPU, RAM, tools, session, main screen from
+  kwinoutputconfig.json), `src/vdf_edit.rs` (changes one VDF value, every
+  other byte kept). Games invokables: launchOptions, suggestions,
+  combineOptions, setLaunchOptions, protonVersions, setProton, systemInfo.
+  Writes refuse while the launcher runs ("Close Steam first"), back up the
+  file as `<file>.gc-backup-<UTC time>` and replace it by rename. serde_json
+  now keeps key order (preserve_order) so Heroic's files keep theirs.
 
 Open points: QA review, test on real KWin (Arch thread), the person's test.
 Known limits: PoE 1 outside Steam counts as PoE 2; any process with a
