@@ -37,6 +37,22 @@ new session (or the same one after a usage limit) carries on from here.
   game), start with the desktop (Companion.autostart, `--hidden`), on
   start: Streams preset, show hub, radio, layout (Main.qml Connections).
 
+## Decisions 2026-11-13 (the person)
+
+- AION module merged into beta as 0.6.0 for the person's in-game test.
+- Map data: the AION2 Interactive Map's pictures and data are CC BY-NC 4.0
+  (its author's licence): fine with credit (NOTICE file) while the app is
+  free; nothing to replace.
+- Launch options UI drafts approved (canvas page "Launch options (draft)",
+  boards L1Options, L2Suggestions, L3Proton).
+- Suggestions follow the Proton flavour set for the game (Valve, GE,
+  proton-cachyos, Wine, native); CachyOS aware (game-performance,
+  proton-cachyos defaults); an explanation text for every option; options
+  already set are checked (ok, outdated, invalid, no effect, not
+  recommended, unknown).
+- Open: ProtonDB (on demand per game, a data extract in the app, or none);
+  helper group (recommended no).
+
 ## In progress: AION 2 module on branch `aion-module` (from beta)
 
 The person asked (2026-11-13) to port the meter; decisions in
