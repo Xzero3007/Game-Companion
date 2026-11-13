@@ -1,0 +1,1274 @@
+//! The Games tab and game detection: the games Steam, Lutris and Heroic
+//! have installed, read from their files on disk (nothing is fetched, and
+//! the launchers' files are only read), the user's own entries, and which
+//! game runs now, from `/proc` (only read: nothing is sent to a game).
+
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::path::{Path, PathBuf};
+
+use serde::{Deserialize, Serialize};
+
+/// One game in the library (or a built-in one, for detection only).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Game {
+    /// Stable: "steam:<appid>", "lutris:<id>", "heroic:<runner>:<app>",
+    /// "own:<n>", or "known:<key>" for a built-in game no launcher lists.
+    pub id: String,
+    pub name: String,
+    /// "steam", "lutris", "heroic", "own" or "known".
+    pub launcher: String,
+    /// What starts it: a launcher's address, or an own entry's command line.
+    pub launch: String,
+    /// Process names that mean it runs (`comm`, or argv[0]'s file name).
+    pub processes: Vec<String>,
+    /// Its Steam app id: Steam's `reaper` carries it while the game runs.
+    pub steam_appid: Option<u32>,
+    /// A cover picture already on disk (the launchers' own caches).
+    pub picture: Option<PathBuf>,
+    /// The built-in game it is (`Known::key`).
+    pub known: Option<&'static str>,
+    /// Folders whose paths in a process's command line mean it runs, as
+    /// lower-case needles ending in "/" (Steam's "/steamapps/common/<dir>/",
+    /// a Lutris or Heroic install folder).
+    pub dirs: Vec<String>,
+    /// What it brings to the Streams panel: a Twitch category and YouTube
+    /// search words (own choice, else the built-in game's).
+    pub twitch: String,
+    pub youtube: String,
+    /// When it starts: show the hub, start the radio.
+    pub show_on_start: bool,
+    pub radio_on_start: bool,
+}
+
+impl Game {
+    pub fn new(id: impl Into<String>, name: impl Into<String>, launcher: &str, launch: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            launcher: launcher.into(),
+            launch: launch.into(),
+            processes: Vec::new(),
+            steam_appid: None,
+            picture: None,
+            known: None,
+            dirs: Vec::new(),
+            twitch: String::new(),
+            youtube: String::new(),
+            show_on_start: true,
+            radio_on_start: false,
+        }
+    }
+}
+
+/// A game Game Companion knows: how to find it, and what it brings to the
+/// Streams panel.
+#[derive(Debug, PartialEq)]
+pub struct Known {
+    pub key: &'static str,
+    pub name: &'static str,
+    pub steam_appid: Option<u32>,
+    pub processes: &'static [&'static str],
+    /// Its Twitch category and its YouTube search words.
+    pub twitch: &'static str,
+    pub youtube: &'static str,
+}
+
+pub const KNOWN: &[Known] = &[
+    Known {
+        key: "aion2",
+        name: "AION 2",
+        steam_appid: None,
+        // As the meter finds it (procfs::is_aion2_process): the Wine
+        // process named AION2.exe; its launcher is not the game.
+        processes: &["AION2.exe"],
+        twitch: "AION 2",
+        youtube: "AION 2",
+    },
+    Known {
+        key: "poe2",
+        name: "Path of Exile 2",
+        steam_appid: Some(2_694_490),
+        processes: &["PathOfExile.exe", "PathOfExile_x64.exe", "PathOfExileSteam.exe", "PathOfExile_x64Steam.exe"],
+        twitch: "Path of Exile 2",
+        youtube: "Path of Exile 2",
+    },
+];
+
+/// A game the user added by hand (settings `games.own`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OwnGame {
+    /// Its number: the game's id is "own:<n>".
+    pub id: u32,
+    pub name: String,
+    /// The command line that starts it (split like a shell, never run by one).
+    pub command: String,
+    pub processes: Vec<String>,
+    /// Its Twitch category and YouTube search words ("" for the built-in
+    /// game's, if it is one).
+    pub twitch: String,
+    pub youtube: String,
+    pub show_on_start: bool,
+    pub radio_on_start: bool,
+}
+
+impl Default for OwnGame {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            name: String::new(),
+            command: String::new(),
+            processes: Vec::new(),
+            twitch: String::new(),
+            youtube: String::new(),
+            show_on_start: true,
+            radio_on_start: false,
+        }
+    }
+}
+
+/// The same choices for a launcher's game (settings `games.options`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GameOptions {
+    pub twitch: String,
+    pub youtube: String,
+    pub show_on_start: bool,
+    pub radio_on_start: bool,
+}
+
+impl Default for GameOptions {
+    fn default() -> Self {
+        Self { twitch: String::new(), youtube: String::new(), show_on_start: true, radio_on_start: false }
+    }
+}
+
+/// The Games tab's settings.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GamesSettings {
+    pub own: Vec<OwnGame>,
+    /// Games hidden from the library, by id (still detected).
+    pub hidden: BTreeSet<String>,
+    /// Games marked as favourites, by id.
+    pub favorites: BTreeSet<String>,
+    /// When each game last started (unix seconds), by id.
+    pub last_played: BTreeMap<String, u64>,
+    /// Choices for launchers' (and built-in) games, by id.
+    pub options: BTreeMap<String, GameOptions>,
+}
+
+/// A name for comparing: lower case letters and digits only
+/// ("AION 2" and "Aion2" are the same).
+fn plain(name: &str) -> String {
+    name.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
+}
+
+/// The built-in game a library game is: by Steam app id, else by name.
+pub fn match_known(name: &str, steam_appid: Option<u32>) -> Option<&'static Known> {
+    if let Some(id) = steam_appid {
+        if let Some(k) = KNOWN.iter().find(|k| k.steam_appid == Some(id)) {
+            return Some(k);
+        }
+    }
+    let name = plain(name);
+    KNOWN.iter().find(|k| !name.is_empty() && plain(k.name) == name)
+}
+
+/// Process names too general to mean any one game.
+const GENERAL: &[&str] = &[
+    "sh", "bash", "zsh", "env", "python", "python3", "java", "mono", "wine", "wine64", "steam", "flatpak", "lutris", "heroic",
+    "gamescope", "gamemoderun", "xdg-open",
+];
+
+/// The process name an executable runs under; None for scripts and
+/// interpreters, which would match more than the game.
+pub fn process_name(executable: &str) -> Option<String> {
+    let name = executable.trim().rsplit(['/', '\\']).next()?.trim();
+    let lower = name.to_ascii_lowercase();
+    let script = [".sh", ".py", ".bat", ".cmd", ".desktop"].iter().any(|ext| lower.ends_with(ext));
+    (!name.is_empty() && !script && !GENERAL.contains(&lower.as_str())).then(|| name.to_string())
+}
+
+// ---------------------------------------------------------------- VDF ----
+
+/// Valve's KeyValues text (`.vdf`, `.acf`): a key and a string or a block.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Vdf {
+    Str(String),
+    Map(Vec<(String, Vdf)>),
+}
+
+impl Vdf {
+    /// A child by key, ignoring case.
+    pub fn get(&self, key: &str) -> Option<&Vdf> {
+        match self {
+            Vdf::Map(items) => items.iter().find(|(k, _)| k.eq_ignore_ascii_case(key)).map(|(_, v)| v),
+            Vdf::Str(_) => None,
+        }
+    }
+
+    pub fn str(&self, key: &str) -> Option<&str> {
+        match self.get(key)? {
+            Vdf::Str(s) => Some(s),
+            Vdf::Map(_) => None,
+        }
+    }
+
+    pub fn items(&self) -> &[(String, Vdf)] {
+        match self {
+            Vdf::Map(items) => items,
+            Vdf::Str(_) => &[],
+        }
+    }
+}
+
+/// Reads KeyValues text tolerantly: comments, unquoted words, escapes and
+/// missing closing braces are all fine; the top level is a block.
+pub fn parse_vdf(text: &str) -> Vdf {
+    #[derive(PartialEq)]
+    enum Token {
+        Open,
+        Close,
+        Word(String),
+    }
+    let mut tokens = Vec::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '{' => tokens.push(Token::Open),
+            '}' => tokens.push(Token::Close),
+            '"' => {
+                let mut word = String::new();
+                while let Some(c) = chars.next() {
+                    match c {
+                        '"' => break,
+                        '\\' => match chars.next() {
+                            Some('n') => word.push('\n'),
+                            Some('t') => word.push('\t'),
+                            Some(other) => word.push(other),
+                            None => break,
+                        },
+                        _ => word.push(c),
+                    }
+                }
+                tokens.push(Token::Word(word));
+            }
+            '/' if chars.peek() == Some(&'/') => {
+                for c in chars.by_ref() {
+                    if c == '\n' {
+                        break;
+                    }
+                }
+            }
+            c if c.is_whitespace() => {}
+            c => {
+                let mut word = String::from(c);
+                while let Some(&c) = chars.peek() {
+                    if c.is_whitespace() || c == '{' || c == '}' || c == '"' {
+                        break;
+                    }
+                    word.push(c);
+                    chars.next();
+                }
+                // [$WIN32]-style conditions belong to the line before.
+                if !(word.starts_with('[') && word.ends_with(']')) {
+                    tokens.push(Token::Word(word));
+                }
+            }
+        }
+    }
+    fn block(tokens: &mut std::iter::Peekable<std::vec::IntoIter<Token>>) -> Vec<(String, Vdf)> {
+        let mut items = Vec::new();
+        while let Some(token) = tokens.next() {
+            match token {
+                Token::Close => break,
+                Token::Open => {
+                    // A block without a key: keep its contents out of the way.
+                    block(tokens);
+                }
+                Token::Word(key) => match tokens.peek() {
+                    Some(Token::Open) => {
+                        tokens.next();
+                        items.push((key, Vdf::Map(block(tokens))));
+                    }
+                    Some(Token::Word(_)) => {
+                        if let Some(Token::Word(value)) = tokens.next() {
+                            items.push((key, Vdf::Str(value)));
+                        }
+                    }
+                    _ => {}
+                },
+            }
+        }
+        items
+    }
+    Vdf::Map(block(&mut tokens.into_iter().peekable()))
+}
+
+fn read_vdf(path: &Path) -> Option<Vdf> {
+    std::fs::read_to_string(path).ok().map(|t| parse_vdf(&t))
+}
+
+// -------------------------------------------------------------- Steam ----
+
+/// Steam's own tools that sit among the games.
+const STEAM_TOOLS: &[u32] = &[228_980, 1_070_560, 1_391_110, 1_628_350, 1_493_710, 2_180_100, 1_826_330, 1_161_040, 2_348_590, 3_658_110];
+
+fn is_steam_tool(appid: u32, name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    STEAM_TOOLS.contains(&appid)
+        || lower.starts_with("proton ")
+        || lower == "proton"
+        || lower.starts_with("steam linux runtime")
+        || lower.starts_with("steamworks common redistributables")
+        || lower.starts_with("steam runtime")
+}
+
+/// The Steam folders there are: native, the `~/.steam` links, Flatpak.
+fn steam_roots(home: &Path) -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = Vec::new();
+    for rel in [".local/share/Steam", ".steam/steam", ".steam/root", ".var/app/com.valvesoftware.Steam/.local/share/Steam"] {
+        let Ok(root) = home.join(rel).canonicalize() else { continue };
+        if root.join("steamapps").is_dir() && !roots.contains(&root) {
+            roots.push(root);
+        }
+    }
+    roots
+}
+
+/// The library folders a Steam folder lists (new and old
+/// `libraryfolders.vdf`), the folder itself first.
+fn steam_libraries(root: &Path) -> Vec<PathBuf> {
+    let mut libraries = vec![root.to_path_buf()];
+    for file in [root.join("steamapps/libraryfolders.vdf"), root.join("config/libraryfolders.vdf")] {
+        let Some(vdf) = read_vdf(&file) else { continue };
+        let Some((_, top)) = vdf.items().first() else { continue };
+        for (key, value) in top.items() {
+            if !key.chars().all(|c| c.is_ascii_digit()) {
+                continue;
+            }
+            let path = match value {
+                Vdf::Str(path) => Some(path.as_str()),
+                Vdf::Map(_) => value.str("path"),
+            };
+            if let Some(path) = path.filter(|p| !p.is_empty()) {
+                libraries.push(PathBuf::from(path));
+            }
+        }
+    }
+    libraries
+}
+
+/// A game's cover in Steam's cache: the old flat names and the newer
+/// folder per game (sometimes one folder deeper).
+fn steam_picture(roots: &[PathBuf], appid: u32) -> Option<PathBuf> {
+    const NAMES: [&str; 2] = ["library_600x900.jpg", "library_600x900_2x.jpg"];
+    for root in roots {
+        let cache = root.join("appcache/librarycache");
+        for name in NAMES {
+            let flat = cache.join(format!("{appid}_{name}"));
+            if flat.is_file() {
+                return Some(flat);
+            }
+        }
+        let folder = cache.join(appid.to_string());
+        for name in NAMES {
+            if folder.join(name).is_file() {
+                return Some(folder.join(name));
+            }
+        }
+        if let Ok(entries) = std::fs::read_dir(&folder) {
+            for entry in entries.flatten() {
+                for name in NAMES {
+                    let deeper = entry.path().join(name);
+                    if deeper.is_file() {
+                        return Some(deeper);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Steam's installed games, from every library's `appmanifest_*.acf`.
+pub fn read_steam(home: &Path) -> Vec<Game> {
+    let roots = steam_roots(home);
+    let mut seen_libraries = Vec::new();
+    let mut games: Vec<Game> = Vec::new();
+    for root in &roots {
+        for library in steam_libraries(root) {
+            let library = library.canonicalize().unwrap_or(library);
+            if seen_libraries.contains(&library) {
+                continue;
+            }
+            seen_libraries.push(library.clone());
+            let Ok(entries) = std::fs::read_dir(library.join("steamapps")) else { continue };
+            let mut files: Vec<PathBuf> = entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| {
+                    p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("appmanifest_") && n.ends_with(".acf"))
+                })
+                .collect();
+            files.sort();
+            for file in files {
+                let Some(acf) = read_vdf(&file) else { continue };
+                let Some(state) = acf.get("AppState") else { continue };
+                let Some(appid) = state.str("appid").and_then(|a| a.trim().parse::<u32>().ok()) else { continue };
+                let name = state.str("name").unwrap_or("").trim().to_string();
+                let installdir = state.str("installdir").unwrap_or("").trim().trim_matches(['/', '\\']).to_lowercase();
+                if name.is_empty() || is_steam_tool(appid, &name) || games.iter().any(|g| g.steam_appid == Some(appid)) {
+                    continue;
+                }
+                let mut game = Game::new(format!("steam:{appid}"), name, "steam", format!("steam://rungameid/{appid}"));
+                game.steam_appid = Some(appid);
+                game.picture = steam_picture(&roots, appid);
+                if !installdir.is_empty() && !installdir.contains(['/', '\\']) {
+                    game.dirs.push(format!("/steamapps/common/{installdir}/"));
+                }
+                games.push(game);
+            }
+        }
+    }
+    games
+}
+
+// ------------------------------------------------------------- Lutris ----
+
+/// Lutris's installed games, from its `pga.db`, opened read-only.
+pub fn read_lutris(home: &Path) -> Vec<Game> {
+    let places = [
+        (home.join(".local/share/lutris"), home.join(".cache/lutris")),
+        (home.join(".var/app/net.lutris.Lutris/data/lutris"), home.join(".var/app/net.lutris.Lutris/cache/lutris")),
+    ];
+    let mut games: Vec<Game> = Vec::new();
+    for (data, cache) in places {
+        let db = data.join("pga.db");
+        if !db.is_file() {
+            continue;
+        }
+        for (id, name, slug, executable, directory) in lutris_rows(&db) {
+            let id = format!("lutris:{id}");
+            if name.trim().is_empty() || games.iter().any(|g| g.id == id) {
+                continue;
+            }
+            let picture = [data.join("coverart"), cache.join("coverart")]
+                .iter()
+                .flat_map(|dir| ["jpg", "png"].map(|ext| dir.join(format!("{slug}.{ext}"))))
+                .find(|p| !slug.is_empty() && p.is_file());
+            let launch = format!("lutris:rungameid/{}", &id["lutris:".len()..]);
+            let mut game = Game::new(id, name.trim(), "lutris", launch);
+            game.processes = process_name(&executable).into_iter().collect();
+            game.picture = picture;
+            game.dirs = dir_needle(&directory).into_iter().collect();
+            games.push(game);
+        }
+    }
+    games
+}
+
+type LutrisRow = (i64, String, String, String, String);
+
+/// The installed rows: first as an unchanging file (no locks at all, so
+/// Lutris is never held up), else plainly read-only.
+fn lutris_rows(db: &Path) -> Vec<LutrisRow> {
+    use rusqlite::{Connection, OpenFlags};
+    let query = |conn: Connection| -> rusqlite::Result<Vec<LutrisRow>> {
+        let mut statement = conn.prepare(
+            "SELECT id, COALESCE(name, ''), COALESCE(slug, ''), COALESCE(executable, ''), COALESCE(directory, '') \
+             FROM games WHERE installed = 1",
+        )?;
+        let rows = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?;
+        rows.collect()
+    };
+    let read_only = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    let uri = format!("file:{}?immutable=1", uri_path(db));
+    Connection::open_with_flags(uri, read_only | OpenFlags::SQLITE_OPEN_URI)
+        .and_then(query)
+        .or_else(|_| Connection::open_with_flags(db, read_only).and_then(query))
+        .unwrap_or_default()
+}
+
+/// A path for an SQLite URI (`?` and `#` would end it).
+fn uri_path(path: &Path) -> String {
+    encode_path(path)
+}
+
+// ------------------------------------------------------------- Heroic ----
+
+fn read_json(path: &Path) -> Option<serde_json::Value> {
+    serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()
+}
+
+fn heroic_game(runner: &str, app: &str, name: &str, executable: &str, folder: &str, picture: Option<PathBuf>) -> Game {
+    let launch = format!("heroic://launch?appName={}&runner={runner}", encode_query(app));
+    let mut game = Game::new(format!("heroic:{runner}:{app}"), name.trim(), "heroic", launch);
+    game.processes = process_name(executable).into_iter().collect();
+    game.dirs = dir_needle(folder).into_iter().collect();
+    game.picture = picture;
+    game
+}
+
+/// A folder's last part, for a game whose name is nowhere else.
+fn folder_name(path: &str) -> String {
+    path.trim_end_matches(['/', '\\']).rsplit(['/', '\\']).next().unwrap_or("").to_string()
+}
+
+/// Heroic's installed games: Epic (Legendary), GOG, Amazon (Nile) and its
+/// own added ones. Missing or odd files give nothing.
+pub fn read_heroic(home: &Path) -> Vec<Game> {
+    use serde_json::Value;
+    let s = |v: &Value, key: &str| v.get(key).and_then(Value::as_str).unwrap_or("").to_string();
+    let mut games: Vec<Game> = Vec::new();
+    let mut add = |game: Game| {
+        if !game.name.is_empty() && !games.iter().any(|g| g.id == game.id) {
+            games.push(game);
+        }
+    };
+    for base in [home.join(".config/heroic"), home.join(".var/app/com.heroicgameslauncher.hgl/config/heroic")] {
+        if !base.is_dir() {
+            continue;
+        }
+        // Epic: { appName: { app_name, title, executable, is_dlc } }.
+        if let Some(Value::Object(map)) = read_json(&base.join("legendaryConfig/legendary/installed.json")) {
+            for (key, game) in &map {
+                if game.get("is_dlc").and_then(Value::as_bool) == Some(true) {
+                    continue;
+                }
+                let app = Some(s(game, "app_name")).filter(|a| !a.is_empty()).unwrap_or_else(|| key.clone());
+                add(heroic_game("legendary", &app, &s(game, "title"), &s(game, "executable"), &s(game, "install_path"), None));
+            }
+        }
+        // GOG: { installed: [{ appName, install_path, is_dlc }] }, names in library.json.
+        let gog_names: Vec<(String, String)> = read_json(&base.join("gog_store/library.json"))
+            .and_then(|v| v.get("games").and_then(Value::as_array).cloned())
+            .unwrap_or_default()
+            .iter()
+            .map(|g| (s(g, "app_name"), s(g, "title")))
+            .collect();
+        if let Some(list) = read_json(&base.join("gog_store/installed.json")).and_then(|v| v.get("installed").cloned()) {
+            for game in list.as_array().map(Vec::as_slice).unwrap_or_default() {
+                let app = s(game, "appName");
+                if app.is_empty() || game.get("is_dlc").and_then(Value::as_bool) == Some(true) {
+                    continue;
+                }
+                let name = gog_names
+                    .iter()
+                    .find(|(a, t)| *a == app && !t.is_empty())
+                    .map(|(_, t)| t.clone())
+                    .unwrap_or_else(|| folder_name(&s(game, "install_path")));
+                add(heroic_game("gog", &app, &name, &s(game, "executable"), &s(game, "install_path"), None));
+            }
+        }
+        // Amazon: [{ id, path }], names in library.json ([{ id, product: { title } }]).
+        let nile_names: Vec<(String, String)> = read_json(&base.join("nile_config/nile/library.json"))
+            .and_then(|v| v.as_array().cloned())
+            .unwrap_or_default()
+            .iter()
+            .map(|g| (s(g, "id"), g.get("product").map(|p| s(p, "title")).unwrap_or_default()))
+            .collect();
+        if let Some(Value::Array(list)) = read_json(&base.join("nile_config/nile/installed.json")) {
+            for game in &list {
+                let app = s(game, "id");
+                if app.is_empty() {
+                    continue;
+                }
+                let name = nile_names
+                    .iter()
+                    .find(|(a, t)| *a == app && !t.is_empty())
+                    .map(|(_, t)| t.clone())
+                    .unwrap_or_else(|| folder_name(&s(game, "path")));
+                add(heroic_game("nile", &app, &name, "", &s(game, "path"), None));
+            }
+        }
+        // Added by hand: { games: [{ app_name, title, install: { executable }, is_installed, art_cover }] }.
+        if let Some(list) = read_json(&base.join("sideload_apps/library.json")).and_then(|v| v.get("games").cloned()) {
+            for game in list.as_array().map(Vec::as_slice).unwrap_or_default() {
+                let app = s(game, "app_name");
+                if app.is_empty() || game.get("is_installed").and_then(Value::as_bool) == Some(false) {
+                    continue;
+                }
+                let executable = game.get("install").map(|i| s(i, "executable")).unwrap_or_default();
+                // Only a cover that is a file on this computer.
+                let picture = [s(game, "art_cover"), s(game, "art_square")]
+                    .into_iter()
+                    .map(|p| PathBuf::from(p.strip_prefix("file://").unwrap_or(&p)))
+                    .find(|p| p.is_absolute() && p.is_file());
+                add(heroic_game("sideload", &app, &s(game, "title"), &executable, "", picture));
+            }
+        }
+    }
+    games
+}
+
+// ------------------------------------------------------------ library ----
+
+/// Every launcher's installed games (no own entries; see `compose`).
+pub fn read_library(home: &Path) -> Vec<Game> {
+    let mut games = read_steam(home);
+    games.extend(read_lutris(home));
+    games.extend(read_heroic(home));
+    games
+}
+
+/// The library as the tab shows it: own entries first, then the launchers'
+/// games, each matched to a built-in game (whose process names it takes),
+/// with the user's choices for it.
+pub fn compose(scanned: &[Game], settings: &GamesSettings) -> Vec<Game> {
+    let mut games: Vec<Game> = settings
+        .own
+        .iter()
+        .map(|o| {
+            let mut game = Game::new(format!("own:{}", o.id), o.name.clone(), "own", o.command.clone());
+            game.processes = o.processes.clone();
+            game.twitch = o.twitch.clone();
+            game.youtube = o.youtube.clone();
+            game.show_on_start = o.show_on_start;
+            game.radio_on_start = o.radio_on_start;
+            game
+        })
+        .collect();
+    games.extend(scanned.iter().cloned().map(|mut game| {
+        if let Some(o) = settings.options.get(&game.id) {
+            game.twitch = o.twitch.clone();
+            game.youtube = o.youtube.clone();
+            game.show_on_start = o.show_on_start;
+            game.radio_on_start = o.radio_on_start;
+        }
+        game
+    }));
+    for game in &mut games {
+        if let Some(k) = match_known(&game.name, game.steam_appid) {
+            take_known(game, k);
+        }
+    }
+    games
+}
+
+/// A built-in game's key, process names and (where none is chosen) presets.
+fn take_known(game: &mut Game, k: &'static Known) {
+    game.known = Some(k.key);
+    for p in k.processes {
+        if !game.processes.iter().any(|q| q.eq_ignore_ascii_case(p)) {
+            game.processes.push((*p).to_string());
+        }
+    }
+    if game.twitch.trim().is_empty() {
+        game.twitch = k.twitch.into();
+    }
+    if game.youtube.trim().is_empty() {
+        game.youtube = k.youtube.into();
+    }
+}
+
+/// What detection looks for: the library, plus each built-in game that no
+/// library game is ("known:<key>", with the user's choices for that id).
+pub fn watch_list(library: &[Game], settings: &GamesSettings) -> Vec<Game> {
+    let mut list = library.to_vec();
+    for k in KNOWN {
+        if !library.iter().any(|g| g.known == Some(k.key)) {
+            let mut game = Game::new(format!("known:{}", k.key), k.name, "known", "");
+            game.steam_appid = k.steam_appid;
+            if let Some(o) = settings.options.get(&game.id) {
+                game.twitch = o.twitch.clone();
+                game.youtube = o.youtube.clone();
+                game.show_on_start = o.show_on_start;
+                game.radio_on_start = o.radio_on_start;
+            }
+            take_known(&mut game, k);
+            list.push(game);
+        }
+    }
+    list
+}
+
+/// An install folder as a needle for command lines: lower case, "/" at the
+/// end; None for folders too general to mean one game (fewer than three
+/// parts, like "/home/p").
+pub fn dir_needle(folder: &str) -> Option<String> {
+    let folder = folder.trim().replace('\\', "/").to_lowercase();
+    let folder = folder.trim_end_matches('/');
+    let parts = folder.split('/').filter(|p| !p.is_empty()).count();
+    (folder.starts_with('/') && parts >= 3).then(|| format!("{folder}/"))
+}
+
+// ---------------------------------------------------------- detection ----
+
+/// The kernel keeps 15 bytes of a process name.
+const COMM_LEN: usize = 15;
+
+/// Wine and Proton processes: their argv[0] is worth reading.
+fn looks_like_wine(comm: &str) -> bool {
+    comm.ends_with(".exe") || comm.starts_with("wine") || comm.contains("preloader") || comm.starts_with("proton")
+}
+
+/// One command-line argument as a path to compare: lower case, "/" for
+/// "\\", and Wine's "Z:" (the whole file system) dropped.
+fn plain_arg(arg: &[u8]) -> String {
+    let arg = String::from_utf8_lossy(arg).replace('\\', "/").to_lowercase();
+    match arg.strip_prefix("z:") {
+        Some(rest) if rest.starts_with('/') => rest.to_string(),
+        _ => arg,
+    }
+}
+
+/// The detection table, built once per library (not per look at `/proc`).
+#[derive(Debug, Default)]
+pub struct Matcher {
+    pub games: Vec<Game>,
+    /// Lower-case process name to the first game with it.
+    names: HashMap<String, usize>,
+    /// Names longer than the kernel keeps, lower case.
+    long_names: Vec<(String, usize)>,
+    appids: HashMap<u32, usize>,
+    dirs: Vec<(String, usize)>,
+}
+
+impl Matcher {
+    pub fn new(games: Vec<Game>) -> Self {
+        let mut m = Matcher::default();
+        for (i, game) in games.iter().enumerate() {
+            for p in &game.processes {
+                let lower = p.to_lowercase();
+                if lower.len() > COMM_LEN {
+                    m.long_names.push((lower.clone(), i));
+                }
+                m.names.entry(lower).or_insert(i);
+            }
+            if let Some(id) = game.steam_appid {
+                m.appids.entry(id).or_insert(i);
+            }
+            m.dirs.extend(game.dirs.iter().map(|d| (d.clone(), i)));
+        }
+        m.games = games;
+        m
+    }
+
+    /// The game a process belongs to, and whether that is certain (Steam's
+    /// `reaper` app id, an install folder) or by a name games can share.
+    fn process(&self, dir: &Path, comm: &str) -> Option<(usize, bool)> {
+        let comm = comm.to_lowercase();
+        if let Some(&i) = self.names.get(&comm) {
+            return Some((i, false));
+        }
+        let reaper = comm == "reaper" && !self.appids.is_empty();
+        // A name cut to 15 bytes: argv[0] says which one it is.
+        let truncated = if comm.len() == COMM_LEN {
+            self.long_names.iter().find(|(n, _)| n.starts_with(&comm)).map(|(_, i)| *i)
+        } else {
+            None
+        };
+        if !(reaper || truncated.is_some() || !self.dirs.is_empty() || looks_like_wine(&comm)) {
+            return None;
+        }
+        let cmdline = std::fs::read(dir.join("cmdline")).unwrap_or_default();
+        let mut args = cmdline.split(|&b| b == 0).filter(|a| !a.is_empty());
+        if reaper {
+            // reaper SteamLaunch AppId=<id> -- ...
+            let appid = args
+                .clone()
+                .take_while(|a| *a != b"--")
+                .find_map(|a| std::str::from_utf8(a).ok()?.strip_prefix("AppId=")?.parse::<u32>().ok());
+            if let Some(&i) = appid.and_then(|id| self.appids.get(&id)) {
+                return Some((i, true));
+            }
+        }
+        let argv0 = args.next().map(plain_arg);
+        if let Some(argv0) = &argv0 {
+            // Only argv[0] for names: Proton's wrappers carry the game's path
+            // further along.
+            let file = argv0.rsplit('/').next().unwrap_or("").trim();
+            if let Some(&i) = self.names.get(file) {
+                return Some((i, false));
+            }
+        } else if let Some(i) = truncated {
+            // No command line to read (a zombie): the cut name alone.
+            return Some((i, false));
+        }
+        if self.dirs.is_empty() {
+            return None;
+        }
+        // An install folder anywhere in the command line (a Proton game's
+        // wrappers too: they run as long as it does).
+        argv0.into_iter().chain(args.map(plain_arg)).find_map(|arg| {
+            self.dirs.iter().find(|(needle, _)| arg.contains(needle.as_str())).map(|(_, i)| (*i, true))
+        })
+    }
+
+    /// Which game runs now: reads each process's `comm`, and its `cmdline`
+    /// when that can tell more (Wine, Steam's reaper, a cut name, or any
+    /// process while some game is known by its folder). A certain match
+    /// wins over a name; otherwise the earlier game in the list.
+    pub fn scan(&self, proc_root: &Path) -> Option<&Game> {
+        if self.games.is_empty() {
+            return None;
+        }
+        let entries = std::fs::read_dir(proc_root).ok()?;
+        let own_pid = std::process::id().to_string();
+        let mut by_name: Option<usize> = None;
+        let mut certain: Option<usize> = None;
+        for entry in entries.flatten() {
+            let file_name = entry.file_name();
+            let Some(pid) = file_name.to_str() else { continue };
+            if pid.is_empty() || !pid.bytes().all(|b| b.is_ascii_digit()) || pid == own_pid {
+                continue;
+            }
+            let dir = entry.path();
+            let Ok(comm) = std::fs::read_to_string(dir.join("comm")) else { continue };
+            match self.process(&dir, comm.trim_end_matches('\n')) {
+                Some((i, true)) => certain = Some(certain.map_or(i, |b| b.min(i))),
+                Some((i, false)) => by_name = Some(by_name.map_or(i, |b| b.min(i))),
+                None => {}
+            }
+        }
+        certain.or(by_name).map(|i| &self.games[i])
+    }
+}
+
+/// Which game runs now, by its id (see `Matcher::scan`; the app keeps
+/// one `Matcher` per library instead).
+#[cfg(test)]
+pub fn scan_running(proc_root: &Path, games: &[Game]) -> Option<String> {
+    Matcher::new(games.to_vec()).scan(proc_root).map(|g| g.id.clone())
+}
+
+// -------------------------------------------------------------- start ----
+
+/// Splits a command line like a shell does (quotes, backslashes, `~/`),
+/// without running one. None for unclosed quotes.
+pub fn split_command(line: &str, home: Option<&Path>) -> Option<Vec<String>> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let mut in_word = false;
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' => {
+                in_word = true;
+                loop {
+                    match chars.next()? {
+                        '\'' => break,
+                        c => word.push(c),
+                    }
+                }
+            }
+            '"' => {
+                in_word = true;
+                loop {
+                    match chars.next()? {
+                        '"' => break,
+                        '\\' => match chars.next()? {
+                            c @ ('"' | '\\' | '$' | '`') => word.push(c),
+                            '\n' => {}
+                            c => {
+                                word.push('\\');
+                                word.push(c);
+                            }
+                        },
+                        c => word.push(c),
+                    }
+                }
+            }
+            '\\' => {
+                in_word = true;
+                match chars.next() {
+                    Some('\n') | None => {}
+                    Some(c) => word.push(c),
+                }
+            }
+            c if c.is_whitespace() => {
+                if in_word {
+                    words.push(std::mem::take(&mut word));
+                    in_word = false;
+                }
+            }
+            '~' if !in_word && home.is_some() && matches!(chars.clone().next(), None | Some('/')) => {
+                in_word = true;
+                word.push_str(&home?.to_string_lossy());
+            }
+            c => {
+                in_word = true;
+                word.push(c);
+            }
+        }
+    }
+    if in_word {
+        words.push(word);
+    }
+    Some(words)
+}
+
+/// A command split into leading `NAME=value` settings and the program
+/// with its arguments.
+pub fn command_parts(words: Vec<String>) -> (Vec<(String, String)>, Vec<String>) {
+    let mut env = Vec::new();
+    let mut rest = words.into_iter().peekable();
+    while let Some(word) = rest.peek() {
+        let Some((name, value)) = word.split_once('=') else { break };
+        let valid = !name.is_empty()
+            && !name.starts_with(|c: char| c.is_ascii_digit())
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if !valid {
+            break;
+        }
+        env.push((name.to_string(), value.to_string()));
+        rest.next();
+    }
+    (env, rest.collect())
+}
+
+/// The process names to look for, from what the user typed (commas or new
+/// lines between them); without any, guessed from the command: its last
+/// `.exe`, else the program's own name.
+pub fn own_processes(typed: &str, command: &str) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for name in typed.split([',', ';', '\n']).map(str::trim).filter(|n| !n.is_empty()) {
+        if !names.iter().any(|n| n.eq_ignore_ascii_case(name)) {
+            names.push(name.chars().take(200).collect());
+        }
+    }
+    if names.is_empty() {
+        let (_, words) = command_parts(split_command(command, None).unwrap_or_default());
+        let exe = words.iter().rev().find(|w| w.to_ascii_lowercase().ends_with(".exe"));
+        if let Some(name) = exe.or(words.first()).and_then(|w| process_name(w)) {
+            names.push(name);
+        }
+    }
+    names
+}
+
+// -------------------------------------------------------------- paths ----
+
+fn encode_query(text: &str) -> String {
+    let mut out = String::new();
+    for b in text.bytes() {
+        if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+fn encode_path(path: &Path) -> String {
+    use std::os::unix::ffi::OsStrExt;
+    let mut out = String::new();
+    for &b in path.as_os_str().as_bytes() {
+        if b.is_ascii_alphanumeric() || b"-._~/".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// A local picture as a `file://` address for QML.
+pub fn file_url(path: &Path) -> String {
+    format!("file://{}", encode_path(path))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("gc-games-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write(path: &Path, text: &[u8]) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
+
+    fn acf(appid: u32, name: &str) -> String {
+        format!("\"AppState\"\n{{\n\t\"appid\"\t\t\"{appid}\"\n\t\"name\"\t\t\"{name}\"\n\t\"installdir\"\t\t\"x\"\n}}\n")
+    }
+
+    #[test]
+    fn reads_valve_text() {
+        let v = parse_vdf(
+            "// comment\n\"LibraryFolders\" {\n \"0\" { \"path\" \"/a \\\"b\\\"\" \"apps\" { \"10\" \"1\" } }\n unquoted value [$WIN32]\n \"1\" \"/old\"\n",
+        );
+        let top = v.get("libraryfolders").unwrap();
+        assert_eq!(top.get("0").unwrap().str("path"), Some("/a \"b\""));
+        assert_eq!(top.str("unquoted"), Some("value"));
+        assert_eq!(top.str("1"), Some("/old"));
+        // Broken text gives what could be read.
+        assert_eq!(parse_vdf("\"a\" { \"b\" \"c\"").get("a").unwrap().str("b"), Some("c"));
+        assert_eq!(parse_vdf("}}}{"), Vdf::Map(vec![]));
+    }
+
+    #[test]
+    fn reads_steam_libraries_and_skips_tools() {
+        let home = temp("steam");
+        let root = home.join(".local/share/Steam");
+        let extra = home.join("games/SteamLibrary");
+        write(
+            &root.join("steamapps/libraryfolders.vdf"),
+            format!("\"libraryfolders\"\n{{\n\"0\" {{ \"path\" \"{}\" }}\n\"1\" {{ \"path\" \"{}\" }}\n}}", root.display(), extra.display())
+                .as_bytes(),
+        );
+        write(&root.join("steamapps/appmanifest_2694490.acf"), acf(2694490, "Path of Exile 2").as_bytes());
+        write(&root.join("steamapps/appmanifest_1493710.acf"), acf(1493710, "Proton Experimental").as_bytes());
+        write(&root.join("steamapps/appmanifest_1628350.acf"), acf(1628350, "Steam Linux Runtime 3.0 (sniper)").as_bytes());
+        write(&root.join("steamapps/appmanifest_228980.acf"), acf(228980, "Steamworks Common Redistributables").as_bytes());
+        write(&extra.join("steamapps/appmanifest_10.acf"), acf(10, "Counter-Strike").as_bytes());
+        write(&extra.join("steamapps/appmanifest_bad.acf"), b"garbage");
+        // ~/.steam/steam links to the same folder: no doubles.
+        std::fs::create_dir_all(home.join(".steam")).unwrap();
+        std::os::unix::fs::symlink(&root, home.join(".steam/steam")).unwrap();
+        // The old flat cover and the newer folder per game.
+        write(&root.join("appcache/librarycache/2694490_library_600x900.jpg"), b"jpg");
+        write(&root.join("appcache/librarycache/10/abc123/library_600x900.jpg"), b"jpg");
+
+        let games = read_steam(&home);
+        let ids: Vec<&str> = games.iter().map(|g| g.id.as_str()).collect();
+        assert_eq!(ids, ["steam:2694490", "steam:10"]);
+        assert_eq!(games[0].launch, "steam://rungameid/2694490");
+        assert!(games[0].picture.as_ref().unwrap().ends_with("2694490_library_600x900.jpg"));
+        assert!(games[1].picture.as_ref().unwrap().ends_with("10/abc123/library_600x900.jpg"));
+        // Matched to the built-in game by app id, with its process names.
+        assert_eq!(games[0].dirs, ["/steamapps/common/x/"]);
+        let library = compose(&games, &GamesSettings::default());
+        assert_eq!(library[0].known, Some("poe2"));
+        assert_eq!(library[0].twitch, "Path of Exile 2");
+        assert!(library[0].processes.contains(&"PathOfExileSteam.exe".to_string()));
+        assert_eq!(library[1].known, None);
+    }
+
+    #[test]
+    fn reads_lutris_read_only() {
+        let home = temp("lutris");
+        let data = home.join(".local/share/lutris");
+        std::fs::create_dir_all(&data).unwrap();
+        let db = data.join("pga.db");
+        {
+            let conn = rusqlite::Connection::open(&db).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE games (id INTEGER PRIMARY KEY, name TEXT, slug TEXT, runner TEXT, executable TEXT, directory TEXT, installed INTEGER);
+                 INSERT INTO games VALUES (3, 'Aion2', 'aion-2', 'wine', '/home/p/Games/aion2/AION2Launcher.exe', '/home/p/Games/aion-2', 1);
+                 INSERT INTO games VALUES (4, 'Not here', 'gone', 'wine', '', NULL, 0);
+                 INSERT INTO games VALUES (5, 'Native', 'native-game', 'linux', '/opt/native/run.sh', NULL, 1);",
+            )
+            .unwrap();
+        }
+        write(&home.join(".cache/lutris/coverart/aion-2.png"), b"png");
+        let before = std::fs::metadata(&db).unwrap().modified().unwrap();
+        let games = compose(&read_lutris(&home), &GamesSettings::default());
+        assert_eq!(std::fs::metadata(&db).unwrap().modified().unwrap(), before);
+        assert_eq!(games.len(), 2);
+        assert_eq!(games[0].id, "lutris:3");
+        assert_eq!(games[0].launch, "lutris:rungameid/3");
+        assert_eq!(games[0].known, Some("aion2"));
+        assert_eq!(games[0].processes, ["AION2Launcher.exe", "AION2.exe"]);
+        assert!(games[0].picture.as_ref().unwrap().ends_with("coverart/aion-2.png"));
+        assert_eq!(games[0].dirs, ["/home/p/games/aion-2/"]);
+        // A script would match every shell.
+        assert!(games[1].processes.is_empty());
+        assert!(!data.join("pga.db-journal").exists());
+    }
+
+    #[test]
+    fn reads_heroic_tolerantly() {
+        let home = temp("heroic");
+        let base = home.join(".config/heroic");
+        write(
+            &base.join("legendaryConfig/legendary/installed.json"),
+            br#"{"Fortnite": {"app_name": "Fortnite", "title": "Fort Game", "executable": "Binaries/Win64/Game.exe", "install_path": "/home/p/Games/Heroic/Fort", "is_dlc": false},
+                 "Dlc1": {"app_name": "Dlc1", "title": "A DLC", "is_dlc": true}}"#,
+        );
+        write(&base.join("gog_store/installed.json"), br#"{"installed": [{"appName": "1207", "install_path": "/g/Some Game"}, {"appName": "99", "install_path": "/g/Other/"}]}"#);
+        write(&base.join("gog_store/library.json"), br#"{"games": [{"app_name": "1207", "title": "Some GOG Game"}]}"#);
+        write(&base.join("nile_config/nile/installed.json"), br#"[{"id": "amzn1.x", "path": "/g/Amazon Game"}]"#);
+        let cover = home.join("cover.jpg");
+        write(&cover, b"jpg");
+        write(
+            &base.join("sideload_apps/library.json"),
+            format!(
+                r#"{{"games": [{{"app_name": "abc", "title": "Mine", "install": {{"executable": "/opt/mine/mine"}}, "is_installed": true, "art_cover": "{}"}}]}}"#,
+                cover.display()
+            )
+            .as_bytes(),
+        );
+        // A broken file elsewhere changes nothing.
+        write(&home.join(".var/app/com.heroicgameslauncher.hgl/config/heroic/gog_store/installed.json"), b"{ nope");
+        let games = read_heroic(&home);
+        let ids: Vec<&str> = games.iter().map(|g| g.id.as_str()).collect();
+        assert_eq!(ids, ["heroic:legendary:Fortnite", "heroic:gog:1207", "heroic:gog:99", "heroic:nile:amzn1.x", "heroic:sideload:abc"]);
+        assert_eq!(games[0].launch, "heroic://launch?appName=Fortnite&runner=legendary");
+        assert_eq!(games[0].processes, ["Game.exe"]);
+        assert_eq!(games[0].dirs, ["/home/p/games/heroic/fort/"]);
+        // Too general a folder to mean one game.
+        assert!(games[1].dirs.is_empty());
+        assert_eq!(games[1].name, "Some GOG Game");
+        assert_eq!(games[2].name, "Other");
+        assert_eq!(games[3].name, "Amazon Game");
+        assert_eq!(games[3].launch, "heroic://launch?appName=amzn1.x&runner=nile");
+        assert_eq!(games[4].picture.as_deref(), Some(cover.as_path()));
+        assert!(read_heroic(&temp("noheroic")).is_empty());
+    }
+
+    #[test]
+    fn matches_known_games() {
+        assert_eq!(match_known("Aion 2", None).unwrap().key, "aion2");
+        assert_eq!(match_known("AION2", None).unwrap().key, "aion2");
+        assert_eq!(match_known("path of exile 2", None).unwrap().key, "poe2");
+        assert_eq!(match_known("Something", Some(2694490)).unwrap().key, "poe2");
+        assert_eq!(match_known("Path of Exile", Some(238960)), None);
+        assert_eq!(match_known("", None), None);
+        // Known games are looked for even when no launcher lists them.
+        let none = GamesSettings::default();
+        let list = watch_list(&compose(&[], &none), &none);
+        assert_eq!(list.iter().map(|g| g.id.as_str()).collect::<Vec<_>>(), ["known:aion2", "known:poe2"]);
+        assert_eq!((list[0].twitch.as_str(), list[0].show_on_start, list[0].radio_on_start), ("AION 2", true, false));
+        let mut settings = GamesSettings {
+            own: vec![OwnGame { id: 1, name: "AION 2".into(), command: "x".into(), youtube: "aion 2 guide".into(), ..Default::default() }],
+            ..Default::default()
+        };
+        settings.options.insert(
+            "known:poe2".into(),
+            GameOptions { twitch: "PoE".into(), youtube: String::new(), show_on_start: false, radio_on_start: true },
+        );
+        let list = watch_list(&compose(&[], &settings), &settings);
+        assert_eq!(list.iter().map(|g| g.id.as_str()).collect::<Vec<_>>(), ["own:1", "known:poe2"]);
+        assert_eq!(list[0].processes, ["AION2.exe"]);
+        // Own choices win; empty ones take the built-in game's.
+        assert_eq!((list[0].twitch.as_str(), list[0].youtube.as_str()), ("AION 2", "aion 2 guide"));
+        assert_eq!((list[1].twitch.as_str(), list[1].youtube.as_str()), ("PoE", "Path of Exile 2"));
+        assert_eq!((list[1].show_on_start, list[1].radio_on_start), (false, true));
+    }
+
+    fn process(root: &Path, pid: u32, comm: &str, cmdline: &[u8]) {
+        write(&root.join(pid.to_string()).join("comm"), format!("{comm}\n").as_bytes());
+        write(&root.join(pid.to_string()).join("cmdline"), cmdline);
+    }
+
+    #[test]
+    fn finds_running_games_in_proc() {
+        let none = GamesSettings::default();
+        let games = watch_list(&compose(&[], &none), &none);
+        let root = temp("proc");
+        std::fs::create_dir_all(root.join("self")).unwrap();
+        process(&root, 1, "systemd", b"/sbin/init\0");
+        // Proton's wrapper only mentions the game, and the launcher is not it.
+        process(&root, 20, "python3", b"python3\0/proton\0waitforexitandrun\0Z:\\games\\AION2.exe\0");
+        process(&root, 21, "AION2Launcher.e", b"C:\\AION2\\AION2Launcher.exe\0");
+        assert_eq!(scan_running(&root, &games), None);
+        // The game itself under Wine.
+        process(&root, 30, "wine64-preload", b"Z:\\home\\p\\Games\\AION2\\Binaries\\Win64\\AION2.exe\0-arg\0");
+        assert_eq!(scan_running(&root, &games).as_deref(), Some("known:aion2"));
+
+        let root = temp("proc2");
+        process(&root, 5, "aion2.exe", b"");
+        assert_eq!(scan_running(&root, &games).as_deref(), Some("known:aion2"));
+
+        // Cut to 15 bytes: argv[0] says which.
+        let root = temp("proc3");
+        process(&root, 7, "PathOfExile_x64", b"C:\\Program Files\\PoE2\\PathOfExile_x64Steam.exe\0");
+        assert_eq!(scan_running(&root, &games).as_deref(), Some("known:poe2"));
+        let root = temp("proc4");
+        process(&root, 7, "PathOfExile_x64", b"/usr/bin/PathOfExile_x64Tools\0");
+        assert_eq!(scan_running(&root, &games), None);
+        // No cmdline to read (a zombie): the cut name alone.
+        let root = temp("proc5");
+        process(&root, 7, "PathOfExileStea", b"");
+        assert_eq!(scan_running(&root, &games).as_deref(), Some("known:poe2"));
+        assert_eq!(scan_running(&temp("empty"), &games), None);
+        assert_eq!(scan_running(&root.join("missing"), &games), None);
+        assert_eq!(scan_running(&root, &[]), None);
+    }
+
+    #[test]
+    fn steam_reaper_names_the_game() {
+        let steam = |appid: u32, name: &str| {
+            let mut game = Game::new(format!("steam:{appid}"), name, "steam", "");
+            game.steam_appid = Some(appid);
+            game
+        };
+        // Path of Exile 1 shares its process names with 2: Steam's app id decides.
+        let none = GamesSettings::default();
+        let games = watch_list(&compose(&[steam(2694490, "Path of Exile 2"), steam(238960, "Path of Exile")], &none), &none);
+        let root = temp("reaper");
+        process(&root, 40, "reaper", b"/home/p/.steam/ubuntu12_32/reaper\0SteamLaunch\0AppId=238960\0--\0/x/AppId=1\0");
+        process(&root, 41, "PathOfExile_x64", b"C:\\poe\\PathOfExile_x64Steam.exe\0");
+        assert_eq!(scan_running(&root, &games).as_deref(), Some("steam:238960"));
+        let root = temp("reaper2");
+        process(&root, 41, "PathOfExile_x64", b"C:\\poe\\PathOfExile_x64Steam.exe\0");
+        assert_eq!(scan_running(&root, &games).as_deref(), Some("steam:2694490"));
+    }
+
+    #[test]
+    fn finds_a_real_process() {
+        let mut game = Game::new("own:1", "Sleeper", "own", "sleep 30");
+        game.processes.push("sleep".into());
+        let matcher = Matcher::new(vec![game]);
+        let mut child = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let found = matcher.scan(Path::new("/proc")).map(|g| g.id.clone());
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert_eq!(found.as_deref(), Some("own:1"));
+    }
+
+    #[test]
+    fn install_folders_name_the_game() {
+        let mut steam = Game::new("steam:5", "Some Game", "steam", "");
+        steam.dirs.push("/steamapps/common/some game/".into());
+        let mut lutris = Game::new("lutris:2", "Other", "lutris", "");
+        lutris.dirs = dir_needle("/home/p/Games/Other/").into_iter().collect();
+        let games = [steam, lutris];
+        let root = temp("dirs");
+        process(&root, 1, "bash", b"/bin/bash -c ls /steamapps/common/some gamer/ ");
+        process(&root, 2, "steamwebhelper", b"/home/p/.steam/steamwebhelper ");
+        assert_eq!(scan_running(&root, &games), None);
+        // Proton's wrapper: the game's folder further along (Windows form).
+        process(&root, 3, "python3", b"python3 /x/proton waitforexitandrun Z:\\home\\p\\.steam\\steamapps\\common\\Some Game\\g.exe ");
+        assert_eq!(scan_running(&root, &games).as_deref(), Some("steam:5"));
+        let root = temp("dirs2");
+        process(&root, 4, "Main-Thread", b"/home/p/Games/other/bin/game ");
+        assert_eq!(scan_running(&root, &games).as_deref(), Some("lutris:2"));
+        assert_eq!(dir_needle("/home/p"), None);
+        assert_eq!(dir_needle("relative/a/b"), None);
+        assert_eq!(dir_needle("C:\\a\\b"), None);
+        assert_eq!(dir_needle("/a/b/C").as_deref(), Some("/a/b/c/"));
+    }
+
+    #[test]
+    fn splits_commands_without_a_shell() {
+        let home = Path::new("/home/p");
+        assert_eq!(
+            split_command(r#"WINEPREFIX=~/pfx wine "/g/My Game/game.exe" --x 'a b' c\ d ~/e x~"#, Some(home)).unwrap(),
+            ["WINEPREFIX=~/pfx", "wine", "/g/My Game/game.exe", "--x", "a b", "c d", "/home/p/e", "x~"]
+        );
+        assert_eq!(split_command("a \"b", None), None);
+        assert_eq!(split_command("   ", None).unwrap(), Vec::<String>::new());
+        assert_eq!(split_command(r#""a\"b\n""#, None).unwrap(), ["a\"b\\n"]);
+        let (env, rest) = command_parts(split_command("A=1 B_2=x y game --z=1", None).unwrap());
+        assert_eq!(env, [("A".to_string(), "1".to_string()), ("B_2".to_string(), "x".to_string())]);
+        assert_eq!(rest, ["y", "game", "--z=1"]);
+    }
+
+    #[test]
+    fn guesses_own_process_names() {
+        assert_eq!(own_processes("", "wine '/g/My Game/Game.exe' -x"), ["Game.exe"]);
+        assert_eq!(own_processes("", "/usr/bin/factorio --fast"), ["factorio"]);
+        assert_eq!(own_processes("", "FOO=1 ~/bin/start.sh"), Vec::<String>::new());
+        assert_eq!(own_processes("a.exe, b ;A.EXE\n", "x"), ["a.exe", "b"]);
+        assert_eq!(process_name("C:\\x\\Y.exe").as_deref(), Some("Y.exe"));
+        assert_eq!(process_name("python3"), None);
+        assert_eq!(process_name(""), None);
+    }
+
+    #[test]
+    fn makes_addresses() {
+        assert_eq!(file_url(Path::new("/home/p/a b#1.jpg")), "file:///home/p/a%20b%231.jpg");
+        assert_eq!(encode_query("a&b c"), "a%26b%20c");
+    }
+}
