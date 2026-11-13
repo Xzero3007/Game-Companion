@@ -45,6 +45,9 @@ pub mod qobject {
         #[qproperty(QString, favourites)]
         /// YouTube channels: added by hand and FreeTube's (JSON `[{"id","name","freetube"}]`).
         #[qproperty(QString, channels)]
+        /// YouTube channels' pictures: JSON `{channel id: address}` ("" =
+        /// the channel has none).
+        #[qproperty(QString, channel_pictures)]
         /// Whether Streamlink is installed, who is signed in: JSON `{"streamlink","user"}`.
         #[qproperty(QString, account)]
         #[qproperty(QString, quality)]
@@ -126,6 +129,11 @@ pub mod qobject {
         /// Adds or removes a YouTube channel of one's own.
         #[qinvokable]
         fn toggle_channel(self: Pin<&mut Streams>, id: &QString, name: &QString);
+
+        /// Asks the pictures of channels that have none yet (once each,
+        /// FreeTube's first, then yt-dlp, a few at a time, in the background).
+        #[qinvokable]
+        fn fetch_channel_pictures(self: Pin<&mut Streams>);
 
         /// Signs in with twitch.tv's auth-token (checked with Twitch first).
         #[qinvokable]
@@ -298,6 +306,7 @@ pub struct StreamsRust {
     youtube_message: QString,
     favourites: QString,
     channels: QString,
+    channel_pictures: QString,
     account: QString,
     quality: QString,
     volume: i32,
@@ -354,6 +363,20 @@ fn all_channels(s: &settings::StreamsSettings) -> Vec<(Channel, bool)> {
 fn channels_json(s: &settings::StreamsSettings) -> String {
     Value::Array(all_channels(s).into_iter().map(|(c, ft)| json!({ "id": c.id, "name": c.name, "groups": c.groups, "freetube": ft })).collect()).to_string()
 }
+
+fn pictures_json(s: &settings::StreamsSettings) -> String {
+    serde_json::to_string(&s.channel_pictures).unwrap_or_else(|_| "{}".into())
+}
+
+/// Channels whose picture was asked in this run (a failed one is asked again
+/// at the next start, not over and over).
+fn pictures_asked() -> &'static Mutex<std::collections::HashSet<String>> {
+    static ASKED: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+    ASKED.get_or_init(Default::default)
+}
+
+/// yt-dlp asks for this many channel pictures at once.
+const PICTURES_AT_ONCE: usize = 3;
 
 fn groups_json(s: &settings::StreamsSettings) -> String {
     let mut names: Vec<String> = Vec::new();
@@ -447,15 +470,19 @@ fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: O
                 next.insert("live".into(), json!(c));
             }
         };
-        if filtered {
-            if let Ok(data) = streams::twitch(&streams::twitch_query_page("liveMore", &game, after.as_deref(), first)?, None) {
+        // Sorted by viewers first (Twitch pages only that way); the fields
+        // for the filters while one is on; plain if Twitch refuses either.
+        let kinds: &[&str] = if filtered { &["liveMoreSorted", "liveSorted", "liveMore", "live"] } else { &["liveSorted", "live"] };
+        let (last, tries) = kinds.split_last().unwrap_or((&"live", &[]));
+        for kind in tries {
+            if let Ok(data) = streams::twitch(&streams::twitch_query_page(kind, &game, after.as_deref(), first)?, None) {
                 if data.get("_errors").is_none() {
                     page(&data, &mut next);
                     return Ok(streams::twitch_cards(&data));
                 }
             }
         }
-        let data = streams::twitch(&streams::twitch_query_page("live", &game, after.as_deref(), first)?, None)?;
+        let data = streams::twitch(&streams::twitch_query_page(last, &game, after.as_deref(), first)?, None)?;
         page(&data, &mut next);
         Ok(streams::twitch_cards(&data))
     };
@@ -636,6 +663,7 @@ impl Default for StreamsRust {
             youtube_message: QString::default(),
             favourites: q(&serde_json::to_string(&s.favourites).unwrap_or_else(|_| "[]".into())),
             channels: q(&channels_json(&s)),
+            channel_pictures: q(&pictures_json(&s)),
             // Who is signed in is asked of Twitch once the panel opens.
             account: q(&account_json(if streams::twitch_token().is_some() { "…" } else { "" })),
             quality: q(&s.quality),
@@ -1199,6 +1227,89 @@ impl qobject::Streams {
         });
         self.as_mut().set_channels(q(&channels));
         self.set_groups(q(&groups));
+    }
+
+    fn fetch_channel_pictures(self: Pin<&mut Self>) {
+        static RUNNING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if Self::demo_mode() || RUNNING.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let missing: Vec<String> = {
+            let asked = pictures_asked().lock().unwrap_or_else(|p| p.into_inner());
+            settings::read(|s| {
+                all_channels(&s.streams)
+                    .into_iter()
+                    .map(|(c, _)| c.id)
+                    .filter(|id| !s.streams.channel_pictures.contains_key(id) && !asked.contains(id))
+                    .collect()
+            })
+        };
+        if missing.is_empty() {
+            RUNNING.store(false, Ordering::SeqCst);
+            return;
+        }
+        let thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let (tx, rx) = mpsc::channel::<(String, String)>();
+            // FreeTube's file first: no request for those.
+            let freetube = streams::freetube_pictures_here();
+            let mut todo = Vec::new();
+            for id in missing {
+                match freetube.iter().find(|(f, _)| *f == id) {
+                    Some((_, pic)) => {
+                        let _ = tx.send((id, pic.clone()));
+                    }
+                    None => todo.push(id),
+                }
+            }
+            todo.reverse();
+            let todo = Arc::new(Mutex::new(todo));
+            for _ in 0..PICTURES_AT_ONCE {
+                let (todo, tx) = (todo.clone(), tx.clone());
+                std::thread::spawn(move || loop {
+                    let Some(id) = todo.lock().unwrap_or_else(|p| p.into_inner()).pop() else { break };
+                    pictures_asked().lock().unwrap_or_else(|p| p.into_inner()).insert(id.clone());
+                    match streams::channel_picture(&id) {
+                        // "" is kept too: a channel without a picture is not asked again.
+                        Ok(pic) => {
+                            let _ = tx.send((id, pic));
+                        }
+                        // No yt-dlp: the others need not try.
+                        Err(e) if e.contains("No such file") => {
+                            todo.lock().unwrap_or_else(|p| p.into_inner()).clear();
+                            break;
+                        }
+                        Err(_) => {}
+                    }
+                });
+            }
+            drop(tx);
+            // Kept and shown every two seconds, not per picture.
+            let mut found: Vec<(String, String)> = Vec::new();
+            let mut shown = Instant::now();
+            loop {
+                let done = match rx.recv_timeout(Duration::from_millis(500)) {
+                    Ok(p) => {
+                        found.push(p);
+                        false
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => false,
+                    Err(mpsc::RecvTimeoutError::Disconnected) => true,
+                };
+                if !found.is_empty() && (done || shown.elapsed() >= Duration::from_secs(2)) {
+                    let j = settings::change(|s| {
+                        s.streams.channel_pictures.extend(found.drain(..));
+                        pictures_json(&s.streams)
+                    });
+                    let _ = thread.queue(move |obj| obj.set_channel_pictures(q(&j)));
+                    shown = Instant::now();
+                }
+                if done {
+                    break;
+                }
+            }
+            RUNNING.store(false, Ordering::SeqCst);
+        });
     }
 
     fn sign_in(mut self: Pin<&mut Self>, token: &QString) {

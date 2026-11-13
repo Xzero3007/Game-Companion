@@ -27,7 +27,7 @@ pub struct Settings {
     /// How bright the gold of the bar and the player row is, 0.4 to 1.
     pub accent_level: f64,
     /// How far a mouse-wheel notch scrolls the lists, in percent of a
-    /// list's own step (50 to 300; MN, 2026-11-13).
+    /// list's own step (50 to 500; MN, 2026-11-13).
     pub wheel_speed: u32,
     /// The three opacity values the buttons P1 to P3 jump to.
     pub alpha_presets: Vec<f64>,
@@ -195,6 +195,8 @@ pub struct StreamsSettings {
     /// (by part).
     pub trend_section: String,
     pub trend_words: BTreeMap<String, Vec<String>>,
+    /// YouTube channels' pictures by channel id, asked once each.
+    pub channel_pictures: BTreeMap<String, String>,
     /// Twitch: a note when followed or favourite channels go live (asked
     /// every two minutes while on), and the channels left out of it.
     pub alerts: bool,
@@ -257,6 +259,7 @@ impl Default for StreamsSettings {
             video_languages: crate::streams::system_languages(),
             trend_section: "gaming".into(),
             trend_words: BTreeMap::new(),
+            channel_pictures: BTreeMap::new(),
             alerts: false,
             alerts_off: BTreeSet::new(),
             channel_quality: BTreeMap::new(),
@@ -453,7 +456,7 @@ pub fn clamp_alpha(alpha: f64) -> f64 {
 
 /// Keeps the text brightness where text can still be read.
 pub fn clamp_wheel_speed(percent: i32) -> u32 {
-    percent.clamp(50, 300) as u32
+    percent.clamp(50, 500) as u32
 }
 
 pub fn clamp_text_level(level: f64) -> f64 {

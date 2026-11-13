@@ -308,10 +308,17 @@ learnt, so nothing has to be asked or worked out again.
   MN's test; on 0.7.7 Twitch sent the first page again for a cursor, so
   when a page brings nothing new `load_more_twitch` asks for a longer list
   from the top instead (`{"first": n}`, `twitch_query_page`, 30 more each
-  time, at most `TWITCH_LONGEST` 100); why a page failed shows under the
+  time, at most `TWITCH_LONGEST` 100; that helped Categories). All live
+  still sent the same 30 for cursor and length (0.8.2), so live lists ask
+  `options: { sort: VIEWER_COUNT }` as Twitch's directory does
+  (`liveSorted`, `liveMoreSorted`), plain if Twitch refuses it; why a page failed shows under the
   list, `twitchMoreNote`;
   YouTube pages too: `load_more_youtube`, yt-dlp `--playlist-items`,
-  subscriptions 60 a page from the kept 200), quality per channel, live notes (a thread every 120 s while
+  subscriptions 60 a page from the kept 200), channel pictures (0.8.4:
+  once per channel, FreeTube's profiles file first, else yt-dlp
+  `--playlist-items 0` on the channel page, `streams::channel_picture`;
+  settings `channel_pictures`, the `channelPictures` property, shown
+  square in the Channels list; yt3.ggpht.com only), quality per channel, live notes (a thread every 120 s while
   on, generation `ALERTS_RUN`; red count, no pop-up). Videos: chapters
   (mpv `chapter-list`), speed, queue (playlists played through, shuffle,
   loop). `GC_DEMO=streams,yt-<view>` / `tw-<view>`, `news`, `groups`,
@@ -349,7 +356,7 @@ learnt, so nothing has to be asked or worked out again.
   poor); lists keep `cacheBuffer: 600`. A notch is told by its angle (a
   multiple of 120): on KDE Wayland Qt gives a wheel notch a small pixel
   delta too, which was taken for a touchpad (MN: scrolled far too little).
-  Settings → Display "Scroll speed" (`Companion.wheelSpeed`, 50 to 300 %)
+  Settings → Display "Scroll speed" (`Companion.wheelSpeed`, 50 to 500 %)
   scales every step. `GC_DEMO=settings,display`.
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
