@@ -1,0 +1,34 @@
+[package]
+name = "aion2"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "AION 2 parser of Game Companion, from the A2Tools DPS Meter by taengu"
+publish = false
+
+[features]
+default = []
+# The capture (libpcap at run time) and the dispatcher feeding the parser.
+live = ["dep:libloading", "dep:tokio"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+lz4_flex = "0.11"
+aho-corasick = "1"
+tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+parking_lot = "0.12"
+sha2 = "0.11.0"
+libloading = { version = "0.8", optional = true }
+tokio = { version = "1", features = ["sync", "rt", "macros", "time"], optional = true }
+
+[dev-dependencies]
+flate2 = "1"
+zstd = { version = "0.13", default-features = false }
+ruzstd = "0.7"
+
+[lints.rust]
+# The meter's online parts (accounts, uploads) were left out; their code
+# paths stay behind features this crate never has.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("online", "desktop", "net"))'] }
