@@ -175,6 +175,9 @@ pub struct StreamsSettings {
     pub hide_watched: bool,
     pub hidden_channels: Vec<crate::streams::Channel>,
     pub hidden_words: Vec<String>,
+    /// Videos whose title or channel is written in an Indian script left
+    /// out (the person, 2026-11-13).
+    pub hide_indian: bool,
     /// FreeTube's subscriptions are read from its file as they are (until
     /// they are taken over: then only `channels` count).
     pub freetube_live: bool,
@@ -244,6 +247,7 @@ impl Default for StreamsSettings {
             hide_watched: false,
             hidden_channels: Vec::new(),
             hidden_words: Vec::new(),
+            hide_indian: true,
             freetube_live: true,
             group: String::new(),
             search: SearchFilter::default(),

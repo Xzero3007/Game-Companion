@@ -286,7 +286,9 @@ learnt, so nothing has to be asked or worked out again.
   (profiles → subscription groups, playlists, history, the quick bookmark
   target from settings.db) once; then FreeTube's subscriptions file is no
   longer read (`freetube_live` false). Streams lists: Shorts left out by
-  default (`hide_shorts`), watched, channels and words left out; search
+  default (`hide_shorts`), watched, channels and words left out, and
+  titles or channel names in an Indian script (`hide_indian`, default on,
+  `streams::indian_script`; MN, 2026-11-13); search
   filters as YouTube's `sp` (protobuf, `search_param`); Trending is yt-dlp
   searches per part (`TREND_SECTIONS`, words changeable in Settings), as
   YouTube's own trending page is gone. Video languages (`video_languages`,

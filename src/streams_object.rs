@@ -190,6 +190,9 @@ pub mod qobject {
         fn set_hide_shorts(self: Pin<&mut Streams>, on: bool);
         #[qinvokable]
         fn set_hide_watched(self: Pin<&mut Streams>, on: bool);
+        /// Leaves videos in Indian scripts out, or not.
+        #[qinvokable]
+        fn set_hide_indian(self: Pin<&mut Streams>, on: bool);
         /// A channel's videos never show (switched).
         #[qinvokable]
         fn toggle_hidden_channel(self: Pin<&mut Streams>, id: &QString, name: &QString);
@@ -366,7 +369,7 @@ fn groups_json(s: &settings::StreamsSettings) -> String {
 }
 
 fn filters_json(s: &settings::StreamsSettings) -> String {
-    json!({ "shorts": s.hide_shorts, "watched": s.hide_watched, "channels": s.hidden_channels, "words": s.hidden_words }).to_string()
+    json!({ "shorts": s.hide_shorts, "watched": s.hide_watched, "channels": s.hidden_channels, "words": s.hidden_words, "indian": s.hide_indian }).to_string()
 }
 
 fn trend_words_json(s: &settings::StreamsSettings) -> String {
@@ -394,6 +397,9 @@ pub fn filter_videos(list: Vec<Value>, s: &settings::StreamsSettings) -> (Vec<Va
             let cid = v["channelId"].as_str().unwrap_or("");
             let cname = v["channel"].as_str().unwrap_or("");
             if s.hidden_channels.iter().any(|c| (!cid.is_empty() && c.id == cid) || (cid.is_empty() && !cname.is_empty() && c.name == cname)) {
+                return false;
+            }
+            if s.hide_indian && (streams::indian_script(v["title"].as_str().unwrap_or("")) || streams::indian_script(cname)) {
                 return false;
             }
             let title = v["title"].as_str().unwrap_or("").to_lowercase();
@@ -1326,6 +1332,14 @@ impl qobject::Streams {
     fn set_hide_shorts(self: Pin<&mut Self>, on: bool) {
         let j = settings::change(|s| {
             s.streams.hide_shorts = on;
+            filters_json(&s.streams)
+        });
+        self.set_filters(q(&j));
+    }
+
+    fn set_hide_indian(self: Pin<&mut Self>, on: bool) {
+        let j = settings::change(|s| {
+            s.streams.hide_indian = on;
             filters_json(&s.streams)
         });
         self.set_filters(q(&j));

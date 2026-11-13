@@ -1093,8 +1093,24 @@ pub fn streamlink_stop(slot: &str) {
     }
 }
 
+/// Whether a text holds letters of an Indian script: Devanagari (Hindi,
+/// Marathi), Bengali, Gurmukhi (Punjabi), Gujarati, Odia, Tamil, Telugu,
+/// Kannada, Malayalam (U+0900 to U+0D7F) or Devanagari Extended.
+pub fn indian_script(text: &str) -> bool {
+    text.chars().any(|c| matches!(c, '\u{0900}'..='\u{0D7F}' | '\u{A8E0}'..='\u{A8FF}'))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn finds_indian_scripts() {
+        assert!(super::indian_script("Minecraft लाइव स्ट्रीम"));
+        assert!(super::indian_script("தமிழ் gaming"));
+        assert!(super::indian_script("বাংলা"));
+        assert!(!super::indian_script("Fußball Bundesliga Highlights"));
+        assert!(!super::indian_script("Türkçe oyun · 日本語 · Русский"));
+    }
+
     #[test]
     fn trend_searches_follow_languages() {
         let w = vec!["gaming".to_string()];
