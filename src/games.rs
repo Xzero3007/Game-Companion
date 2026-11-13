@@ -38,6 +38,16 @@ pub struct Game {
     /// When it starts: show the hub, start the radio.
     pub show_on_start: bool,
     pub radio_on_start: bool,
+    /// Installed: false for a game the launcher knows but has not installed
+    /// (its `launch` then opens the launcher's install for it, and
+    /// detection leaves it out).
+    pub installed: bool,
+    /// The public address of its cover, for downloading missing covers
+    /// later (not used yet: nothing is fetched without the person's yes).
+    #[allow(dead_code)]
+    pub cover_url: Option<String>,
+    /// Where a not-installed game was found ("" for the plain case).
+    pub note: String,
 }
 
 impl Game {
@@ -56,6 +66,9 @@ impl Game {
             youtube: String::new(),
             show_on_start: true,
             radio_on_start: false,
+            installed: true,
+            cover_url: None,
+            note: String::new(),
         }
     }
 }
@@ -159,6 +172,8 @@ pub struct GamesSettings {
     /// The saved layout (Settings → Layouts) each game loads when it
     /// starts, by id.
     pub layouts: BTreeMap<String, String>,
+    /// The tab lists only installed games.
+    pub installed_only: bool,
 }
 
 /// A name for comparing: lower case letters and digits only
@@ -363,36 +378,132 @@ pub(crate) fn steam_libraries(root: &Path) -> Vec<PathBuf> {
     libraries
 }
 
-/// A game's cover in Steam's cache: the old flat names and the newer
-/// folder per game (sometimes one folder deeper).
+/// Cover names in Steam's cache, best first: the tall library picture
+/// (and its double size), the library capsule, the wide headers.
+const STEAM_COVERS: [&str; 6] =
+    ["library_600x900.jpg", "library_600x900_2x.jpg", "library_capsule.jpg", "header.jpg", "library_header.jpg", "library_header_2x.jpg"];
+
+/// A game's cover in Steam's cache: the old flat names
+/// (`<appid>_library_600x900.jpg`) and the newer folder per game
+/// (`<appid>/<name>`, or one folder deeper, `<appid>/<hash>/<name>`).
 fn steam_picture(roots: &[PathBuf], appid: u32) -> Option<PathBuf> {
-    const NAMES: [&str; 2] = ["library_600x900.jpg", "library_600x900_2x.jpg"];
     for root in roots {
         let cache = root.join("appcache/librarycache");
-        for name in NAMES {
+        let folder = cache.join(appid.to_string());
+        let deeper: Vec<PathBuf> = std::fs::read_dir(&folder)
+            .map(|entries| entries.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect())
+            .unwrap_or_default();
+        for name in STEAM_COVERS {
             let flat = cache.join(format!("{appid}_{name}"));
             if flat.is_file() {
                 return Some(flat);
             }
-        }
-        let folder = cache.join(appid.to_string());
-        for name in NAMES {
             if folder.join(name).is_file() {
                 return Some(folder.join(name));
             }
-        }
-        if let Ok(entries) = std::fs::read_dir(&folder) {
-            for entry in entries.flatten() {
-                for name in NAMES {
-                    let deeper = entry.path().join(name);
-                    if deeper.is_file() {
-                        return Some(deeper);
-                    }
-                }
+            if let Some(found) = deeper.iter().map(|d| d.join(name)).find(|p| p.is_file()) {
+                return Some(found);
             }
         }
     }
     None
+}
+
+/// The public address of a Steam game's tall cover (Steam's store
+/// pictures). Only for a later download of missing covers, once the person
+/// agrees: nothing calls it to fetch anything yet.
+pub fn steam_cover_url(appid: u32) -> String {
+    format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/library_600x900.jpg")
+}
+
+/// The Steam account that signed in last (`loginusers.vdf`, MostRecent),
+/// as its `userdata` folder name (the 32-bit account id).
+fn steam_recent_user(root: &Path) -> Option<String> {
+    let vdf = read_vdf(&root.join("config/loginusers.vdf"))?;
+    let users = vdf.get("users")?;
+    let (id64, _) = users.items().iter().find(|(_, u)| u.str("MostRecent") == Some("1")).or_else(|| users.items().first())?;
+    let account = id64.trim().parse::<u64>().ok()?.checked_sub(76_561_197_960_265_728)?;
+    Some(account.to_string())
+}
+
+/// App ids this computer's Steam has seen for the account: apps it ran or
+/// set (localconfig.vdf, sharedconfig.vdf), apps it keeps library data or
+/// covers for. Owned games mostly, but not only (free weekends, demos,
+/// tools): `read_steam_known` keeps only what appinfo calls a game.
+pub(crate) fn steam_seen_apps(root: &Path) -> BTreeSet<u32> {
+    let number = |s: &str| s.trim().parse::<u32>().ok().filter(|&n| n > 0);
+    let mut apps = BTreeSet::new();
+    let userdata = root.join("userdata");
+    let users: Vec<PathBuf> = match steam_recent_user(root).map(|u| userdata.join(u)).filter(|p| p.is_dir()) {
+        Some(user) => vec![user],
+        None => std::fs::read_dir(&userdata)
+            .map(|e| {
+                e.flatten()
+                    .map(|e| e.path())
+                    .filter(|p| p.file_name().and_then(|n| n.to_str()).and_then(number).is_some())
+                    .collect()
+            })
+            .unwrap_or_default(),
+    };
+    let steam_apps = |vdf: &Vdf| -> Vec<u32> {
+        let Some((_, top)) = vdf.items().first() else { return Vec::new() };
+        let apps = top.get("Software").and_then(|s| s.get("Valve")).and_then(|v| v.get("Steam")).and_then(|s| s.get("apps"));
+        apps.map(|a| a.items().iter().filter_map(|(k, _)| number(k)).collect()).unwrap_or_default()
+    };
+    for user in users {
+        for file in [user.join("config/localconfig.vdf"), user.join("7/remote/sharedconfig.vdf")] {
+            if let Some(vdf) = read_vdf(&file) {
+                apps.extend(steam_apps(&vdf));
+            }
+        }
+        // config/librarycache/<appid>.json: the library's data per app.
+        if let Ok(entries) = std::fs::read_dir(user.join("config/librarycache")) {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                if let Some(id) = name.to_str().and_then(|n| n.strip_suffix(".json")).and_then(number) {
+                    apps.insert(id);
+                }
+            }
+        }
+    }
+    // appcache/librarycache: "<appid>" folders and "<appid>_<name>" files.
+    if let Ok(entries) = std::fs::read_dir(root.join("appcache/librarycache")) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else { continue };
+            let id = name.split(['_', '.']).next().and_then(number);
+            apps.extend(id);
+        }
+    }
+    apps
+}
+
+/// Games this computer's Steam knows for the account but has not
+/// installed (see `steam_seen_apps`): only apps whose appinfo type is
+/// "game", without Steam's tools. Their address opens Steam's install.
+pub fn read_steam_known(home: &Path, installed: &[Game]) -> Vec<Game> {
+    let roots = steam_roots(home);
+    let mut games: Vec<Game> = Vec::new();
+    for root in &roots {
+        let have: BTreeSet<u32> =
+            installed.iter().chain(games.iter()).filter_map(|g| g.steam_appid).collect();
+        let wanted: BTreeSet<u32> = steam_seen_apps(root).into_iter().filter(|id| !have.contains(id)).collect();
+        let metas = crate::appinfo::lookup(&root.join("appcache/appinfo.vdf"), &wanted);
+        for appid in wanted {
+            let Some(meta) = metas.get(&appid) else { continue };
+            if meta.kind != "game" || meta.name.is_empty() || is_steam_tool(appid, &meta.name) {
+                continue;
+            }
+            let mut game = Game::new(format!("steam:{appid}"), meta.name.clone(), "steam", format!("steam://install/{appid}"));
+            game.steam_appid = Some(appid);
+            game.installed = false;
+            game.picture = steam_picture(&roots, appid);
+            game.cover_url = Some(steam_cover_url(appid));
+            game.note = "Known to Steam on this PC".into();
+            games.push(game);
+        }
+    }
+    games
 }
 
 /// Steam's installed games, from every library's `appmanifest_*.acf`.
@@ -428,6 +539,7 @@ pub fn read_steam(home: &Path) -> Vec<Game> {
                 let mut game = Game::new(format!("steam:{appid}"), name, "steam", format!("steam://rungameid/{appid}"));
                 game.steam_appid = Some(appid);
                 game.picture = steam_picture(&roots, appid);
+                game.cover_url = Some(steam_cover_url(appid));
                 if !installdir.is_empty() && !installdir.contains(['/', '\\']) {
                     game.dirs.push(format!("/steamapps/common/{installdir}/"));
                 }
@@ -440,7 +552,10 @@ pub fn read_steam(home: &Path) -> Vec<Game> {
 
 // ------------------------------------------------------------- Lutris ----
 
-/// Lutris's installed games, from its `pga.db`, opened read-only.
+/// Lutris's games, from its `pga.db`, opened read-only: installed ones,
+/// the ones it lists as not installed, and the games of its services
+/// (GOG, Epic, the lutris.net library, ...; not Steam's, which the Steam
+/// tab has) that are not in its list yet.
 pub fn read_lutris(home: &Path) -> Vec<Game> {
     let places = [
         (home.join(".local/share/lutris"), home.join(".cache/lutris")),
@@ -452,45 +567,135 @@ pub fn read_lutris(home: &Path) -> Vec<Game> {
         if !db.is_file() {
             continue;
         }
-        for (id, name, slug, executable, directory) in lutris_rows(&db) {
-            let id = format!("lutris:{id}");
-            if name.trim().is_empty() || games.iter().any(|g| g.id == id) {
-                continue;
+        let picture = |slug: &str| -> Option<PathBuf> {
+            if slug.is_empty() || slug.contains('/') {
+                return None;
             }
-            let picture = [data.join("coverart"), cache.join("coverart")]
+            [data.join("coverart"), cache.join("coverart"), data.join("banners"), cache.join("banners")]
                 .iter()
                 .flat_map(|dir| ["jpg", "png"].map(|ext| dir.join(format!("{slug}.{ext}"))))
-                .find(|p| !slug.is_empty() && p.is_file());
-            let launch = format!("lutris:rungameid/{}", &id["lutris:".len()..]);
-            let mut game = Game::new(id, name.trim(), "lutris", launch);
-            game.processes = process_name(&executable).into_iter().collect();
-            game.picture = picture;
-            game.dirs = dir_needle(&directory).into_iter().collect();
+                .find(|p| p.is_file())
+        };
+        let (rows, services) = lutris_rows(&db);
+        let mut slugs: BTreeSet<String> = BTreeSet::new();
+        let mut names: BTreeSet<String> = BTreeSet::new();
+        for row in rows {
+            let id = format!("lutris:{}", row.id);
+            if row.name.trim().is_empty() || games.iter().any(|g| g.id == id) {
+                continue;
+            }
+            slugs.insert(row.slug.clone());
+            names.insert(plain(&row.name));
+            let launch = if row.installed {
+                format!("lutris:rungameid/{}", row.id)
+            } else if !row.slug.is_empty() {
+                format!("lutris:{}", row.slug)
+            } else {
+                // Lutris asks to install a game it lists as not installed.
+                format!("lutris:rungameid/{}", row.id)
+            };
+            let mut game = Game::new(id, row.name.trim(), "lutris", launch);
+            game.picture = picture(&row.slug);
+            game.installed = row.installed;
+            if row.installed {
+                game.processes = process_name(&row.executable).into_iter().collect();
+                game.dirs = dir_needle(&row.directory).into_iter().collect();
+            }
+            games.push(game);
+        }
+        for s in services {
+            let slug = if s.lutris_slug.is_empty() { s.slug.clone() } else { s.lutris_slug.clone() };
+            if s.name.trim().is_empty() || slug.is_empty() || slugs.contains(&slug) || names.contains(&plain(&s.name)) {
+                continue;
+            }
+            let id = format!("lutris:{}:{}", s.service, s.appid);
+            if games.iter().any(|g| g.id == id) {
+                continue;
+            }
+            slugs.insert(slug.clone());
+            let mut game = Game::new(id, s.name.trim(), "lutris", format!("lutris:{slug}"));
+            game.picture = picture(&slug).or_else(|| picture(&s.slug));
+            game.installed = false;
+            game.note = format!("In Lutris's {} library", lutris_service_name(&s.service));
             games.push(game);
         }
     }
     games
 }
 
-type LutrisRow = (i64, String, String, String, String);
+fn lutris_service_name(service: &str) -> String {
+    match service {
+        "gog" => "GOG".into(),
+        "egs" => "Epic".into(),
+        "lutris" => "lutris.net".into(),
+        "humblebundle" => "Humble".into(),
+        "itchio" => "itch.io".into(),
+        "ea_app" | "origin" => "EA".into(),
+        "ubisoft" => "Ubisoft".into(),
+        "battlenet" => "Battle.net".into(),
+        "amazon" => "Amazon".into(),
+        other => other.to_string(),
+    }
+}
 
-/// The installed rows: first as an unchanging file (no locks at all, so
-/// Lutris is never held up), else plainly read-only.
-fn lutris_rows(db: &Path) -> Vec<LutrisRow> {
+struct LutrisRow {
+    id: i64,
+    name: String,
+    slug: String,
+    executable: String,
+    directory: String,
+    installed: bool,
+}
+
+struct LutrisServiceGame {
+    service: String,
+    appid: String,
+    name: String,
+    slug: String,
+    lutris_slug: String,
+}
+
+/// The games and the service games: first as an unchanging file (no
+/// locks at all, so Lutris is never held up), else plainly read-only. An
+/// older database without `service_games` gives only the games.
+fn lutris_rows(db: &Path) -> (Vec<LutrisRow>, Vec<LutrisServiceGame>) {
     use rusqlite::{Connection, OpenFlags};
-    let query = |conn: Connection| -> rusqlite::Result<Vec<LutrisRow>> {
+    let games = |conn: &Connection| -> rusqlite::Result<Vec<LutrisRow>> {
         let mut statement = conn.prepare(
-            "SELECT id, COALESCE(name, ''), COALESCE(slug, ''), COALESCE(executable, ''), COALESCE(directory, '') \
-             FROM games WHERE installed = 1",
+            "SELECT id, COALESCE(name, ''), COALESCE(slug, ''), COALESCE(executable, ''), COALESCE(directory, ''), \
+             COALESCE(installed, 0) FROM games",
         )?;
-        let rows = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?;
+        let rows = statement.query_map([], |r| {
+            Ok(LutrisRow {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                slug: r.get(2)?,
+                executable: r.get(3)?,
+                directory: r.get(4)?,
+                installed: r.get::<_, i64>(5)? != 0,
+            })
+        })?;
+        rows.collect()
+    };
+    let services = |conn: &Connection| -> rusqlite::Result<Vec<LutrisServiceGame>> {
+        let mut statement = conn.prepare(
+            "SELECT COALESCE(service, ''), COALESCE(CAST(appid AS TEXT), ''), COALESCE(name, ''), COALESCE(slug, ''), \
+             COALESCE(lutris_slug, '') FROM service_games WHERE COALESCE(service, '') != 'steam'",
+        )?;
+        let rows = statement.query_map([], |r| {
+            Ok(LutrisServiceGame { service: r.get(0)?, appid: r.get(1)?, name: r.get(2)?, slug: r.get(3)?, lutris_slug: r.get(4)? })
+        })?;
         rows.collect()
     };
     let read_only = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
     let uri = format!("file:{}?immutable=1", uri_path(db));
+    let both = |conn: Connection| -> rusqlite::Result<(Vec<LutrisRow>, Vec<LutrisServiceGame>)> {
+        let list = games(&conn)?;
+        Ok((list, services(&conn).unwrap_or_default()))
+    };
     Connection::open_with_flags(uri, read_only | OpenFlags::SQLITE_OPEN_URI)
-        .and_then(query)
-        .or_else(|_| Connection::open_with_flags(db, read_only).and_then(query))
+        .and_then(both)
+        .or_else(|_| Connection::open_with_flags(db, read_only).and_then(both))
         .unwrap_or_default()
 }
 
@@ -519,25 +724,72 @@ fn folder_name(path: &str) -> String {
     path.trim_end_matches(['/', '\\']).rsplit(['/', '\\']).next().unwrap_or("").to_string()
 }
 
-/// Heroic's installed games: Epic (Legendary), GOG, Amazon (Nile) and its
-/// own added ones. Missing or odd files give nothing.
+/// A picture in Heroic's `images-cache`: each file is named by the
+/// SHA-256 of the address it was downloaded from (Heroic's
+/// `images_cache.ts`), without an extension.
+fn heroic_cached(base: &Path, url: &str) -> Option<PathBuf> {
+    use sha2::{Digest, Sha256};
+    if !url.starts_with("http") {
+        return None;
+    }
+    let hash: String = Sha256::digest(url.as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
+    let path = base.join("images-cache").join(hash);
+    path.is_file().then_some(path)
+}
+
+/// A library entry's cover: a cached copy of one of its art addresses (the
+/// card's own form first: Heroic asks Epic for a resized square picture),
+/// or a cover that is a file on this computer (added games).
+fn heroic_picture(base: &Path, runner: &str, game: &serde_json::Value) -> Option<PathBuf> {
+    let art = |key: &str| game.get(key).and_then(serde_json::Value::as_str).unwrap_or("").to_string();
+    let (cover, square) = (art("art_cover"), art("art_square"));
+    let mut urls = Vec::new();
+    if runner == "legendary" && !square.is_empty() {
+        urls.push(format!("{square}?h=400&resize=1&w=300"));
+    }
+    urls.extend([square.clone(), cover.clone(), art("art_background")]);
+    urls.iter().filter(|u| !u.is_empty()).find_map(|u| heroic_cached(base, u)).or_else(|| {
+        [cover, square]
+            .into_iter()
+            .map(|p| PathBuf::from(p.strip_prefix("file://").unwrap_or(&p)))
+            .find(|p| p.is_absolute() && p.is_file())
+    })
+}
+
+/// A library entry's public cover address (for a later download).
+fn heroic_cover_url(game: &serde_json::Value) -> Option<String> {
+    ["art_square", "art_cover"]
+        .iter()
+        .filter_map(|k| game.get(*k).and_then(serde_json::Value::as_str))
+        .find(|u| u.starts_with("https://"))
+        .map(str::to_string)
+}
+
+/// Heroic's games: Epic (Legendary), GOG, Amazon (Nile) and its own added
+/// ones. Installed ones from each store's installed list; the rest of each
+/// store's library (`store_cache/*_library.json`) as not installed (Heroic
+/// asks to install them when started). Missing or odd files give nothing.
 pub fn read_heroic(home: &Path) -> Vec<Game> {
     use serde_json::Value;
     let s = |v: &Value, key: &str| v.get(key).and_then(Value::as_str).unwrap_or("").to_string();
-    let mut games: Vec<Game> = Vec::new();
-    let mut add = |game: Game| {
-        if !game.name.is_empty() && !games.iter().any(|g| g.id == game.id) {
-            games.push(game);
-        }
+    let dlc = |v: &Value| {
+        v.get("is_dlc").and_then(Value::as_bool) == Some(true)
+            || v.get("install").and_then(|i| i.get("is_dlc")).and_then(Value::as_bool) == Some(true)
     };
+    let mut games: Vec<Game> = Vec::new();
     for base in [home.join(".config/heroic"), home.join(".var/app/com.heroicgameslauncher.hgl/config/heroic")] {
         if !base.is_dir() {
             continue;
         }
+        let mut add = |game: Game| {
+            if !game.name.is_empty() && !games.iter().any(|g| g.id == game.id) {
+                games.push(game);
+            }
+        };
         // Epic: { appName: { app_name, title, executable, is_dlc } }.
         if let Some(Value::Object(map)) = read_json(&base.join("legendaryConfig/legendary/installed.json")) {
             for (key, game) in &map {
-                if game.get("is_dlc").and_then(Value::as_bool) == Some(true) {
+                if dlc(game) {
                     continue;
                 }
                 let app = Some(s(game, "app_name")).filter(|a| !a.is_empty()).unwrap_or_else(|| key.clone());
@@ -554,7 +806,7 @@ pub fn read_heroic(home: &Path) -> Vec<Game> {
         if let Some(list) = read_json(&base.join("gog_store/installed.json")).and_then(|v| v.get("installed").cloned()) {
             for game in list.as_array().map(Vec::as_slice).unwrap_or_default() {
                 let app = s(game, "appName");
-                if app.is_empty() || game.get("is_dlc").and_then(Value::as_bool) == Some(true) {
+                if app.is_empty() || dlc(game) {
                     continue;
                 }
                 let name = gog_names
@@ -586,20 +838,55 @@ pub fn read_heroic(home: &Path) -> Vec<Game> {
                 add(heroic_game("nile", &app, &name, "", &s(game, "path"), None));
             }
         }
-        // Added by hand: { games: [{ app_name, title, install: { executable }, is_installed, art_cover }] }.
-        if let Some(list) = read_json(&base.join("sideload_apps/library.json")).and_then(|v| v.get("games").cloned()) {
+        // The stores' libraries as Heroic keeps them (its CacheStore,
+        // electron-store JSON): { library | games: [GameInfo] }, GameInfo
+        // { app_name, title, runner, is_installed, art_cover, art_square,
+        // install: { executable, install_path, is_dlc } }. Added games:
+        // sideload_apps/library.json { games: [GameInfo] }.
+        let libraries = [
+            ("legendary", base.join("store_cache/legendary_library.json"), "library"),
+            ("gog", base.join("store_cache/gog_library.json"), "games"),
+            ("nile", base.join("store_cache/nile_library.json"), "library"),
+            ("sideload", base.join("sideload_apps/library.json"), "games"),
+        ];
+        for (runner, file, key) in libraries {
+            let Some(list) = read_json(&file).and_then(|v| v.get(key).cloned()) else { continue };
             for game in list.as_array().map(Vec::as_slice).unwrap_or_default() {
                 let app = s(game, "app_name");
-                if app.is_empty() || game.get("is_installed").and_then(Value::as_bool) == Some(false) {
+                if app.is_empty() || dlc(game) {
                     continue;
                 }
-                let executable = game.get("install").map(|i| s(i, "executable")).unwrap_or_default();
-                // Only a cover that is a file on this computer.
-                let picture = [s(game, "art_cover"), s(game, "art_square")]
-                    .into_iter()
-                    .map(|p| PathBuf::from(p.strip_prefix("file://").unwrap_or(&p)))
-                    .find(|p| p.is_absolute() && p.is_file());
-                add(heroic_game("sideload", &app, &s(game, "title"), &executable, "", picture));
+                let id = format!("heroic:{runner}:{app}");
+                let picture = heroic_picture(&base, runner, game);
+                let cover_url = heroic_cover_url(game);
+                if let Some(known) = games.iter_mut().find(|g| g.id == id) {
+                    // Installed already: the library brings the cover.
+                    if known.picture.is_none() {
+                        known.picture = picture;
+                    }
+                    if known.cover_url.is_none() {
+                        known.cover_url = cover_url;
+                    }
+                    continue;
+                }
+                let install = game.get("install").cloned().unwrap_or(Value::Null);
+                let executable = s(&install, "executable");
+                let folder = s(&install, "install_path");
+                let mut entry = heroic_game(runner, &app, &s(game, "title"), &executable, &folder, picture);
+                entry.cover_url = cover_url;
+                // Its store's installed list is the truth; an entry it lacks
+                // counts as installed only where the library says so (added
+                // games: unless it says not).
+                let flag = game.get("is_installed").and_then(Value::as_bool);
+                entry.installed = if runner == "sideload" { flag != Some(false) } else { flag == Some(true) };
+                if !entry.installed {
+                    entry.processes.clear();
+                    entry.dirs.clear();
+                }
+                if entry.name.is_empty() {
+                    continue;
+                }
+                games.push(entry);
             }
         }
     }
@@ -608,9 +895,12 @@ pub fn read_heroic(home: &Path) -> Vec<Game> {
 
 // ------------------------------------------------------------ library ----
 
-/// Every launcher's installed games (no own entries; see `compose`).
+/// Every launcher's games, installed or not (no own entries; see
+/// `compose`).
 pub fn read_library(home: &Path) -> Vec<Game> {
     let mut games = read_steam(home);
+    let known = read_steam_known(home, &games);
+    games.extend(known);
     games.extend(read_lutris(home));
     games.extend(read_heroic(home));
     games
@@ -670,10 +960,12 @@ fn take_known(game: &mut Game, k: &'static Known) {
     }
 }
 
-/// What detection looks for: the library, plus each built-in game that no
-/// library game is ("known:<key>", with the user's choices for that id).
+/// What detection looks for: the library's installed games, plus each
+/// built-in game that none of them is ("known:<key>", with the user's
+/// choices for that id). A game that is not installed cannot run.
 pub fn watch_list(library: &[Game], settings: &GamesSettings) -> Vec<Game> {
-    let mut list = library.to_vec();
+    let mut list: Vec<Game> = library.iter().filter(|g| g.installed).cloned().collect();
+    let library = list.clone();
     for k in KNOWN {
         if !library.iter().any(|g| g.known == Some(k.key)) {
             let mut game = Game::new(format!("known:{}", k.key), k.name, "known", "");
@@ -1080,15 +1372,32 @@ mod tests {
                 "CREATE TABLE games (id INTEGER PRIMARY KEY, name TEXT, slug TEXT, runner TEXT, executable TEXT, directory TEXT, installed INTEGER);
                  INSERT INTO games VALUES (3, 'Aion2', 'aion-2', 'wine', '/home/p/Games/aion2/AION2Launcher.exe', '/home/p/Games/aion-2', 1);
                  INSERT INTO games VALUES (4, 'Not here', 'gone', 'wine', '', NULL, 0);
-                 INSERT INTO games VALUES (5, 'Native', 'native-game', 'linux', '/opt/native/run.sh', NULL, 1);",
+                 INSERT INTO games VALUES (5, 'Native', 'native-game', 'linux', '/opt/native/run.sh', NULL, 1);
+                 CREATE TABLE service_games (id INTEGER PRIMARY KEY, service TEXT, appid TEXT, name TEXT, slug TEXT, icon TEXT, logo TEXT, url TEXT, details TEXT, lutris_slug TEXT);
+                 INSERT INTO service_games VALUES (1, 'gog', '1207', 'Star Drifter', 'star-drifter', '', '', '', '{}', 'star-drifter');
+                 INSERT INTO service_games VALUES (2, 'steam', '10', 'Counter-Strike', 'counter-strike', '', '', '', '{}', '');
+                 INSERT INTO service_games VALUES (3, 'egs', 'x', 'Native', 'native-game', '', '', '', '{}', '');",
             )
             .unwrap();
         }
         write(&home.join(".cache/lutris/coverart/aion-2.png"), b"png");
+        write(&home.join(".local/share/lutris/banners/star-drifter.jpg"), b"jpg");
         let before = std::fs::metadata(&db).unwrap().modified().unwrap();
         let games = compose(&read_lutris(&home), &GamesSettings::default());
         assert_eq!(std::fs::metadata(&db).unwrap().modified().unwrap(), before);
-        assert_eq!(games.len(), 2);
+        let ids: Vec<&str> = games.iter().map(|g| g.id.as_str()).collect();
+        // Steam's service games are left out (the Steam tab has them), and
+        // a service game already in the list.
+        assert_eq!(ids, ["lutris:3", "lutris:4", "lutris:5", "lutris:gog:1207"]);
+        assert!(games[0].installed && games[2].installed);
+        assert!(!games[1].installed && !games[3].installed);
+        assert_eq!(games[1].launch, "lutris:gone");
+        assert_eq!(games[3].launch, "lutris:star-drifter");
+        assert_eq!(games[3].note, "In Lutris's GOG library");
+        assert!(games[3].picture.as_ref().unwrap().ends_with("banners/star-drifter.jpg"));
+        // Not installed: never a detection candidate.
+        let watch = watch_list(&games, &GamesSettings::default());
+        assert!(!watch.iter().any(|g| g.id == "lutris:4" || g.id == "lutris:gog:1207"));
         assert_eq!(games[0].id, "lutris:3");
         assert_eq!(games[0].launch, "lutris:rungameid/3");
         assert_eq!(games[0].known, Some("aion2"));
@@ -1096,7 +1405,7 @@ mod tests {
         assert!(games[0].picture.as_ref().unwrap().ends_with("coverart/aion-2.png"));
         assert_eq!(games[0].dirs, ["/home/p/games/aion-2/"]);
         // A script would match every shell.
-        assert!(games[1].processes.is_empty());
+        assert!(games[2].processes.is_empty());
         assert!(!data.join("pga.db-journal").exists());
     }
 
@@ -1137,7 +1446,114 @@ mod tests {
         assert_eq!(games[3].name, "Amazon Game");
         assert_eq!(games[3].launch, "heroic://launch?appName=amzn1.x&runner=nile");
         assert_eq!(games[4].picture.as_deref(), Some(cover.as_path()));
+        assert!(games.iter().all(|g| g.installed));
         assert!(read_heroic(&temp("noheroic")).is_empty());
+    }
+
+    fn sha256_hex(text: &str) -> String {
+        use sha2::{Digest, Sha256};
+        Sha256::digest(text.as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    #[test]
+    fn reads_heroic_libraries_with_covers() {
+        let home = temp("heroiclib");
+        let base = home.join(".config/heroic");
+        write(
+            &base.join("legendaryConfig/legendary/installed.json"),
+            br#"{"Fort": {"app_name": "Fort", "title": "Fort Game", "install_path": "/home/p/Games/Heroic/Fort"}}"#,
+        );
+        // Heroic's CacheStore files, with their timestamp entries.
+        write(
+            &base.join("store_cache/legendary_library.json"),
+            br#"{"library": [
+                {"app_name": "Fort", "title": "Fort Game", "runner": "legendary", "is_installed": true,
+                 "art_square": "https://cdn.example/fort_tall.jpg", "art_cover": "https://cdn.example/fort.jpg"},
+                {"app_name": "Puzzle", "title": "Weekly Puzzle", "runner": "legendary", "is_installed": false,
+                 "art_square": "https://cdn.example/puzzle_tall.jpg", "install": {}},
+                {"app_name": "Addon", "title": "An Addon", "install": {"is_dlc": true}},
+                {"title": "No app name"}],
+              "__timestamp": {"library": "Thu Nov 13 2026"}}"#,
+        );
+        write(
+            &base.join("store_cache/gog_library.json"),
+            br#"{"games": [{"app_name": "1208", "title": "Pixel Knights", "runner": "gog", "is_installed": false,
+                 "art_cover": "https://images.example/pk.jpg", "art_square": "https://images.example/pk_tall.jpg"}]}"#,
+        );
+        write(
+            &base.join("store_cache/nile_library.json"),
+            br#"{"library": [{"app_name": "amz1", "title": "Harbor Tales", "runner": "nile", "is_installed": false}]}"#,
+        );
+        // Covers in Heroic's cache, named by the SHA-256 of their address:
+        // Epic's card picture is the resized square one.
+        let cache = base.join("images-cache");
+        write(&cache.join(sha256_hex("https://cdn.example/fort_tall.jpg?h=400&resize=1&w=300")), b"jpg");
+        write(&cache.join(sha256_hex("https://images.example/pk_tall.jpg")), b"jpg");
+        let games = read_heroic(&home);
+        let ids: Vec<&str> = games.iter().map(|g| g.id.as_str()).collect();
+        assert_eq!(ids, ["heroic:legendary:Fort", "heroic:legendary:Puzzle", "heroic:gog:1208", "heroic:nile:amz1"]);
+        assert!(games[0].installed);
+        assert_eq!(games[0].processes, Vec::<String>::new());
+        assert_eq!(games[0].dirs, ["/home/p/games/heroic/fort/"]);
+        assert!(games[0].picture.as_ref().unwrap().starts_with(&cache));
+        assert_eq!(games[0].cover_url.as_deref(), Some("https://cdn.example/fort_tall.jpg"));
+        assert!(!games[1].installed && games[1].picture.is_none());
+        assert_eq!(games[1].launch, "heroic://launch?appName=Puzzle&runner=legendary");
+        assert!(games[1].dirs.is_empty() && games[1].processes.is_empty());
+        assert_eq!(games[2].name, "Pixel Knights");
+        assert!(games[2].picture.as_ref().unwrap().ends_with(sha256_hex("https://images.example/pk_tall.jpg")));
+        assert!(!games[3].installed && games[3].cover_url.is_none());
+        let watch = watch_list(&games, &GamesSettings::default());
+        assert_eq!(watch.iter().filter(|g| g.launcher == "heroic").count(), 1);
+    }
+
+    #[test]
+    fn finds_games_steam_knows_but_has_not_installed() {
+        use crate::appinfo::fixture::{appinfo, App};
+        let home = temp("steamknown");
+        let root = home.join(".local/share/Steam");
+        write(&root.join("steamapps/appmanifest_10.acf"), acf(10, "Counter-Strike").as_bytes());
+        write(
+            &root.join("config/loginusers.vdf"),
+            b"\"users\" { \"76561197960265829\" { \"AccountName\" \"x\" \"MostRecent\" \"0\" }\n\"76561197960265828\" { \"MostRecent\" \"1\" } }",
+        );
+        // Account 100 signed in last; account 101's apps are not this one's.
+        let user = root.join("userdata/100");
+        write(
+            &user.join("config/localconfig.vdf"),
+            b"\"UserLocalConfigStore\" { \"Software\" { \"Valve\" { \"Steam\" { \"apps\" { \"10\" { \"LastPlayed\" \"1\" } \"20\" { } \"30\" { } } } } } }",
+        );
+        write(
+            &user.join("7/remote/sharedconfig.vdf"),
+            b"\"UserRoamingConfigStore\" { \"Software\" { \"Valve\" { \"Steam\" { \"Apps\" { \"40\" { \"hidden\" \"0\" } } } } } }",
+        );
+        write(&user.join("config/librarycache/50.json"), b"[]");
+        write(&root.join("userdata/101/config/localconfig.vdf"), b"\"UserLocalConfigStore\" { \"Software\" { \"Valve\" { \"Steam\" { \"apps\" { \"70\" { } } } } } }");
+        // Covers Steam keeps: an app id of its own, in the newer layout.
+        write(&root.join("appcache/librarycache/60/0a1b2c/library_600x900.jpg"), b"jpg");
+        write(&root.join("appcache/librarycache/40/header.jpg"), b"jpg");
+        let apps = [
+            App { id: 10, name: "Counter-Strike", kind: "Game", pad: 0 },
+            App { id: 20, name: "A Soundtrack", kind: "Music", pad: 100 },
+            App { id: 30, name: "Proton 9.0", kind: "Tool", pad: 0 },
+            App { id: 40, name: "Castle Builder", kind: "Game", pad: 3000 },
+            App { id: 50, name: "Night Racer", kind: "game", pad: 0 },
+            App { id: 60, name: "Free Weekend Game", kind: "Game", pad: 0 },
+            App { id: 70, name: "Someone Else's", kind: "Game", pad: 0 },
+        ];
+        write(&root.join("appcache/appinfo.vdf"), &appinfo(29, &apps));
+        let games = read_library(&home);
+        let ids: Vec<&str> = games.iter().map(|g| g.id.as_str()).collect();
+        assert_eq!(ids, ["steam:10", "steam:40", "steam:50", "steam:60"]);
+        assert!(games[0].installed);
+        assert!(games[1..].iter().all(|g| !g.installed && g.note == "Known to Steam on this PC"));
+        assert_eq!(games[1].launch, "steam://install/40");
+        assert!(games[1].picture.as_ref().unwrap().ends_with("librarycache/40/header.jpg"));
+        assert!(games[3].picture.as_ref().unwrap().ends_with("60/0a1b2c/library_600x900.jpg"));
+        assert_eq!(games[1].cover_url.as_deref(), Some(steam_cover_url(40).as_str()));
+        // Detection looks only at the installed one.
+        let watch = watch_list(&compose(&games, &GamesSettings::default()), &GamesSettings::default());
+        assert_eq!(watch.iter().filter(|g| g.launcher == "steam").count(), 1);
     }
 
     #[test]

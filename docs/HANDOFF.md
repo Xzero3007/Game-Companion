@@ -189,10 +189,54 @@ Agreed with the person 2026-11-13 (see CLAUDE.md plan step 4):
   display card picked by connector per card (two GPUs with the same
   connector name).
 
+  Library with not-installed games and covers (branch `games-library`,
+  2026-11-13, the person: "all launchers, a button to hide not-installed
+  ones, load the pictures"; from disk only, no network): `Game.installed`
+  (false = owned, not installed: greyed card, dimmed cover, "Not
+  installed", INSTALL instead of PLAY; `launch` is then the launcher's
+  install address, `Games.launch` finds it in `composed` and records no
+  play time; `watch_list` leaves it out, so detection never looks for it),
+  `Game.note` (shown on hover: "Known to Steam on this PC", "In Lutris's
+  GOG library"). Steam: installed from appmanifests as before; the rest
+  from `steam_seen_apps` (the last signed-in account from loginusers.vdf:
+  localconfig.vdf and 7/remote/sharedconfig.vdf `Software/Valve/Steam/apps`
+  keys, userdata/<id>/config/librarycache/<appid>.json, appcache/
+  librarycache entries), kept only where `src/appinfo.rs` says type "game"
+  (binary appinfo.vdf v27/v28/v29, streamed, unwanted entries skipped by
+  size, results cached per file until its size or time changes); address
+  `steam://install/<appid>`. Steam's full owned list is not on disk (the
+  licences are not readable), so games never touched on this PC are
+  missing. Heroic: installed lists as before plus `store_cache/
+  legendary_library.json` (`library`), `gog_library.json` (`games`),
+  `nile_library.json` (`library`), `sideload_apps/library.json`; DLC
+  (`is_dlc`, `install.is_dlc`) skipped; not installed = not in the store's
+  installed list and `is_installed` not true; address
+  `heroic://launch?appName=..&runner=..` (Heroic's protocol.ts asks "not
+  installed, install it?"; there is no "open game page" command). Lutris:
+  `games` with installed 0 (`lutris:<slug>`), `service_games` except
+  Steam's and ones already listed (`lutris:<slug>`, id
+  `lutris:<service>:<appid>`). Covers: Steam `STEAM_COVERS` (600x900, _2x,
+  library_capsule, header, library_header) flat, per app folder and one
+  folder deeper; Heroic `images-cache/<sha256 of the URL>` (images_cache.ts;
+  Epic's card asks `art_square?h=400&resize=1&w=300`, tried first, then
+  art_square, art_cover, art_background; local files for added games);
+  Lutris coverart, then banners, in data and cache. Prepared, not used:
+  `Game.cover_url` (Steam `steam_cover_url`, Heroic art URLs) for a later
+  download of missing covers once the person agrees; nothing reads it and
+  it is not in the library JSON. UI: INSTALLED ONLY switch beside the
+  search (`Games.installedOnly`, `saveInstalledOnly`, settings
+  `games.installed_only`), tabs show installed/all, badge "n OF m
+  INSTALLED", Recent puts installed before not installed among unplayed.
+  Demo: GC_DEMO=games[,installedonly][,tabsteam|,tabheroic|,tablutris],
+  `GC_DEMO_PICTURES=<folder>` with `<id, ':' as '_'>.png` for made-up
+  covers. Screenshots in /mnt/project-files/game-companion/screens/library/.
+  Unverified: real files of the person (appinfo.vdf v29 from a current
+  Steam, Heroic's images-cache names), cover hit rates.
+
 Open points: QA of the merged branch, test on real KWin (Arch thread), the person's test; the check follows the saved Proton build, not one picked but not saved yet.
 Known limits: PoE 1 outside Steam counts as PoE 2; any process with a
-game's folder in its command line counts as the game; Heroic covers only
-for sideloaded games. Demo: GC_DEMO=games[,gameform]; GC_NO_GAMES=1 stops
+game's folder in its command line counts as the game; Steam's not-installed
+games only as far as this PC's Steam saw them. Demo: GC_DEMO=games[,gameform]; GC_NO_GAMES=1 stops
 detection.
 
 ## Testing
