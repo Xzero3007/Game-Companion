@@ -24,6 +24,10 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.6 QA collection (2026-11-13, MN: "dann beheb den engpass"): QA
+  merges green PRs together and sets the version once; dev threads no
+  longer rebase or bump. In it: #15 Pet Finder filters, #10 Event Timers
+  (Schedule), #11 Boss panel, #12 LOOT (entries below).
 - LOOT (backlog A9, branch `claude/project-thread-5i91bs`, 2026-11-13; MN
   approved canvas page "Besitz und Beute", boards L1Items to L4Cards, "ja
   a": all four tabs; the shop window shows pets too and has an on/off
@@ -68,7 +72,7 @@ new session (or the same one after a usage limit) carries on from here.
   answers (it may refuse non-browser requests: the reason shows under the
   list), and that the A2T names match (A2T? = guessed by number).
 
-- 0.8.6 Pet Finder after MN's 0.8.3 test (2026-11-13, MN: "b aber doppelt so hohe zeilen"): a FROM row in the PETS tab (Verteron, Altgard, Abyss, Fire Temple, Draupnir, Krao Cave, Chest only; several at once, none = all; `settings.petFrom`), rows and portraits 92 px (`PetsTab.rowH`).
+- Pet Finder filters after MN's 0.8.3 test (2026-11-13, MN: "b aber doppelt so hohe zeilen"): a FROM row in the PETS tab (Verteron, Altgard, Abyss, Fire Temple, Draupnir, Krao Cave, Chest only; several at once, none = all; `settings.petFrom`), rows and portraits 92 px (`PetsTab.rowH`).
 - 0.8.5 Fixes after MN's test of 0.8.2 (branch `aion-fixes2`,
   2026-11-13). The game row's buttons took no clicks on KWin when it first
   showed, until the hub was hidden and shown: a layer surface shown for
