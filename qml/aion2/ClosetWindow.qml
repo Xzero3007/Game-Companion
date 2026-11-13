@@ -5,11 +5,14 @@ import "../theme.js" as Theme
 import "lootkit.js" as LK
 
 // The Closet's shop window (canvas board L3Closet, right): opens by itself
-// at the Black Cloud shop and in the closet when Closet → "Open at the shop"
-// is on, shows the last opened stock's skins and pets (new ones first) and
-// the cheapest skins you lack on the Exchange. Goes when you walk away
-// (6 m), change zone, after 3 minutes, or with its ×. While it shows it
-// takes the mouse even when locked, so its list scrolls.
+// at the Black Cloud merchant and in the closet ("Open at the merchant"),
+// at the game's Shop and Market only when "Open at the Shop and Market" is on, or by hand.
+// One list that scrolls and grows with the lower corner: the last opened
+// stock's skins and pets (new ones first), the pets you still lack (Pet
+// Finder's levels, with their chests and monsters) and the cheapest skins
+// you lack on the Exchange. Goes when you walk away (6 m), change zone,
+// after 3 minutes, or with its ×. While it shows it takes the mouse even
+// when locked, so its list scrolls.
 Panel {
     id: win
     panelId: "closet-shop"
@@ -37,16 +40,21 @@ Panel {
     property var exch: ({ rows: [], total: 0, note: "" })
     property string todo: ""
     property var others: []
+    property var pets: ({ synced: false, rows: [] })
     function build() {
         if (!store || !visible) return
         shop = store.offersNow()
         exch = store.exchangeList(view === "exchange" ? 150 : 8)
         todo = store.todo()
+        pets = view === "shop" ? store.petsNeeded() : { synced: false, rows: [] }
         others = store.closetCharsNow().filter((c) => c.name !== shop.owner && (!c.looked || c.fresh)).map((c) => c.looked ? c.name + " " + c.fresh + " new" : c.name + " not looked")
     }
     Connections { target: win.store; function onRevisionChanged() { win.build() } }
     onVisibleChanged: build()
     onViewChanged: build()
+    Connections { target: Aion2; ignoreUnknownSignals: true; function onPetsChanged() { win.build() } }
+    readonly property string petDir: Aion2.mapDir().replace(/\/map$/, "") + "/pets/portraits/"
+    function genusColor(g) { return ({ cogni: "#b99bff", fera: "#ff9f66", natura: "#74d99a", varian: "#5cc9e6", special: "#f2c46b" })[g] || "#8d8996" }
 
     Column {
         width: parent.width
@@ -83,166 +91,236 @@ Panel {
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
         }
 
-        Text {
-            width: parent.width
-            wrapMode: Text.WordWrap
-            visible: text.length > 0
-            text: win.view === "shop"
-                ? (win.shop.owner ? win.shop.owner + "'s offers · change at " + win.clock(win.shop.refresh) : "Open a tab of the Black Cloud shop: its offers show here.")
-                : (win.exch.total ? win.exch.total + " skins you lack are on the Exchange, cheapest first" : win.exch.note)
-            color: Theme.textSoft()
-            font.family: Theme.body
-            font.pixelSize: 12
-            style: Theme.textStyle(); styleColor: Theme.shadow
-        }
-
-        // The offers: a tile each (skins first, then pets).
+        // One list for everything below the tabs: scrolls with the wheel
+        // and grows with the window's lower corner.
         Item {
-            visible: win.view === "shop"
             width: parent.width
-            height: visible ? Math.min(tiles.implicitHeight, 300 + win.grow) : 0
-          WheelScroll { flick: grid; step: 90 }
+            height: 420 + win.grow
+          WheelScroll { flick: page; step: 90 }
           Flickable {
-            id: grid
+            id: page
             anchors.fill: parent
-            contentHeight: tiles.implicitHeight
+            contentHeight: pageColumn.implicitHeight
             clip: true
             interactive: false
             boundsBehavior: Flickable.StopAtBounds
-            Flow {
-                id: tiles
-                width: grid.width
-                spacing: 6
-                Repeater {
-                    model: win.shop.offers
-                    delegate: Rectangle {
-                        required property var modelData
-                        readonly property var o: modelData
-                        width: (tiles.width - 18) / 4
-                        height: 128
-                        color: "#1b1a20"
-                        border.color: o.status === "new" ? Theme.accent : "#2f2d36"
-                        opacity: o.status === "owned" || o.soldOut ? 0.55 : 1
-                        Column {
-                            x: 4
-                            y: 4
-                            width: parent.width - 8
-                            spacing: 2
-                            Rectangle {
-                                width: parent.width
-                                height: 58
-                                color: "#2a2930"
-                                Image {
-                                    anchors.centerIn: parent
-                                    width: 52
-                                    height: 52
-                                    asynchronous: true
-                                    sourceSize.width: 104
-                                    source: win.iconUrl(o.icon)
-                                }
-                                Rectangle { width: 6; height: 6; x: 4; y: 4; color: win.gradeColors[o.grade] || "transparent"; visible: o.grade > 1 }
-                            }
-                            Text { width: parent.width; elide: Text.ElideRight; text: o.name; color: Theme.text(); font.family: Theme.body; font.pixelSize: 11; style: Theme.textStyle(); styleColor: Theme.shadow }
-                            Text { width: parent.width; elide: Text.ElideRight; text: o.sub; color: Theme.dim(); font.family: Theme.body; font.pixelSize: 10; style: Theme.textStyle(); styleColor: Theme.shadow }
-                            Item {
-                                width: parent.width
-                                height: 16
-                                Text { text: LK.C.kina(o.price); color: Theme.textSoft(); font.family: Theme.body; font.pixelSize: 11; style: Theme.textStyle(); styleColor: Theme.shadow }
-                                Text {
-                                    anchors.right: parent.right
-                                    text: o.soldOut ? "BOUGHT" : o.status === "new" ? (o.pet ? "NOT YOURS" : "NEW") : o.status === "owned" ? "OWNED" : "?"
-                                    color: o.status === "new" && !o.soldOut ? Theme.accent : Theme.dim()
-                                    font.family: Theme.display
-                                    font.pixelSize: 10
-                                    font.weight: Font.Bold
-                                    font.letterSpacing: 1
-                                    style: Theme.textStyle(); styleColor: Theme.shadow
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-          }
-        }
+            Column {
+                id: pageColumn
+                width: page.width
+                spacing: 8
 
-        // The Exchange: the cheapest skins you lack.
-        ListView {
-            id: exList
-            width: parent.width
-            height: win.view === "exchange" ? 300 + win.grow : Math.min(contentHeight, 120)
-            visible: count > 0
-            clip: true
-            interactive: false
-            boundsBehavior: Flickable.StopAtBounds
-            model: win.exch.rows
-            WheelScroll { flick: exList; step: 90 }
-            header: Text {
-                visible: win.view === "shop"
-                height: visible ? 24 : 0
-                text: "ON THE EXCHANGE"
-                verticalAlignment: Text.AlignVCenter
-                color: Theme.accent
-                font.family: Theme.display
-                font.pixelSize: 11
-                font.weight: Font.Bold
-                font.letterSpacing: 1.4
-                style: Theme.textStyle(); styleColor: Theme.shadow
-            }
-            delegate: Item {
-                required property var modelData
-                readonly property var e: modelData
-                width: exList.width
-                height: 28
-                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
-                Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 7; height: 7; color: win.gradeColors[e.grade] || "#c8ccd2" }
                 Text {
-                    x: 14
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - x - 150
-                    elide: Text.ElideRight
-                    text: e.name + "  · " + e.sub
-                    color: Theme.text()
-                    font.family: Theme.body
-                    font.pixelSize: 12
-                    style: Theme.textStyle(); styleColor: Theme.shadow
-                }
-                Text {
-                    anchors.right: buy.left
-                    anchors.rightMargin: 8
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: LK.C.kina(e.price)
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    visible: text.length > 0
+                    text: win.view === "shop"
+                        ? (win.shop.owner ? win.shop.owner + "'s offers · change at " + win.clock(win.shop.refresh) : "Open a tab of the Black Cloud shop: its offers show here.")
+                        : (win.exch.total ? win.exch.total + " skins you lack are on the Exchange, cheapest first" : win.exch.note)
                     color: Theme.textSoft()
                     font.family: Theme.body
                     font.pixelSize: 12
                     style: Theme.textStyle(); styleColor: Theme.shadow
                 }
+
+
+                Flow {
+                    visible: win.view === "shop"
+                    width: parent.width
+                    spacing: 6
+                    Repeater {
+                        model: win.view === "shop" ? win.shop.offers : []
+                        delegate: Rectangle {
+                            required property var modelData
+                            readonly property var o: modelData
+                            width: (pageColumn.width - 18) / 4
+                            height: 128
+                            color: "#1b1a20"
+                            border.color: o.status === "new" ? Theme.accent : "#2f2d36"
+                            opacity: o.status === "owned" || o.soldOut ? 0.55 : 1
+                            Column {
+                                x: 4
+                                y: 4
+                                width: parent.width - 8
+                                spacing: 2
+                                Rectangle {
+                                    width: parent.width
+                                    height: 58
+                                    color: "#2a2930"
+                                    Image {
+                                        anchors.centerIn: parent
+                                        width: 52
+                                        height: 52
+                                        asynchronous: true
+                                        sourceSize.width: 104
+                                        source: win.iconUrl(o.icon)
+                                    }
+                                    Rectangle { width: 6; height: 6; x: 4; y: 4; color: win.gradeColors[o.grade] || "transparent"; visible: o.grade > 1 }
+                                }
+                                Text { width: parent.width; elide: Text.ElideRight; text: o.name; color: Theme.text(); font.family: Theme.body; font.pixelSize: 11; style: Theme.textStyle(); styleColor: Theme.shadow }
+                                Text { width: parent.width; elide: Text.ElideRight; text: o.sub; color: Theme.dim(); font.family: Theme.body; font.pixelSize: 10; style: Theme.textStyle(); styleColor: Theme.shadow }
+                                Item {
+                                    width: parent.width
+                                    height: 16
+                                    Text { text: LK.C.kina(o.price); color: Theme.textSoft(); font.family: Theme.body; font.pixelSize: 11; style: Theme.textStyle(); styleColor: Theme.shadow }
+                                    Text {
+                                        anchors.right: parent.right
+                                        text: o.soldOut ? "BOUGHT" : o.status === "new" ? (o.pet ? "NOT YOURS" : "NEW") : o.status === "owned" ? "OWNED" : "?"
+                                        color: o.status === "new" && !o.soldOut ? Theme.accent : Theme.dim()
+                                        font.family: Theme.display
+                                        font.pixelSize: 10
+                                        font.weight: Font.Bold
+                                        font.letterSpacing: 1
+                                        style: Theme.textStyle(); styleColor: Theme.shadow
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // The pets you don't have yet, from Pet Finder.
                 Text {
-                    id: buy
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 34
-                    horizontalAlignment: Text.AlignRight
-                    text: e.good ? "BUY" : ""
+                    visible: win.view === "shop"
+                    width: parent.width
+                    topPadding: 4
+                    text: "PETS YOU STILL NEED" + (win.pets.synced ? " · " + win.pets.rows.length : "")
                     color: Theme.accent
                     font.family: Theme.display
-                    font.pixelSize: 10
+                    font.pixelSize: 11
                     font.weight: Font.Bold
-                    font.letterSpacing: 1
+                    font.letterSpacing: 1.4
+                    style: Theme.textStyle(); styleColor: Theme.shadow
+                }
+                Text {
+                    visible: win.view === "shop" && (!win.pets.synced || !win.pets.rows.length)
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: !win.pets.synced ? "Open the pet collection in the game once while the companion runs: then the pets you lack show here, with the chests and monsters they come from." : "You have every pet."
+                    color: Theme.muted()
+                    font.family: Theme.body
+                    font.pixelSize: 11
+                    style: Theme.textStyle(); styleColor: Theme.shadow
+                }
+                Repeater {
+                    model: win.view === "shop" && win.pets.synced ? win.pets.rows : []
+                    delegate: Item {
+                        required property var modelData
+                        readonly property var r: modelData
+                        width: pageColumn.width
+                        height: 40
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
+                        Rectangle { y: 4; width: 3; height: 32; color: win.genusColor(r.genus) }
+                        Rectangle {
+                            x: 6
+                            y: 4
+                            width: 32
+                            height: 32
+                            color: "#2a2930"
+                            Image {
+                                anchors.fill: parent
+                                asynchronous: true
+                                sourceSize.width: 64
+                                fillMode: Image.PreserveAspectCrop
+                                source: win.petDir + r.id + ".webp"
+                            }
+                        }
+                        Column {
+                            x: 46
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - x
+                            Text { width: parent.width; elide: Text.ElideRight; text: r.name; color: Theme.text(); font.family: Theme.body; font.pixelSize: 12; style: Theme.textStyle(); styleColor: Theme.shadow }
+                            Text { width: parent.width; elide: Text.ElideRight; text: r.from; color: r.chest ? Theme.textSoft() : Theme.dim(); font.family: Theme.body; font.pixelSize: 10; style: Theme.textStyle(); styleColor: Theme.shadow }
+                        }
+                    }
+                }
+
+                // The Exchange: the cheapest skins you lack.
+                Text {
+                    visible: win.view === "shop" && win.exch.rows.length > 0
+                    width: parent.width
+                    topPadding: 4
+                    text: "ON THE EXCHANGE"
+                    color: Theme.accent
+                    font.family: Theme.display
+                    font.pixelSize: 11
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1.4
+                    style: Theme.textStyle(); styleColor: Theme.shadow
+                }
+                Repeater {
+                    model: win.exch.rows
+                    delegate: Item {
+                        required property var modelData
+                        readonly property var e: modelData
+                        width: pageColumn.width
+                        height: 34
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
+                        Rectangle {
+                            id: pic
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 28
+                            height: 28
+                            color: "#2a2930"
+                            Image {
+                                anchors.centerIn: parent
+                                width: 26
+                                height: 26
+                                asynchronous: true
+                                sourceSize.width: 52
+                                source: win.iconUrl(e.icon)
+                            }
+                            Rectangle { width: 5; height: 5; x: 2; y: 2; color: win.gradeColors[e.grade] || "transparent"; visible: e.grade > 1 }
+                        }
+                        Text {
+                            x: 36
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - x - 150
+                            elide: Text.ElideRight
+                            text: e.name + "  · " + e.sub
+                            color: Theme.text()
+                            font.family: Theme.body
+                            font.pixelSize: 12
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                        Text {
+                            anchors.right: buy.left
+                            anchors.rightMargin: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: LK.C.kina(e.price)
+                            color: Theme.textSoft()
+                            font.family: Theme.body
+                            font.pixelSize: 12
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                        Text {
+                            id: buy
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 34
+                            horizontalAlignment: Text.AlignRight
+                            text: e.good ? "BUY" : ""
+                            color: Theme.accent
+                            font.family: Theme.display
+                            font.pixelSize: 10
+                            font.weight: Font.Bold
+                            font.letterSpacing: 1
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    visible: text.length > 0
+                    text: [win.todo, win.others.length ? "Other characters: " + win.others.join(", ") : ""].filter((x) => x).join(" · ")
+                    color: Theme.muted()
+                    font.family: Theme.body
+                    font.pixelSize: 11
                     style: Theme.textStyle(); styleColor: Theme.shadow
                 }
             }
-        }
-
-        Text {
-            width: parent.width
-            wrapMode: Text.WordWrap
-            visible: text.length > 0
-            text: [win.todo, win.others.length ? "Other characters: " + win.others.join(", ") : ""].filter((x) => x).join(" · ")
-            color: Theme.muted()
-            font.family: Theme.body
-            font.pixelSize: 11
-            style: Theme.textStyle(); styleColor: Theme.shadow
+          }
         }
     }
 }

@@ -186,6 +186,16 @@ pub mod qobject {
         #[qinvokable]
         fn keep_loot(self: &Aion2, key: &QString, json: &QString);
 
+        /// Reads the old Clicktrough meter's Inventory, Closet and Shugo
+        /// Cards data (local files, read only) in the background; the
+        /// answer comes as `meter_got` (JSON, "{}" when none).
+        #[qinvokable]
+        fn meter_read(self: Pin<&mut Aion2>);
+
+        /// The meter's data that `meter_read` found.
+        #[qsignal]
+        fn meter_got(self: Pin<&mut Aion2>, json: QString);
+
         /// The game's servers by number, their English names: JSON
         /// {"1001": "Siel", ...} (the meter's list, in the package).
         #[qinvokable]
@@ -685,6 +695,14 @@ impl qobject::Aion2 {
 
     fn keep_loot(&self, key: &QString, json: &QString) {
         self.keep_store(&QString::from(&format!("loot-{key}")), json);
+    }
+
+    fn meter_read(self: Pin<&mut Self>) {
+        let thread = self.qt_thread();
+        let _ = std::thread::Builder::new().name("meter-import".into()).spawn(move || {
+            let json = crate::meter_import::read();
+            let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| obj.meter_got(QString::from(&json)));
+        });
     }
 
     fn server_names(&self) -> QString {
