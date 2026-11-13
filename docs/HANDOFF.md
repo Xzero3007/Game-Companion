@@ -24,6 +24,31 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.0 Split bar and overlay map (branch `split-bar`, 2026-11-13; MN
+  approved the canvas page "Leiste geteilt und Overlay-Map", boards B1Bars,
+  B2Hidden, O1Overlay, O2Settings, with Alt+M). The bar keeps the core
+  (Games, Radio, TV, lock, settings, hide); `qml/GameRow.qml` is a smaller
+  slanted row under it (its own Surface, stack 5) with the game's purple
+  tag and the module's buttons (DPS, MAP, MARKET, CHARS: what Settings →
+  Plugins puts "IN ROW"), only while one shows, pinnable as `game-row`.
+  The player row and the hub hint sit under it when it shows. Overlay map:
+  `qml/aion2/MapOverlay.qml` (its own Surface, stack 2, shown with the hub
+  hidden too), the map you are on (`MapPanel.whereAmI`) built by
+  `MK.M.build` only while shown, following you at 1.2 px/m or its own
+  zoom; title strip, corners and grip only while unlocked; `MapView`
+  got `tileOpacity` and `draggable`. Its settings live in the Map's
+  (`aion2-map.json`, key `overlay`: on, size s/m/l/xl, w, x, y, opacity,
+  markScale, zoom, own, layers, hideIn {instance, arena, abyss}, slot,
+  slots), changed by `MapPanel.changeOverlay(patch)`; Settings → Plugins →
+  Map → OVERLAY folds them out (`SettingsPanel.mapSource`). Zone kinds:
+  arena by the zone's name, abyss by the map key, instance by the map's
+  `instance` flag or a zone without a map. Toggles: right-click MAP
+  (`GameRow.mapOverlayClicked`) and the KDE shortcut `map-overlay`
+  (ALT+m; `Companion.shortcutPressed(id)` for ids other than lock and
+  toggle), both only while the Map plugin is on. `GC_DEMO=map,overlay`
+  shows it without changing settings (`,unlocked` for the strip,
+  `,settings,plugins` for the folded-out settings). Item's `top` is FINAL
+  in QML: don't name a property so.
 - 0.7.9 Slim DPS window (branch `dps-slim`, 2026-11-13; MN approved the
   canvas page "DPS-Fenster schlank", boards D1 to D4): `Panel.compact`
   (30 px header, `headerTools` puts the tabs in it, body 8 px sides) used by

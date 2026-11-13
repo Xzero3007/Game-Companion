@@ -35,13 +35,32 @@ Panel {
         pick: "auto",
         lastKey: "",
         focus: null,
-        markScale: 1.25
+        markScale: 1.25,
+        overlay: overlayDefaults
     })
+    // The overlay map (MapOverlay, Settings → Plugins → Map): a small map
+    // that follows you over the game. `w` > 0: a side set by its corner
+    // (else the size's); x < 0: not placed yet; `slots`: places 1 to 3.
+    readonly property var overlayDefaults: ({
+        on: false, size: "m", w: 0, x: -1, y: -1, opacity: 0.75, markScale: 1.25, zoom: 0,
+        own: false,
+        layers: { pets: true, monsters: false, gather: false, cubes: true, monoliths: false, kibelisks: true, places: true, services: false, quests: false, npcs: false },
+        hideIn: { instance: true, arena: true, abyss: false },
+        slot: -1, slots: [null, null, null]
+    })
+    /// The overlay map's part (Main sets it): places are kept from where it is.
+    property Item overlayItem: null
+    /// The overlay map is to take its kept place again (a place 1 to 3).
+    signal overlayPlaced
     Component.onCompleted: {
         try {
             const saved = JSON.parse(Aion2.mapSettings())
             const s = Object.assign({}, settings, saved)
             s.layers = Object.assign({}, settings.layers, saved.layers || {})
+            const o = Object.assign({}, overlayDefaults, saved.overlay || {})
+            o.layers = Object.assign({}, overlayDefaults.layers, (saved.overlay || {}).layers || {})
+            o.hideIn = Object.assign({}, overlayDefaults.hideIn, (saved.overlay || {}).hideIn || {})
+            s.overlay = o
             settings = s
         } catch (e) { }
         takeWorld()
@@ -53,6 +72,28 @@ Panel {
         settings = s
         saveTimer.restart()
         refresh()
+    }
+    /// Changes the overlay map's settings (an object of the keys that change).
+    function changeOverlay(patch) {
+        const s = Object.assign({}, settings)
+        s.overlay = Object.assign({}, settings.overlay, patch)
+        settings = s
+        saveTimer.restart()
+    }
+    function toggleOverlay() { changeOverlay({ on: !settings.overlay.on }) }
+    /// Place `i` (0 to 2): goes there, if one was kept.
+    function useSlot(i) {
+        const p = settings.overlay.slots[i]
+        if (!p) return
+        changeOverlay({ x: p.x, y: p.y, w: p.w || 0, size: p.size || settings.overlay.size, slot: i })
+        overlayPlaced()
+    }
+    /// Keeps where the overlay map is now as place `i`.
+    function keepSlot(i) {
+        const o = settings.overlay
+        const slots = o.slots.slice()
+        slots[i] = { x: overlayItem ? Math.round(overlayItem.x) : o.x, y: overlayItem ? Math.round(overlayItem.y) : o.y, w: o.w, size: o.size }
+        changeOverlay({ slots: slots, slot: i })
     }
     function toggleLayer(name) {
         const l = Object.assign({}, settings.layers)

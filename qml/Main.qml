@@ -35,6 +35,8 @@ Overlay {
         if (!dpsClosed && Plugins.inBar(plugins, "aion2.dps")) dpsOpen = true
     }
     readonly property var plugins: JSON.parse(Companion.plugins)
+    /// The AION 2 package and its Map are switched on (Settings → Plugins).
+    readonly property bool mapUsable: Plugins.loads(plugins, "aion2") && Plugins.choice(plugins, "aion2.map").on
     readonly property var keys: JSON.parse(Companion.shortcuts)
     readonly property var pins: JSON.parse(Companion.pins)
 
@@ -96,6 +98,8 @@ Overlay {
         function onShownChanged() { if (!Companion.shown) hubHint.flash() }
         // From the tray's menu (the hub is shown already).
         function onSettingsRequested() { root.settingsOpen = true }
+        // Alt+M (KDE's shortcuts): the overlay map, while the Map plugin is on.
+        function onShortcutPressed(id) { if (id === "map-overlay" && root.mapUsable) mapPanel.toggleOverlay() }
         function onUpdatesRequested() {
             root.settingsOpen = true
             settings.tab = "general"
@@ -199,18 +203,6 @@ Overlay {
             radioOpen: root.radioOpen
             gamesOpen: root.gamesOpen
             onGamesClicked: root.gamesOpen = !root.gamesOpen
-            dpsShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.dps")) || root.dpsOpen
-            dpsOpen: root.dpsOpen
-            onDpsClicked: { root.dpsOpen = !root.dpsOpen; root.dpsClosed = !root.dpsOpen }
-            mapShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.map")) || root.mapOpen
-            mapOpen: root.mapOpen
-            onMapClicked: root.mapOpen = !root.mapOpen
-            marketShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.market")) || root.marketOpen
-            marketOpen: root.marketOpen
-            onMarketClicked: root.marketOpen = !root.marketOpen
-            charactersShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.characters")) || root.charactersOpen || characterStore.demo
-            charactersOpen: root.charactersOpen
-            onCharactersClicked: root.charactersOpen = !root.charactersOpen
             gameName: Games.runningName
             gameHasModule: Games.runningKnown.length > 0
             streamsOpen: root.streamsOpen
@@ -223,6 +215,36 @@ Overlay {
                 Companion.saveBarOffset(x - (root.width - shownWidth) / 2)
                 dragShift = 0
             }
+        }
+    }
+
+    // The running game's row under the bar: its module's buttons. It can be
+    // pinned, and then stays at the top while the hub is hidden.
+    Surface {
+        wanted: gameRow.active && root.onScreen("game-row")
+        stack: 5
+        part: GameRow {
+            id: gameRow
+            transformOrigin: Item.TopLeft
+            scale: Companion.barScale
+            readonly property bool onScreen: active && root.onScreen("game-row")
+            x: Math.max(0, Math.min(root.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
+            y: Companion.shown ? bar.height * bar.scale : 0
+            gameName: Games.runningName.length > 0 ? Games.runningName : "AION 2"
+            dpsShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.dps")) || root.dpsOpen
+            dpsOpen: root.dpsOpen
+            onDpsClicked: { root.dpsOpen = !root.dpsOpen; root.dpsClosed = !root.dpsOpen }
+            mapShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.map")) || root.mapOpen
+            mapOpen: root.mapOpen
+            onMapClicked: root.mapOpen = !root.mapOpen
+            overlayOn: mapPanel.settings.overlay.on
+            onMapOverlayClicked: mapPanel.toggleOverlay()
+            marketShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.market")) || root.marketOpen
+            marketOpen: root.marketOpen
+            onMarketClicked: root.marketOpen = !root.marketOpen
+            charactersShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.characters")) || root.charactersOpen || characterStore.demo
+            charactersOpen: root.charactersOpen
+            onCharactersClicked: root.charactersOpen = !root.charactersOpen
         }
     }
 
@@ -262,11 +284,11 @@ Overlay {
         part: PlayerRow {
             id: playerRow
             videos: [twitchVideo, youtubeVideo, jellyfinVideo]
-            // Under the bar, as big as it, following it sideways.
+            // Under the bar (and the game's row), as big as it, following it sideways.
             transformOrigin: Item.TopLeft
             scale: Companion.barScale
             x: Math.max(0, Math.min(root.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
-            y: Companion.shown ? bar.height * bar.scale : 0
+            y: (gameRow.onScreen ? gameRow.y + gameRow.height * gameRow.scale : Companion.shown ? bar.height * bar.scale : 0) + (gameRow.onScreen ? 2 : 0)
         }
     }
 
@@ -277,7 +299,8 @@ Overlay {
         part: HubHint {
             id: hubHint
             x: (root.width - width) / 2
-            y: playerRowShown ? playerRow.y + playerRow.height * playerRow.scale + 6 : 6
+            y: playerRowShown ? playerRow.y + playerRow.height * playerRow.scale + 6
+                : gameRow.onScreen ? gameRow.y + gameRow.height * gameRow.scale + 6 : 6
             readonly property bool playerRowShown: playerRow.active && root.onScreen("player-row")
             key: root.keyOf("toggle")
         }
@@ -322,7 +345,21 @@ Overlay {
             id: mapPanel
             defaultX: Math.max(24, (root.width - width) / 2)
             defaultY: 140
+            overlayItem: mapOverlay
             onCloseClicked: root.mapOpen = false
+        }
+    }
+
+    // The overlay map: follows you over the game, with the hub or without.
+    Surface {
+        id: overlaySurface
+        wanted: mapOverlay.wanted && root.mapUsable && (Aion2.active || mapOverlay.demo)
+        stack: 2
+        part: MapOverlay {
+            id: mapOverlay
+            source: mapPanel
+            demo: nativeWindow.demo.split(",").indexOf("overlay") >= 0
+            shown: overlaySurface.wanted
         }
     }
 
@@ -384,6 +421,7 @@ Overlay {
         part: SettingsPanel {
             id: settings
             pinnable: false
+            mapSource: mapPanel
             defaultX: root.width - width - 24
             defaultY: 120
             onCloseClicked: root.settingsOpen = false
