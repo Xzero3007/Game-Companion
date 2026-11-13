@@ -31,9 +31,8 @@ new session (or the same one after a usage limit) carries on from here.
   VODs, clips, chat (from the thread "FreeTube und Streamlink-GUI
   ablösen"), not-installed games for Steam/Heroic/Lutris with INSTALL,
   "Installed only", covers from more local caches. Each part had a QA
-  review and its findings fixed. Open: cover downloads (the person's
-  decision pending; `Game.cover_url` holds Heroic's own URLs, no Steam CDN
-  address until agreed); CLAUDE.md still describes the old "already
+  review and its findings fixed. Cover downloads: see the branch
+  `cover-downloads` below; CLAUDE.md still describes the old "already
   running" second start and lacks tray/launch-options entries (an edit
   was refused by the permission check: ask the person).
 
@@ -50,6 +49,49 @@ new session (or the same one after a usage limit) carries on from here.
   game), start with the desktop (now Companion.autostartMode, see the
   tray branch), on
   start: Streams preset, show hub, radio, layout (Main.qml Connections).
+
+## Branch `cover-downloads` (from integration 0.7.0): missing covers
+
+The person agreed 2026-11-13 (decision card "Nur Cover laden"): missing
+covers may be downloaded once from Steam's, Epic's and GOG's image
+servers; only the game's id in the picture address leaves the PC (no
+Steam Web API, no library list). `src/covers.rs`:
+- Allowed hosts, exact (`ALLOWED_HOSTS`, `allowed_host`: https only, no
+  user, no port): shared.akamai.steamstatic.com, cdn.akamai.steamstatic.com,
+  cdn.cloudflare.steamstatic.com, steamcdn-a.akamaihd.net,
+  cdn1.epicgames.com, cdn1.unrealengine.com, cdn2.unrealengine.com,
+  images.gog-statics.com, images-1..4.gog-statics.com, images.gog.com.
+  The Epic/GOG list is from memory of Heroic's data (its source was not
+  reachable from the sandbox): if real `art_square`/`art_cover` addresses
+  use another image host, those games simply get no download; add the
+  exact host after asking.
+- Addresses (`candidates`): Steam by app id,
+  `shared.akamai.steamstatic.com/store_item_assets/steam/apps/<id>/`
+  library_600x900.jpg, library_600x900_2x.jpg, then
+  `cdn.cloudflare.steamstatic.com/steam/apps/<id>/library_600x900.jpg`,
+  then the shared header.jpg; Heroic: `Game.cover_url` (art_square, else
+  art_cover, only on an allowed host; Epic's resized `?h=400&resize=1&w=300`
+  first, as Heroic's card). Amazon, Lutris and own entries: none.
+- curl `-q`, settings on stdin, `proto =https`, no `location` (a 3xx is a
+  miss), max-time 20, max-filesize 5 MB; the status code after the body
+  (`write-out`). Kept only if JPEG/PNG/WebP by magic bytes.
+- Files: `~/.cache/game-companion/covers/<id with ':' as '-'>.<jpg|png|webp>`
+  (atomic, `.part` then rename); misses in `covers/failed.json`
+  (id → unix time), asked again after a week (`RETRY_AFTER`). No
+  connection = nothing remembered, the run stops.
+- `Games` (games_object.rs): after each library read, `fill_cached` gives
+  games their downloaded covers (worker thread), then `start_covers`
+  runs one "covers" thread (one at a time, 250 ms apart, installed games
+  first; never two threads). Each saved cover → signal
+  `coverArrived(id, picture)` → GamesPanel's `arrivedCovers` updates that
+  card; the library JSON is rebuilt once at the end. Setting
+  `games.download_covers` (default on), `Games.downloadCovers` /
+  `saveDownloadCovers`, Settings → General → Games "Download missing
+  covers"; off stops the thread before the next game. `GC_NO_COVER_DOWNLOADS=1`
+  and every `GC_DEMO` mode download nothing.
+- Unverified: real downloads (the sandbox's proxy refuses these hosts);
+  tested with made-up fetch answers and curl's write-out/proto behaviour
+  against a local server.
 
 ## In progress: tray icon and start options on branch `tray-autostart` (from beta)
 
@@ -307,10 +349,9 @@ Agreed with the person 2026-11-13 (see CLAUDE.md plan step 4):
   folder deeper; Heroic `images-cache/<sha256 of the URL>` (images_cache.ts;
   Epic's card asks `art_square?h=400&resize=1&w=300`, tried first, then
   art_square, art_cover, art_background; local files for added games);
-  Lutris coverart, then banners, in data and cache. Prepared, not used:
-  `Game.cover_url` (Steam `steam_cover_url`, Heroic art URLs) for a later
-  download of missing covers once the person agrees; nothing reads it and
-  it is not in the library JSON. UI: INSTALLED ONLY switch beside the
+  Lutris coverart, then banners, in data and cache. `Game.cover_url`
+  (Heroic art URLs on allowed hosts) feeds the cover downloads (branch
+  `cover-downloads`). UI: INSTALLED ONLY switch beside the
   search (`Games.installedOnly`, `saveInstalledOnly`, settings
   `games.installed_only`), tabs show installed/all, badge "n OF m
   INSTALLED", Recent puts installed before not installed among unplayed.

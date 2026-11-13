@@ -158,11 +158,23 @@ to the game.
   tray icon until a game starts) or Visible (the hub at once); "Show the
   hub when a game starts" can be switched off. One copy runs at a time:
   starting it again while it runs brings the hub forward.
+- **Missing game covers** (Settings → General → Download missing covers,
+  on by default): a game in the Games panel without a cover on disk gets
+  one, once, from Steam's (shared.akamai.steamstatic.com,
+  cdn.cloudflare.steamstatic.com), Epic's (cdn1.epicgames.com,
+  cdn1/cdn2.unrealengine.com) or GOG's (images.gog-statics.com,
+  images-1 to images-4.gog-statics.com, images.gog.com) image servers;
+  only the game's id in the picture address is sent (no account, no
+  library list). One at a time, https only, no redirects, 5 MB at most,
+  JPEG/PNG/WebP only; kept in `~/.cache/game-companion/covers`, a missing
+  one asked for again at most once a week. `GC_NO_COVER_DOWNLOADS=1`
+  turns it off.
 - **Turn off** in Settings → General (or Quit in the tray menu) closes the
   whole app, with the radio.
 - **Nothing else goes online.** The fonts ship with the app, the shortcuts
   are local D-Bus; the only network use is the radio stream you pick, the
-  streams you open, your Jellyfin server at home, and the update check on GitHub.
+  streams you open, your Jellyfin server at home, the update check on
+  GitHub, and missing game covers from Steam's, Epic's and GOG's image servers.
 
 ## Coming next
 

@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
@@ -19,6 +19,7 @@ use serde_json::{json, Value};
 
 use std::collections::BTreeSet;
 
+use crate::covers;
 use crate::games::{self, Game, GameOptions, GamesSettings, Matcher, OwnGame};
 use crate::launch_check;
 use crate::launch_demo;
@@ -60,7 +61,19 @@ pub mod qobject {
         #[qproperty(bool, installed_only)]
         /// Whether the libraries are being read.
         #[qproperty(bool, scanning)]
+        /// Missing covers are downloaded from Steam's, Epic's and GOG's
+        /// image servers (settings `games.download_covers`).
+        #[qproperty(bool, download_covers)]
         type Games = super::GamesRust;
+
+        /// A missing cover was downloaded: the game's id and its picture
+        /// (a file:// address). The library follows when all are done.
+        #[qsignal]
+        fn cover_arrived(self: Pin<&mut Games>, id: QString, picture: QString);
+
+        /// Switches cover downloads and keeps the choice.
+        #[qinvokable]
+        fn save_download_covers(self: Pin<&mut Games>, on: bool);
 
         /// Detection saw a game start (its id).
         #[qsignal]
@@ -255,6 +268,7 @@ pub struct GamesRust {
     library: QString,
     installed_only: bool,
     scanning: bool,
+    download_covers: bool,
     /// The library as last put together (own entries, the launchers'
     /// games, installed or not).
     composed: Vec<Game>,
@@ -275,6 +289,7 @@ impl Default for GamesRust {
             library: QString::from("[]"),
             installed_only: settings::read(|s| s.games.installed_only),
             scanning: false,
+            download_covers: settings::read(|s| s.games.download_covers),
             composed: Vec::new(),
             scanned: Vec::new(),
             watch: Arc::new(Matcher::default()),
@@ -410,6 +425,10 @@ fn set_own_command(games: &mut GamesSettings, n: u32, command: String) -> bool {
 fn now_seconds() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
+
+/// Whether the cover thread runs, and whether it may go on (the switch).
+static COVERS_RUNNING: AtomicBool = AtomicBool::new(false);
+static COVERS_ON: AtomicBool = AtomicBool::new(false);
 
 fn demo_mode() -> bool {
     std::env::var("GC_DEMO").is_ok_and(|d| d.contains("games"))
@@ -626,11 +645,13 @@ impl qobject::Games {
         self.as_mut().set_scanning(true);
         let thread = self.qt_thread();
         std::thread::spawn(move || {
-            let scanned = home().map(|h| games::read_library(&h)).unwrap_or_default();
+            let mut scanned = home().map(|h| games::read_library(&h)).unwrap_or_default();
+            covers::fill_cached(&mut scanned, &covers::dir());
             let _ = thread.queue(move |mut obj: Pin<&mut qobject::Games>| {
                 obj.as_mut().rust_mut().scanned = scanned;
                 obj.as_mut().rebuild();
-                obj.set_scanning(false);
+                obj.as_mut().set_scanning(false);
+                obj.start_covers();
             });
         });
     }
@@ -991,6 +1012,73 @@ impl qobject::Games {
 
     fn system_info(&self) -> i32 {
         self.work(|| Answer { json: system().to_json().to_string(), rebuild: false, stale: false })
+    }
+
+    /// Downloads the missing covers one after another on a worker thread
+    /// (when allowed: the switch, no demo, no GC_NO_COVER_DOWNLOADS); each
+    /// one arriving goes to QML at once, the library once at the end.
+    fn start_covers(self: Pin<&mut Self>) {
+        let on = covers::allowed_now(*self.download_covers()) && !demo_mode();
+        COVERS_ON.store(on, Ordering::Relaxed);
+        if !on {
+            return;
+        }
+        let mut jobs: Vec<Game> =
+            self.rust().scanned.iter().filter(|g| g.picture.is_none() && !covers::candidates(g).is_empty()).cloned().collect();
+        if jobs.is_empty() || COVERS_RUNNING.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        // Installed games first.
+        jobs.sort_by_key(|g| !g.installed);
+        let thread = self.qt_thread();
+        let spawned = std::thread::Builder::new().name("covers".into()).spawn(move || {
+            let dir = covers::dir();
+            let mut any = false;
+            for game in jobs {
+                if !COVERS_ON.load(Ordering::Relaxed) {
+                    break;
+                }
+                match covers::download(&game, &dir, now_seconds(), &covers::fetch_with_curl) {
+                    covers::Outcome::Saved(path) => {
+                        any = true;
+                        let id = game.id.clone();
+                        let _ = thread.queue(move |obj: Pin<&mut qobject::Games>| obj.cover_saved(id, path));
+                    }
+                    covers::Outcome::Offline => break,
+                    covers::Outcome::Skipped => continue,
+                    covers::Outcome::Failed => {}
+                }
+                std::thread::sleep(covers::GAP);
+            }
+            COVERS_RUNNING.store(false, Ordering::Release);
+            if any {
+                let _ = thread.queue(|obj: Pin<&mut qobject::Games>| obj.rebuild());
+            }
+        });
+        if spawned.is_err() {
+            COVERS_RUNNING.store(false, Ordering::Release);
+        }
+    }
+
+    /// A downloaded cover: kept with the game, and its card told.
+    fn cover_saved(mut self: Pin<&mut Self>, id: String, path: PathBuf) {
+        if let Some(game) = self.as_mut().rust_mut().scanned.iter_mut().find(|g| g.id == id) {
+            game.picture = Some(path.clone());
+        }
+        if let Some(game) = self.as_mut().rust_mut().composed.iter_mut().find(|g| g.id == id) {
+            game.picture = Some(path.clone());
+        }
+        self.cover_arrived(q(&id), q(&games::file_url(&path)));
+    }
+
+    fn save_download_covers(mut self: Pin<&mut Self>, on: bool) {
+        if demo_mode() {
+            self.set_download_covers(on);
+            return;
+        }
+        settings::change(|s| s.games.download_covers = on);
+        self.as_mut().set_download_covers(on);
+        self.start_covers();
     }
 
     fn save_installed_only(self: Pin<&mut Self>, on: bool) {

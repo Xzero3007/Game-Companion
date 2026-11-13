@@ -718,7 +718,7 @@ fn run_with_timeout(command: &mut Command, limit: Duration) -> Result<std::proce
     finish(child, limit)
 }
 
-fn finish(child: Child, limit: Duration) -> Result<std::process::Output, String> {
+pub(crate) fn finish(child: Child, limit: Duration) -> Result<std::process::Output, String> {
     let pid = child.id();
     let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let flag = done.clone();

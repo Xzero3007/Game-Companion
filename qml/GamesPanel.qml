@@ -20,10 +20,19 @@ Panel {
     // Taken over by hand, so the list keeps its scroll place when a star,
     // an option or a game start changes the library.
     property var library: JSON.parse(Games.library)
+    /// Covers downloaded since the library was last read (id → picture);
+    /// the library brings them along once all have arrived.
+    property var arrivedCovers: ({})
     Connections {
         target: Games
+        function onCoverArrived(id, picture) {
+            const next = Object.assign({}, panel.arrivedCovers)
+            next[id] = picture
+            panel.arrivedCovers = next
+        }
         function onLibraryChanged() {
             const y = grid.contentY
+            panel.arrivedCovers = ({})
             panel.library = JSON.parse(Games.library)
             Qt.callLater(() => grid.contentY = Math.max(0, Math.min(y, grid.contentHeight - grid.height)))
         }
@@ -493,7 +502,8 @@ Panel {
                 onClicked: panel.editing = card.g
             }
 
-            // Cover: the launcher's own picture on disk, else the name.
+            // Cover: the launcher's own picture on disk (or one downloaded),
+            // else the name.
             Rectangle {
                 id: cover
                 width: parent.width
@@ -503,7 +513,7 @@ Panel {
                 Image {
                     id: picture
                     anchors.fill: parent
-                    source: card.g.picture
+                    source: panel.arrivedCovers[card.g.id] || card.g.picture
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     cache: true

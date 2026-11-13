@@ -42,9 +42,9 @@ pub struct Game {
     /// (its `launch` then opens the launcher's install for it, and
     /// detection leaves it out).
     pub installed: bool,
-    /// The public address of its cover, for downloading missing covers
-    /// later (not used yet: nothing is fetched without the person's yes).
-    #[allow(dead_code)]
+    /// The public address of its cover on an allowed image server, for
+    /// downloading a missing cover (`covers`; Steam's are made from the
+    /// app id instead).
     pub cover_url: Option<String>,
     /// Where a not-installed game was found ("" for the plain case).
     pub note: String,
@@ -157,7 +157,7 @@ impl Default for GameOptions {
 }
 
 /// The Games tab's settings.
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct GamesSettings {
     pub own: Vec<OwnGame>,
@@ -174,6 +174,24 @@ pub struct GamesSettings {
     pub layouts: BTreeMap<String, String>,
     /// The tab lists only installed games.
     pub installed_only: bool,
+    /// Missing covers are downloaded from Steam's, Epic's and GOG's image
+    /// servers (the person agreed, 2026-11-13; `covers`).
+    pub download_covers: bool,
+}
+
+impl Default for GamesSettings {
+    fn default() -> Self {
+        Self {
+            own: Vec::new(),
+            hidden: BTreeSet::new(),
+            favorites: BTreeSet::new(),
+            last_played: BTreeMap::new(),
+            options: BTreeMap::new(),
+            layouts: BTreeMap::new(),
+            installed_only: false,
+            download_covers: true,
+        }
+    }
 }
 
 /// A name for comparing: lower case letters and digits only
@@ -755,12 +773,13 @@ fn heroic_picture(base: &Path, runner: &str, game: &serde_json::Value) -> Option
     })
 }
 
-/// A library entry's public cover address (for a later download).
+/// A library entry's public cover address on an allowed image server (for
+/// downloading a missing cover): the tall square first, then the cover.
 fn heroic_cover_url(game: &serde_json::Value) -> Option<String> {
     ["art_square", "art_cover"]
         .iter()
         .filter_map(|k| game.get(*k).and_then(serde_json::Value::as_str))
-        .find(|u| u.starts_with("https://"))
+        .find(|u| crate::covers::allowed_host(u).is_some())
         .map(str::to_string)
 }
 
@@ -1472,9 +1491,9 @@ mod tests {
             &base.join("store_cache/legendary_library.json"),
             br#"{"library": [
                 {"app_name": "Fort", "title": "Fort Game", "runner": "legendary", "is_installed": true,
-                 "art_square": "https://cdn.example/fort_tall.jpg", "art_cover": "https://cdn.example/fort.jpg"},
+                 "art_square": "https://cdn1.epicgames.com/fort_tall.jpg", "art_cover": "https://cdn1.epicgames.com/fort.jpg"},
                 {"app_name": "Puzzle", "title": "Weekly Puzzle", "runner": "legendary", "is_installed": false,
-                 "art_square": "https://cdn.example/puzzle_tall.jpg", "install": {}},
+                 "art_square": "https://cdn1.epicgames.com/puzzle_tall.jpg", "install": {}},
                 {"app_name": "Addon", "title": "An Addon", "install": {"is_dlc": true}},
                 {"title": "No app name"}],
               "__timestamp": {"library": "Thu Nov 13 2026"}}"#,
@@ -1482,17 +1501,18 @@ mod tests {
         write(
             &base.join("store_cache/gog_library.json"),
             br#"{"games": [{"app_name": "1208", "title": "Pixel Knights", "runner": "gog", "is_installed": false,
-                 "art_cover": "https://images.example/pk.jpg", "art_square": "https://images.example/pk_tall.jpg"}]}"#,
+                 "art_cover": "https://images.gog-statics.com/pk.jpg", "art_square": "https://images.gog-statics.com/pk_tall.jpg"}]}"#,
         );
         write(
             &base.join("store_cache/nile_library.json"),
-            br#"{"library": [{"app_name": "amz1", "title": "Harbor Tales", "runner": "nile", "is_installed": false}]}"#,
+            br#"{"library": [{"app_name": "amz1", "title": "Harbor Tales", "runner": "nile", "is_installed": false,
+                 "art_square": "https://m.media-amazon.com/images/ht.jpg"}]}"#,
         );
         // Covers in Heroic's cache, named by the SHA-256 of their address:
         // Epic's card picture is the resized square one.
         let cache = base.join("images-cache");
-        write(&cache.join(sha256_hex("https://cdn.example/fort_tall.jpg?h=400&resize=1&w=300")), b"jpg");
-        write(&cache.join(sha256_hex("https://images.example/pk_tall.jpg")), b"jpg");
+        write(&cache.join(sha256_hex("https://cdn1.epicgames.com/fort_tall.jpg?h=400&resize=1&w=300")), b"jpg");
+        write(&cache.join(sha256_hex("https://images.gog-statics.com/pk_tall.jpg")), b"jpg");
         let games = read_heroic(&home);
         let ids: Vec<&str> = games.iter().map(|g| g.id.as_str()).collect();
         assert_eq!(ids, ["heroic:legendary:Fort", "heroic:legendary:Puzzle", "heroic:gog:1208", "heroic:nile:amz1"]);
@@ -1500,12 +1520,13 @@ mod tests {
         assert_eq!(games[0].processes, Vec::<String>::new());
         assert_eq!(games[0].dirs, ["/home/p/games/heroic/fort/"]);
         assert!(games[0].picture.as_ref().unwrap().starts_with(&cache));
-        assert_eq!(games[0].cover_url.as_deref(), Some("https://cdn.example/fort_tall.jpg"));
+        assert_eq!(games[0].cover_url.as_deref(), Some("https://cdn1.epicgames.com/fort_tall.jpg"));
         assert!(!games[1].installed && games[1].picture.is_none());
         assert_eq!(games[1].launch, "heroic://launch?appName=Puzzle&runner=legendary");
         assert!(games[1].dirs.is_empty() && games[1].processes.is_empty());
         assert_eq!(games[2].name, "Pixel Knights");
-        assert!(games[2].picture.as_ref().unwrap().ends_with(sha256_hex("https://images.example/pk_tall.jpg")));
+        assert!(games[2].picture.as_ref().unwrap().ends_with(sha256_hex("https://images.gog-statics.com/pk_tall.jpg")));
+        // A cover on a server not allowed is never named for download.
         assert!(!games[3].installed && games[3].cover_url.is_none());
         let watch = watch_list(&games, &GamesSettings::default());
         assert_eq!(watch.iter().filter(|g| g.launcher == "heroic").count(), 1);

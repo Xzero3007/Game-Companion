@@ -88,6 +88,16 @@ Panel {
             Hint { text: "A gold gamepad in the panel while Game Companion runs: a click shows or hides the hub, a right click opens its menu." }
 
             Item { width: 1; height: 6 }
+            Label { text: "Games" }
+            OnOff {
+                width: parent.width
+                text: "Download missing covers"
+                on: Games.downloadCovers
+                onToggled: Games.saveDownloadCovers(!Games.downloadCovers)
+            }
+            Hint { text: "From Steam, Epic and GOG image servers; only the game's id is sent. Each cover is fetched once and kept." }
+
+            Item { width: 1; height: 6 }
             Label { text: "Updates" }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 width: parent.width

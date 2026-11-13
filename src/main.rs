@@ -3,6 +3,7 @@
 mod aion2_object;
 mod appinfo;
 mod companion;
+mod covers;
 mod emotes;
 mod games;
 mod games_object;
