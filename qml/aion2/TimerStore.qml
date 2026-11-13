@@ -196,12 +196,10 @@ QtObject {
     function demoState() {
         const now = Date.now()
         const m = 60000
-        const s = { servers: {} }
-        s.servers["1301"] = { maps: { "1010": { seen: now - 6 * m, bosses: [
+        state = { servers: { "1301": { maps: { "1010": { seen: now - 6 * m, bosses: [
             { id: 101003, up: true, time: now - 21 * m }, { id: 101006, up: false, time: now + 12 * m },
             { id: 101002, up: false, time: now + 108 * m }, { id: 101001, up: false, time: now - 4 * m },
-            { id: 101008, up: false, time: now + 47 * m }, { id: 101012, up: false, time: now + 3 * 60 * m + 20 * m }] } } }
-        state = s
+            { id: 101008, up: false, time: now + 47 * m }, { id: 101012, up: false, time: now + 3 * 60 * m + 20 * m }] } } } } }
         prefs = Object.assign(defaults(), { lastServer: 1301, on: { "101006": true, "101003": true, "festival-elyos": true, "artifact": true } })
         revision++
     }
