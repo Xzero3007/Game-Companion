@@ -130,6 +130,11 @@ Window {
         target: surface.lockItem
         ignoreUnknownSignals: true
         function onXChanged() { surface.input() }
+        function onYChanged() { surface.input() }
+        // A part that grows or shrinks (the Closet window's list) takes
+        // the mouse over its new size.
+        function onWidthChanged() { surface.input() }
+        function onHeightChanged() { surface.input() }
         function onVisibleChanged() { surface.input() }
     }
 }
