@@ -46,6 +46,9 @@ pub mod qobject {
         #[qproperty(QString, history)]
         /// A saved fight shown in place of the live one ("" for live).
         #[qproperty(QString, opened)]
+        /// The world around the player for the map: JSON {"zone", "me"
+        /// {x,y,z}, "mobs", "objects", ...} ("{}" until something is known).
+        #[qproperty(QString, world)]
         type Aion2 = super::Aion2Rust;
 
         /// Starts reading (AION 2 started).
@@ -85,6 +88,7 @@ pub struct Aion2Rust {
     picked: i32,
     skills: QString,
     history: QString,
+    world: QString,
     opened: QString,
     /// The live fight while a saved one is shown.
     live: String,
@@ -105,6 +109,7 @@ impl Default for Aion2Rust {
             picked: 0,
             skills: QString::from("[]"),
             history: QString::from("[]"),
+            world: QString::from("{}"),
             opened: QString::default(),
             live: EMPTY.to_string(),
             wanted: Arc::new(AtomicI32::new(0)),
@@ -170,7 +175,8 @@ impl qobject::Aion2 {
                 let skills_changed = seen.2 != skills;
                 let saved = engine.saved();
                 let history_changed = seen.3 != saved;
-                if !fight_changed && !status_changed && !skills_changed && !history_changed {
+                let world = engine.world().map(|w| w.to_string());
+                if !fight_changed && !status_changed && !skills_changed && !history_changed && world.is_none() {
                     continue;
                 }
                 *seen = (fight.clone(), status.clone(), skills.clone(), saved);
@@ -183,6 +189,9 @@ impl qobject::Aion2 {
                     }
                     if let Some(list) = &list {
                         obj.as_mut().set_history(QString::from(list));
+                    }
+                    if let Some(world) = &world {
+                        obj.as_mut().set_world(QString::from(world));
                     }
                     // A saved fight shown: the live one waits.
                     let showing_saved = !obj.opened().is_empty();

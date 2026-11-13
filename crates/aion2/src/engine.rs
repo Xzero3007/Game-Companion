@@ -21,6 +21,7 @@ use crate::combat::ping_tracker::PingTracker;
 use crate::entity::dps_data::DpsData;
 use crate::i18n::lookup::{self, NpcLookup, SkillLookup};
 use crate::history;
+use crate::world::World;
 use crate::link::{self, State};
 use crate::platform::window_detector;
 
@@ -48,6 +49,8 @@ pub struct Engine {
     /// Raised each time fights were written to the history.
     saved: Arc<AtomicU64>,
     history: PathBuf,
+    /// The world around the player (zone, place, monsters, objects).
+    world: Arc<Mutex<World>>,
 }
 
 /// How often fights still on the meter are written to the history.
@@ -66,6 +69,7 @@ impl Engine {
             running: Arc::new(AtomicBool::new(true)),
             saved: Arc::new(AtomicU64::new(0)),
             history: history.to_path_buf(),
+            world: Arc::new(Mutex::new(World::default())),
         };
         window_detector::set_running(true);
         let runner = Runner {
@@ -79,6 +83,7 @@ impl Engine {
             running: engine.running.clone(),
             saved: engine.saved.clone(),
             history: engine.history.clone(),
+            world: engine.world.clone(),
         };
         // The helper dies with the thread that started it (PR_SET_PDEATHSIG):
         // the runner starts it and lives as long as the engine runs.
@@ -107,6 +112,14 @@ impl Engine {
         }
     }
 
+    /// The world around the player, when there is news (at most four times
+    /// a second, at least every 2 s while something is around).
+    pub fn world(&self) -> Option<serde_json::Value> {
+        let now = std::time::Instant::now();
+        let mut world = self.world.lock();
+        world.due(now).then(|| world.snapshot(now, crate::clock::now_ms()))
+    }
+
     /// How many times fights were saved (to notice new ones).
     pub fn saved(&self) -> u64 {
         self.saved.load(Ordering::Relaxed)
@@ -125,6 +138,8 @@ impl Engine {
             return;
         }
         window_detector::set_running(false);
+        crate::capture::frame_tap::set(None);
+        crate::platform::on_client_sent(None);
         if let Some(c) = self.calculator.lock().as_mut() {
             save_fights(c.snapshot_boss_fights_force(), &self.history, &self.saved);
         }
@@ -164,6 +179,7 @@ struct Runner {
     running: Arc<AtomicBool>,
     saved: Arc<AtomicU64>,
     history: PathBuf,
+    world: Arc<Mutex<World>>,
 }
 
 impl Runner {
@@ -180,6 +196,24 @@ impl Runner {
         let ping = Arc::new(PingTracker::new());
         *self.calculator.lock() = Some(DpsCalculator::new(storage.clone(), skills.clone(), npcs.clone(), ping.clone()));
         let mut dispatcher = CaptureDispatcher::new(storage.clone(), skills, npcs, self.detector.clone(), ping);
+        // Every frame the parser reads also goes to the world (as the
+        // meter's `events:world` for plugins).
+        {
+            let world = self.world.clone();
+            let storage = storage.clone();
+            crate::capture::frame_tap::set(Some(Arc::new(move |packet: &[u8]| {
+                let len = crate::capture::stream_processor::read_varint(packet, 0).length;
+                if len <= 0 {
+                    return;
+                }
+                let at = len as usize;
+                let Some(opcode) = packet.get(at..at + 2) else { return };
+                let me = storage.local_player_id();
+                world.lock().feed([opcode[0], opcode[1]], &packet[at + 2..], me, std::time::Instant::now());
+            })));
+            let world = self.world.clone();
+            crate::platform::on_client_sent(Some(Arc::new(move |len| world.lock().client_sent(len, std::time::Instant::now()))));
+        }
         dispatcher.set_dot_skill_ids(dot_skill_ids(&self.data_dir));
         if !self.running.load(Ordering::SeqCst) {
             return;
