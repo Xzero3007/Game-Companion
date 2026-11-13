@@ -397,6 +397,13 @@ learnt, so nothing has to be asked or worked out again.
   /bin/bash to a folder as `game-companion` and run the helper from it
   (`libpcap0.8` installed), loopback traffic on a port other than 80/443.
 
+- LOOT (`qml/aion2/LootPanel.qml`, `LootStore.qml`, `ClosetWindow.qml`,
+  `PriceBook.qml`; logic `lootkit.js` from `tools/aion2-loot-import.py`):
+  the Inventory, Closet and Shugo Cards plugins in one panel; game frames
+  through `crates/aion2/src/decoders.rs` → `Aion2.decoded`; files in
+  `~/.local/share/game-companion/aion2/loot/`. Details: docs/HANDOFF.md.
+  `short` is a reserved word in QML's JS: name helpers otherwise.
+
 ## Checking a change
 
 ```bash

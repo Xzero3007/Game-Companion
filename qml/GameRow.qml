@@ -26,8 +26,11 @@ Item {
     property bool charactersShown: false
     property bool charactersOpen: false
     signal charactersClicked
+    property bool lootShown: false
+    property bool lootOpen: false
+    signal lootClicked
 
-    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown
+    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || lootShown
     readonly property bool pinned: Companion.pins.indexOf('"game-row"') >= 0
 
     implicitWidth: row.implicitWidth + 36
@@ -114,6 +117,14 @@ Item {
             active: strip.charactersOpen
             tip: strip.gameName + ": your characters, their content and limits (listens only)"
             onClicked: strip.charactersClicked()
+        }
+        GameButton {
+            visible: strip.lootShown
+            icon: "loot"
+            label: "Loot"
+            active: strip.lootOpen
+            tip: strip.gameName + ": items, drops, Closet and Shugo Cards (listens only)"
+            onClicked: strip.lootClicked()
         }
 
         Rectangle { width: 1; height: 18; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }
