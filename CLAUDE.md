@@ -453,6 +453,13 @@ learnt, so nothing has to be asked or worked out again.
   rows. Stores "boss", "boss-sheets", "boss-fights". Not done yet: overlay
   slots and resizing. `GC_DEMO=boss[,bossfight|,ludra][,sheets|,fights|,voice]`.
 
+- LOOT (`qml/aion2/LootPanel.qml`, `LootStore.qml`, `ClosetWindow.qml`,
+  `PriceBook.qml`; logic `lootkit.js` from `tools/aion2-loot-import.py`):
+  the Inventory, Closet and Shugo Cards plugins in one panel; game frames
+  through `crates/aion2/src/decoders.rs` → `Aion2.decoded`; files in
+  `~/.local/share/game-companion/aion2/loot/`. Details: docs/HANDOFF.md.
+  `short` is a reserved word in QML's JS: name helpers otherwise.
+
 ## Checking a change
 
 ```bash

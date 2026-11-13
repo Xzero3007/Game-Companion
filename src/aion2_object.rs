@@ -162,6 +162,30 @@ pub mod qobject {
         #[qinvokable]
         fn system_voice(self: &Aion2) -> bool;
 
+        /// The player's items as the old meter's `items` event had them
+        /// (`aion2::capture::items`): the containers, the changes and the
+        /// pickups since the last one. Each change of them, in order.
+        #[qsignal]
+        fn items_event(self: Pin<&mut Aion2>, json: QString);
+
+        /// The items now, without changes (an area starting).
+        #[qinvokable]
+        fn items_now(self: &Aion2) -> QString;
+
+        /// Frames the areas' decoders read (`aion2::decoders`), in order:
+        /// JSON [{"name", "at", "data"}].
+        #[qsignal]
+        fn decoded(self: Pin<&mut Aion2>, json: QString);
+
+        /// LOOT's own files (loot-<key>.json in the module's data folder),
+        /// "" for none.
+        #[qinvokable]
+        fn load_loot(self: &Aion2, key: &QString) -> QString;
+
+        /// Keeps one of LOOT's files (JSON, at most 4 MB), in the background.
+        #[qinvokable]
+        fn keep_loot(self: &Aion2, key: &QString, json: &QString);
+
         /// The game's servers by number, their English names: JSON
         /// {"1001": "Siel", ...} (the meter's list, in the package).
         #[qinvokable]
@@ -343,10 +367,35 @@ impl qobject::Aion2 {
             })));
         }
         let combat_seen = Arc::new(Mutex::new(String::new()));
+        let mut items_seq = aion2::capture::items::event_since(0).map_or(0, |e| e.0);
+        let mut decoded_seq = aion2::decoders::newest();
         let _ = std::thread::Builder::new().name("aion2".into()).spawn(move || {
             let mut boss_seq = 0u64;
             while !stop.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_millis(500));
+                // The items and the decoded frames, as they come.
+                let items = aion2::capture::items::event_since(items_seq).map(|(seq, ev)| {
+                    items_seq = seq;
+                    ev.to_string()
+                });
+                let decoded = aion2::decoders::events_since(decoded_seq).map(|(seq, list)| {
+                    decoded_seq = seq;
+                    serde_json::Value::Array(list).to_string()
+                });
+                if items.is_some() || decoded.is_some() {
+                    let stop = stop.clone();
+                    let _ = thread.queue(move |mut obj: Pin<&mut qobject::Aion2>| {
+                        if stop.load(Ordering::Relaxed) {
+                            return;
+                        }
+                        if let Some(items) = &items {
+                            obj.as_mut().items_event(QString::from(items));
+                        }
+                        if let Some(decoded) = &decoded {
+                            obj.as_mut().decoded(QString::from(decoded));
+                        }
+                    });
+                }
                 let snapshot = engine.snapshot();
                 let mut fight = engine::summary(&snapshot);
                 fight["extras"] = engine.extras();
@@ -624,6 +673,18 @@ impl qobject::Aion2 {
 
     fn system_voice(&self) -> bool {
         crate::voice::system_voice()
+    }
+
+    fn items_now(&self) -> QString {
+        QString::from(&aion2::capture::items::event_now().to_string())
+    }
+
+    fn load_loot(&self, key: &QString) -> QString {
+        QString::from(&crate::market::load(&format!("loot-{key}")))
+    }
+
+    fn keep_loot(&self, key: &QString, json: &QString) {
+        self.keep_store(&QString::from(&format!("loot-{key}")), json);
     }
 
     fn server_names(&self) -> QString {

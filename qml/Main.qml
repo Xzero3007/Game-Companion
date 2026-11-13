@@ -24,6 +24,7 @@ Overlay {
     property bool charactersOpen: false
     property bool scheduleOpen: false
     property bool bossOpen: false
+    property bool lootOpen: false
     /// The person closed the DPS panel: it stays closed when AION 2 starts.
     property bool dpsClosed: false
     /// The game id AION 2 runs under (its module stops when that one ends).
@@ -32,7 +33,7 @@ Overlay {
         aionId = id
         // The package and its meter can be switched off (Settings → Plugins).
         if (!Plugins.loads(plugins, "aion2")) return
-        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters", "aion2.timers", "aion2.boss"].some((id) => Plugins.choice(plugins, id).on)) return
+        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters", "aion2.timers", "aion2.boss", "aion2.inventory", "aion2.closet", "aion2.shugo"].some((id) => Plugins.choice(plugins, id).on)) return
         Aion2.start()
         if (!dpsClosed && Plugins.inBar(plugins, "aion2.dps")) dpsOpen = true
     }
@@ -60,6 +61,7 @@ Overlay {
         if (charactersOpen) ids.push("characters")
         if (scheduleOpen) ids.push("schedule")
         if (bossOpen) ids.push("boss")
+        if (lootOpen) ids.push("loot")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
@@ -72,6 +74,7 @@ Overlay {
         charactersOpen = ids.indexOf("characters") >= 0
         scheduleOpen = ids.indexOf("schedule") >= 0
         bossOpen = ids.indexOf("boss") >= 0
+        lootOpen = ids.indexOf("loot") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
@@ -89,6 +92,7 @@ Overlay {
         if (demo.indexOf("schedule") >= 0) scheduleOpen = true
         if (demo.indexOf("alert") >= 0) alertBanner.show("Bodyguard Teegant", "Verteron", Date.now() + 5 * 60000 + 30000)
         if (demo.indexOf("boss") >= 0) bossOpen = true
+        if (demo.indexOf("loot") >= 0) lootOpen = demo.indexOf("shop") < 0 || demo.indexOf("panel") >= 0
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("games") >= 0) games.demo(demo)
@@ -260,6 +264,9 @@ Overlay {
             bossShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.boss")) || root.bossOpen
             bossOpen: root.bossOpen
             onBossClicked: root.bossOpen = !root.bossOpen
+            lootShown: (Aion2.active && root.lootInBar) || root.lootOpen || lootStore.demo
+            lootOpen: root.lootOpen
+            onLootClicked: root.lootOpen = !root.lootOpen
         }
     }
 
@@ -463,6 +470,52 @@ Overlay {
         wanted: bossCall.wanted && root.bossUsable
         stack: 6
         part: BossCall { id: bossCall; brain: bossBrain }
+    }
+
+    // LOOT (Inventory, Closet, Shugo Cards): learns while the app runs;
+    // prices are the Market's, asked only while LOOT or the shop window shows.
+    function lootOn(id) { return Plugins.loads(plugins, "aion2") && Plugins.choice(plugins, id).on }
+    readonly property bool lootInBar: ["aion2.inventory", "aion2.closet", "aion2.shugo"].some((id) => Plugins.inBar(plugins, id))
+    PriceBook {
+        id: priceBook
+        demo: lootStore.demo
+        wanted: root.lootOpen || lootStore.windowWanted
+        gameServer: {
+            try { const e = JSON.parse(Aion2.fight).extras; if (e && e.server) return e.server } catch (x) { }
+            return lootStore.character && lootStore.character.serverId ? lootStore.character.serverId : 0
+        }
+    }
+    LootStore { id: lootStore; book: priceBook }
+
+    Surface {
+        wanted: root.lootOpen && root.onScreen("loot")
+        stack: 3
+        part: LootPanel {
+            store: lootStore
+            book: priceBook
+            itemsOn: root.lootOn("aion2.inventory") || lootStore.demo
+            closetOn: root.lootOn("aion2.closet") || lootStore.demo
+            cardsOn: root.lootOn("aion2.shugo") || lootStore.demo
+            defaultX: Math.max(24, (root.width - width) / 2 + 20)
+            defaultY: 170
+            onCloseClicked: root.lootOpen = false
+        }
+    }
+    // The Closet's window at the Black Cloud shop: takes the mouse while it
+    // shows, also locked (its list scrolls).
+    Surface {
+        id: closetSurface
+        wanted: lootStore.windowWanted && (root.lootOn("aion2.closet") || lootStore.demo) && (Aion2.active || lootStore.demo)
+        stack: 4
+        lockItem: closetWindow
+        part: ClosetWindow {
+            id: closetWindow
+            store: lootStore
+            book: priceBook
+            defaultX: Math.max(24, root.width - width - 60)
+            defaultY: 220
+            onCloseClicked: lootStore.dismiss()
+        }
     }
 
     Surface {

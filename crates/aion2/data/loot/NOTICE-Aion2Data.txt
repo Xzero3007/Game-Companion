@@ -1,0 +1,7 @@
+The icon names of the items SkeeveAN's lists have none for (materials,
+consumables, keys ...) and the names of a few items its list lacks are
+AION 2's game data, read from the game's files by Aion2Data (aion2data.com,
+an unofficial fan reference, not affiliated with NCSOFT), as its item lists
+show them (dev/fetch_icons.py). The pictures themselves come from the game's
+icon server (assets.playnccdn.com), through the meter.
+AION is a trademark of NCSOFT Corporation; game data and art belong to it.

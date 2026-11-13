@@ -344,6 +344,8 @@ impl Runner {
                         notify();
                     }
                 }
+                // The areas' decoders (Closet, Shugo Cards, gathering).
+                crate::decoders::feed([opcode[0], opcode[1]], &packet[at + 2..], crate::clock::now_ms());
             })));
             let world = self.world.clone();
             crate::platform::on_client_sent(Some(Arc::new(move |len| world.lock().client_sent(len, std::time::Instant::now()))));
