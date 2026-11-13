@@ -47,6 +47,7 @@ Overlay {
         if (demo.indexOf("settings") >= 0) settingsOpen = true
         if (demo.indexOf("radio") >= 0) radioOpen = true
         if (demo.indexOf("games") >= 0) gamesOpen = true
+        if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("streams") >= 0) streamsOpen = true
         if (demo.indexOf("video") >= 0) twitchVideo.item = { kind: "twitch", id: "streamer_one", name: "streamer_one", game: "AION 2", title: "" }
         if (demo.indexOf("jellyvideo") >= 0) jellyfinVideo.demo()
@@ -65,10 +66,15 @@ Overlay {
     Connections {
         target: Games
         function onStarted(id) {
+            // Built-in games no launcher lists (known:…) are not in the library.
             const g = JSON.parse(Games.library).find((x) => x.id === id)
-            if (!g) return
+                || { name: Games.runningName, twitch: Games.twitchPreset, youtube: Games.youtubePreset, showOnStart: true, radioOnStart: false }
             if (g.twitch.length > 0 || g.youtube.length > 0) Streams.changeGame(g.name, g.twitch, g.youtube)
             if (g.showOnStart && !Companion.shown) Companion.toggleShown()
+            if (g.layout && g.layout.length > 0) {
+                const open = Companion.loadLayout(g.layout)
+                if (open.length > 0) root.openFrom(JSON.parse(open))
+            }
             if (g.radioOnStart) {
                 // The last station, unless something plays already.
                 const recent = JSON.parse(Radio.recent)

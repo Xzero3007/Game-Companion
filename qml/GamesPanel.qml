@@ -281,17 +281,17 @@ Panel {
             anchors.rightMargin: 14
             anchors.bottomMargin: 14
             color: card.running ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.10)
-                : cardMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(1, 1, 1, 0.03)
+                : faceHover.hovered ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(1, 1, 1, 0.03)
             Rectangle {
                 width: parent.width
                 height: 2
                 z: 2
                 color: card.running ? Theme.accent : card.module ? Theme.purple : "transparent"
             }
+            HoverHandler { id: faceHover }
             MouseArea {
                 id: cardMouse
                 anchors.fill: parent
-                hoverEnabled: true
                 acceptedButtons: Qt.RightButton
                 onClicked: panel.editing = card.g
             }
@@ -349,7 +349,7 @@ Panel {
                     anchors.top: parent.top
                     width: 26
                     height: 26
-                    visible: card.g.fav || cardMouse.containsMouse || hovered
+                    visible: card.g.fav || faceHover.hovered
                     icon: "star"
                     filled: card.g.fav
                     color: card.g.fav ? Theme.accent : Theme.textSoft()
@@ -395,7 +395,7 @@ Panel {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 24
                     height: 24
-                    visible: cardMouse.containsMouse || hovered
+                    visible: faceHover.hovered
                     icon: "edit"
                     color: Theme.muted()
                     tip: card.g.own ? "Edit this game" : "Preset search and start options"
@@ -528,6 +528,59 @@ Panel {
         }
         Check { id: showBox; text: "Show the companion over the game" }
         Check { id: radioBox; text: "Start the radio with my last station" }
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+            text: "LOAD LAYOUT"
+            color: Theme.dim()
+            font.family: Theme.display
+            font.pixelSize: 11
+            font.weight: Font.Bold
+            font.letterSpacing: 1.5
+        }
+        Flow {
+            id: layoutChoice
+            width: parent.width
+            spacing: 8
+            property string picked: form.g.layout || ""
+            readonly property var names: JSON.parse(Companion.layouts)
+            Repeater {
+                model: [""].concat(layoutChoice.names)
+                delegate: Rectangle {
+                    required property var modelData
+                    readonly property bool on: layoutChoice.picked === modelData
+                    width: chipText.implicitWidth + 20
+                    height: 28
+                    color: chipMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.12) : "transparent"
+                    border.color: on ? Theme.accent : Theme.track
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        id: chipText
+                        anchors.centerIn: parent
+                        text: modelData.length > 0 ? modelData : "None"
+                        color: parent.on ? Theme.accent : Theme.textSoft()
+                        font.family: Theme.body
+                        font.pixelSize: 12
+                    }
+                    MouseArea {
+                        id: chipMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: layoutChoice.picked = parent.modelData
+                    }
+                    Accessible.role: Accessible.RadioButton
+                    Accessible.name: "Layout " + chipText.text
+                    Accessible.checked: on
+                }
+            }
+        }
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+            visible: layoutChoice.names.length === 0
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: "Save a layout in Settings → Layouts to have the game load it."
+            color: Theme.dim()
+            font.family: Theme.body
+            font.pixelSize: 11
+        }
 
         Item {
             width: parent.width
@@ -577,16 +630,19 @@ Panel {
         }
 
         function save() {
-            const processes = processField.text.split(",").map((s) => s.trim()).filter((s) => s.length > 0)
+            const processes = processField.text.split(",").map((s) => s.trim()).filter((s) => s.length > 0).join(", ")
+            let newId = ""
             if (isNew) {
-                Games.addOwn(nameField.text.trim(), commandField.text.trim(), JSON.stringify(processes),
+                newId = Games.addOwn(nameField.text.trim(), commandField.text.trim(), processes,
                              twitchField.text.trim(), youtubeField.text.trim(), showBox.checked, radioBox.checked)
             } else if (own) {
-                Games.updateOwn(g.id, nameField.text.trim(), commandField.text.trim(), JSON.stringify(processes),
+                Games.updateOwn(g.id, nameField.text.trim(), commandField.text.trim(), processes,
                                 twitchField.text.trim(), youtubeField.text.trim(), showBox.checked, radioBox.checked)
             } else {
                 Games.setOptions(g.id, twitchField.text.trim(), youtubeField.text.trim(), showBox.checked, radioBox.checked)
             }
+            const id = isNew ? newId : g.id
+            if (id && id.length > 0) Games.setLayout(id, layoutChoice.picked)
             panel.editing = null
         }
     }
@@ -595,6 +651,7 @@ Panel {
         property string label
         property string hint: ""
         property bool small: false
+        default property alias field: holder.data
         width: parent.width
         spacing: 6
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
@@ -605,9 +662,12 @@ Panel {
             font.weight: Font.Bold
             font.letterSpacing: 1.5
         }
-        // The field goes here (default children follow the label).
+        Item {
+            id: holder
+            width: parent.width
+            height: childrenRect.height
+        }
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-            z: 1
             visible: parent.hint.length > 0
             width: parent.width
             wrapMode: Text.WordWrap

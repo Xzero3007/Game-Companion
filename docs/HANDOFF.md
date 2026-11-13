@@ -27,6 +27,14 @@ new session (or the same one after a usage limit) carries on from here.
 - 0.4.3: steady dragging (`Surface.held`), outline text under half
   opacity, no unlocked frame.
 - 0.4.4 (stable): beta channel switch.
+- 0.4.5 (stable): KDE's primary screen from kwinoutputconfig.json, "Show on"
+  in Display.
+- 0.5.0 beta (milestone/step4-first): Games panel (qml/GamesPanel.qml),
+  Games bar button, detection and libraries (src/games.rs,
+  src/games_object.rs, singleton Games: library JSON, running, started /
+  stopped signals, launch, own entries, options, favourites, layouts per
+  game), start with the desktop (Companion.autostart, `--hidden`), on
+  start: Streams preset, show hub, radio, layout (Main.qml Connections).
 
 ## In progress: step 4 (game detection, Games tab) on `beta`
 
@@ -46,8 +54,11 @@ Agreed with the person 2026-11-13 (see CLAUDE.md plan step 4):
 - Later wishes (the person, 2026-11-13, to plan together): set launch
   options for games in the launchers; something for Proton.
 
-Backend: built on branch `step4-games` (worktree /home/claude/gc-games):
-`src/games.rs`, `src/games_object.rs` (QML singleton `Games`).
+Open points: QA review, test on real KWin (Arch thread), the person's test.
+Known limits: PoE 1 outside Steam counts as PoE 2; any process with a
+game's folder in its command line counts as the game; Heroic covers only
+for sideloaded games. Demo: GC_DEMO=games[,gameform]; GC_NO_GAMES=1 stops
+detection.
 
 ## Testing
 

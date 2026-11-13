@@ -156,6 +156,9 @@ pub struct GamesSettings {
     pub last_played: BTreeMap<String, u64>,
     /// Choices for launchers' (and built-in) games, by id.
     pub options: BTreeMap<String, GameOptions>,
+    /// The saved layout (Settings → Layouts) each game loads when it
+    /// starts, by id.
+    pub layouts: BTreeMap<String, String>,
 }
 
 /// A name for comparing: lower case letters and digits only

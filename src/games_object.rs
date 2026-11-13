@@ -112,6 +112,10 @@ pub mod qobject {
 
         #[qinvokable]
         fn favorite(self: Pin<&mut Games>, id: &QString, favorite: bool);
+
+        /// The saved layout a game loads when it starts ("" = none).
+        #[qinvokable]
+        fn set_layout(self: Pin<&mut Games>, id: &QString, layout: &QString);
     }
 
     impl cxx_qt::Threading for Games {}
@@ -202,6 +206,7 @@ fn library_json(library: &[Game], settings: &GamesSettings) -> String {
                 "youtube": g.youtube,
                 "showOnStart": g.show_on_start,
                 "radioOnStart": g.radio_on_start,
+                "layout": settings.layouts.get(&g.id).cloned().unwrap_or_default(),
             })
         })
         .collect();
@@ -505,6 +510,22 @@ impl qobject::Games {
 
     fn favorite(self: Pin<&mut Self>, id: &QString, favorite: bool) {
         self.mark(id, favorite, |s| &mut s.favorites);
+    }
+
+    fn set_layout(self: Pin<&mut Self>, id: &QString, layout: &QString) {
+        let id = id.to_string();
+        if id.is_empty() {
+            return;
+        }
+        let layout = line(layout, 80);
+        settings::change(|s| {
+            if layout.is_empty() {
+                s.games.layouts.remove(&id);
+            } else {
+                s.games.layouts.insert(id, layout);
+            }
+        });
+        self.rebuild();
     }
 
     /// Puts an id in one of the settings' sets, or takes it out.
