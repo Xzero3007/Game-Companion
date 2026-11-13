@@ -22,6 +22,27 @@ Column {
     readonly property var allIds: map && map.petData.pets ? Object.keys(map.petData.pets) : []
     property string open: nativeWindow.demo.split(",").indexOf("petopen") >= 0 ? "1004" : ""
     property string query: ""
+    /// A row's height and its portrait's side (MN 2026-11-13: twice the first 46).
+    readonly property int rowH: 92
+
+    // Where souls come from (MN 2026-11-13): the regions the tables name,
+    // each dungeon on its own, and the chests.
+    readonly property var sources: [["verteron", "Verteron (Elyos)"], ["altgard", "Altgard (Asmodian)"], ["abyss", "Abyss"],
+        ["fire", "Fire Temple"], ["draupnir", "Draupnir"], ["krao", "Krao Cave"], ["chest", "Chest only"]]
+    readonly property var regionSource: ({ "Verteron": "verteron", "Altgard": "altgard", "Chaotic Lower Reshanta": "abyss",
+        "Fire Temple": "fire", "Draupnir": "draupnir", "Krao Cave": "krao" })
+    function fromOf(p) {
+        const out = {}
+        for (const d of p.drops || []) out[regionSource[d.region] || "other"] = true
+        if ((p.chests || []).length > 0 && (p.drops || []).length === 0) out.chest = true
+        return out
+    }
+    function toggleFrom(key) {
+        const f = (s.petFrom || []).slice()
+        const i = f.indexOf(key)
+        if (i >= 0) f.splice(i, 1); else f.push(key)
+        map.change("petFrom", f)
+    }
 
     // Metres to each pet's nearest spawn point on the map you are on.
     readonly property var nearest: {
@@ -51,6 +72,10 @@ Column {
                 if (s.petShow === "needed" && synced && level >= 3 && !fav) continue
             }
             if (s.petGenus && p.genus !== s.petGenus) continue
+            if ((s.petFrom || []).length > 0) {
+                const from = fromOf(p)
+                if (!s.petFrom.some((k) => from[k])) continue
+            }
             out.push({ id: id, name: p.name, genus: p.genus, fav: fav, farming: farming, farmedAt: farmedAt, level: level,
                 toGo: map.petToGo(id), metres: tab.nearest[id], drops: p.drops || [], chests: p.chests || [] })
         }
@@ -134,6 +159,31 @@ Column {
             onChosen: (id) => tab.map.change("petSort", id)
         }
     }
+    // Where its souls come from: none chosen, all.
+    Flow {
+        width: parent.width
+        spacing: 6
+        Text {
+            height: 24
+            verticalAlignment: Text.AlignVCenter
+            text: "FROM"
+            color: Theme.dim()
+            font.family: Theme.display
+            font.pixelSize: 11
+            font.weight: Font.Bold
+            font.letterSpacing: 1.2
+            style: Theme.textStyle(); styleColor: Theme.shadow
+        }
+        Repeater {
+            model: tab.sources
+            delegate: Chip {
+                required property var modelData
+                text: modelData[1]
+                on: (tab.s.petFrom || []).indexOf(modelData[0]) >= 0
+                onClicked: tab.toggleFrom(modelData[0])
+            }
+        }
+    }
     Item {
         width: parent.width
         height: 30
@@ -179,14 +229,14 @@ Column {
         interactive: false
         cacheBuffer: 600
         model: tab.rows
-        WheelScroll { flick: list; step: 98 }
+        WheelScroll { flick: list; step: tab.rowH + 3 }
         delegate: Item {
             id: row
             required property var modelData
             readonly property var r: modelData
             readonly property bool expanded: tab.open === r.id
             width: ListView.view.width
-            height: 46 + (expanded ? detail.height : 0)
+            height: tab.rowH + (expanded ? detail.height : 0)
             Rectangle {
                 anchors.fill: parent
                 color: r.farming ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.10) : rowMouse.containsMouse ? "#222128" : "#1b1a20"
@@ -194,41 +244,41 @@ Column {
             MouseArea {
                 id: rowMouse
                 width: parent.width
-                height: 46
+                height: tab.rowH
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: tab.open = row.expanded ? "" : r.id
             }
             // The portrait, its genus as the stripe beside it.
-            Rectangle { width: 3; height: 46; color: tab.genusColor(r.genus) }
+            Rectangle { width: 3; height: tab.rowH; color: tab.genusColor(r.genus) }
             Rectangle {
                 x: 3
-                width: 46
-                height: 46
+                width: tab.rowH
+                height: tab.rowH
                 color: "#2a2930"
                 Image {
                     anchors.fill: parent
                     source: tab.map ? tab.map.dir.replace(/\/map$/, "") + "/pets/portraits/" + r.id + ".webp" : ""
-                    sourceSize.width: 92
+                    sourceSize.width: tab.rowH * 2
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     cache: true
                 }
             }
             Column {
-                x: 59
-                y: 6
-                width: parent.width - 59 - 236
+                x: tab.rowH + 13
+                y: (tab.rowH - height) / 2
+                width: parent.width - tab.rowH - 13 - 236
                 spacing: 2
                 Row {
                     spacing: 6
                     Text {
-                        width: Math.min(implicitWidth, row.width - 59 - 236 - (farmTag.visible ? farmTag.width + 6 : 0))
+                        width: Math.min(implicitWidth, row.width - tab.rowH - 13 - 236 - (farmTag.visible ? farmTag.width + 6 : 0))
                         elide: Text.ElideRight
                         text: r.name
                         color: r.farming ? Theme.accent : Theme.text()
                         font.family: Theme.body
-                        font.pixelSize: 13
+                        font.pixelSize: 15
                         font.weight: Font.DemiBold
                         style: Theme.textStyle(); styleColor: Theme.shadow
                     }
@@ -251,14 +301,14 @@ Column {
                     text: tab.genusName(r.genus) + (r.farmedAt > 0 && r.level < 3 ? " · soul " + tab.ago(r.farmedAt) : "")
                     color: Theme.dim()
                     font.family: Theme.body
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                     style: Theme.textStyle(); styleColor: Theme.shadow
                 }
             }
             // Level: three steps.
             Row {
                 x: parent.width - 236
-                y: 19
+                y: (tab.rowH - 8) / 2
                 spacing: 3
                 Repeater {
                     model: 3
@@ -273,7 +323,7 @@ Column {
             Text {
                 x: parent.width - 166
                 width: 60
-                height: 46
+                height: tab.rowH
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignRight
                 text: !tab.synced ? "?" : r.level >= 3 ? "MAX" : String(r.toGo)
@@ -286,7 +336,7 @@ Column {
             Text {
                 x: parent.width - 100
                 width: 66
-                height: 46
+                height: tab.rowH
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignRight
                 text: r.metres != null ? r.metres + " m" : "—"
@@ -299,7 +349,7 @@ Column {
             Item {
                 x: parent.width - 30
                 width: 30
-                height: 46
+                height: tab.rowH
                 Text {
                     anchors.centerIn: parent
                     text: r.fav ? "★" : "☆"
@@ -316,9 +366,9 @@ Column {
             Column {
                 id: detail
                 visible: row.expanded
-                x: 59
-                y: 46
-                width: parent.width - 59 - 10
+                x: tab.rowH + 13
+                y: tab.rowH
+                width: parent.width - tab.rowH - 13 - 10
                 spacing: 2
                 bottomPadding: 10
                 Rectangle { width: parent.width; height: 1; color: Theme.divider }

@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.6 Pet Finder after MN's 0.8.3 test (2026-11-13, MN: "b aber doppelt so hohe zeilen"): a FROM row in the PETS tab (Verteron, Altgard, Abyss, Fire Temple, Draupnir, Krao Cave, Chest only; several at once, none = all; `settings.petFrom`), rows and portraits 92 px (`PetsTab.rowH`).
 - 0.8.5 Fixes after MN's test of 0.8.2 (branch `aion-fixes2`,
   2026-11-13). The game row's buttons took no clicks on KWin when it first
   showed, until the hub was hidden and shown: a layer surface shown for
