@@ -298,7 +298,11 @@ learnt, so nothing has to be asked or worked out again.
   reruns, order; `liveMore` falls back to plain `live` if Twitch refuses
   its fields; live lists, categories, past broadcasts and clips page by
   Twitch's cursors, `fetch_twitch`, `load_more_twitch` at the list's end
-  or by "Load more", `GC_DEMO=…,more`), quality per channel, live notes (a thread every 120 s while
+  or by "Load more", `GC_DEMO=…,more`; the cursor is written into the
+  query as a string: a typed `$a: Cursor` variable brought nothing on
+  MN's test; why a page failed shows under the list, `twitchMoreNote`;
+  YouTube pages too: `load_more_youtube`, yt-dlp `--playlist-items`,
+  subscriptions 60 a page from the kept 200), quality per channel, live notes (a thread every 120 s while
   on, generation `ALERTS_RUN`; red count, no pop-up). Videos: chapters
   (mpv `chapter-list`), speed, queue (playlists played through, shuffle,
   loop). `GC_DEMO=streams,yt-<view>` / `tw-<view>`, `news`, `groups`,
@@ -319,6 +323,12 @@ learnt, so nothing has to be asked or worked out again.
   (`chat_docked`), moved by hand it stays; "Dock" in its header brings it
   back. Its own ground opacity (`opacityOf("chat")`, 10 to 100). Shown with
   the speech bubble on the Twitch video (`chat_open`). `GC_DEMO=video,chat`.
+- Jellyfin Continue and Next up (`series_first`): an episode shows the
+  series' name, then code and episode, with the series' thumb (else
+  backdrop, else poster); collections (boxsets) are a library.
+- `WheelScroll`: a `Behavior` with `SmoothedAnimation` on `pos`, so wheel
+  steps add to the goal without restarting the glide (MN: scrolling felt
+  poor); lists keep `cacheBuffer: 600`.
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
 - `HudIcon` is a picture from the icon provider (`cpp/icons.cpp`,

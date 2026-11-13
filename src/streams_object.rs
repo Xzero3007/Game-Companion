@@ -84,6 +84,12 @@ pub mod qobject {
         /// The Twitch list has another page, and it is being loaded.
         #[qproperty(bool, twitch_has_more)]
         #[qproperty(bool, twitch_loading_more)]
+        /// Why the last "Load more" brought nothing ("" it did).
+        #[qproperty(QString, twitch_more_note)]
+        /// The same for the YouTube list.
+        #[qproperty(bool, youtube_has_more)]
+        #[qproperty(bool, youtube_loading_more)]
+        #[qproperty(QString, youtube_more_note)]
         /// Twitch chat beside the Twitch video, and writing in it.
         #[qproperty(bool, chat_open)]
         #[qproperty(bool, chat_write)]
@@ -102,6 +108,10 @@ pub mod qobject {
         /// end, or "Load more").
         #[qinvokable]
         fn load_more_twitch(self: Pin<&mut Streams>);
+        /// The YouTube list's next page (searches, Trending, the game's,
+        /// a channel's older videos, more subscriptions).
+        #[qinvokable]
+        fn load_more_youtube(self: Pin<&mut Streams>);
 
         #[qinvokable]
         fn choose_tab(self: Pin<&mut Streams>, tab: &QString);
@@ -313,6 +323,12 @@ pub struct StreamsRust {
     twitch_more: Option<(String, String, Value)>,
     twitch_has_more: bool,
     twitch_loading_more: bool,
+    twitch_more_note: QString,
+    youtube_has_more: bool,
+    youtube_loading_more: bool,
+    youtube_more_note: QString,
+    /// The YouTube list shown and how many pages of it came.
+    youtube_more: Option<(String, String, usize)>,
 }
 
 fn q(s: &str) -> QString {
@@ -621,6 +637,11 @@ impl Default for StreamsRust {
             twitch_more: None,
             twitch_has_more: demo.contains("more"),
             twitch_loading_more: false,
+            twitch_more_note: QString::default(),
+            youtube_has_more: false,
+            youtube_loading_more: false,
+            youtube_more_note: QString::default(),
+            youtube_more: None,
             youtube_request: 0,
         };
         if demo.contains("streams") {
@@ -725,6 +746,7 @@ impl qobject::Streams {
         let demo_more = Self::demo_mode() && std::env::var("GC_DEMO").is_ok_and(|d| d.contains("more"));
         self.as_mut().set_twitch_has_more(demo_more);
         self.as_mut().set_twitch_loading_more(false);
+        self.as_mut().set_twitch_more_note(QString::default());
         if !matches!(view.as_str(), "search" | "category" | "recordings") {
             settings::change(|s| s.streams.twitch_view = view.clone());
         }
@@ -804,6 +826,7 @@ impl qobject::Streams {
         }
         let request = self.rust().twitch_request;
         self.as_mut().set_twitch_loading_more(true);
+        self.as_mut().set_twitch_more_note(QString::default());
         let st = settings::read(|s| s.streams.clone());
         let thread = self.qt_thread();
         std::thread::spawn(move || {
@@ -814,14 +837,25 @@ impl qobject::Streams {
                     return;
                 }
                 obj.as_mut().set_twitch_loading_more(false);
-                let Ok((cards, next)) = result else { return };
+                let (cards, next) = match result {
+                    Ok(r) => r,
+                    Err(why) => {
+                        // Said under the list: the button tries again.
+                        obj.set_twitch_more_note(q(&format!("Twitch gave no more: {why}")));
+                        return;
+                    }
+                };
                 let mut all: Vec<Value> = serde_json::from_str(&obj.twitch().to_string()).unwrap_or_default();
+                let before = all.len();
                 let key = |c: &Value| format!("{}{}{}", c["login"].as_str().unwrap_or(""), c["name"].as_str().unwrap_or(""), c["id"].as_str().unwrap_or(""));
                 for c in cards {
                     if !all.iter().any(|x| key(x) == key(&c)) {
                         all.push(c);
                     }
                 }
+                // Twitch answered without anything new: say so, not nothing.
+                let note = if all.len() == before { "Twitch sent nothing new (the filters may leave everything out)." } else { "" };
+                obj.as_mut().set_twitch_more_note(q(note));
                 let has_more = next.as_object().is_some_and(|m| !m.is_empty());
                 obj.as_mut().rust_mut().twitch_more = has_more.then(|| (view.clone(), text.clone(), next));
                 obj.as_mut().set_twitch_has_more(has_more);
@@ -837,6 +871,87 @@ impl qobject::Streams {
         });
     }
 
+    fn load_more_youtube(mut self: Pin<&mut Self>) {
+        if *self.youtube_loading_more() || Self::demo_mode() {
+            return;
+        }
+        let Some((view, text, page)) = self.rust().youtube_more.clone() else { return };
+        if view != self.youtube_view().to_string() {
+            return;
+        }
+        let request = self.rust().youtube_request;
+        self.as_mut().set_youtube_loading_more(true);
+        self.as_mut().set_youtube_more_note(QString::default());
+        let st = settings::read(|s| s.streams.clone());
+        let thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let lang = st.video_languages.first().map(String::as_str).unwrap_or("");
+            let mut last_page = false;
+            let result = match view.as_str() {
+                "game" => streams::youtube_search_range(&st.game.youtube, "CAI%3D", page * 20 + 1, (page + 1) * 20, lang),
+                "search" => {
+                    let f = &st.search;
+                    streams::youtube_search_range(&text, &streams::search_param(&f.sort, &f.date, &f.length), page * 30 + 1, (page + 1) * 30, lang)
+                }
+                "trending" => {
+                    let part = if streams::TREND_SECTIONS.contains(&text.as_str()) { text.clone() } else { st.trend_section.clone() };
+                    let words = st.trend_words.get(&part).cloned().unwrap_or_else(|| streams::trend_words(&part));
+                    streams::youtube_trending_page(&part, &words, &st.video_languages, page)
+                }
+                // The feed gave the newest 15; then the videos tab, 30 at a time.
+                "channel" => streams::youtube_channel_range(text.trim(), 16 + (page - 1) * 30, 15 + page * 30),
+                // More of the subscriptions already loaded (60 a page).
+                _ => {
+                    let ids: Vec<String> = all_channels(&st)
+                        .into_iter()
+                        .filter(|(c, _)| st.group.is_empty() || c.groups.contains(&st.group))
+                        .map(|(c, _)| c.id)
+                        .take(MAX_CHANNELS)
+                        .collect();
+                    match kept_subscriptions(&ids) {
+                        Some(all) => {
+                            let (kept, _) = filter_videos(all, &st);
+                            last_page = kept.len() <= (page + 1) * 60;
+                            Ok(kept.into_iter().skip(page * 60).take(60).collect())
+                        }
+                        None => Err("The subscriptions are older than 15 minutes: load them again (↻).".into()),
+                    }
+                }
+            };
+            let result = result.map(|list| if view == "subscriptions" { list } else { filter_videos(list, &st).0 });
+            let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
+                if obj.rust().youtube_request != request {
+                    return;
+                }
+                obj.as_mut().set_youtube_loading_more(false);
+                let list = match result {
+                    Ok(l) => l,
+                    Err(why) => {
+                        obj.set_youtube_more_note(q(&format!("YouTube gave no more: {why}")));
+                        return;
+                    }
+                };
+                let mut all: Vec<Value> = serde_json::from_str(&obj.youtube().to_string()).unwrap_or_default();
+                let before = all.len();
+                for v in list {
+                    if !all.iter().any(|x| x["id"] == v["id"]) {
+                        all.push(v);
+                    }
+                }
+                let added = all.len() - before;
+                let more = added > 0 && !last_page;
+                obj.as_mut().rust_mut().youtube_more = more.then(|| (view.clone(), text.clone(), page + 1));
+                obj.as_mut().set_youtube_has_more(more);
+                if added == 0 {
+                    obj.as_mut().set_youtube_more_note(q("Nothing more came."));
+                }
+                let n = all.len();
+                obj.as_mut().set_youtube(q(&Value::Array(all).to_string()));
+                obj.set_youtube_message(q(&format!("{n} videos")));
+            });
+        });
+    }
+
     fn load_youtube(mut self: Pin<&mut Self>, view: &QString, text: &QString) {
         let view = view.to_string();
         let text = text.to_string();
@@ -844,6 +959,11 @@ impl qobject::Streams {
             return;
         }
         self.as_mut().set_youtube_view(q(&view));
+        // A new list: no next page until it says so.
+        self.as_mut().rust_mut().youtube_more = None;
+        self.as_mut().set_youtube_has_more(false);
+        self.as_mut().set_youtube_loading_more(false);
+        self.as_mut().set_youtube_more_note(QString::default());
         if matches!(view.as_str(), "game" | "subscriptions" | "channels" | "trending" | "playlists" | "history") {
             settings::change(|s| s.streams.youtube_view = view.clone());
         }
@@ -953,17 +1073,19 @@ impl qobject::Streams {
             })();
             let result = result.map(|list| {
                 let (mut kept, gone) = filter_videos(list, &st);
-                if view == "subscriptions" {
-                    kept.truncate(60);
-                }
-                (kept, gone)
+                let more = if view == "subscriptions" { kept.len() > 60 } else { !kept.is_empty() && matches!(view.as_str(), "game" | "search" | "trending" | "channel") };
+                kept.truncate(if view == "subscriptions" { 60 } else { kept.len() });
+                (kept, gone, more)
             });
             let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
                 if obj.rust().youtube_request != request {
                     return;
                 }
+                let more = matches!(&result, Ok((_, _, true)));
+                obj.as_mut().rust_mut().youtube_more = more.then(|| (view.clone(), text.clone(), 1));
+                obj.as_mut().set_youtube_has_more(more);
                 match result {
-                    Ok((videos, gone)) => {
+                    Ok((videos, gone, _)) => {
                         let n = videos.len();
                         let message = if gone > 0 { format!("{n} videos · {gone} hidden") } else { format!("{n} videos") };
                         obj.as_mut().set_youtube(q(&Value::Array(videos).to_string()));
