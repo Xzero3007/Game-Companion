@@ -520,6 +520,7 @@ Panel {
                 NameField {
                     id: wordsField
                     width: parent.width - wordsSave.width - 8
+                    wrap: true
                     placeholder: "Words whose videos never show, with commas"
                     maxLength: 400
                     text: parent.parent.filters.words.join(", ")
@@ -552,14 +553,15 @@ Panel {
                     width: parent.width
                     spacing: 8
                     Text { style: Theme.textStyle(); styleColor: Theme.shadow
-                        anchors.verticalCenter: parent.verticalCenter
+                        y: 9
                         width: 110
-                        elide: Text.ElideRight
+                        wrapMode: Text.WordWrap
                         text: modelData[1]
                         color: Theme.textSoft(); font.family: Theme.body; font.pixelSize: 12 }
                     NameField {
                         id: trendField
                         width: parent.width - 118
+                        wrap: true
                         maxLength: 400
                         placeholder: "Search words, with commas (empty: as it came)"
                         text: (JSON.parse(Streams.trendWords)[modelData[0]] || []).join(", ")
@@ -854,9 +856,11 @@ Panel {
         property string placeholder: ""
         property bool secret: false
         property int maxLength: 40
+        // Long text wraps onto more lines instead of scrolling out of sight.
+        property bool wrap: false
         signal accepted
         function forceActiveFocus() { input.forceActiveFocus() }
-        height: 34
+        height: wrap ? Math.max(34, input.contentHeight + 16) : 34
         color: "#1b1a20"
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: input.activeFocus ? Theme.accent : "#3a3842" }
         TextInput {
@@ -865,6 +869,7 @@ Panel {
             anchors.leftMargin: 10
             anchors.rightMargin: 10
             verticalAlignment: TextInput.AlignVCenter
+            wrapMode: parent.wrap ? TextInput.WrapAtWordBoundaryOrAnywhere : TextInput.NoWrap
             color: Theme.text()
             selectionColor: Theme.accent
             selectedTextColor: "#0c0c0f"

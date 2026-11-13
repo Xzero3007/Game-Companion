@@ -336,7 +336,7 @@ Panel {
                 anchors.fill: parent
                 clip: true
                 cellWidth: width / gridBox.columns
-                cellHeight: 152
+                cellHeight: 168
                 model: panel.shown
                 boundsBehavior: Flickable.StopAtBounds
                 delegate: Card {}
@@ -528,6 +528,8 @@ Panel {
                     anchors.centerIn: parent
                     width: parent.width - 20
                     horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 3
                     elide: Text.ElideRight
                     text: card.g.name.toUpperCase()
                     color: "#4f4c58"
@@ -580,9 +582,13 @@ Panel {
                     anchors.rightMargin: 6
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 1
+                    // Up to two lines; a longer name shows whole on pointing.
                     Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         width: parent.width
+                        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                        maximumLineCount: faceHover.hovered ? 4 : 2
                         elide: Text.ElideRight
+                        lineHeight: 0.95
                         text: card.g.name
                         color: card.installed ? Theme.text() : Theme.muted()
                         font.family: Theme.body

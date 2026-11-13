@@ -228,7 +228,7 @@ Column {
                         }
                         Text { style: Theme.textStyle(); styleColor: Theme.shadow
                             width: parent.width
-                            elide: Text.ElideRight
+                            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                             text: modelData[1]
                             color: Theme.text()
                             font.family: Theme.body
@@ -519,14 +519,14 @@ Column {
         property alias text: codeText.text
         property real maxWidth: 300
         width: Math.min(codeText.implicitWidth + 16, maxWidth)
-        height: 22
+        height: Math.max(22, codeText.implicitHeight + 8)
         color: "#1b1a20"
         Text { style: Theme.textStyle(); styleColor: Theme.shadow
             id: codeText
             x: 8
             width: parent.width - 16
             anchors.verticalCenter: parent.verticalCenter
-            elide: Text.ElideRight
+            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
             color: Theme.textSoft()
             font.family: Launch.mono
             font.pixelSize: 11
@@ -559,7 +559,7 @@ Column {
         readonly property bool on: view.chosen[s.id] === true
         readonly property bool usable: view.usable(s)
         width: listColumn.width
-        height: rowColumn.implicitHeight + 20
+        height: Math.max(rowColumn.implicitHeight, code.height) + 20
         color: on ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.05) : rowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.03) : "transparent"
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
         MouseArea {
@@ -600,15 +600,12 @@ Column {
                 Tag { visible: row.s.applied; text: "APPLIED"; tint: "#5a5764"; anchors.verticalCenter: parent.verticalCenter }
                 Tag { visible: !row.usable; text: "NO EFFECT HERE"; tint: Theme.dim(); anchors.verticalCenter: parent.verticalCenter }
             }
-            // Short while off; all of it once on.
             Small {
                 text: row.usable && row.s.why.length > 0 ? row.s.explanation + " " + row.s.why : row.s.explanation
                 color: row.usable ? Theme.muted() : Theme.dim()
-                maximumLineCount: row.on ? 12 : 1
-                elide: Text.ElideRight
             }
             Small { text: row.usable ? "" : view.whyNot(row.s); color: Theme.textSoft(); font.pixelSize: 11 }
-            Small { text: row.s.warning; color: Launch.red; font.pixelSize: 11; maximumLineCount: row.on ? 12 : 1; elide: Text.ElideRight }
+            Small { text: row.s.warning; color: Launch.red; font.pixelSize: 11 }
             Small { visible: row.on && text.length > 0; text: view.usageLine(row.s.popular); color: Theme.dim(); font.pixelSize: 11 }
         }
         Code {
@@ -708,7 +705,7 @@ Column {
         property string whyNot: ""
         signal picked()
         width: listColumn.width
-        height: Math.max(34, radioColumn.implicitHeight + 10)
+        height: Math.max(34, radioColumn.implicitHeight + 10, radioCode.height + 12)
         Rectangle {
             anchors.fill: parent
             color: radio.on && radio.label !== "Off" ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.05) : radioMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.03) : "transparent"
@@ -819,7 +816,7 @@ Column {
                 property bool open: false
                 id: otherRow
                 width: others.width
-                height: 30 + (open && about.length > 0 ? aboutText.implicitHeight + 8 : 0)
+                height: Math.max(30, optionText.height + 14) + (open && about.length > 0 ? aboutText.implicitHeight + 8 : 0)
                 Rectangle { anchors.bottom: parent.bottom; x: 16; width: parent.width - 32; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
                 MouseArea {
                     anchors.fill: parent
@@ -831,7 +828,7 @@ Column {
                     id: aboutText
                     visible: otherRow.open
                     x: 34
-                    y: 28
+                    y: Math.max(28, optionText.height + 12)
                     width: parent.width - 34 - 16
                     wrapMode: Text.WordWrap
                     text: otherRow.about
@@ -841,10 +838,11 @@ Column {
                 }
                 StatusMark { x: 18; y: 11; status: parent.status }
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    id: optionText
                     x: 34
                     width: parent.width - 34 - 430
-                    y: 15 - height / 2
-                    elide: Text.ElideRight
+                    y: 8
+                    wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                     text: parent.o.text
                     color: Theme.text()
                     font.family: Launch.mono
