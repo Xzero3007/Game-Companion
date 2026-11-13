@@ -24,6 +24,16 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.5 Fixes after MN's test of 0.8.2 (branch `aion-fixes2`,
+  2026-11-13). The game row's buttons took no clicks on KWin when it first
+  showed, until the hub was hidden and shown: a layer surface shown for
+  the first time takes its input region only once configured, so
+  `Surface` gives it again 250 ms after it becomes visible (`settleInput`,
+  as after a resize). Market: an open item's rows use the list's own
+  columns (`panel.widths`) when they have as many, so their figures sit
+  under the list's. Characters → Limits: long entry names wrap onto a
+  second line (the box grows) instead of ending in "…".
+  `GC_DEMO=chars,limits` (or `,content`) opens that tab.
 - 0.8.4 Streams after MN's 0.8.2 test: Categories loaded more (longer
   list), All live still sent the same 30, so live lists now ask Twitch
   sorted by viewers (`options: { sort: VIEWER_COUNT }`, as Twitch's own
