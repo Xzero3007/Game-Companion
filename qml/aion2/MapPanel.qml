@@ -221,6 +221,12 @@ Panel {
         const f = MK.M.gatherFor(name)
         if (f) setFocus(f)
     }
+    /// Where a field boss stands (the Schedule's map button), by its
+    /// world-map id.
+    function focusBoss(id, name) {
+        const npc = MK.D.bossIds[String(id)]
+        if (npc) setFocus({ type: "boss", ids: [String(npc)], label: name })
+    }
     function showFocusOn(k) {
         const s = Object.assign({}, settings)
         const here = whereAmI()

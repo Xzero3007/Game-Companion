@@ -26,8 +26,11 @@ Item {
     property bool charactersShown: false
     property bool charactersOpen: false
     signal charactersClicked
+    property bool scheduleShown: false
+    property bool scheduleOpen: false
+    signal scheduleClicked
 
-    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown
+    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || scheduleShown
     readonly property bool pinned: Companion.pins.indexOf('"game-row"') >= 0
 
     implicitWidth: row.implicitWidth + 36
@@ -114,6 +117,14 @@ Item {
             active: strip.charactersOpen
             tip: strip.gameName + ": your characters, their content and limits (listens only)"
             onClicked: strip.charactersClicked()
+        }
+        GameButton {
+            visible: strip.scheduleShown
+            icon: "schedule"
+            label: "Timers"
+            active: strip.scheduleOpen
+            tip: strip.gameName + ": field bosses and events with their times, alerts before them"
+            onClicked: strip.scheduleClicked()
         }
 
         Rectangle { width: 1; height: 18; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }

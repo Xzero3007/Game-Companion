@@ -138,6 +138,16 @@ impl Engine {
         character_of(calc.data_storage())
     }
 
+    /// The field bosses of the maps the player opened, when one was opened
+    /// since `seq` (`capture::boss_map`): the new count and JSON
+    /// [{"map", "seen" ms, "bosses": [{"id", "up", "time" ms}]}], only the
+    /// player's own side's maps (header 0). The Schedule's bosses.
+    pub fn boss_maps(&self, seq: u64) -> Option<(u64, serde_json::Value)> {
+        let calc = self.calculator.lock();
+        let (next, maps) = calc.as_ref()?.data_storage().boss_maps_since(seq)?;
+        Some((next, boss_maps_json(&maps)))
+    }
+
     /// The fight now, as the meter's page asked for it every 200 ms.
     pub fn snapshot(&self) -> DpsData {
         self.calculator.lock().as_mut().map_or_else(DpsData::new, |c| c.get_dps())
@@ -408,6 +418,23 @@ enum Ended {
     Stopped,
     /// It could not start, or ended with a reason (shown).
     Failed,
+}
+
+/// `Engine::boss_maps`' JSON.
+pub fn boss_maps_json(maps: &[crate::capture::boss_map::BossMap]) -> serde_json::Value {
+    let maps: Vec<_> = maps
+        .iter()
+        .filter(|m| m.header == 0)
+        .map(|m| {
+            let bosses: Vec<_> = m
+                .bosses
+                .iter()
+                .map(|b| serde_json::json!({ "id": b.id, "up": b.up, "time": b.time_ms }))
+                .collect();
+            serde_json::json!({ "map": m.map_id, "seen": m.seen_ms, "bosses": bosses })
+        })
+        .collect();
+    serde_json::Value::Array(maps)
 }
 
 /// `Engine::character` from what the parser keeps (the meter's

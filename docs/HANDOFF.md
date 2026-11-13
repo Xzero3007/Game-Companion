@@ -24,6 +24,20 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- Event Timers / Schedule (branch `claude/project-thread-xz7nqt`, PR against
+  beta, version from QA; 2026-11-13; MN chose "Ja, Aion 2 Timers gleich mit"
+  on the canvas page "Zeitplan (Event Timers)", boards T1–T3). TIMERS in the
+  game row opens SCHEDULE: BOSSES (from the game's boss map when a map is
+  opened, plus Aion 2 Timers' feed when switched on) and EVENTS (fixed times
+  from taengu's Event Timers tables, server time per region); bells set
+  alerts (banner, sound, optional voice). Settings → Plugins → AION 2 →
+  Event Timers → SETTINGS. Not taken over: the old plugin's pinned icons and
+  anchor grid, the Kokoro voice (the desktop's spd-say instead), teleport
+  numbers, the a2tools.app feed and the World Boss Train. To check on MN's
+  PC: that opening the map in the game fills BOSSES, that Aion 2 Timers
+  answers (it may refuse non-browser requests: the reason shows under the
+  list), and that the A2T names match (A2T? = guessed by number).
+
 - 0.8.2 Streams after MN's 0.7.7 test (branch `claude/project-thread-lncux3`,
   2026-11-13; MN said "ja" to the plan). Twitch "Load more": Twitch sent
   the first page again for a cursor, so when a page brings nothing new the

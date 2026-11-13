@@ -49,7 +49,7 @@ pub fn get(url: &str) -> Result<String, String> {
 }
 
 /// curl's complaint in plain words.
-fn plain(err: &str) -> String {
+pub(crate) fn plain(err: &str) -> String {
     let lower = err.to_lowercase();
     if let Some(at) = lower.find("returned error: ") {
         let code: String = lower[at + 16..].chars().take_while(char::is_ascii_digit).collect();

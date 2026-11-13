@@ -24,8 +24,16 @@ to the game.
   Keyboard → Shortcuts → Game Companion.
 - **The bar** at the top centre (the "Edge HUD" design): the name, Games,
   Radio, TV, lock, settings, hide. Under it, a smaller **game row** with the
-  running game's buttons (AION 2: DPS, Map, Market, Chars), shown only while
+  running game's buttons (AION 2: DPS, Map, Market, Chars, Timers), shown only while
   it has any; its pin keeps it on screen while the hub is hidden.
+- **Timers** (AION 2, the Event Timers plugin reworked): the field bosses
+  with when they come back, as the game tells it when you open a map, and
+  the fixed events (Shugo Festival, Dimensional Invasion, Spacetime Rift,
+  Artifact Siege, the Abyss's scheduled bosses, resets, Odyle energy) in
+  your server's time. A bell on a row sets an alert: a banner over the game,
+  a sound made in the app, and the desktop's voice if wanted. Settings →
+  Plugins → AION 2 → Event Timers → SETTINGS: the sources (Aion 2 Timers is
+  off until switched on), the server time, how long before, the sound.
 - **Overlay map** (AION 2): a small map that follows you over the game, as
   the old meter's. Right-click MAP in the game row or press `Alt+M`.
   Unlocked, its title strip picks S, M, L or XL and closes it, it moves by
@@ -265,6 +273,13 @@ AION 2 pictures: the class symbols and the Odyle symbol (`assets/aion2/`)
 come from the A2Tools DPS Meter (`taengu/A2Tools-DPS-Meter`, GPL-3.0) and
 show the game's own symbols (AION 2 by NCSOFT); skill pictures are loaded
 from the game's icon server and kept on this computer.
+
+AION 2 Timers: the fixed event times and the field bosses' names
+(`qml/aion2/schedule.js`) come from A2 Tools' Event Timers plugin
+(`taengu/A2Tools-Plugins`, GPL-3.0), made there from the game's own tables;
+rebuilt by `tools/aion2-schedule-import.py`. Boss times from Aion 2 Timers
+(aion2timers.com, by HomelessGuyNABox), when switched on, are read from its
+public feed, rarely and kept.
 
 Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project
 Authors, both under the SIL Open Font License 1.1 (`assets/fonts/OFL-*.txt`).
