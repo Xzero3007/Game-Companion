@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.8 QA collection (2026-11-13): #19 Twitch All live through the directory query, #20 Boss cheat sheet preview (entries below).
 - 0.8.7 QA collection (2026-11-13): #17 game row input (entry below).
 - 0.8.6 QA collection (2026-11-13, MN: "dann beheb den engpass"): QA
   merges green PRs together and sets the version once; dev threads no
