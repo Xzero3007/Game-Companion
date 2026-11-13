@@ -60,12 +60,22 @@ Agreed with the person 2026-11-13 (see CLAUDE.md plan step 4):
   (GPU, driver, CPU, RAM, tools, session, main screen from
   kwinoutputconfig.json), `src/vdf_edit.rs` (changes one VDF value, every
   other byte kept). Games invokables: launchOptions, suggestions,
-  combineOptions, setLaunchOptions, protonVersions, setProton, systemInfo.
-  Writes refuse while the launcher runs ("Close Steam first"), back up the
-  file as `<file>.gc-backup-<UTC time>` and replace it by rename. serde_json
+  combineOptions, setLaunchOptions, protonVersions, setProton, systemInfo:
+  each returns a request number at once, works on a worker thread (one at
+  a time) and answers by the signal `launchResult(request, json)`; the
+  Proton list is cached (`protonVersions(true)` reads it again).
+  combineOptions takes the ids that should be on (applied ones left out
+  are taken out) and edits the user's text in place (settings in front,
+  wrappers before the standalone `%command%`, MangoHud as gamescope's
+  `--mangoapp`); text it cannot change safely (`$(`, redirection before
+  the command, two `%command%`, ...) is refused, never rewritten.
+  Writes refuse while the launcher runs ("Close Steam first", also when
+  /proc cannot be read), back up the file as `<file>.gc-backup-<UTC time>`
+  (newest three kept) and replace it by rename. setProton's answer has a
+  `warning` (Heroic: Wine to Proton or back changes the prefix). serde_json
   now keeps key order (preserve_order) so Heroic's files keep theirs.
 
-Open points: QA review, test on real KWin (Arch thread), the person's test.
+Open points: QA review done (fixes on the branch), test on real KWin (Arch thread), the person's test.
 Known limits: PoE 1 outside Steam counts as PoE 2; any process with a
 game's folder in its command line counts as the game; Heroic covers only
 for sideloaded games. Demo: GC_DEMO=games[,gameform]; GC_NO_GAMES=1 stops

@@ -46,11 +46,13 @@ pub struct SystemInfo {
     /// "wayland", "x11" or "".
     pub session: String,
     pub desktop: String,
-    /// `/dev/ntsync` exists (the kernel's NT sync driver, Linux 6.14+).
+    /// `/dev/ntsync` can be opened for reading and writing (the kernel's NT
+    /// sync driver, Linux 6.14+).
     pub ntsync: bool,
     /// The main screen (KDE's primary, or the one chosen in Display).
     pub display: Option<Display>,
-    /// A Vulkan HDR layer (vk-hdr-layer) is installed.
+    /// The Vulkan HDR layer (vk-hdr-layer, `VK_LAYER_hdr_wsi`) is installed,
+    /// for the system or in the user's own data folder.
     pub hdr_layer: bool,
 }
 
@@ -134,15 +136,47 @@ pub fn detect(root: &Path, config: &Path, env: &dyn Fn(&str) -> Option<String>, 
         _ => String::new(),
     };
     info.desktop = env("XDG_CURRENT_DESKTOP").unwrap_or_default();
-    info.ntsync = at("/dev/ntsync").exists();
-    info.hdr_layer = ["/usr/share/vulkan/implicit_layer.d", "/etc/vulkan/implicit_layer.d"]
-        .iter()
-        .filter_map(|d| std::fs::read_dir(at(d)).ok())
-        .flat_map(|d| d.flatten())
-        .any(|e| e.file_name().to_string_lossy().to_ascii_lowercase().contains("hdr"));
+    info.ntsync = can_read_write(&at("/dev/ntsync"));
+    let data = env("XDG_DATA_HOME").filter(|d| d.starts_with('/')).or_else(|| env("HOME").filter(|h| h.starts_with('/')).map(|h| format!("{h}/.local/share")));
+    let mut layer_dirs: Vec<PathBuf> = ["/usr/share/vulkan/implicit_layer.d", "/usr/local/share/vulkan/implicit_layer.d", "/etc/vulkan/implicit_layer.d"].iter().map(|d| at(d)).collect();
+    if let Some(data) = data {
+        layer_dirs.push(at(&format!("{data}/vulkan/implicit_layer.d")));
+    }
+    info.hdr_layer = layer_dirs.iter().filter_map(|d| std::fs::read_dir(d).ok()).flat_map(|d| d.flatten()).any(|e| hdr_layer(&e.path()));
     let connected = connected_outputs(&at("/sys/class/drm"));
     info.display = main_display(&config.join("kwinoutputconfig.json"), &connected, screen);
     info
+}
+
+/// Whether this user may open the file for reading and writing (what
+/// Proton needs of `/dev/ntsync`).
+fn can_read_write(path: &Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    let Ok(c) = std::ffi::CString::new(path.as_os_str().as_bytes()) else { return false };
+    // SAFETY: a valid C string; access only looks at the file.
+    unsafe { libc::access(c.as_ptr(), libc::R_OK | libc::W_OK) == 0 }
+}
+
+/// Names of the Vulkan HDR layer (vk-hdr-layer: "VK_LAYER_hdr_wsi" in
+/// "VkLayer_hdr_wsi.<arch>.json").
+const HDR_LAYERS: &[&str] = &["hdr_wsi", "hdr-wsi"];
+
+/// Whether a layer manifest is the HDR layer: by its file name, else by the
+/// layer's name inside.
+fn hdr_layer(path: &Path) -> bool {
+    let file = path.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+    if !file.ends_with(".json") {
+        return false;
+    }
+    if HDR_LAYERS.iter().any(|n| file.contains(n)) {
+        return true;
+    }
+    let small = std::fs::metadata(path).is_ok_and(|m| m.len() < 64 * 1024);
+    small
+        && std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).is_some_and(|v| {
+            let name = v["layer"]["name"].as_str().unwrap_or("").to_ascii_lowercase();
+            HDR_LAYERS.iter().any(|n| name.contains(n))
+        })
 }
 
 fn is_executable(path: &Path) -> bool {
@@ -225,16 +259,25 @@ fn main_display(kwin: &Path, connected: &[(String, Option<(u32, u32)>)], screen:
         outputs.get(index)?["connectorName"].as_str().map(str::to_string)
     };
     let names: std::collections::BTreeSet<String> = connected.iter().map(|(n, _)| n.clone()).collect();
-    let mut primary = None;
-    for setup in &setups {
-        let list = setup["outputs"].as_array().cloned().unwrap_or_default();
-        let enabled: Vec<&Value> = list.iter().filter(|e| e["enabled"].as_bool().unwrap_or(true)).collect();
-        let set: std::collections::BTreeSet<String> = enabled.iter().filter_map(|e| connector(e)).collect();
+    // The setup for the connected outputs: its enabled outputs as
+    // (connector, index into "outputs", priority). KWin's "outputs" can
+    // hold several entries with one connector (other screens once plugged
+    // in there): the setup's outputIndex says which one is meant.
+    let mut setup: Vec<(String, usize, i64)> = Vec::new();
+    for entry in &setups {
+        let list = entry["outputs"].as_array().cloned().unwrap_or_default();
+        let enabled: Vec<(String, usize, i64)> = list
+            .iter()
+            .filter(|e| e["enabled"].as_bool().unwrap_or(true))
+            .filter_map(|e| Some((connector(e)?, e["outputIndex"].as_u64()? as usize, e["priority"].as_i64().unwrap_or(i64::MAX))))
+            .collect();
+        let set: std::collections::BTreeSet<String> = enabled.iter().map(|(c, _, _)| c.clone()).collect();
         if !set.is_empty() && set == names {
-            primary = enabled.iter().min_by_key(|e| e["priority"].as_i64().unwrap_or(i64::MAX)).and_then(|e| connector(e));
+            setup = enabled;
             break;
         }
     }
+    let primary = setup.iter().min_by_key(|(_, _, p)| *p).map(|(c, _, _)| c.clone());
     let chosen = Some(screen.to_string())
         .filter(|s| !s.is_empty() && names.contains(s))
         .or(primary)
@@ -244,7 +287,11 @@ fn main_display(kwin: &Path, connected: &[(String, Option<(u32, u32)>)], screen:
         display.width = w;
         display.height = h;
     }
-    if let Some(output) = outputs.iter().find(|o| o["connectorName"] == chosen.as_str()) {
+    let output = match setup.iter().find(|(c, _, _)| *c == chosen) {
+        Some((_, index, _)) => outputs.get(*index),
+        None => outputs.iter().find(|o| o["connectorName"] == chosen.as_str()),
+    };
+    if let Some(output) = output {
         let mode = &output["mode"];
         if let (Some(w), Some(h)) = (mode["width"].as_u64(), mode["height"].as_u64()) {
             display.width = w as u32;
@@ -345,6 +392,40 @@ mod tests {
         let v = info.to_json();
         assert_eq!(v["display"]["name"], "DP-1");
         assert_eq!(v["tools"][0], "gamemoderun");
+    }
+
+    #[test]
+    fn picks_the_setups_output_by_index() {
+        let root = fake_root("index");
+        // An old screen once on DP-2 comes first in "outputs"; the setup
+        // means the third entry.
+        let kwin = r#"[{"name":"outputs","data":[
+            {"connectorName":"DP-2","mode":{"width":1920,"height":1080,"refreshRate":60000},"highDynamicRange":false},
+            {"connectorName":"DP-1","mode":{"width":3440,"height":1440,"refreshRate":100000}},
+            {"connectorName":"DP-2","mode":{"width":2560,"height":1440,"refreshRate":239970},"highDynamicRange":true}]},
+            {"name":"setups","data":[{"outputs":[{"outputIndex":1,"enabled":true,"priority":2},{"outputIndex":2,"enabled":true,"priority":1}]}]}]"#;
+        write(&root.join("home/.config/kwinoutputconfig.json"), kwin);
+        let info = detect(&root, &root.join("home/.config"), &fake_env, "");
+        assert_eq!(info.display, Some(Display { name: "DP-2".into(), width: 2560, height: 1440, refresh: Some(240), hdr: true }));
+        let info = detect(&root, &root.join("home/.config"), &fake_env, "DP-1");
+        assert_eq!(info.display.map(|d| d.refresh), Some(Some(100)));
+    }
+
+    #[test]
+    fn finds_ntsync_and_the_hdr_layer_only_by_name() {
+        let root = fake_root("layers");
+        std::fs::remove_file(root.join("usr/share/vulkan/implicit_layer.d/VkLayer_hdr_wsi.x86_64.json")).unwrap();
+        // Another layer with "hdr" in its name is not the HDR layer.
+        write(&root.join("usr/share/vulkan/implicit_layer.d/VkLayer_MESA_hdrstuff.json"), r#"{"layer":{"name":"VK_LAYER_MESA_other"}}"#);
+        std::fs::remove_file(root.join("dev/ntsync")).unwrap();
+        let info = detect(&root, &root.join("home/.config"), &fake_env, "");
+        assert!(!info.hdr_layer && !info.ntsync);
+        // The user's own layer, found by its name inside.
+        write(&root.join("home/u/.local/share/vulkan/implicit_layer.d/hdr.json"), r#"{"layer":{"name":"VK_LAYER_hdr_wsi"}}"#);
+        write(&root.join("dev/ntsync"), "");
+        let env = |k: &str| if k == "HOME" { Some("/home/u".to_string()) } else { fake_env(k) };
+        let info = detect(&root, &root.join("home/.config"), &env, "");
+        assert!(info.hdr_layer && info.ntsync);
     }
 
     #[test]

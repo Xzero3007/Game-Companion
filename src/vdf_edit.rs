@@ -205,14 +205,15 @@ fn indent_of(text: &str, at: usize) -> &str {
     line_start(text, at).map(|s| &text[s..at]).unwrap_or("")
 }
 
-/// Keys and a value as new lines, each at `indent` plus one tab per level.
-fn build(keys: &[&str], value: &str, indent: &str, sep: &str) -> String {
+/// Keys and a value as new lines, each at `indent` plus one tab per level,
+/// ended by `nl`.
+fn build(keys: &[&str], value: &str, indent: &str, sep: &str, nl: &str) -> String {
     match keys.split_first() {
         None => String::new(),
-        Some((key, [])) => format!("{indent}{}{sep}{}\n", quote(key), quote(value)),
+        Some((key, [])) => format!("{indent}{}{sep}{}{nl}", quote(key), quote(value)),
         Some((key, rest)) => {
             let inner = format!("{indent}\t");
-            format!("{indent}{}\n{indent}{{\n{}{indent}}}\n", quote(key), build(rest, value, &inner, sep))
+            format!("{indent}{}{nl}{indent}{{{nl}{}{indent}}}{nl}", quote(key), build(rest, value, &inner, sep, nl))
         }
     }
 }
@@ -273,7 +274,9 @@ pub fn set_str(text: &str, path: &[&str], value: &str, must_exist: usize) -> Res
                         Node::Block { .. } => None,
                     })
                     .unwrap_or("\t\t");
-                let new = build(&path[depth..], value, &indent, sep);
+                // New lines end like the file's own (Windows files: CRLF).
+                let nl = if text.contains("\r\n") { "\r\n" } else { "\n" };
+                let new = build(&path[depth..], value, &indent, sep, nl);
                 let mut out = String::with_capacity(text.len() + new.len() + 1);
                 match line_start(text, *close) {
                     Some(at) => {
@@ -284,7 +287,7 @@ pub fn set_str(text: &str, path: &[&str], value: &str, must_exist: usize) -> Res
                     None => {
                         // `}` shares its line with something else.
                         out.push_str(&text[..*close]);
-                        out.push('\n');
+                        out.push_str(nl);
                         out.push_str(&new);
                         out.push_str(indent_of(text, parent.key_start));
                         out.push_str(&text[*close..]);
@@ -407,6 +410,17 @@ mod tests {
         assert_eq!(remove(LOCAL, &path(&["99"])), LOCAL);
         let inline = "\"a\" { \"b\" \"1\" \"c\" \"2\" }";
         assert_eq!(remove(inline, &["a", "b"]), "\"a\" {  \"c\" \"2\" }");
+    }
+
+    #[test]
+    fn keeps_windows_line_ends() {
+        let crlf = LOCAL.replace('\n', "\r\n");
+        let out = set_str(&crlf, &path(&["30", "LaunchOptions"]), "-y", 4).unwrap();
+        assert!(out.contains("\t\t\t\t\t\"30\"\r\n\t\t\t\t\t{\r\n\t\t\t\t\t\t\"LaunchOptions\"\t\t\"-y\"\r\n\t\t\t\t\t}\r\n\t\t\t\t}\r\n"));
+        assert!(!out.replace("\r\n", "").contains('\n'));
+        assert_eq!(get_str(&out, &path(&["30", "LaunchOptions"])).as_deref(), Some("-y"));
+        let out = set_str("\"a\" { \"b\" \"1\" }\r\n", &["a", "c"], "2", 1).unwrap();
+        assert!(!out.replace("\r\n", "").contains('\n'), "{out:?}");
     }
 
     #[test]

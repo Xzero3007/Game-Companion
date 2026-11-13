@@ -239,9 +239,36 @@ pub fn stamp(seconds: u64) -> String {
     format!("{year:04}{month:02}{day:02}-{:02}{:02}{:02}", rest / 3600, rest / 60 % 60, rest % 60)
 }
 
+/// How many backups of one file are kept.
+const BACKUPS_KEPT: usize = 3;
+
+/// Removes all but the newest `BACKUPS_KEPT` backups of a file (by the
+/// time in their names, then their number).
+fn prune_backups(path: &Path) {
+    let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else { return };
+    let prefix = format!("{}.gc-backup-", name.to_string_lossy());
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let mut found: Vec<((String, u32), PathBuf)> = entries
+        .flatten()
+        .filter_map(|e| {
+            let file = e.file_name().to_string_lossy().into_owned();
+            let rest = file.strip_prefix(&prefix)?;
+            // "YYYYMMDD-HHMMSS" or "YYYYMMDD-HHMMSS-n".
+            let (time, n) = if rest.len() > 15 { (rest.get(..15)?, rest.get(16..)?.parse().ok()?) } else { (rest, 1) };
+            (time.len() == 15).then(|| ((time.to_string(), n), e.path()))
+        })
+        .collect();
+    found.sort();
+    let extra = found.len().saturating_sub(BACKUPS_KEPT);
+    for (_, old) in found.into_iter().take(extra) {
+        let _ = std::fs::remove_file(old);
+    }
+}
+
 /// Replaces a launcher's file: a copy of the old one next to it first
-/// (`<name>.gc-backup-<time>`), then the new text written beside it and
-/// renamed over it (same permissions). Returns the backup's path.
+/// (`<name>.gc-backup-<time>`; the newest three are kept), then the new
+/// text written beside it and renamed over it (same permissions). Returns
+/// the backup's path.
 pub fn write_safely(path: &Path, text: &str, now: u64) -> Result<PathBuf, String> {
     use std::io::Write;
     let path = path.canonicalize().map_err(|e| format!("Cannot open {}: {e}", path.display()))?;
@@ -266,12 +293,15 @@ pub fn write_safely(path: &Path, text: &str, now: u64) -> Result<PathBuf, String
         let _ = std::fs::remove_file(&temp);
         return Err(format!("Cannot write {}: {e}", path.display()));
     }
+    prune_backups(&path);
     Ok(backup)
 }
 
 /// Whether a process with one of these names runs (`/proc/<pid>/comm`).
+/// When `/proc` cannot be read it counts as running: nothing is written
+/// then.
 pub fn running(proc_root: &Path, names: &[&str]) -> bool {
-    let Ok(entries) = std::fs::read_dir(proc_root) else { return false };
+    let Ok(entries) = std::fs::read_dir(proc_root) else { return true };
     entries.flatten().any(|e| {
         e.file_name().to_string_lossy().bytes().all(|b| b.is_ascii_digit())
             && std::fs::read_to_string(e.path().join("comm")).is_ok_and(|c| names.contains(&c.trim()))
@@ -345,6 +375,15 @@ fn steam_compat(home: &Path, appid: &str) -> (String, String) {
         vdf_edit::get_str(&text, &path).unwrap_or_default()
     };
     (get(appid), get("0"))
+}
+
+/// Whether Steam has made a Proton prefix for the game
+/// (`steamapps/compatdata/<appid>/pfx` in one of its libraries).
+fn steam_prefix(home: &Path, appid: &str) -> bool {
+    games::steam_roots(home)
+        .iter()
+        .flat_map(|r| games::steam_libraries(r))
+        .any(|l| l.join("steamapps/compatdata").join(appid).join("pfx").is_dir())
 }
 
 // ------------------------------------------------------------- Lutris ----
@@ -885,9 +924,11 @@ impl Flavour {
         matches!(self, Flavour::Ge(m, _) if m >= 10) || matches!(self, Flavour::CachyOs | Flavour::Experimental)
     }
 
-    /// `PROTON_USE_NTSYNC`.
+    /// `PROTON_USE_NTSYNC`. GE: from GE-Proton10-9 on, to be safe (when
+    /// GE added the switch is not verified; earlier builds of 10 may have
+    /// it too).
     pub fn ntsync(self) -> bool {
-        matches!(self, Flavour::Ge(m, _) if m >= 10) || matches!(self, Flavour::CachyOs)
+        matches!(self, Flavour::Ge(m, r) if m > 10 || (m == 10 && r >= 9)) || matches!(self, Flavour::CachyOs)
     }
 }
 
@@ -964,7 +1005,9 @@ pub fn read(places: &Places, id: &str, own_command: Option<&str>) -> Current {
         let (tool, global_tool) = steam_compat(home, appid);
         let mut current = Current {
             launcher: "steam".into(),
-            proton: if tool.is_empty() { None } else { Some(true) },
+            // Without its own choice: Proton for sure only when Steam has
+            // made a Proton prefix for it (a native game has none).
+            proton: if tool.is_empty() && !steam_prefix(home, appid) { None } else { Some(true) },
             tool,
             global_tool,
             ..Default::default()
@@ -1118,11 +1161,24 @@ fn heroic_with(old: &str, app: &str, change: impl FnOnce(&mut serde_json::Map<St
     Ok(text)
 }
 
-/// Sets a game's Proton or Wine build by its name from `all_tools` ("" =
-/// the launcher's default; Steam only).
-pub fn set_tool(places: &Places, id: &str, name: &str, now: u64) -> Result<(), String> {
+/// Heroic's name for a Proton or Wine build: by its folder, as Heroic
+/// names them ("Proton - GE-Proton10-25"); its own downloads as listed.
+fn heroic_name(tool: &Tool) -> String {
+    if tool.source == "heroic" {
+        return tool.name.clone();
+    }
+    let folder = tool.path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_else(|| tool.label.clone());
+    format!("{} - {folder}", if tool.kind == "wine" { "Wine" } else { "Proton" })
+}
+
+/// The warning shown when a Heroic game moves between Wine and Proton.
+pub const PREFIX_WARNING: &str = "Proton and Wine keep the game's Windows files in different places (Proton uses a \"pfx\" folder inside the prefix), so the game starts with a fresh prefix; what was installed into the old one stays there.";
+
+/// Sets a game's Proton or Wine build by its name from `tools` ("" = the
+/// launcher's default; Steam only). Ok holds a warning for the user ("" for
+/// none).
+pub fn set_tool(places: &Places, tools: &[Tool], id: &str, name: &str, now: u64) -> Result<String, String> {
     let home = &places.home;
-    let tools = all_tools(places);
     if let Some(appid) = steam_appid(id) {
         if !name.is_empty() && !tools.iter().any(|t| t.name == name && t.launchers.contains(&"steam")) {
             return Err("This version is not installed".into());
@@ -1148,7 +1204,7 @@ pub fn set_tool(places: &Places, id: &str, name: &str, now: u64) -> Result<(), S
         if new != old {
             write_safely(&file, &new, now)?;
         }
-        return Ok(());
+        return Ok(String::new());
     }
     if name.is_empty() {
         return Err("Choose a version".into());
@@ -1167,16 +1223,21 @@ pub fn set_tool(places: &Places, id: &str, name: &str, now: u64) -> Result<(), S
         if new != old {
             write_safely(&file, &new, now)?;
         }
-        return Ok(());
+        return Ok(String::new());
     }
     if let Some(app) = heroic_app(id) {
-        let tool = tools.iter().find(|t| t.launchers.contains(&"heroic") && (t.name == name || (t.source != "heroic" && t.label == name)));
+        let tool = tools.iter().find(|t| t.launchers.contains(&"heroic") && (t.name == name || heroic_name(t) == name));
         let tool = tool.ok_or("This version is not installed")?;
         let file = heroic_config(home, app).ok_or("Open the game's settings in Heroic once first")?;
         closed(places, "heroic")?;
         let old = std::fs::read_to_string(&file).map_err(|e| format!("Cannot read {}: {e}", file.display()))?;
         let (bin, kind) = if tool.kind == "wine" { (tool.path.join("bin/wine"), "wine") } else { (tool.path.join("proton"), "proton") };
-        let label = if tool.source == "heroic" { tool.name.clone() } else { format!("Proton - {}", tool.label) };
+        let label = heroic_name(tool);
+        let before = serde_json::from_str::<Value>(&old)
+            .ok()
+            .and_then(|v| v.get(app)?.get("wineVersion")?.get("type")?.as_str().map(str::to_string))
+            .unwrap_or_default();
+        let warning = if !before.is_empty() && before != kind { PREFIX_WARNING.to_string() } else { String::new() };
         let new = heroic_with(&old, app, |game| {
             let mut version = game.get("wineVersion").and_then(Value::as_object).cloned().unwrap_or_default();
             version.insert("bin".into(), json!(bin.to_string_lossy()));
@@ -1187,7 +1248,7 @@ pub fn set_tool(places: &Places, id: &str, name: &str, now: u64) -> Result<(), S
         if new != old {
             write_safely(&file, &new, now)?;
         }
-        return Ok(());
+        return Ok(warning);
     }
     Err("This game's launcher has no Proton choice".into())
 }
@@ -1286,7 +1347,7 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
             "Shows frame rate, frame times and temperatures over the game.",
             "mangohud %command%".into(),
             false,
-            "MangoHud is installed.".into(),
+            "MangoHud is installed. With Gamescope it is turned on by gamescope's --mangoapp instead.".into(),
             "",
         );
     }
@@ -1312,7 +1373,7 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
             format!("gamescope -W {} -H {}{rate} -f -- %command%", d.width, d.height),
             false,
             format!("gamescope is installed; uses your main screen ({}, {size}).{nvidia_note}", d.name),
-            "gamescope",
+            "display",
         );
         if d.hdr {
             add(
@@ -1322,11 +1383,15 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
                 format!("DXVK_HDR=1 gamescope -W {} -H {}{rate} -f --hdr-enabled -- %command%", d.width, d.height),
                 false,
                 format!("HDR is on for {} in KDE's display settings.", d.name),
-                "gamescope",
+                "display",
             );
         }
     }
     let proton = current.proton != Some(false);
+    // A Steam game without its own choice may be a native Linux game, which
+    // Proton's options do nothing for.
+    let sure = current.proton == Some(true);
+    let only_proton = if sure { "" } else { " Only for games that run through Proton." };
     let in_use = if proton { proton_in_use(current, tools) } else { None };
     if let Some((f, label)) = in_use {
         if sys.ntsync && f.ntsync() {
@@ -1335,8 +1400,8 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
                 "NTSync",
                 "Uses the kernel's Windows-style sync driver, which makes many games run smoother.",
                 "PROTON_USE_NTSYNC=1 %command%".into(),
-                true,
-                format!("/dev/ntsync exists and {label} supports it."),
+                sure,
+                format!("/dev/ntsync is there and {label} supports it.{only_proton}"),
                 "",
             );
         }
@@ -1348,8 +1413,8 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
                 "Runs the game as a Wayland window instead of through XWayland; some games or overlays may not work.",
                 "PROTON_ENABLE_WAYLAND=1 %command%".into(),
                 false,
-                format!("You use a Wayland session and {label} has the Wayland driver."),
-                "",
+                format!("You use a Wayland session and {label} has the Wayland driver.{only_proton}"),
+                "display",
             );
         }
         let hdr_screen = sys.display.as_ref().is_some_and(|d| d.hdr);
@@ -1360,8 +1425,8 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
                 "Turns on HDR for games that support it, through Proton's Wayland driver.",
                 "PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 %command%".into(),
                 false,
-                format!("HDR is on in KDE's display settings and {label} supports it."),
-                "hdr",
+                format!("HDR is on in KDE's display settings and {label} supports it.{only_proton}"),
+                "display",
             );
         } else if hdr_screen && sys.hdr_layer {
             add(
@@ -1370,21 +1435,21 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
                 "Turns on HDR for games that support it, through the Vulkan HDR layer.",
                 "ENABLE_HDR_WSI=1 DXVK_HDR=1 %command%".into(),
                 false,
-                "HDR is on in KDE's display settings and the Vulkan HDR layer is installed.".into(),
-                "hdr",
+                format!("HDR is on in KDE's display settings and the Vulkan HDR layer is installed.{only_proton}"),
+                "display",
             );
         }
     }
     if proton && sys.has_gpu("nvidia") && sys.nvidia_driver() {
-        add(
-            "nvapi",
-            "NVIDIA features (DLSS, Reflex)",
-            "Lets Windows games find NVIDIA's features such as DLSS and Reflex.",
-            "PROTON_ENABLE_NVAPI=1 %command%".into(),
-            true,
-            "NVIDIA's own driver is in use.".into(),
-            "",
-        );
+        // Only of use when the game runs on the NVIDIA card: sure on a
+        // computer with NVIDIA cards alone, not with other graphics beside.
+        let hybrid = sys.hybrid();
+        let why = if hybrid {
+            format!("NVIDIA's own driver is in use, but other graphics are there too: only of use when the game runs on the NVIDIA card (e.g. with prime-run).{only_proton}")
+        } else {
+            format!("NVIDIA's own driver is in use.{only_proton}")
+        };
+        add("nvapi", "NVIDIA features (DLSS, Reflex)", "Lets Windows games find NVIDIA's features such as DLSS and Reflex.", "PROTON_ENABLE_NVAPI=1 %command%".into(), sure && !hybrid, why, "");
     }
     if sys.nvidia_driver() {
         add(
@@ -1397,8 +1462,10 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
             "",
         );
     }
+    // MangoHud also counts as on when gamescope runs it (--mangoapp).
+    let mangoapp = current.spec.wrappers.iter().chain(current.spec.command.iter()).any(|w| w.iter().any(|x| x == "--mangoapp"));
     for s in &mut out {
-        s.applied = parse(&s.option).is_ok_and(|part| contains(&current.spec, &part));
+        s.applied = parse(&s.option).is_ok_and(|part| contains(&current.spec, &part)) || (s.id == "mangohud" && mangoapp);
     }
     out
 }
@@ -1407,28 +1474,448 @@ pub fn suggestions_json(list: &[Suggestion]) -> String {
     Value::Array(list.iter().map(Suggestion::to_json).collect()).to_string()
 }
 
-/// The game's options with the chosen suggestions added (in the list's
-/// order; a second choice from one group is left out). The text as it was
-/// when nothing new is added.
-pub fn combine(current: &Current, list: &[Suggestion], chosen: &[String]) -> Result<String, String> {
-    let mut spec = current.spec.clone();
-    if current.launcher == "own" {
-        spec = parse_own(&current.text)?;
-    } else {
-        parse(&current.text)?;
+// ------------------------------------------------------- text editing ----
+//
+// Suggestions are put into the text the user wrote, not by writing it anew:
+// new settings go in front of the game's command, new wrappers right before
+// `%command%`, and a suggestion taken out loses only its own words. Every
+// other byte stays (`$HOME`, `> log 2>&1`, `;`, `&&`, `|`, quotes).
+
+const TOO_COMPLEX: &str = "These launch options are too complex to change here; edit the text by hand";
+
+/// Characters the shell reads as control or redirection when unquoted.
+const OPERATORS: &[u8] = b";&|<>()";
+
+/// A word of the text as the shell splits it, by its byte places; `op` for
+/// a run of unquoted operator characters.
+#[derive(Debug, Clone, Copy)]
+struct Tok {
+    start: usize,
+    end: usize,
+    op: bool,
+}
+
+/// Splits the text like the shell, keeping places. Command substitution
+/// (`` ` ``, `$(`) is refused: its words cannot be told apart safely.
+fn lex(text: &str) -> Result<Vec<Tok>, String> {
+    if text.contains('`') || text.contains("$(") {
+        return Err(TOO_COMPLEX.into());
     }
-    let mut changed = false;
+    let b = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < b.len() {
+        let c = b[i];
+        if c == b' ' || c == b'\t' {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        if OPERATORS.contains(&c) {
+            while i < b.len() && OPERATORS.contains(&b[i]) {
+                i += 1;
+            }
+            out.push(Tok { start, end: i, op: true });
+            continue;
+        }
+        while i < b.len() && !matches!(b[i], b' ' | b'\t') && !OPERATORS.contains(&b[i]) {
+            match b[i] {
+                b'\'' => {
+                    i += 1;
+                    while i < b.len() && b[i] != b'\'' {
+                        i += 1;
+                    }
+                    if i >= b.len() {
+                        return Err("A quote is not closed".into());
+                    }
+                    i += 1;
+                }
+                b'"' => {
+                    i += 1;
+                    loop {
+                        match b.get(i) {
+                            None => return Err("A quote is not closed".into()),
+                            Some(b'"') => break,
+                            Some(b'\\') => i += 2,
+                            Some(_) => i += 1,
+                        }
+                    }
+                    i += 1;
+                }
+                b'\\' => i += 2,
+                _ => i += 1,
+            }
+        }
+        out.push(Tok { start, end: i.min(b.len()), op: false });
+    }
+    Ok(out)
+}
+
+/// A token's text as one word without its quotes ("" for operators).
+fn unquoted(text: &str, tok: &Tok) -> String {
+    if tok.op {
+        return String::new();
+    }
+    games::split_command(&text[tok.start..tok.end], None).map(|w| w.concat()).unwrap_or_default()
+}
+
+/// `NAME=value` as the shell sees an assignment (the name unquoted).
+fn assignment(raw: &str) -> Option<&str> {
+    let (name, _) = raw.split_once('=')?;
+    let valid = !name.is_empty() && !name.starts_with(|c: char| c.is_ascii_digit()) && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+    valid.then_some(name)
+}
+
+/// Words that cannot have a setting put in front of them.
+const RESERVED: &[&str] = &["if", "then", "else", "elif", "fi", "do", "done", "while", "until", "for", "case", "esac", "function", "select", "time", "{", "}", "!", "[["];
+
+/// Wrappers without words of their own, recognised in an own entry's
+/// command (anything else there is the program).
+const SIMPLE_WRAPPERS: &[&str] = &["gamemoderun", "game-performance", "mangohud", "prime-run", "obs-gamecapture"];
+
+/// Edits to one text, collected first and applied together.
+struct Editor<'a> {
+    text: &'a str,
+    toks: Vec<Tok>,
+    words: Vec<String>,
+    /// The settings in front of the game's command (token indices).
+    env: Vec<usize>,
+    /// The wrappers before the game's command (token indices per wrapper).
+    groups: Vec<Vec<usize>>,
+    /// Other words whose program counts as there (an own entry's command,
+    /// or the words before a `%command%` inside quotes).
+    others: Vec<usize>,
+    /// Wrappers taken out by this edit (their programs).
+    gone: Vec<String>,
+    /// Where new settings go.
+    front: usize,
+    /// Where new wrappers go unless an inner wrapper comes first.
+    at: usize,
+    /// No `%command%` anywhere: Steam adds the game at the end, so
+    /// `%command%` must go in after new wrappers or settings.
+    add_command: bool,
+    /// (start, end, new text); an empty range is an insertion.
+    edits: Vec<(usize, usize, String)>,
+}
+
+impl<'a> Editor<'a> {
+    fn new(text: &'a str, own: bool) -> Result<Self, String> {
+        let toks = lex(text)?;
+        let words: Vec<String> = toks.iter().map(|t| unquoted(text, t)).collect();
+        let raw = |i: usize| &text[toks[i].start..toks[i].end];
+        let mut ed = Editor { text, toks: toks.clone(), words: words.clone(), env: Vec::new(), groups: Vec::new(), others: Vec::new(), gone: Vec::new(), front: 0, at: 0, add_command: false, edits: Vec::new() };
+        let first = toks.first().map(|t| t.start).unwrap_or(0);
+        let leading_env = |from: usize, to: usize| (from..to).take_while(|&i| !toks[i].op && assignment(raw(i)).is_some()).collect::<Vec<usize>>();
+        if own {
+            if toks.iter().any(|t| t.op) {
+                return Err(TOO_COMPLEX.into());
+            }
+            ed.env = leading_env(0, toks.len());
+            let mut i = ed.env.len();
+            ed.front = first;
+            // Simple wrappers, and gamescope up to its "--".
+            while let Some(word) = words.get(i) {
+                let name = program(word);
+                if SIMPLE_WRAPPERS.contains(&name) && !words.get(i + 1).is_some_and(|w| w.starts_with('-')) {
+                    ed.groups.push(vec![i]);
+                    i += 1;
+                } else if name == "gamescope" {
+                    let Some(end) = (i..words.len()).find(|&j| words[j] == "--") else { break };
+                    ed.groups.push((i..=end).collect());
+                    i = end + 1;
+                } else {
+                    break;
+                }
+            }
+            if i >= toks.len() {
+                return Err("The command is missing".into());
+            }
+            ed.at = toks[i].start;
+            ed.others = (i..toks.len()).collect();
+            return Ok(ed);
+        }
+        let commands: Vec<usize> = (0..toks.len()).filter(|&i| !toks[i].op && raw(i) == "%command%").collect();
+        match commands.as_slice() {
+            [] => {
+                let has_ops = toks.iter().any(|t| t.op);
+                if text.contains("%command%") {
+                    // Inside quotes (`bash -c "... %command%"`): settings and
+                    // wrappers go in front of the whole command.
+                    if has_ops {
+                        return Err(TOO_COMPLEX.into());
+                    }
+                    ed.env = leading_env(0, toks.len());
+                    ed.front = first;
+                    ed.at = toks.get(ed.env.len()).map(|t| t.start).unwrap_or(text.len());
+                    ed.others = (ed.env.len()..toks.len()).collect();
+                } else {
+                    // Only arguments: they go after the game.
+                    if has_ops {
+                        return Err(TOO_COMPLEX.into());
+                    }
+                    ed.front = first;
+                    ed.at = first;
+                    ed.add_command = true;
+                }
+                Ok(ed)
+            }
+            [cmd] => {
+                let cmd = *cmd;
+                let control = |t: &Tok| t.op && !text[t.start..t.end].contains(['<', '>']);
+                let seg = (0..cmd).rev().find(|&i| control(&toks[i])).map(|i| i + 1).unwrap_or(0);
+                if (seg..cmd).any(|i| toks[i].op) {
+                    // A redirection before the game's command.
+                    return Err(TOO_COMPLEX.into());
+                }
+                if seg < cmd && RESERVED.contains(&raw(seg)) {
+                    return Err(TOO_COMPLEX.into());
+                }
+                ed.env = leading_env(seg, cmd);
+                ed.front = toks[seg].start;
+                ed.at = toks[cmd].start;
+                // Wrapper groups, as `group` makes them.
+                let mut in_gamescope = false;
+                for (i, word) in words.iter().enumerate().take(cmd).skip(seg + ed.env.len()) {
+                    if in_gamescope {
+                        in_gamescope = word != "--";
+                        if let Some(g) = ed.groups.last_mut() {
+                            g.push(i);
+                        }
+                        continue;
+                    }
+                    if ed.groups.is_empty() || WRAPPERS.contains(&program(word)) {
+                        in_gamescope = program(word) == "gamescope";
+                        ed.groups.push(vec![i]);
+                    } else if let Some(g) = ed.groups.last_mut() {
+                        g.push(i);
+                    }
+                }
+                Ok(ed)
+            }
+            _ => Err(TOO_COMPLEX.into()),
+        }
+    }
+
+    fn env_token(&self, name: &str) -> Option<usize> {
+        self.env.iter().copied().find(|&i| assignment(&self.text[self.toks[i].start..self.toks[i].end]) == Some(name))
+    }
+
+    fn group_of(&self, name: &str) -> Option<&Vec<usize>> {
+        self.groups.iter().find(|g| program(&self.words[g[0]]) == name)
+    }
+
+    /// Whether a wrapper with this program is there (and stays).
+    fn has(&self, name: &str) -> bool {
+        !self.gone.iter().any(|g| g == name) && (self.group_of(name).is_some() || self.others.iter().any(|&i| program(&self.words[i]) == name))
+    }
+
+    /// The gamescope word, if gamescope is there.
+    fn gamescope(&self) -> Option<usize> {
+        self.group_of("gamescope").map(|g| g[0]).or_else(|| self.others.iter().copied().find(|&i| program(&self.words[i]) == "gamescope"))
+    }
+
+    fn mangoapp(&self) -> Option<usize> {
+        let g = self.group_of("gamescope").cloned().unwrap_or_default();
+        g.into_iter().chain(self.others.iter().copied()).find(|&i| self.words[i] == "--mangoapp")
+    }
+
+    fn insert(&mut self, at: usize, text: String) {
+        self.edits.push((at, at, text));
+    }
+
+    /// A token and the blanks after it.
+    fn remove_token(&mut self, i: usize) {
+        let start = self.toks[i].start;
+        let rest = &self.text[self.toks[i].end..];
+        let blanks = rest.bytes().take_while(|b| *b == b' ' || *b == b'\t').count();
+        self.edits.push((start, self.toks[i].end + blanks, String::new()));
+    }
+
+    fn set_env(&mut self, name: &str, value: &str) {
+        let new = format!("{name}={}", shell_word(value));
+        match self.env_token(name) {
+            Some(i) if self.words[i] == format!("{name}={value}") => {}
+            Some(i) => {
+                let t = self.toks[i];
+                self.edits.push((t.start, t.end, new));
+            }
+            None => {
+                let at = self.front;
+                self.insert(at, format!("{new} "));
+            }
+        }
+    }
+
+    /// Adds a wrapper (words) unless its program is there already.
+    fn add_wrapper(&mut self, words: &[String]) {
+        let Some(first) = words.first() else { return };
+        if self.has(program(first)) {
+            return;
+        }
+        let at = self.groups.iter().find(|g| order(&self.words[g[0]]) > order(first)).map(|g| self.toks[g[0]].start).unwrap_or(self.at);
+        let text: Vec<String> = words.iter().map(|w| shell_word(w)).collect();
+        self.insert(at, format!("{} ", text.join(" ")));
+    }
+
+    /// Turns on MangoHud inside a gamescope already there.
+    fn add_mangoapp(&mut self) {
+        if self.mangoapp().is_some() {
+            return;
+        }
+        if let Some(i) = self.gamescope() {
+            let end = self.toks[i].end;
+            self.insert(end, " --mangoapp".into());
+        }
+    }
+
+    fn finish(mut self, added: bool) -> String {
+        if self.add_command && added {
+            let at = self.at;
+            let tail = if self.text.trim().is_empty() { "%command%" } else { "%command% " };
+            self.insert(at, tail.into());
+        }
+        // Insertions before removals at one place; otherwise in order made.
+        let mut edits = std::mem::take(&mut self.edits);
+        edits.sort_by_key(|(start, end, _)| (*start, end > start));
+        let mut out = String::with_capacity(self.text.len() + 64);
+        let mut pos = 0;
+        for (start, end, new) in edits {
+            if start < pos {
+                continue;
+            }
+            out.push_str(&self.text[pos..start]);
+            out.push_str(&new);
+            pos = end;
+        }
+        out.push_str(&self.text[pos..]);
+        if self.text.trim().is_empty() {
+            out.trim().to_string()
+        } else {
+            out
+        }
+    }
+}
+
+/// The game's options with the suggestions in `chosen` (their ids) on and
+/// the other applied ones off: new ones are put into the text (one per
+/// group, kept ones first, else in the list's order) and the ones left out
+/// lose their own words, unless a kept one needs them. Every other byte of
+/// the text stays; text too complex to change safely is refused. The text
+/// as it was when nothing changes.
+pub fn combine(current: &Current, list: &[Suggestion], chosen: &[String]) -> Result<String, String> {
+    let text = current.text.as_str();
+    let own = current.launcher == "own";
+    if own {
+        parse_own(text)?;
+    } else {
+        parse(text)?;
+    }
+    let is_chosen = |s: &Suggestion| chosen.iter().any(|c| c == s.id);
     let mut groups: Vec<&str> = Vec::new();
-    for s in list.iter().filter(|s| chosen.iter().any(|c| c == s.id)) {
+    let mut keep: Vec<&Suggestion> = Vec::new();
+    for s in list.iter().filter(|s| s.applied && is_chosen(s)) {
+        groups.push(s.group);
+        keep.push(s);
+    }
+    let mut add: Vec<&Suggestion> = Vec::new();
+    for s in list.iter().filter(|s| !s.applied && is_chosen(s)) {
         if !s.group.is_empty() {
             if groups.contains(&s.group) {
                 continue;
             }
             groups.push(s.group);
         }
-        changed |= merge(&mut spec, &parse(&s.option)?);
+        keep.push(s);
+        add.push(s);
     }
-    Ok(if changed { render(&spec) } else { current.text.clone() })
+    let remove: Vec<&Suggestion> = list.iter().filter(|s| s.applied && !is_chosen(s)).collect();
+    if add.is_empty() && remove.is_empty() {
+        return Ok(text.to_string());
+    }
+    let mut ed = Editor::new(text, own)?;
+    let kept: Vec<Spec> = keep.iter().map(|s| parse(&s.option)).collect::<Result<_, _>>()?;
+    // Wrappers stay for kept applied ones; a new one with the same program
+    // takes the old one's place.
+    let kept_applied: Vec<Spec> = keep.iter().filter(|s| s.applied).map(|s| parse(&s.option)).collect::<Result<_, _>>()?;
+    let mango_kept = keep.iter().any(|s| s.id == "mangohud");
+    // MangoHud ran inside a gamescope that goes: it needs its own wrapper.
+    let mut mango_alone = false;
+    let mut gamescope_gone = false;
+    for s in &remove {
+        let part = parse(&s.option)?;
+        for (name, value) in &part.env {
+            if kept.iter().any(|k| k.env.iter().any(|(n, _)| n == name)) {
+                continue;
+            }
+            if let Some(i) = ed.env_token(name).filter(|&i| ed.words[i] == format!("{name}={value}")) {
+                ed.remove_token(i);
+            }
+        }
+        for wrapper in &part.wrappers {
+            let name = program(&wrapper[0]);
+            if kept_applied.iter().any(|k| k.wrappers.iter().any(|w| program(&w[0]) == name)) {
+                continue;
+            }
+            if let Some(g) = ed.group_of(name).cloned() {
+                // gamescope's --mangoapp is MangoHud's, not part of it.
+                let words: Vec<&str> = g.iter().map(|&i| ed.words[i].as_str()).filter(|w| *w != "--mangoapp").collect();
+                if words.iter().copied().eq(wrapper.iter().map(String::as_str)) {
+                    mango_alone |= mango_kept && name == "gamescope" && g.iter().any(|&i| ed.words[i] == "--mangoapp");
+                    gamescope_gone |= name == "gamescope";
+                    ed.gone.push(name.to_string());
+                    for i in g {
+                        ed.remove_token(i);
+                    }
+                    continue;
+                }
+            } else if name == "mangohud" {
+                if let Some(i) = ed.mangoapp() {
+                    ed.remove_token(i);
+                    continue;
+                }
+            }
+            return Err(format!("{} was set up by hand here; change it in the text", s.label));
+        }
+    }
+    // MangoHud with gamescope runs as gamescope's --mangoapp.
+    let mut parts: Vec<Spec> = add.iter().map(|s| parse(&s.option)).collect::<Result<_, _>>()?;
+    let mango = parts.iter().position(|p| p.wrappers.iter().any(|w| program(&w[0]) == "mangohud"));
+    let new_gamescope = parts.iter().position(|p| p.wrappers.iter().any(|w| program(&w[0]) == "gamescope"));
+    let into_new_gamescope = |parts: &mut [Spec], g: usize| {
+        for w in parts[g].wrappers.iter_mut().filter(|w| program(&w[0]) == "gamescope") {
+            let at = w.iter().position(|x| x == "--").unwrap_or(w.len());
+            w.insert(at, "--mangoapp".into());
+        }
+    };
+    if let Some(m) = mango {
+        if new_gamescope.is_some() || (ed.gamescope().is_some() && !gamescope_gone) {
+            parts[m].wrappers.retain(|w| program(&w[0]) != "mangohud");
+            match new_gamescope {
+                Some(g) if !ed.has("gamescope") => into_new_gamescope(&mut parts, g),
+                _ => ed.add_mangoapp(),
+            }
+        }
+    }
+    if let (true, Some(g)) = (mango_alone, new_gamescope) {
+        into_new_gamescope(&mut parts, g);
+        mango_alone = false;
+    }
+    for part in &parts {
+        for (name, value) in &part.env {
+            ed.set_env(name, value);
+        }
+    }
+    let mut wrappers: Vec<&Vec<String>> = parts.iter().flat_map(|p| p.wrappers.iter()).collect();
+    wrappers.sort_by_key(|w| order(&w[0]));
+    let mangohud = vec!["mangohud".to_string()];
+    if mango_alone {
+        wrappers.push(&mangohud);
+    }
+    for w in wrappers {
+        ed.add_wrapper(w);
+    }
+    let added = !ed.edits.is_empty();
+    Ok(ed.finish(added))
 }
 
 #[cfg(test)]
@@ -1535,6 +2022,22 @@ mod tests {
     }
 
     #[test]
+    fn keeps_the_newest_three_backups() {
+        let root = temp("prune");
+        let file = root.join("a.vdf");
+        write(&file, "0");
+        // Someone else's file with a similar name stays.
+        write(&root.join("b.vdf.gc-backup-19990101-000000"), "x");
+        for (i, now) in [100u64, 200, 300, 300, 300, 400].iter().enumerate() {
+            write_safely(&file, &format!("{}", i + 1), *now).unwrap();
+        }
+        let list = backups(&root);
+        assert_eq!(list, ["a.vdf.gc-backup-19700101-000500-2", "a.vdf.gc-backup-19700101-000500-3", "a.vdf.gc-backup-19700101-000640", "b.vdf.gc-backup-19990101-000000"]);
+        assert_eq!(std::fs::read_to_string(root.join("a.vdf.gc-backup-19700101-000640")).unwrap(), "5");
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "6");
+    }
+
+    #[test]
     fn makes_backup_names() {
         assert_eq!(stamp(0), "19700101-000000");
         assert_eq!(stamp(1_794_572_730), "20261113-122530");
@@ -1560,7 +2063,8 @@ mod tests {
         assert_eq!(flavour("proton_63"), Flavour::Valve(6));
         assert_eq!(flavour("Proton 9.0"), Flavour::Valve(9));
         assert_eq!(flavour("lutris-7.2"), Flavour::Unknown);
-        assert!(Flavour::Ge(10, 1).ntsync() && !Flavour::Ge(9, 27).ntsync() && !Flavour::Valve(10).ntsync());
+        assert!(Flavour::Ge(10, 9).ntsync() && Flavour::Ge(11, 1).ntsync());
+        assert!(!Flavour::Ge(10, 8).ntsync() && !Flavour::Ge(9, 27).ntsync() && !Flavour::Valve(10).ntsync());
         assert!(Flavour::Valve(10).wayland() && !Flavour::Valve(9).wayland());
     }
 
@@ -1637,25 +2141,29 @@ mod tests {
         super::write(p, id, text, 1_794_572_730)
     }
 
+    fn set_tool_at(p: &Places, id: &str, name: &str, now: u64) -> Result<String, String> {
+        set_tool(p, &all_tools(p), id, name, now)
+    }
+
     #[test]
     fn sets_steam_proton() {
         let root = temp("compat");
         let steam = fake_steam(&root);
         let p = places(&root);
         let file = steam.join("config/config.vdf");
-        assert_eq!(set_tool(&p, "steam:10", "Proton 99", 1), Err("This version is not installed".to_string()));
-        set_tool(&p, "steam:10", "proton-cachyos", 1).unwrap();
+        assert_eq!(set_tool_at(&p, "steam:10", "Proton 99", 1), Err("This version is not installed".to_string()));
+        set_tool_at(&p, "steam:10", "proton-cachyos", 1).unwrap();
         assert_eq!(std::fs::read_to_string(&file).unwrap(), CONFIG.replace("\"GE-Proton10-25\"", "\"proton-cachyos\""));
-        set_tool(&p, "steam:30", "proton_10", 2).unwrap();
+        set_tool_at(&p, "steam:30", "proton_10", 2).unwrap();
         let text = std::fs::read_to_string(&file).unwrap();
         assert!(text.contains("\t\t\t\t\t\"30\"\n\t\t\t\t\t{\n\t\t\t\t\t\t\"name\"\t\t\"proton_10\"\n\t\t\t\t\t\t\"config\"\t\t\"\"\n\t\t\t\t\t\t\"priority\"\t\t\"250\"\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t\"SomethingElse\""));
         assert_eq!(read(&p, "steam:30", None).tool, "proton_10");
         // Back to Steam's default: the game's entry goes, the rest stays.
-        set_tool(&p, "steam:30", "", 3).unwrap();
+        set_tool_at(&p, "steam:30", "", 3).unwrap();
         assert_eq!(std::fs::read_to_string(&file).unwrap(), CONFIG.replace("\"GE-Proton10-25\"", "\"proton-cachyos\""));
         assert_eq!(backups(file.parent().unwrap()).len(), 3);
         write(&root.join("proc/7/comm"), "steamwebhelper\n");
-        assert_eq!(set_tool(&p, "steam:10", "proton_9", 4), Err("Close Steam first".to_string()));
+        assert_eq!(set_tool_at(&p, "steam:10", "proton_9", 4), Err("Close Steam first".to_string()));
     }
 
     const LUTRIS_YML: &str = "game:\n  args: -windowed\n  exe: /home/p/Games/x/x.exe\n  prefix: /home/p/Games/x\ngame_slug: x\nname: X\nrunner: wine\nsystem:\n  env:\n    DXVK_HUD: '1'\n  gamemode: true\nwine:\n  version: lutris-GE-Proton8-26-x86_64\n";
@@ -1707,9 +2215,9 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&native).unwrap(), "game:\n  exe: /opt/n\n  args: '\"two words\"'\nsystem:\n  env:\n    A: '1'\n");
         assert_eq!(read(&p, "lutris:4", None).text, "A=1 %command% \"two words\"");
 
-        set_tool(&p, "lutris:3", "wine-ge-8-26-x86_64", 5).unwrap();
+        set_tool_at(&p, "lutris:3", "wine-ge-8-26-x86_64", 5).unwrap();
         assert!(std::fs::read_to_string(&file).unwrap().ends_with("wine:\n  version: 'wine-ge-8-26-x86_64'\n"));
-        assert_eq!(set_tool(&p, "lutris:4", "wine-ge-8-26-x86_64", 5), Err("This Lutris game does not run through Wine".to_string()));
+        assert_eq!(set_tool_at(&p, "lutris:4", "wine-ge-8-26-x86_64", 5), Err("This Lutris game does not run through Wine".to_string()));
         write(&root.join("proc/9/comm"), "lutris\n");
         assert_eq!(write_options(&p, "lutris:3", "-x"), Err("Close Lutris first".to_string()));
     }
@@ -1765,11 +2273,25 @@ mod tests {
         assert!(text.find("autoInstallDxvk").unwrap() < text.find("zLast").unwrap());
         assert_eq!(read(&p, "heroic:legendary:Fort", None).text, "DXVK_HUD=1 gamemoderun gamescope -f -- %command% -nolauncher");
 
-        set_tool(&p, "heroic:legendary:Fort", "Proton - GE-Proton10-25", 9).unwrap();
+        assert_eq!(set_tool_at(&p, "heroic:legendary:Fort", "Proton - GE-Proton10-25", 9).unwrap(), "");
         let v: Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
         assert_eq!(v["Fort"]["wineVersion"]["name"], "Proton - GE-Proton10-25");
         assert_eq!(v["Fort"]["wineVersion"]["type"], "proton");
         assert!(v["Fort"]["wineVersion"]["bin"].as_str().unwrap().ends_with("GE-Proton10-25/proton"));
+        // A Wine build: the prefix changes, and the user is told.
+        let wine = root.join("home/.config/heroic/tools/wine/Wine-GE-8-26");
+        write(&wine.join("bin/wine"), "");
+        assert_eq!(set_tool_at(&p, "heroic:legendary:Fort", "Wine - Wine-GE-8-26", 10).unwrap(), PREFIX_WARNING);
+        // A Steam compatibility tool goes by its folder's name, not its
+        // display name.
+        let custom = root.join("home/.local/share/Steam/compatibilitytools.d/my-proton");
+        write(&custom.join("proton"), "");
+        write(&custom.join("compatibilitytool.vdf"), "\"compatibilitytools\" { \"compat_tools\" { \"my_proton\" { \"install_path\" \".\" \"display_name\" \"My Fancy Proton\" } } }");
+        assert_eq!(set_tool_at(&p, "heroic:legendary:Fort", "Proton - my-proton", 11).unwrap(), PREFIX_WARNING);
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(v["Fort"]["wineVersion"]["name"], "Proton - my-proton");
+        assert_eq!(v["Fort"]["wineVersion"]["type"], "proton");
+        assert_eq!(set_tool_at(&p, "heroic:legendary:Fort", "my_proton", 12).unwrap(), "");
         write(&root.join("proc/3/comm"), "heroic\n");
         assert_eq!(write_options(&p, "heroic:legendary:Fort", "-x"), Err("Close Heroic first".to_string()));
     }
@@ -1838,20 +2360,136 @@ mod tests {
         let list = suggest(&system(true, true), &current, &tools);
         let chosen: Vec<String> = ["gamemode", "ntsync", "gamescope", "gamescope_hdr", "nvapi", "mangohud"].iter().map(|s| s.to_string()).collect();
         let text = combine(&current, &list, &chosen).unwrap();
-        assert_eq!(text, "PROTON_USE_NTSYNC=1 PROTON_ENABLE_NVAPI=1 gamemoderun gamescope -W 2560 -H 1440 -r 165 -f -- mangohud %command% -novid");
+        // One of a group (gamescope wins over gamescope_hdr); MangoHud runs
+        // as gamescope's --mangoapp; the old text stays at the end.
+        assert_eq!(text, "PROTON_USE_NTSYNC=1 PROTON_ENABLE_NVAPI=1 gamemoderun gamescope -W 2560 -H 1440 -r 165 -f --mangoapp -- %command% -novid");
         // Already there: the text stays as it was, and "applied" says so.
-        let mut again = current.clone();
-        again.text = text.clone();
-        again.spec = parse(&text).unwrap();
+        let again = steam_current(&text);
+        let list = suggest(&system(true, true), &again, &tools);
         assert_eq!(combine(&again, &list, &chosen).unwrap(), text);
-        let applied: Vec<&str> = suggest(&system(true, true), &again, &tools).iter().filter(|s| s.applied).map(|s| s.id).collect();
+        let applied: Vec<&str> = list.iter().filter(|s| s.applied).map(|s| s.id).collect();
         assert_eq!(applied, ["gamemode", "mangohud", "gamescope", "ntsync", "nvapi"]);
-        assert_eq!(combine(&current, &list, &[]).unwrap(), "-novid");
+        // Everything taken out again.
+        assert_eq!(combine(&again, &list, &[]).unwrap(), "%command% -novid");
+        // Gamescope out, MangoHud kept: it gets its own wrapper.
+        let keep = ids(&["gamemode", "mangohud", "ntsync", "nvapi"]);
+        assert_eq!(combine(&again, &list, &keep).unwrap(), "PROTON_USE_NTSYNC=1 PROTON_ENABLE_NVAPI=1 gamemoderun mangohud %command% -novid");
+        assert_eq!(combine(&current, &suggest(&system(true, true), &current, &tools), &[]).unwrap(), "-novid");
         // Own entries.
         let own = read(&p, "own:1", Some("wine ~/a.exe"));
         let list = suggest(&system(false, false), &own, &tools);
         assert!(list.iter().all(|s| s.id != "ntsync"));
-        assert_eq!(combine(&own, &list, &["gamemode".to_string()]).unwrap(), "gamemoderun wine ~/a.exe");
+        assert_eq!(combine(&own, &list, &ids(&["gamemode"])).unwrap(), "gamemoderun wine ~/a.exe");
+        let own = read(&p, "own:1", Some("WINEPREFIX=$HOME/p mangohud wine ~/a.exe"));
+        let list = suggest(&system(false, false), &own, &tools);
+        assert_eq!(combine(&own, &list, &ids(&["gamemode", "mangohud"])).unwrap(), "WINEPREFIX=$HOME/p gamemoderun mangohud wine ~/a.exe");
+        assert_eq!(combine(&own, &list, &ids(&["gamemode"])).unwrap(), "WINEPREFIX=$HOME/p gamemoderun wine ~/a.exe");
+    }
+
+    fn ids(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// A Steam game on GE-Proton10-25 with these options.
+    fn steam_current(text: &str) -> Current {
+        Current {
+            launcher: "steam".into(),
+            supported: true,
+            text: text.into(),
+            spec: parse(text).unwrap_or_default(),
+            tool: "GE-Proton10-25".into(),
+            proton: Some(true),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn edits_the_text_in_place() {
+        let root = temp("in-place");
+        fake_steam(&root);
+        let tools = all_tools(&places(&root));
+        let sys = system(true, true);
+        let edit = |text: &str, chosen: &[&str]| {
+            let current = steam_current(text);
+            let list = suggest(&sys, &current, &tools);
+            let mut want: Vec<String> = list.iter().filter(|s| s.applied).map(|s| s.id.to_string()).collect();
+            want.extend(ids(chosen));
+            combine(&current, &list, &want)
+        };
+        // Shell syntax around the game's command stays as it is.
+        assert_eq!(edit("%command% > log 2>&1", &["gamemode"]).unwrap(), "gamemoderun %command% > log 2>&1");
+        assert_eq!(edit("FOO=$HOME/x %command% -novid", &["ntsync"]).unwrap(), "PROTON_USE_NTSYNC=1 FOO=$HOME/x %command% -novid");
+        assert_eq!(
+            edit("echo start; %command% && echo done | tee x", &["gamemode", "ntsync"]).unwrap(),
+            "echo start; PROTON_USE_NTSYNC=1 gamemoderun %command% && echo done | tee x"
+        );
+        assert_eq!(edit("A='x  y'   %command%   \"a  b\"", &["gamemode"]).unwrap(), "A='x  y'   gamemoderun %command%   \"a  b\"");
+        // %command% inside quotes: in front, never a second %command%.
+        assert_eq!(edit("bash -c \"cd /x && %command%\"", &["gamemode", "ntsync"]).unwrap(), "PROTON_USE_NTSYNC=1 gamemoderun bash -c \"cd /x && %command%\"");
+        // Wrappers take their order; a changed value is replaced in place.
+        assert_eq!(edit("mangohud %command%", &["gamemode"]).unwrap(), "gamemoderun mangohud %command%");
+        assert_eq!(edit("X=1 PROTON_USE_NTSYNC=0 %command%", &["ntsync"]).unwrap(), "X=1 PROTON_USE_NTSYNC=1 %command%");
+        assert_eq!(edit("gamescope -f -- %command%", &["mangohud"]).unwrap(), "gamescope --mangoapp -f -- %command%");
+        assert_eq!(edit("", &["gamemode"]).unwrap(), "gamemoderun %command%");
+        assert_eq!(edit("-novid", &["ntsync"]).unwrap(), "PROTON_USE_NTSYNC=1 %command% -novid");
+        // Taking one out removes only its own word.
+        let current = steam_current("PROTON_LOG=1 PROTON_USE_NTSYNC=1 gamemoderun mangohud %command% > log");
+        let list = suggest(&sys, &current, &tools);
+        assert_eq!(combine(&current, &list, &ids(&["mangohud"])).unwrap(), "PROTON_LOG=1 mangohud %command% > log");
+        // Gamescope swapped for gamescope with HDR.
+        let current = steam_current("gamescope -W 2560 -H 1440 -r 165 -f -- %command%");
+        let list = suggest(&sys, &current, &tools);
+        assert_eq!(
+            combine(&current, &list, &ids(&["gamescope_hdr"])).unwrap(),
+            "DXVK_HDR=1 gamescope -W 2560 -H 1440 -r 165 -f --hdr-enabled -- %command%"
+        );
+        // A gamescope set up by hand is not taken apart.
+        let current = steam_current("gamescope -w 1280 -- %command%");
+        let list = suggest(&sys, &current, &tools);
+        assert!(combine(&current, &list, &[]).unwrap_err().contains("by hand"));
+        // Too complex: refused, never rewritten.
+        for text in ["cd /x && bash -c \"%command%\"", "> log %command%", "$(foo) %command%", "`foo` %command%", "%command%; %command%", "-novid > x", "if true; then %command%; fi"] {
+            assert_eq!(edit(text, &["gamemode"]), Err(TOO_COMPLEX.to_string()), "{text}");
+        }
+        assert!(edit("\"open %command%", &["gamemode"]).is_err());
+        // Nothing chosen: the text as it was, however odd.
+        assert_eq!(edit("> log %command%", &[]).unwrap(), "> log %command%");
+    }
+
+    #[test]
+    fn recommends_only_what_surely_helps() {
+        let root = temp("recommend");
+        let steam = fake_steam(&root);
+        let p = places(&root);
+        let tools = all_tools(&p);
+        let rec = |sys: &SystemInfo, current: &Current| -> Vec<(&'static str, bool)> { suggest(sys, current, &tools).iter().map(|s| (s.id, s.recommended)).collect() };
+        let nvidia_only = SystemInfo { gpus: vec![Gpu { vendor: "nvidia".into(), driver: "nvidia".into(), card: "card0".into() }], ..system(false, false) };
+        // A game on GE-Proton: NTSync and NVAPI recommended on an NVIDIA-only
+        // computer, NVAPI not on a hybrid one.
+        let current = read(&p, "steam:10", None);
+        let list = rec(&nvidia_only, &current);
+        assert!(list.contains(&("ntsync", true)) && list.contains(&("nvapi", true)));
+        assert!(rec(&system(true, false), &current).contains(&("nvapi", false)));
+        // A Steam game without its own choice might be native: shown, not
+        // recommended, "only for Proton".
+        let mut current = read(&p, "steam:20", None);
+        assert_eq!(current.proton, None);
+        current.global_tool = "GE-Proton10-25".into();
+        let list = suggest(&nvidia_only, &current, &tools);
+        let ntsync = list.iter().find(|s| s.id == "ntsync").unwrap();
+        assert!(!ntsync.recommended && ntsync.why.contains("Only for games that run through Proton"));
+        assert!(list.iter().any(|s| s.id == "nvapi" && !s.recommended));
+        // Once Steam has made a Proton prefix for it, it surely runs on Proton.
+        std::fs::create_dir_all(steam.join("steamapps/compatdata/20/pfx")).unwrap();
+        let mut current = read(&p, "steam:20", None);
+        assert_eq!(current.proton, Some(true));
+        current.global_tool = "GE-Proton10-25".into();
+        assert!(rec(&nvidia_only, &current).contains(&("ntsync", true)));
+        // Gamescope and the Wayland driver exclude each other.
+        let list = suggest(&system(false, true), &read(&p, "steam:10", None), &tools);
+        let group = |id: &str| list.iter().find(|s| s.id == id).map(|s| s.group).unwrap();
+        assert_eq!(group("gamescope"), group("wayland"));
+        assert_eq!(group("gamescope"), group("proton_hdr"));
     }
 
     #[test]
@@ -1860,8 +2498,14 @@ mod tests {
         let p = places(&root);
         assert!(write_options(&p, "steam:10", "x").is_err());
         assert!(write_options(&p, "known:aion2", "x").is_err());
-        assert!(set_tool(&p, "own:1", "x", 1).is_err());
+        assert!(set_tool_at(&p, "own:1", "x", 1).is_err());
         assert!(write_safely(&root.join("missing.vdf"), "x", 1).is_err());
         assert!(!running(&root.join("proc"), &["steam"]));
+        // /proc unreadable: taken as running, so nothing is written.
+        assert!(running(&root.join("no-proc"), &["steam"]));
+        let mut blind = p.clone();
+        blind.proc_root = root.join("no-proc");
+        fake_steam(&root);
+        assert_eq!(write_options(&blind, "steam:10", "-x"), Err("Close Steam first".to_string()));
     }
 }
