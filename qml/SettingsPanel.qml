@@ -687,6 +687,8 @@ Panel {
             Label { text: "In the lists" }
             OnOff { width: parent.width; text: "Leave Shorts out"; on: parent.filters.shorts; onToggled: Streams.setHideShorts(!parent.filters.shorts) }
             OnOff { width: parent.width; text: "Leave watched videos out"; on: parent.filters.watched; onToggled: Streams.setHideWatched(!parent.filters.watched) }
+            OnOff { width: parent.width; text: "Leave Indian content out"; on: parent.filters.indian !== false; onToggled: Streams.setHideIndian(parent.filters.indian === false) }
+            Hint { text: "Videos whose title or channel is written in an Indian script (Hindi, Bengali, Tamil, Telugu and others)." }
             Row {
                 width: parent.width
                 spacing: 8
