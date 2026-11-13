@@ -829,6 +829,17 @@ pub fn get(url: &str, limit: Duration) -> Result<Vec<u8>, String> {
     curl(&config, limit)
 }
 
+/// An https GET that follows no redirect (chat emotes: an answer that
+/// points elsewhere is refused, so nothing is asked of another host).
+pub fn get_direct(url: &str, limit: Duration) -> Result<Vec<u8>, String> {
+    if !url.starts_with("https://") {
+        return Err("only https".into());
+    }
+    let mut config = curl_base().replace("location\n", "");
+    config.push_str(&format!("url = {}\n", curl_quote(url)));
+    curl(&config, limit)
+}
+
 /// A YouTube channel's newest videos (its public feed).
 pub fn youtube_feed(channel: &str) -> Result<Vec<Value>, String> {
     if !valid_channel_id(channel) {
@@ -974,6 +985,12 @@ pub fn streamlink_stop(slot: &str) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn base_follows_redirects_only_where_meant() {
+        assert!(curl_base().contains("\nlocation\n"));
+        assert!(!curl_base().replace("location\n", "").contains("location"));
+    }
+
     use super::*;
 
     #[test]

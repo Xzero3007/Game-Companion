@@ -74,15 +74,17 @@ Item {
         return JSON.stringify({ id: item.id, title: v.title || item.title || video.title || "", channel: v.channel || item.name || "",
                                 channelId: v.channelId || "", duration: video.duration || v.duration || 0, published: v.published || "" })
     }
-    function keepPosition() {
-        if (item && item.kind === "youtube" && video.position > 0) Library.record(videoJson(), video.position, video.duration)
+    // save: written now and the marks follow (pause, end, close, switch);
+    // else kept in memory (every 10 s while it plays).
+    function keepPosition(save) {
+        if (item && item.kind === "youtube" && video.position > 0) Library.record(videoJson(), video.position, video.duration, save !== false)
     }
     Timer {
         // Every 10 seconds while a YouTube video plays: where it is (to go on later).
         interval: 10000
         repeat: true
         running: win.active && !!win.item && win.item.kind === "youtube" && video.state === "playing" && !video.paused
-        onTriggered: win.keepPosition()
+        onTriggered: win.keepPosition(false)
     }
     /// The next in a playlist played through, or null.
     readonly property var nextInQueue: {
@@ -100,10 +102,11 @@ Item {
         target: !win.jelly ? video : null
         function onStateChanged() {
             if (video.state === "ended" && win.item && win.item.kind === "youtube") {
-                Library.record(win.videoJson(), video.duration, video.duration)
+                Library.record(win.videoJson(), video.duration, video.duration, true)
                 if (win.nextInQueue) win.playNext()
             }
         }
+        function onPausedChanged() { if (video.paused) win.keepPosition(true) }
     }
 
     function play(what) {

@@ -185,9 +185,13 @@ pub mod qobject {
         fn toggle_channel_group(self: Pin<&mut Streams>, id: &QString, group: &QString);
         /// Takes over FreeTube: its subscriptions (with their groups), its
         /// playlists and history; after it FreeTube's file is no longer read.
-        /// Says what came.
+        /// Runs in the background ("Taking over…"); `freetube_taken` says
+        /// what came.
         #[qinvokable]
         fn take_freetube(self: Pin<&mut Streams>) -> QString;
+        /// FreeTube was taken over: what came.
+        #[qsignal]
+        fn freetube_taken(self: Pin<&mut Streams>, note: QString);
         /// The search's filter: one of "sort", "date", "length" and its value.
         #[qinvokable]
         fn change_search_filter(self: Pin<&mut Streams>, key: &QString, value: &QString);
@@ -214,7 +218,6 @@ pub mod qobject {
         /// At the start: the live notes begin if they are on.
         #[qinvokable]
         fn begin(self: Pin<&mut Streams>);
-        /// A channel went live (live notes on).
         /// Shows or hides the chat beside the Twitch video (kept).
         #[qinvokable]
         fn save_chat_open(self: Pin<&mut Streams>, on: bool);
@@ -235,6 +238,7 @@ pub mod qobject {
         #[qsignal]
         fn emotes_loaded(self: Pin<&mut Streams>, room: QString, emotes: QString);
 
+        /// A channel went live (live notes on).
         #[qsignal]
         fn went_live(self: Pin<&mut Streams>, name: QString, title: QString);
 
@@ -1164,39 +1168,48 @@ impl qobject::Streams {
         self.set_groups(q(&groups));
     }
 
-    fn take_freetube(mut self: Pin<&mut Self>) -> QString {
+    fn take_freetube(self: Pin<&mut Self>) -> QString {
         let Some(dir) = crate::library::freetube_dir() else {
             return q("FreeTube's files were not found.");
         };
-        let read = |f: &str| std::fs::read_to_string(dir.join(f)).ok();
-        let subs = read("profiles.db").map(|t| streams::freetube_subscriptions(&t)).unwrap_or_default();
-        let quick = read("settings.db").and_then(|t| crate::library::freetube_quick(&t));
-        let (lists, seen) = crate::library::change(|l| l.take_freetube(read("playlists.db").as_deref(), read("history.db").as_deref(), quick.as_deref()));
-        let (added, channels, groups) = settings::change(|s| {
-            let mut added = 0;
-            for c in subs {
-                match s.streams.channels.iter_mut().find(|o| o.id == c.id) {
-                    Some(o) => {
-                        for g in c.groups {
-                            if !o.groups.contains(&g) {
-                                o.groups.push(g);
+        // Reading a long history takes a moment: in the background.
+        let thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let read = |f: &str| std::fs::read_to_string(dir.join(f)).ok();
+            let subs = read("profiles.db").map(|t| streams::freetube_subscriptions(&t)).unwrap_or_default();
+            let quick = read("settings.db").and_then(|t| crate::library::freetube_quick(&t));
+            let (playlists, history) = (read("playlists.db"), read("history.db"));
+            let (lists, seen) = crate::library::change(|l| l.take_freetube(playlists.as_deref(), history.as_deref(), quick.as_deref()));
+            let (added, channels, groups) = settings::change(|s| {
+                let mut added = 0;
+                for c in subs {
+                    match s.streams.channels.iter_mut().find(|o| o.id == c.id) {
+                        Some(o) => {
+                            for g in c.groups {
+                                if !o.groups.contains(&g) {
+                                    o.groups.push(g);
+                                }
                             }
                         }
-                    }
-                    None => {
-                        s.streams.channels.push(c);
-                        added += 1;
+                        None => {
+                            s.streams.channels.push(c);
+                            added += 1;
+                        }
                     }
                 }
-            }
-            s.streams.freetube_live = false;
-            (added, channels_json(&s.streams), groups_json(&s.streams))
+                s.streams.freetube_live = false;
+                (added, channels_json(&s.streams), groups_json(&s.streams))
+            });
+            *subscriptions_kept().lock().unwrap_or_else(|p| p.into_inner()) = None;
+            let note = format!("Taken over: {added} channels, {lists} playlists, {seen} watched videos. FreeTube's files are no longer read.");
+            let _ = thread.queue(move |mut obj| {
+                obj.as_mut().set_channels(q(&channels));
+                obj.as_mut().set_groups(q(&groups));
+                obj.as_mut().set_freetube_live(false);
+                obj.freetube_taken(q(&note));
+            });
         });
-        self.as_mut().set_channels(q(&channels));
-        self.as_mut().set_groups(q(&groups));
-        self.as_mut().set_freetube_live(false);
-        *subscriptions_kept().lock().unwrap_or_else(|p| p.into_inner()) = None;
-        q(&format!("Taken over: {added} channels, {lists} playlists, {seen} watched videos. FreeTube's files are no longer read."))
+        q("Taking over…")
     }
 
     fn change_search_filter(self: Pin<&mut Self>, key: &QString, value: &QString) {

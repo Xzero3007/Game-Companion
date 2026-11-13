@@ -63,7 +63,8 @@ Panel {
         onMessage: (name, colour, text, emotes, own, system) => panel.add(name, colour, text, emotes, own, system)
     }
     function connectChat() {
-        if (!running || channel.length === 0) { chat.leave(); return }
+        // Screenshots never connect.
+        if (!running || channel.length === 0 || nativeWindow.demo.length > 0) { chat.leave(); return }
         const auth = JSON.parse(Streams.chatAuth())
         chat.join(channel, auth.user || "", auth.token || "")
     }
@@ -129,7 +130,8 @@ Panel {
         let out = "", word = ""
         const flush = () => {
             if (word.length === 0) return
-            const e = extra[word]
+            // Only the map's own names ("constructor" is a word, too).
+            const e = Object.prototype.hasOwnProperty.call(extra, word) ? extra[word] : null
             out += e ? img(e[0], e[1], e[2]) : esc(word)
             word = ""
         }
@@ -161,7 +163,10 @@ Panel {
             for (const l of panel.pending) lines.append(l)
             const added = panel.pending.length
             panel.pending = []
-            if (lines.count > panel.keep) lines.remove(0, lines.count - panel.keep)
+            // Scrolled up, old lines stay a while longer (trimming would
+            // move what is being read); at most twice as many.
+            const most = atEnd ? panel.keep : panel.keep * 2
+            if (lines.count > most) lines.remove(0, lines.count - panel.keep)
             if (atEnd) list.positionViewAtEnd()
             else panel.newCount += added
         }

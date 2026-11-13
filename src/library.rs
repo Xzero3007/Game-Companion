@@ -467,16 +467,22 @@ fn iso_of_ms(ms: u64) -> Option<String> {
 /// A NeDB file's documents (a JSON document a line; a later line of the
 /// same `_id` replaces an earlier one; deleted ones go).
 pub fn nedb(text: &str) -> Vec<Value> {
-    let mut docs: Vec<(String, Value)> = Vec::new();
+    // The last line of an id wins (NeDB appends changes), in the order the
+    // ids last came; looked up by id, so a long history stays quick.
+    let mut docs: Vec<Option<Value>> = Vec::new();
+    let mut at: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for line in text.lines() {
         let Ok(doc) = serde_json::from_str::<Value>(line) else { continue };
         let Some(key) = doc.get("_id").and_then(Value::as_str).map(str::to_string) else { continue };
-        docs.retain(|(k, _)| *k != key);
+        if let Some(i) = at.remove(&key) {
+            docs[i] = None;
+        }
         if doc.get("$$deleted").and_then(Value::as_bool) != Some(true) {
-            docs.push((key, doc));
+            at.insert(key, docs.len());
+            docs.push(Some(doc));
         }
     }
-    docs.into_iter().map(|(_, d)| d).collect()
+    docs.into_iter().flatten().collect()
 }
 
 /// FreeTube's folder (its own, or the Flatpak's) if there is one.
@@ -534,9 +540,51 @@ pub fn change<T>(f: impl FnOnce(&mut Library) -> T) -> T {
     if !DEMO.load(std::sync::atomic::Ordering::Relaxed) {
         if let Some(p) = file_path() {
             save_to(&p, lib);
+            DIRTY.store(false, std::sync::atomic::Ordering::Relaxed);
         }
     }
     out
+}
+
+/// Kept in memory but not yet written (a playing video's place).
+static DIRTY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static LAST_SAVE: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+
+/// Changes the library in memory only (a playing video's place every few
+/// seconds); `save_soon` or `save_now` writes it.
+pub fn change_quiet<T>(f: impl FnOnce(&mut Library) -> T) -> T {
+    let mut guard = store().lock().unwrap_or_else(|p| p.into_inner());
+    let lib = guard.get_or_insert_with(|| file_path().map(|p| load_from(&p)).unwrap_or_default());
+    let out = f(lib);
+    DIRTY.store(true, std::sync::atomic::Ordering::Relaxed);
+    out
+}
+
+/// Writes what changed quietly, in the background: at once with `now`,
+/// else at most once a minute.
+pub fn save_soon(now: bool) {
+    if !DIRTY.load(std::sync::atomic::Ordering::Relaxed) || DEMO.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    {
+        let mut last = LAST_SAVE.lock().unwrap_or_else(|p| p.into_inner());
+        if !now && last.is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(60)) {
+            return;
+        }
+        *last = Some(std::time::Instant::now());
+    }
+    std::thread::spawn(save_now);
+}
+
+/// Writes what changed quietly, here and now (on quitting).
+pub fn save_now() {
+    if !DIRTY.swap(false, std::sync::atomic::Ordering::Relaxed) || DEMO.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let guard = store().lock().unwrap_or_else(|p| p.into_inner());
+    if let (Some(lib), Some(p)) = (guard.as_ref(), file_path()) {
+        save_to(&p, lib);
+    }
 }
 
 static DEMO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

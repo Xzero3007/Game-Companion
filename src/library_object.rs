@@ -59,10 +59,12 @@ pub mod qobject {
         /// A playlist's videos (list JSON).
         #[qinvokable]
         fn videos(self: &Library, id: &QString) -> QString;
-        /// Where a video stopped: kept for later (the window says it every
-        /// few seconds while it plays, and when it closes).
+        /// Where a video stopped: kept for later. The window says it every
+        /// few seconds while it plays (`save` false: kept in memory, written
+        /// at most once a minute in the background) and when it pauses,
+        /// ends or closes (`save` true: written now, marks follow).
         #[qinvokable]
-        fn record(self: Pin<&mut Library>, video: &QString, position: f64, length: f64);
+        fn record(self: Pin<&mut Library>, video: &QString, position: f64, length: f64, save: bool);
         /// Where to start a video again (0 from the start).
         #[qinvokable]
         fn resume_at(self: &Library, id: &QString) -> f64;
@@ -188,10 +190,21 @@ impl qobject::Library {
         QString::from(&Value::Array(list).to_string())
     }
 
-    fn record(self: Pin<&mut Self>, video: &QString, position: f64, length: f64) {
+    fn record(self: Pin<&mut Self>, video: &QString, position: f64, length: f64, save: bool) {
         let Some(v) = video_of(video) else { return };
-        library::change(|l| l.record(v, position, length));
-        self.changed(false);
+        let id = v.id.clone();
+        let (was, now) = library::change_quiet(|l| {
+            let was = l.progress(&id).1;
+            l.record(v, position, length);
+            (was, l.progress(&id).1)
+        });
+        library::save_soon(save);
+        // The marks on the lists follow only when it matters (not every
+        // few seconds while it plays); the playlists did not change.
+        if save || was != now {
+            let r = *self.revision() + 1;
+            self.set_revision(r);
+        }
     }
 
     fn resume_at(&self, id: &QString) -> f64 {

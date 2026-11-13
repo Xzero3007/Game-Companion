@@ -50,5 +50,8 @@ fn main() {
     }
     cxx_qt::init_crate!(game_companion);
     cxx_qt::init_qml_module!("GameCompanion");
-    std::process::exit(native::run());
+    let code = native::run();
+    // Where the last video stopped, if not yet written.
+    library::save_now();
+    std::process::exit(code);
 }

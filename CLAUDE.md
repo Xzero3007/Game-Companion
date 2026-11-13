@@ -278,7 +278,9 @@ learnt, so nothing has to be asked or worked out again.
 - YouTube library (`src/library.rs`, `src/library_object.rs`, the
   `Library` singleton; 0.6.x, replacing FreeTube): playlists (one is the
   quick bookmark's, "Watch later" by default), history with where each
-  video stopped (`record` every 10 s from `VideoWindow.keepPosition`,
+  video stopped (`record` every 10 s from `VideoWindow.keepPosition`
+  kept in memory, `change_quiet`; written in the background at most once a
+  minute and at once on pause, end, close and quit, `save_soon`/`save_now`;
   `resumeAt` on start) and watched marks, in `youtube.json` beside
   settings.json. `take_freetube` (Streams) reads FreeTube's NeDB files
   (profiles → subscription groups, playlists, history, the quick bookmark
@@ -300,7 +302,9 @@ learnt, so nothing has to be asked or worked out again.
   tags/commands, `justinfan…` to read or PASS `oauth:<token>` to write
   (`Streams.chatAuth()`: only when signed in and Settings → Streams →
   Twitch "Write in chat" is on; a refused sign-in falls back to reading),
-  reconnects with a growing wait. Connected only while the panel shows
+  reconnects with a growing wait (dropping the old socket has its signals
+  blocked, or one RECONNECT looped forever; check with
+  `tools/chat-test/run.sh`, a made-up IRC server). Connected only while the panel shows
   (`running`). Lines come in batches every 250 ms (a timer only while lines
   wait), 200 kept, StyledText with emotes as `<img>` sized ahead (Twitch's
   static pictures, 7TV/BTTV from `src/emotes.rs` with their 1x sizes);
