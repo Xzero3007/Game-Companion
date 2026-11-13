@@ -8,7 +8,7 @@ use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use parking_lot::Mutex;
@@ -20,6 +20,7 @@ use crate::combat::dps_calculator::DpsCalculator;
 use crate::combat::ping_tracker::PingTracker;
 use crate::entity::dps_data::DpsData;
 use crate::i18n::lookup::{self, NpcLookup, SkillLookup};
+use crate::history;
 use crate::link::{self, State};
 use crate::platform::window_detector;
 
@@ -38,133 +39,56 @@ pub enum Status {
 }
 
 pub struct Engine {
-    calculator: Arc<Mutex<DpsCalculator>>,
+    /// None until the runner has loaded the game's tables.
+    calculator: Arc<Mutex<Option<DpsCalculator>>>,
     detector: Arc<CombatPortDetector>,
     helper: Arc<Mutex<Option<Child>>>,
     failure: Arc<Mutex<Option<String>>>,
     running: Arc<AtomicBool>,
+    /// Raised each time fights were written to the history.
+    saved: Arc<AtomicU64>,
+    history: PathBuf,
 }
 
-impl Engine {
-    /// Loads the game's tables (in `language`) and starts the helper at
-    /// `helper` (HELPER unless testing).
-    pub fn start(helper: &Path, data_dir: &Path, language: &str) -> Engine {
-        let skills = SkillLookup::new();
-        let npcs = NpcLookup::new();
-        lookup::load_language(&skills, &npcs, data_dir, language);
-        let skills = Arc::new(skills);
-        let npcs = Arc::new(npcs);
-        let storage = Arc::new(DataStorage::new());
-        if let Ok(text) = std::fs::read_to_string(data_dir.join("abnormals.json")) {
-            storage.set_abnormal_stack_limits(crate::capture::abnormal::stack_limits(&text));
-        }
-        let ping = Arc::new(PingTracker::new());
-        let detector = Arc::new(CombatPortDetector::new());
-        let calculator = Arc::new(Mutex::new(DpsCalculator::new(
-            storage.clone(),
-            skills.clone(),
-            npcs.clone(),
-            ping.clone(),
-        )));
-        let mut dispatcher = CaptureDispatcher::new(storage, skills, npcs, detector.clone(), ping);
-        dispatcher.set_dot_skill_ids(dot_skill_ids(data_dir));
+/// How often fights still on the meter are written to the history.
+const SAVE_EVERY: Duration = Duration::from_secs(30);
 
+impl Engine {
+    /// Starts at once and does the work on a thread of its own: loads the
+    /// game's tables (in `language`), starts the helper at `helper` (HELPER
+    /// unless testing) and keeps it fed. Fights go to `history`.
+    pub fn start(helper: &Path, data_dir: &Path, language: &str, history: &Path) -> Engine {
         let engine = Engine {
-            calculator,
-            detector,
+            calculator: Arc::new(Mutex::new(None)),
+            detector: Arc::new(CombatPortDetector::new()),
             helper: Arc::new(Mutex::new(None)),
             failure: Arc::new(Mutex::new(None)),
             running: Arc::new(AtomicBool::new(true)),
+            saved: Arc::new(AtomicU64::new(0)),
+            history: history.to_path_buf(),
         };
         window_detector::set_running(true);
-        engine.spawn(helper.to_path_buf(), dispatcher);
-        engine
-    }
-
-    fn spawn(&self, helper: PathBuf, dispatcher: CaptureDispatcher) {
-        let child = Command::new(&helper)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn();
-        let mut child = match child {
-            Ok(child) => child,
-            Err(e) => {
-                *self.failure.lock() = Some(format!("the capture helper did not start ({}): {e}", helper.display()));
-                return;
-            }
+        let runner = Runner {
+            helper: helper.to_path_buf(),
+            data_dir: data_dir.to_path_buf(),
+            language: language.to_string(),
+            calculator: engine.calculator.clone(),
+            detector: engine.detector.clone(),
+            child: engine.helper.clone(),
+            failure: engine.failure.clone(),
+            running: engine.running.clone(),
+            saved: engine.saved.clone(),
+            history: engine.history.clone(),
         };
-        let stdout = child.stdout.take();
-        let stderr = child.stderr.take();
-        let mut stdin = child.stdin.take();
-        *self.helper.lock() = Some(child);
-
-        let (tx, rx) = tokio::sync::mpsc::channel(4096);
-        // Helper → parser.
-        let running = self.running.clone();
-        if let Some(stdout) = stdout {
-            std::thread::spawn(move || {
-                let mut input = BufReader::with_capacity(1 << 16, stdout);
-                while running.load(Ordering::Relaxed) {
-                    match link::read_segment(&mut input) {
-                        Ok(Some(segment)) => {
-                            if tx.blocking_send(segment).is_err() {
-                                break;
-                            }
-                        }
-                        _ => break,
-                    }
-                }
-            });
-        }
-        // Why the helper ended, if it says.
-        let failure = self.failure.clone();
-        if let Some(stderr) = stderr {
-            std::thread::spawn(move || {
-                let mut text = String::new();
-                let _ = std::io::Read::read_to_string(&mut BufReader::new(stderr), &mut text);
-                let text = text.trim();
-                if !text.is_empty() {
-                    *failure.lock() = Some(text.lines().last().unwrap_or(text).to_string());
-                }
-            });
-        }
-        // The parser, on a thread of its own.
-        std::thread::spawn(move || {
-            let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_time().build() else { return };
-            runtime.block_on(dispatcher.run(rx));
-        });
-        // The detector's state → helper, so its filter follows the game.
-        let running = self.running.clone();
-        let detector = self.detector.clone();
-        std::thread::spawn(move || {
-            let mut last = None;
-            let mut quiet = 0;
-            while running.load(Ordering::Relaxed) {
-                let state = State {
-                    port: detector.locked_port_now(),
-                    last_parsed_ms: detector.last_parsed_at_ms(),
-                    last_from_port_ms: detector.last_from_port_ms(),
-                    game_running: window_detector::find_aion2_window_title().is_some(),
-                };
-                // On change, else every 5 s (the filter widens on quiet ports).
-                quiet += 1;
-                if last != Some(state) || quiet >= 5 {
-                    quiet = 0;
-                    last = Some(state);
-                    let Some(pipe) = stdin.as_mut() else { break };
-                    if pipe.write_all(state.line().as_bytes()).and_then(|_| pipe.flush()).is_err() {
-                        break;
-                    }
-                }
-                std::thread::sleep(Duration::from_secs(1));
-            }
-        });
+        // The helper dies with the thread that started it (PR_SET_PDEATHSIG):
+        // the runner starts it and lives as long as the engine runs.
+        let _ = std::thread::Builder::new().name("aion2-runner".into()).spawn(move || runner.run());
+        engine
     }
 
     /// The fight now, as the meter's page asked for it every 200 ms.
     pub fn snapshot(&self) -> DpsData {
-        self.calculator.lock().get_dps()
+        self.calculator.lock().as_mut().map_or_else(DpsData::new, |c| c.get_dps())
     }
 
     pub fn status(&self) -> Status {
@@ -183,9 +107,17 @@ impl Engine {
         }
     }
 
-    /// A new fight: what is counted goes.
+    /// How many times fights were saved (to notice new ones).
+    pub fn saved(&self) -> u64 {
+        self.saved.load(Ordering::Relaxed)
+    }
+
+    /// A new fight: what is counted is saved, then goes.
     pub fn reset(&self) {
-        self.calculator.lock().restart_target_selection(true);
+        if let Some(c) = self.calculator.lock().as_mut() {
+            save_fights(c.snapshot_boss_fights_force(), &self.history, &self.saved);
+            c.restart_target_selection(true);
+        }
     }
 
     pub fn stop(&self) {
@@ -193,6 +125,9 @@ impl Engine {
             return;
         }
         window_detector::set_running(false);
+        if let Some(c) = self.calculator.lock().as_mut() {
+            save_fights(c.snapshot_boss_fights_force(), &self.history, &self.saved);
+        }
         if let Some(mut child) = self.helper.lock().take() {
             let _ = child.kill();
             let _ = child.wait();
@@ -203,6 +138,147 @@ impl Engine {
 impl Drop for Engine {
     fn drop(&mut self) {
         self.stop();
+    }
+}
+
+fn save_fights(records: Vec<crate::entity::fight_record::FightRecord>, dir: &Path, saved: &AtomicU64) {
+    if records.is_empty() {
+        return;
+    }
+    for record in &records {
+        let _ = history::save(dir, record);
+    }
+    history::prune(dir, history::KEEP);
+    saved.fetch_add(1, Ordering::Relaxed);
+}
+
+/// The engine's work, on its own thread.
+struct Runner {
+    helper: PathBuf,
+    data_dir: PathBuf,
+    language: String,
+    calculator: Arc<Mutex<Option<DpsCalculator>>>,
+    detector: Arc<CombatPortDetector>,
+    child: Arc<Mutex<Option<Child>>>,
+    failure: Arc<Mutex<Option<String>>>,
+    running: Arc<AtomicBool>,
+    saved: Arc<AtomicU64>,
+    history: PathBuf,
+}
+
+impl Runner {
+    fn run(self) {
+        let skills = SkillLookup::new();
+        let npcs = NpcLookup::new();
+        lookup::load_language(&skills, &npcs, &self.data_dir, &self.language);
+        let skills = Arc::new(skills);
+        let npcs = Arc::new(npcs);
+        let storage = Arc::new(DataStorage::new());
+        if let Ok(text) = std::fs::read_to_string(self.data_dir.join("abnormals.json")) {
+            storage.set_abnormal_stack_limits(crate::capture::abnormal::stack_limits(&text));
+        }
+        let ping = Arc::new(PingTracker::new());
+        *self.calculator.lock() = Some(DpsCalculator::new(storage.clone(), skills.clone(), npcs.clone(), ping.clone()));
+        let mut dispatcher = CaptureDispatcher::new(storage.clone(), skills, npcs, self.detector.clone(), ping);
+        dispatcher.set_dot_skill_ids(dot_skill_ids(&self.data_dir));
+        if !self.running.load(Ordering::SeqCst) {
+            return;
+        }
+
+        let child = Command::new(&self.helper)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn();
+        let mut child = match child {
+            Ok(child) => child,
+            Err(e) => {
+                *self.failure.lock() = Some(format!("the capture helper did not start ({}): {e}", self.helper.display()));
+                return;
+            }
+        };
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+        let mut stdin = child.stdin.take();
+        {
+            let mut slot = self.child.lock();
+            if !self.running.load(Ordering::SeqCst) {
+                let _ = child.kill();
+                let _ = child.wait();
+                return;
+            }
+            *slot = Some(child);
+        }
+
+        let (tx, rx) = tokio::sync::mpsc::channel(4096);
+        // Helper → parser.
+        if let Some(stdout) = stdout {
+            let running = self.running.clone();
+            std::thread::spawn(move || {
+                let mut input = BufReader::with_capacity(1 << 16, stdout);
+                while running.load(Ordering::Relaxed) {
+                    match link::read_segment(&mut input) {
+                        Ok(Some(segment)) => {
+                            if tx.blocking_send(segment).is_err() {
+                                break;
+                            }
+                        }
+                        _ => break,
+                    }
+                }
+            });
+        }
+        // Why the helper ended, if it says.
+        if let Some(stderr) = stderr {
+            let failure = self.failure.clone();
+            std::thread::spawn(move || {
+                let mut text = String::new();
+                let _ = std::io::Read::read_to_string(&mut BufReader::new(stderr), &mut text);
+                let text = text.trim();
+                if !text.is_empty() {
+                    *failure.lock() = Some(text.lines().last().unwrap_or(text).to_string());
+                }
+            });
+        }
+        // The parser, on a thread of its own.
+        std::thread::spawn(move || {
+            let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_time().build() else { return };
+            runtime.block_on(dispatcher.run(rx));
+        });
+
+        // The detector's state → helper, so its filter follows the game;
+        // fights to the history every 30 s.
+        let mut last = None;
+        let mut quiet = 0;
+        let mut last_save = std::time::Instant::now();
+        while self.running.load(Ordering::Relaxed) {
+            let state = State {
+                port: self.detector.locked_port_now(),
+                last_parsed_ms: self.detector.last_parsed_at_ms(),
+                last_from_port_ms: self.detector.last_from_port_ms(),
+                game_running: window_detector::find_aion2_window_title().is_some(),
+            };
+            // On change, else every 5 s (the filter widens on quiet ports).
+            quiet += 1;
+            if last != Some(state) || quiet >= 5 {
+                quiet = 0;
+                last = Some(state);
+                let Some(pipe) = stdin.as_mut() else { break };
+                if pipe.write_all(state.line().as_bytes()).and_then(|_| pipe.flush()).is_err() {
+                    break;
+                }
+            }
+            if last_save.elapsed() >= SAVE_EVERY {
+                last_save = std::time::Instant::now();
+                if storage.damage_generation() > 0 {
+                    let records = self.calculator.try_lock().and_then(|mut c| c.as_mut().map(|c| c.snapshot_boss_fights()));
+                    if let Some(records) = records {
+                        save_fights(records, &self.history, &self.saved);
+                    }
+                }
+            }
+            std::thread::sleep(Duration::from_secs(1));
+        }
     }
 }
 
@@ -297,7 +373,13 @@ mod tests {
     #[test]
     fn a_missing_helper_says_so_and_the_tables_load() {
         let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let engine = Engine::start(Path::new("/nonexistent/helper"), &data, "en");
+        let history = std::env::temp_dir().join(format!("gc-engine-{}", std::process::id()));
+        let engine = Engine::start(Path::new("/nonexistent/helper"), &data, "en", &history);
+        let mut waited = 0;
+        while !matches!(engine.status(), Status::Failed(_)) && waited < 100 {
+            std::thread::sleep(Duration::from_millis(50));
+            waited += 1;
+        }
         assert!(matches!(engine.status(), Status::Failed(ref why) if why.contains("did not start")));
         assert!(!dot_skill_ids(&data).is_empty());
         assert!(engine.snapshot().map.is_empty());

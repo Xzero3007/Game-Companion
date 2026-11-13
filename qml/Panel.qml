@@ -19,6 +19,9 @@ Item {
     property string icon: ""
     /// A game module's purple tag beside the title ("AION 2"), or "".
     property string tag: ""
+    /// A button in the header before the pin ("Reset"), or "".
+    property string actionText: ""
+    signal actionClicked
     /// Whether it can be pinned (it then stays while the hub is hidden).
     property bool pinnable: true
     readonly property bool pinned: Companion.pins.indexOf('"' + panelId + '"') >= 0
@@ -153,7 +156,7 @@ Item {
                 id: tagText
                 anchors.centerIn: parent
                 text: panel.tag.toUpperCase()
-                color: "#e6dbfa"
+                color: Theme.purpleText
                 font.family: Theme.display
                 font.pixelSize: 11
                 font.weight: Font.Bold
@@ -184,8 +187,19 @@ Item {
             Accessible.role: Accessible.CheckBox
             Accessible.name: panel.pinned ? "Unpin: hide with the hub" : "Pin: stay when the hub is hidden"
         }
-        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+        TextButton {
+            id: actionButton
+            visible: panel.actionText.length > 0
             anchors.right: pinButton.left
+            anchors.rightMargin: visible ? 6 : 0
+            anchors.verticalCenter: parent.verticalCenter
+            width: visible ? implicitWidth : 0
+            implicitHeight: 28
+            text: panel.actionText
+            onClicked: if (!Companion.locked) panel.actionClicked()
+        }
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+            anchors.right: actionButton.left
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             visible: panel.badge.length > 0

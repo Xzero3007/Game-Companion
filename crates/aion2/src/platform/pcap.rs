@@ -7,8 +7,8 @@
 /// Debian-family system.
 pub const LIBRARIES: &[&str] = &["libpcap.so.1", "libpcap.so.0.8", "libpcap.so"];
 
-pub const MISSING_HELP: &str = "Install libpcap (e.g. `sudo apt install libpcap0.8`), then let the meter \
-capture without root: `sudo setcap cap_net_raw=ep <path to the meter>`";
+pub const MISSING_HELP: &str = "no permission to read the network: run \
+`sudo setcap cap_net_raw=ep /usr/lib/game-companion/game-companion-capture` (libpcap must be installed)";
 
 /// The capture library comes from the distribution's packages, not the meter.
 pub const OFFERS_INSTALL: bool = false;

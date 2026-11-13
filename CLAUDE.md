@@ -292,8 +292,13 @@ learnt, so nothing has to be asked or worked out again.
   shim for what the meter asked of the OS (`window_detector::set_running`).
   The helper `game-companion-capture` (crates/aion2/src/bin) is the only
   part with `cap_net_raw` (packaging/arch/game-companion.install), runs
-  only as the app's child (its parent's exe must be `game-companion`),
-  dies with it, and writes TCP segments to stdout (`aion2::link`); the
+  only as the app's child (installed: the parent's exe must be the very
+  file /usr/bin/game-companion, by device and inode, root's; a dev build
+  checks the name only), dies with it, listens only while an AION2.exe
+  process runs (ends 10 s after it), never narrows to a port below 1024,
+  never drops its filter (the app's "game runs" is not taken), says why
+  when it lacks the right (stderr → the panel, "Try again"), and writes
+  TCP segments to stdout (`aion2::link`); the
   app writes the port detector's state back on its stdin so the capture
   filter follows the game. `aion2::engine::Engine` runs it all;
   `src/aion2_object.rs` (`Aion2` singleton) starts it when Games says
@@ -301,8 +306,12 @@ learnt, so nothing has to be asked or worked out again.
   when it changed. `qml/DpsPanel.qml` (canvas board A4Window). The game's
   tables: crates/aion2/data → /usr/share/game-companion/aion2
   (`GC_AION2_DATA`), the helper `GC_AION2_HELPER`. `GC_DEMO=dps` shows a
-  made-up fight. Packet logging and the meter's sharing ring are left out:
-  nothing captured is written down. Check the helper in the sandbox: copy
+  made-up fight (`,skills`, `,history`). The engine loads the tables and
+  starts the helper on its own long-lived runner thread (PR_SET_PDEATHSIG
+  follows the spawning thread). Battle History: `aion2::history`, the
+  meter's FightRecord as JSON in ~/.local/share/game-companion/aion2/fights
+  (200 kept), saved every 30 s, on Reset and on stop. Packet logging and
+  the meter's sharing ring are left out: nothing captured is written down. Check the helper in the sandbox: copy
   /bin/bash to a folder as `game-companion` and run the helper from it
   (`libpcap0.8` installed), loopback traffic on a port other than 80/443.
 

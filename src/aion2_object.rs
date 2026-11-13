@@ -13,6 +13,7 @@ use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::QString;
 
 use aion2::engine::{self, Engine, Status};
+use aion2::history;
 
 #[cxx_qt::bridge]
 pub mod qobject {
@@ -40,6 +41,11 @@ pub mod qobject {
         /// That player's skills: JSON [{"code","name","casts","damage",
         /// "share","crit","back","perfect","double","parry"}].
         #[qproperty(QString, skills)]
+        /// Battle History, newest first: JSON [{"id","boss","start",
+        /// "duration","total","jobs","train"}].
+        #[qproperty(QString, history)]
+        /// A saved fight shown in place of the live one ("" for live).
+        #[qproperty(QString, opened)]
         type Aion2 = super::Aion2Rust;
 
         /// Starts reading (AION 2 started).
@@ -53,6 +59,14 @@ pub mod qobject {
         /// A new fight: what is counted goes.
         #[qinvokable]
         fn reset(self: Pin<&mut Aion2>);
+
+        /// Shows a saved fight (its id), or the live one again ("").
+        #[qinvokable]
+        fn open_fight(self: Pin<&mut Aion2>, id: &QString);
+
+        /// Removes a saved fight.
+        #[qinvokable]
+        fn remove_fight(self: Pin<&mut Aion2>, id: &QString);
 
         /// Shows this player's skills (0: the one playing).
         #[qinvokable]
@@ -70,6 +84,10 @@ pub struct Aion2Rust {
     fight: QString,
     picked: i32,
     skills: QString,
+    history: QString,
+    opened: QString,
+    /// The live fight while a saved one is shown.
+    live: String,
     /// `picked`, for the watch thread.
     wanted: Arc<AtomicI32>,
     engine: Option<Arc<Engine>>,
@@ -86,6 +104,9 @@ impl Default for Aion2Rust {
             fight: QString::from(EMPTY),
             picked: 0,
             skills: QString::from("[]"),
+            history: QString::from("[]"),
+            opened: QString::default(),
+            live: EMPTY.to_string(),
             wanted: Arc::new(AtomicI32::new(0)),
             engine: None,
             watching: None,
@@ -107,7 +128,11 @@ impl cxx_qt::Initialize for qobject::Aion2 {
             self.as_mut().set_state(QString::from("reading"));
             self.as_mut().set_fight(QString::from(DEMO));
             self.as_mut().set_skills(QString::from(DEMO_SKILLS));
+            self.as_mut().set_history(QString::from(DEMO_HISTORY));
+            return;
         }
+        let list = history::list(&history::default_dir()).to_string();
+        self.as_mut().set_history(QString::from(&list));
     }
 }
 
@@ -116,7 +141,7 @@ impl qobject::Aion2 {
         if self.engine.is_some() {
             return;
         }
-        let engine = Arc::new(Engine::start(&helper(), &aion2::data_dir(), "en"));
+        let engine = Arc::new(Engine::start(&helper(), &aion2::data_dir(), "en", &history::default_dir()));
         let stop = Arc::new(AtomicBool::new(false));
         self.as_mut().rust_mut().engine = Some(engine.clone());
         self.as_mut().rust_mut().watching = Some(stop.clone());
@@ -126,7 +151,7 @@ impl qobject::Aion2 {
 
         // Every half second: the fight and the state, to QML only on change.
         let thread = self.qt_thread();
-        let last = Arc::new(Mutex::new((String::new(), Status::Searching, String::new())));
+        let last = Arc::new(Mutex::new((String::new(), Status::Searching, String::new(), 0u64)));
         let wanted = self.wanted.clone();
         let _ = std::thread::Builder::new().name("aion2".into()).spawn(move || {
             while !stop.load(Ordering::Relaxed) {
@@ -143,20 +168,32 @@ impl qobject::Aion2 {
                 let fight_changed = seen.0 != fight;
                 let status_changed = seen.1 != status;
                 let skills_changed = seen.2 != skills;
-                if !fight_changed && !status_changed && !skills_changed {
+                let saved = engine.saved();
+                let history_changed = seen.3 != saved;
+                if !fight_changed && !status_changed && !skills_changed && !history_changed {
                     continue;
                 }
-                *seen = (fight.clone(), status.clone(), skills.clone());
+                *seen = (fight.clone(), status.clone(), skills.clone(), saved);
+                let list = history_changed.then(|| history::list(&history::default_dir()).to_string());
                 drop(seen);
                 let stop = stop.clone();
                 let queued = thread.queue(move |mut obj: Pin<&mut qobject::Aion2>| {
                     if stop.load(Ordering::Relaxed) {
                         return;
                     }
-                    if fight_changed {
-                        obj.as_mut().set_fight(QString::from(&fight));
+                    if let Some(list) = &list {
+                        obj.as_mut().set_history(QString::from(list));
                     }
-                    if skills_changed {
+                    // A saved fight shown: the live one waits.
+                    let showing_saved = !obj.opened().is_empty();
+                    if fight_changed {
+                        if showing_saved {
+                            obj.as_mut().rust_mut().live = fight;
+                        } else {
+                            obj.as_mut().set_fight(QString::from(&fight));
+                        }
+                    }
+                    if skills_changed && !showing_saved {
                         obj.as_mut().set_skills(QString::from(&skills));
                     }
                     if status_changed {
@@ -181,7 +218,10 @@ impl qobject::Aion2 {
             stop.store(true, Ordering::Relaxed);
         }
         if let Some(engine) = self.as_mut().rust_mut().engine.take() {
+            // Saves what is still on the meter.
             engine.stop();
+            let list = history::list(&history::default_dir()).to_string();
+            self.as_mut().set_history(QString::from(&list));
         }
         self.as_mut().set_active(false);
         self.as_mut().set_state(QString::from("off"));
@@ -190,9 +230,43 @@ impl qobject::Aion2 {
     fn reset(mut self: Pin<&mut Self>) {
         if let Some(engine) = &self.engine {
             engine.reset();
+            let list = history::list(&history::default_dir()).to_string();
+            self.as_mut().set_history(QString::from(&list));
         }
         self.as_mut().set_fight(QString::from(EMPTY));
         self.as_mut().set_skills(QString::from("[]"));
+    }
+
+    fn open_fight(mut self: Pin<&mut Self>, id: &QString) {
+        let id = id.to_string();
+        if id.is_empty() {
+            if !self.opened.is_empty() {
+                let live = std::mem::take(&mut self.as_mut().rust_mut().live);
+                self.as_mut().set_opened(QString::default());
+                self.as_mut().set_fight(QString::from(if live.is_empty() { EMPTY } else { &live }));
+                self.as_mut().set_skills(QString::from("[]"));
+            }
+            return;
+        }
+        let Some(record) = history::load(&history::default_dir(), &id) else { return };
+        if self.opened.is_empty() {
+            let live = self.fight.to_string();
+            self.as_mut().rust_mut().live = live;
+        }
+        self.as_mut().set_opened(QString::from(&id));
+        self.as_mut().set_fight(QString::from(&history::summary(&record).to_string()));
+        self.as_mut().set_skills(QString::from("[]"));
+    }
+
+    fn remove_fight(mut self: Pin<&mut Self>, id: &QString) {
+        let dir = history::default_dir();
+        if history::remove(&dir, &id.to_string()) {
+            if self.opened == *id {
+                self.as_mut().open_fight(&QString::default());
+            }
+            let list = history::list(&dir).to_string();
+            self.as_mut().set_history(QString::from(&list));
+        }
     }
 
     fn pick(mut self: Pin<&mut Self>, actor: i32) {
@@ -210,6 +284,12 @@ const DEMO: &str = r#"{"time":134000,"target":"Training Scarecrow","boss":false,
 {"id":5,"name":"Party 5","job":"Templar","dps":16500,"amount":2211000,"share":10.4,"hps":1200,"heal":160800,"me":false,"others":false},
 {"id":6,"name":"Party 6","job":"Cleric","dps":9100,"amount":1219400,"share":7.7,"hps":14800,"heal":1983200,"me":false,"others":false}]}"#;
 
+/// Made-up history for screenshots (GC_DEMO=dps,history).
+const DEMO_HISTORY: &str = r#"[
+{"id":"f3","boss":"Tahabata","start":1794549600000,"duration":312000,"total":48210000,"jobs":["Sorcerer","Gladiator","Cleric"],"train":false},
+{"id":"f2","boss":"Brigade General Vasharti","start":1794546000000,"duration":201000,"total":30400000,"jobs":["Sorcerer","Ranger"],"train":false},
+{"id":"f1","boss":"Training Scarecrow","start":1794542400000,"duration":60000,"total":2400000,"jobs":["Sorcerer"],"train":true}]"#;
+
 /// Made-up skills for screenshots (GC_DEMO=dps,skills).
 const DEMO_SKILLS: &str = r#"[
 {"code":1,"name":"Flame Cascade","casts":38,"damage":1876500,"share":34.0,"crit":42.1,"back":0.0,"perfect":10.5,"double":13.2,"parry":0.0},
@@ -226,6 +306,8 @@ mod tests {
             let v: serde_json::Value = serde_json::from_str(text).unwrap();
             assert!(v["rows"].is_array());
         }
+        let history: serde_json::Value = serde_json::from_str(super::DEMO_HISTORY).unwrap();
+        assert_eq!(history.as_array().map(|a| a.len()), Some(3));
         let skills: serde_json::Value = serde_json::from_str(super::DEMO_SKILLS).unwrap();
         assert_eq!(skills.as_array().map(|a| a.len()), Some(5));
     }

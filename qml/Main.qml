@@ -17,6 +17,15 @@ Overlay {
     property bool streamsOpen: false
     property bool gamesOpen: false
     property bool dpsOpen: false
+    /// The person closed the DPS panel: it stays closed when AION 2 starts.
+    property bool dpsClosed: false
+    /// The game id AION 2 runs under (its module stops when that one ends).
+    property string aionId: ""
+    function aionStarted(id) {
+        aionId = id
+        Aion2.start()
+        if (!dpsClosed) dpsOpen = true
+    }
     readonly property var keys: JSON.parse(Companion.shortcuts)
     readonly property var pins: JSON.parse(Companion.pins)
 
@@ -51,7 +60,7 @@ Overlay {
         if (demo.indexOf("radio") >= 0) radioOpen = true
         if (demo.indexOf("games") >= 0) gamesOpen = true
         if (demo.indexOf("dps") >= 0) dpsOpen = true
-        if (Games.runningKnown === "aion2") { Aion2.start(); dpsOpen = true }
+        if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("streams") >= 0) streamsOpen = true
         if (demo.indexOf("video") >= 0) twitchVideo.item = { kind: "twitch", id: "streamer_one", name: "streamer_one", game: "AION 2", title: "" }
@@ -77,13 +86,13 @@ Overlay {
     Connections {
         target: Games
         function onStopped(id) {
-            if (Aion2.active && nativeWindow.demo.indexOf("dps") < 0) Aion2.stop()
+            if (id === root.aionId && Aion2.active) { Aion2.stop(); root.aionId = "" }
             if (root.shownForGame && Companion.shown) Companion.toggleShown()
             root.shownForGame = false
         }
         function onStarted(id) {
             // AION 2's module reads while the game runs.
-            if (Games.runningKnown === "aion2") { Aion2.start(); root.dpsOpen = true }
+            if (Games.runningKnown === "aion2") root.aionStarted(id)
             // Built-in games no launcher lists (known:…) are not in the library.
             const g = JSON.parse(Games.library).find((x) => x.id === id)
                 || { name: Games.runningName, twitch: Games.twitchPreset, youtube: Games.youtubePreset, showOnStart: true, radioOnStart: false }
@@ -162,9 +171,9 @@ Overlay {
             radioOpen: root.radioOpen
             gamesOpen: root.gamesOpen
             onGamesClicked: root.gamesOpen = !root.gamesOpen
-            dpsShown: Aion2.active
+            dpsShown: Aion2.active || root.dpsOpen
             dpsOpen: root.dpsOpen
-            onDpsClicked: root.dpsOpen = !root.dpsOpen
+            onDpsClicked: { root.dpsOpen = !root.dpsOpen; root.dpsClosed = !root.dpsOpen }
             gameName: Games.runningName
             gameHasModule: Games.runningKnown.length > 0
             streamsOpen: root.streamsOpen
@@ -252,7 +261,7 @@ Overlay {
         part: DpsPanel {
             defaultX: 24
             defaultY: 120
-            onCloseClicked: root.dpsOpen = false
+            onCloseClicked: { root.dpsOpen = false; root.dpsClosed = true }
         }
     }
 
