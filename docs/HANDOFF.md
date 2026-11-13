@@ -42,13 +42,21 @@ new session (or the same one after a usage limit) carries on from here.
 The person asked (2026-11-13) to port the meter; decisions in
 /mnt/project-files/game-companion/aion-module-decisions.md. Done: crate
 aion2 (parser, 300 tests), capture helper with cap_net_raw, engine, Aion2
-singleton, DPS panel (Damage, Healing, Reset, boss HP). Next: QA review,
-the person's test in the game (only they can play), Details (skill table),
-Battle History, then plugins in the agreed order. Not merged into beta
-until reviewed.
+singleton, DPS panel (Damage, Healing, Skills, History, Reset, boss HP),
+QA fixes (helper hardened), Battle History (fights/*.json, 200 kept), world
+state for the map (`world.rs` fed by `frame_tap`, `Aion2.world` JSON).
+Next: the Map panel (needs a design draft and the person's yes; the
+meter's map data is CC BY-NC: ask the person), the person's test in the
+game (only they can play), then plugins in the agreed order. Not merged
+into beta until reviewed. Open decision: install the helper 0750 with a
+group as further hardening.
 
 Branch `launch-options` (from beta): launch options, system check with
-suggestions and Proton versions (logic first), asked 2026-11-13.
+suggestions and Proton versions (logic done, 82 tests; Games invokables
+launchOptions, suggestions, combineOptions, setLaunchOptions,
+protonVersions, setProton, systemInfo). UI drafts on the canvas page
+"Launch options (draft)" (boards L1Options, L2Suggestions, L3Proton),
+waiting for the person's yes.
 
 ## In progress: step 4 (game detection, Games tab) on `beta`
 
