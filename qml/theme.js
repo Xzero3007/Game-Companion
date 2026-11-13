@@ -1,8 +1,7 @@
 .pragma library
 .import GameCompanion as GC
-
-// Colours and type of the Edge HUD design. No blue for controls: a
-// control shows its state in the accent (gold).
+// Colours and type of the Edge HUD design. A control shows its state in
+// the accent (gold); blue is allowed elsewhere (chat names, item grades).
 var accent = "#e0a526"
 var accentLight = "#f2c46b"
 var red = "#d6453d"

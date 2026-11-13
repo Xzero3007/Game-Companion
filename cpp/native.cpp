@@ -1,5 +1,6 @@
 #include "native.h"
 #include "mpvvideo.h"
+#include "twitchchat.h"
 
 #include <QtCore/QMetaObject>
 #include <QtCore/QMargins>
@@ -352,8 +353,10 @@ public:
 
     static bool allowed(const QUrl &url)
     {
+        // Chat emotes: Twitch's own (static-cdn), 7TV's and BTTV's.
         static const QStringList hosts = {QStringLiteral("static-cdn.jtvnw.net"), QStringLiteral("i.ytimg.com"),
-                                          QStringLiteral("yt3.ggpht.com")};
+                                          QStringLiteral("yt3.ggpht.com"), QStringLiteral("cdn.7tv.app"),
+                                          QStringLiteral("cdn.betterttv.net")};
         return url.scheme() == QLatin1String("https") && url.userInfo().isEmpty() && url.port(443) == 443
             && hosts.contains(url.host().toLower());
     }
@@ -407,6 +410,7 @@ int32_t gc_run()
         QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     }
     gc_register_video();
+    gc_register_chat();
     // The parts' windows are see-through where nothing is drawn.
     QQuickWindow::setDefaultAlphaBuffer(true);
 

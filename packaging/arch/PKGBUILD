@@ -9,7 +9,8 @@ license=(GPL-3.0-or-later)
 depends=(qt6-base qt6-declarative qt6-svg qt6-wayland layer-shell-qt xdg-desktop-portal polkit curl libpcap libcap)
 optdepends=('mpv: the radio and videos (libmpv)'
             'yt-dlp: YouTube, and Twitch without Streamlink'
-            'streamlink: Twitch without the ad breaks')
+            'streamlink: Twitch without the ad breaks'
+            'qt6-imageformats: 7TV chat emotes (WebP pictures)')
 makedepends=(rust clang mpv)
 options=(!lto !debug)
 install=game-companion.install

@@ -68,6 +68,24 @@ to the game.
   channels. Subscriptions load several channels at once, show while they
   come, and are kept 15 minutes (the refresh button asks again). Moved over from the Clicktrough meter's Streams
   plugin (`Xzero3007/A2Tools-Clicktrough-Plugins`, GPL-3.0).
+- **YouTube, your own library** (in place of FreeTube): playlists (search,
+  sort, play through, shuffle, loop; the bookmark fills "Watch later" or
+  the playlist you choose), subscriptions in groups, history with a
+  progress line on each video and "continue where you stopped", Trending
+  (Gaming and Football: Europe, national teams, Süper Lig, Bundesliga,
+  Premier League, Ligue 1, Serie A, LaLiga; the search words can be
+  changed), Shorts left out (switchable), channels and words left out,
+  search filters (order, upload date, length). FreeTube's subscriptions,
+  groups, playlists and history are taken over once in Settings → Streams
+  → YouTube; all of it stays on your computer (`youtube.json`).
+- **Twitch, beyond live** (in place of Streamlink Twitch GUI): categories,
+  past broadcasts and clips of a channel, filters (language, reruns,
+  order), the quality kept per channel, and live notes for followed and
+  favourite channels (off by default; a red count, no pop-up).
+- **Twitch chat** beside the Twitch video (the speech bubble on it): moves,
+  pins and goes see-through like a panel; signed in to Twitch you can write
+  in it. Emotes from Twitch, 7TV and BTTV show as still pictures (7TV's
+  need `qt6-imageformats`); names keep their colours.
 - **Videos over the game**: a click plays it in Twitch's, YouTube's or
   Jellyfin's own window (all at once if you like), drawn by your **libmpv** into the
   overlay. Locked, clicks go through it; unlocked, the pointer on it shows
@@ -91,6 +109,9 @@ to the game.
   yt3.ggpht.com (the app's image loader refuses every other host), and
   SponsorBlock (sponsor.ajay.app) when switched on in Settings → Streams,
   asked with only the first four characters of the video id's SHA-256;
+  Twitch's chat (irc.chat.twitch.tv, your token only when you write) and
+  the emotes of 7TV (7tv.io, cdn.7tv.app) and BTTV (api.betterttv.net,
+  cdn.betterttv.net), asked with the channel's public id;
   and your own Jellyfin server in your home network. Nothing else.
 - **Jellyfin, your own server, in your home network only.** Sign in once
   (Settings → Streams → Jellyfin, or the Streams panel's Jellyfin tab) with
@@ -177,7 +198,9 @@ GC_DEMO=backdrop,unlocked,settings GC_SCREENSHOT=shot.png cargo run --no-default
 ```
 
 `GC_DEMO` takes `backdrop`, `unlocked`, `settings`, `shortcuts`, `about`,
-`radio`, `radio-playing`, `hidden`.
+`radio`, `radio-playing`, `hidden`, `streams` (with `yt-playlists`,
+`yt-history`, `yt-trending`, `tw-categories`, `news`, `groups`), `video`,
+`chat`, `ytsettings`.
 
 ## How it is built
 
@@ -189,6 +212,8 @@ Qt 6 / QML for the interface, Rust for the logic, joined by
 | `src/companion.rs` | The overlay's state for QML: lock, shown, opacity, places, shortcuts |
 | `src/settings.rs` | `~/.config/game-companion/settings.json` |
 | `src/shortcuts.rs` | Global shortcuts through the GlobalShortcuts portal |
+| `src/library.rs`, `src/library_object.rs` | YouTube playlists and history (`Library` singleton) |
+| `src/emotes.rs`, `cpp/twitchchat.cpp` | Twitch chat and its 7TV/BTTV emotes |
 | `src/radio.rs`, `src/radio_object.rs` | Stations, the radio's network guard, the mpv player, the `Radio` QML singleton |
 | `data/stations.json` | The station list |
 | `cpp/native.cpp` | The Qt app; each part's window on KDE's overlay layer, its place and where it takes clicks |

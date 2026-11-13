@@ -2,6 +2,7 @@
 
 mod aion2_object;
 mod companion;
+mod emotes;
 mod games;
 mod games_object;
 mod jellyfin;

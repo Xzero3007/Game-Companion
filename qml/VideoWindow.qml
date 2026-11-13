@@ -732,6 +732,16 @@ Item {
                 picker: subtitlePicker
             }
             IconButton {
+                visible: !!win.item && win.item.kind === "twitch"
+                anchors.verticalCenter: parent.verticalCenter
+                icon: "chat"
+                iconSize: 13
+                filled: Streams.chatOpen
+                color: Streams.chatOpen ? Theme.accent : Theme.muted()
+                tip: Streams.chatOpen ? "Hide the chat" : "Show the chat"
+                onClicked: Streams.saveChatOpen(!Streams.chatOpen)
+            }
+            IconButton {
                 anchors.verticalCenter: parent.verticalCenter
                 icon: win.fullScreen ? "shrink" : "expand"
                 iconSize: 13

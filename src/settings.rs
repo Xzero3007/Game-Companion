@@ -169,6 +169,12 @@ pub struct StreamsSettings {
     pub languages: Vec<String>,
     pub hide_reruns: bool,
     pub twitch_sort: String,
+    /// Twitch chat: shown beside the Twitch video, and written in with the
+    /// twitch.tv sign-in (off: reading only).
+    pub chat_open: bool,
+    pub chat_write: bool,
+    /// The chat follows the Twitch video (until it is moved by hand).
+    pub chat_docked: bool,
 }
 
 /// YouTube's search filter: sort ("relevance", "date", "views"), uploaded
@@ -218,6 +224,9 @@ impl Default for StreamsSettings {
             languages: Vec::new(),
             hide_reruns: false,
             twitch_sort: "viewers".into(),
+            chat_open: false,
+            chat_write: true,
+            chat_docked: true,
         }
     }
 }

@@ -79,6 +79,10 @@ pub mod qobject {
         #[qproperty(i32, live_new_count)]
         /// Twitch lists: JSON `{"languages": [..], "reruns": bool, "sort"}`.
         #[qproperty(QString, twitch_filter)]
+        /// Twitch chat beside the Twitch video, and writing in it.
+        #[qproperty(bool, chat_open)]
+        #[qproperty(bool, chat_write)]
+        #[qproperty(bool, chat_docked)]
         type Streams = super::StreamsRust;
 
         /// Loads a Twitch list: "game", "following", "favourites", "live" or "search" (with `text`).
@@ -211,6 +215,26 @@ pub mod qobject {
         #[qinvokable]
         fn begin(self: Pin<&mut Streams>);
         /// A channel went live (live notes on).
+        /// Shows or hides the chat beside the Twitch video (kept).
+        #[qinvokable]
+        fn save_chat_open(self: Pin<&mut Streams>, on: bool);
+        #[qinvokable]
+        fn save_chat_write(self: Pin<&mut Streams>, on: bool);
+        #[qinvokable]
+        fn save_chat_docked(self: Pin<&mut Streams>, on: bool);
+        /// The chat's sign-in: JSON `{"user", "token"}` when signed in to
+        /// Twitch and writing is on, else `{}` (reading only). The token goes
+        /// only to Twitch's chat server.
+        #[qinvokable]
+        fn chat_auth(self: &Streams) -> QString;
+        /// A chat's 7TV and BTTV emotes (by the channel's Twitch id), in the
+        /// background: `emotes_loaded`.
+        #[qinvokable]
+        fn load_emotes(self: Pin<&mut Streams>, room: &QString);
+        /// JSON `{name: picture}`.
+        #[qsignal]
+        fn emotes_loaded(self: Pin<&mut Streams>, room: QString, emotes: QString);
+
         #[qsignal]
         fn went_live(self: Pin<&mut Streams>, name: QString, title: QString);
 
@@ -261,6 +285,9 @@ pub struct StreamsRust {
     live_news: QString,
     live_new_count: i32,
     twitch_filter: QString,
+    chat_open: bool,
+    chat_write: bool,
+    chat_docked: bool,
     twitch_request: u64,
     youtube_request: u64,
 }
@@ -473,6 +500,9 @@ impl Default for StreamsRust {
             live_news: q("[]"),
             live_new_count: 0,
             twitch_filter: q(&twitch_filter_json(&s)),
+            chat_open: s.chat_open || demo.contains("chat"),
+            chat_write: s.chat_write,
+            chat_docked: s.chat_docked,
             twitch_request: 0,
             youtube_request: 0,
         };
@@ -954,13 +984,15 @@ impl qobject::Streams {
 
     fn opacity_of(&self, slot: &QString) -> i32 {
         let slot = slot.to_string();
-        settings::read(|s| s.streams.video_opacity.get(&slot).copied()).map_or(100, |p| i32::from(p.clamp(50, 100)))
+        // The chat's ground can go almost clear (its text keeps an outline).
+        let low = if slot == "chat" { 10 } else { 50 };
+        settings::read(|s| s.streams.video_opacity.get(&slot).copied()).map_or(100, |p| i32::from(p.clamp(low, 100)))
     }
 
     fn save_opacity(self: Pin<&mut Self>, slot: &QString, percent: i32) {
         let slot = slot.to_string();
-        if slot == "twitch" || slot == "youtube" {
-            let p = percent.clamp(50, 100) as u8;
+        if slot == "twitch" || slot == "youtube" || slot == "chat" {
+            let p = percent.clamp(if slot == "chat" { 10 } else { 50 }, 100) as u8;
             settings::change(|s| s.streams.video_opacity.insert(slot.clone(), p));
         }
     }
@@ -1266,6 +1298,46 @@ impl qobject::Streams {
                 }
             });
         }
+    }
+
+    fn save_chat_open(self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.streams.chat_open = on);
+        self.set_chat_open(on);
+    }
+
+    fn save_chat_write(self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.streams.chat_write = on);
+        self.set_chat_write(on);
+    }
+
+    fn save_chat_docked(self: Pin<&mut Self>, on: bool) {
+        if *self.chat_docked() != on {
+            settings::change(|s| s.streams.chat_docked = on);
+            self.set_chat_docked(on);
+        }
+    }
+
+    fn chat_auth(&self) -> QString {
+        let user = serde_json::from_str::<Value>(&self.account().to_string()).ok().and_then(|v| v["user"].as_str().map(str::to_string)).unwrap_or_default();
+        let ok = *self.chat_write() && !user.is_empty() && user != "…" && !Self::demo_mode();
+        let j = match streams::twitch_token() {
+            Some(token) if ok => json!({ "user": user, "token": token }),
+            _ => json!({}),
+        };
+        QString::from(&j.to_string())
+    }
+
+    fn load_emotes(self: Pin<&mut Self>, room: &QString) {
+        let room = room.to_string();
+        if Self::demo_mode() {
+            return;
+        }
+        let thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let list = crate::emotes::for_room(&room);
+            let text = serde_json::to_string(&list).unwrap_or_else(|_| "{}".into());
+            let _ = thread.queue(move |obj| obj.emotes_loaded(q(&room), q(&text)));
+        });
     }
 
     fn change_twitch_filter(self: Pin<&mut Self>, key: &QString, value: &QString) {

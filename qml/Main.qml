@@ -208,6 +208,18 @@ Overlay {
         part: VideoWindow { id: jellyfinVideo; slot: "jellyfin" }
     }
 
+    // The Twitch chat, beside the Twitch video.
+    Surface {
+        id: chatSurface
+        wanted: Streams.chatOpen && twitchVideo.active && twitchVideo.item.kind === "twitch" && root.onScreen("chat")
+        stack: 3
+        part: ChatPanel {
+            video: twitchVideo
+            running: chatSurface.wanted
+            onCloseClicked: Streams.saveChatOpen(false)
+        }
+    }
+
     Surface {
         wanted: playerRow.active && root.onScreen("player-row")
         stack: 5

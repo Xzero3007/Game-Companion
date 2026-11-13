@@ -23,6 +23,7 @@ fn main() {
         QmlFile::from("qml/VideoWindow.qml"),
         QmlFile::from("qml/Picker.qml"),
         QmlFile::from("qml/Chip.qml"),
+        QmlFile::from("qml/ChatPanel.qml"),
         QmlFile::from("qml/WheelScroll.qml"),
         QmlFile::from("qml/JellyfinSignIn.qml"),
         QmlFile::from("qml/Surface.qml"),
@@ -48,6 +49,8 @@ fn main() {
         .cpp_file("cpp/mpvvideo.cpp")
         .cpp_file("cpp/icons.h")
         .cpp_file("cpp/icons.cpp")
+        .cpp_file("cpp/twitchchat.h")
+        .cpp_file("cpp/twitchchat.cpp")
         .cpp_file("cpp/jellyfinpictures.h")
         .cpp_file("cpp/jellyfinpictures.cpp")
         .qrc_resources([

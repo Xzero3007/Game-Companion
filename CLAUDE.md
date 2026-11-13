@@ -38,11 +38,12 @@ learnt, so nothing has to be asked or worked out again.
 
 - **Write down the plan before changing anything**, in plain words, and wait
   for the person's yes. They decide; don't take features away on your own.
-- **Colours:** white, grey, gold, red, purple. **No blue** for buttons,
-  highlights or links. Accent gold `#e0a526`; a control shows its state in
-  the accent, never in a fixed colour. Values the game colours stay so.
-  Item grades in the game's colours with a colour dot: Rare green `#7fdc9a`,
-  Legend blue `#4fa8ff` (blue only for blue items), Unique gold `#f2c46b`.
+- **Colours:** white, grey, gold, red, purple; blue is allowed too (the
+  person, 2026-11-13: no aversion to blue; chat names keep their own
+  colours). Accent gold `#e0a526` stays the accent for controls: a control
+  shows its state in the accent, never in a fixed colour. Values the game
+  colours stay so. Item grades in the game's colours with a colour dot:
+  Rare green `#7fdc9a`, Legend blue `#4fa8ff`, Unique gold `#f2c46b`.
 - **Design: direction B "Edge HUD"** (the person's choice, 2026-11-12): bar
   docked top centre with slanted ends and a thin gold line under it; 56 px
   bar buttons with the icon and a capitals label under it (Rajdhani 700),
@@ -61,7 +62,12 @@ learnt, so nothing has to be asked or worked out again.
   own GitHub releases only, the person, 2026-11-12); SponsorBlock
   (sponsor.ajay.app, hash-prefix lookup only, off until switched on; the
   person, 2026-11-12); FreeTube's settings file for its SponsorBlock
-  choices, read only. Brave Origin and Legcord are the
+  choices, read only; FreeTube's playlists, history and profiles (groups),
+  read only, taken over once by hand (Settings → Streams → YouTube); Twitch
+  chat over IRC (irc.chat.twitch.tv:6697, TLS; anonymous to read, the
+  person's twitch.tv token to write; the person, 2026-11-13); chat emotes
+  from 7TV (7tv.io, cdn.7tv.app) and BTTV (api.betterttv.net,
+  cdn.betterttv.net), asked with the channel's public Twitch id only. Brave Origin and Legcord are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
 - **Game modules only read** (like the AION 2 meter): never send anything to
@@ -269,6 +275,40 @@ learnt, so nothing has to be asked or worked out again.
   `xvfb-run` drives clicks (`QT_QPA_PLATFORM=xcb`). `GC_DEMO=streams,jellyfin`
   (made-up list, signed in), `jellyvideo` (its window with tracks and SKIP
   INTRO), `settings,jellyfin`, `settings,hwdec`.
+- YouTube library (`src/library.rs`, `src/library_object.rs`, the
+  `Library` singleton; 0.6.x, replacing FreeTube): playlists (one is the
+  quick bookmark's, "Watch later" by default), history with where each
+  video stopped (`record` every 10 s from `VideoWindow.keepPosition`,
+  `resumeAt` on start) and watched marks, in `youtube.json` beside
+  settings.json. `take_freetube` (Streams) reads FreeTube's NeDB files
+  (profiles → subscription groups, playlists, history, the quick bookmark
+  target from settings.db) once; then FreeTube's subscriptions file is no
+  longer read (`freetube_live` false). Streams lists: Shorts left out by
+  default (`hide_shorts`), watched, channels and words left out; search
+  filters as YouTube's `sp` (protobuf, `search_param`); Trending is yt-dlp
+  searches per part (`TREND_SECTIONS`, words changeable in Settings), as
+  YouTube's own trending page is gone. Twitch: categories, a channel's
+  past broadcasts and clips (played through yt-dlp), filters (language,
+  reruns, order; `liveMore` falls back to plain `live` if Twitch refuses
+  its fields), quality per channel, live notes (a thread every 120 s while
+  on, generation `ALERTS_RUN`; red count, no pop-up). Videos: chapters
+  (mpv `chapter-list`), speed, queue (playlists played through, shuffle,
+  loop). `GC_DEMO=streams,yt-<view>` / `tw-<view>`, `news`, `groups`,
+  `ytsettings`.
+- Twitch chat (`cpp/twitchchat.cpp`, `TwitchChat` in `GameCompanion.Chat`;
+  `qml/ChatPanel.qml`, panel id `chat`): QSslSocket to Twitch's IRC, CAP
+  tags/commands, `justinfan…` to read or PASS `oauth:<token>` to write
+  (`Streams.chatAuth()`: only when signed in and Settings → Streams →
+  Twitch "Write in chat" is on; a refused sign-in falls back to reading),
+  reconnects with a growing wait. Connected only while the panel shows
+  (`running`). Lines come in batches every 250 ms (a timer only while lines
+  wait), 200 kept, StyledText with emotes as `<img>` sized ahead (Twitch's
+  static pictures, 7TV/BTTV from `src/emotes.rs` with their 1x sizes);
+  pictures are still (first frame): nothing moves while idle. 7TV is WebP:
+  qt6-imageformats (optdepends). Docked right of the Twitch video
+  (`chat_docked`), moved by hand it stays; "Dock" in its header brings it
+  back. Its own ground opacity (`opacityOf("chat")`, 10 to 100). Shown with
+  the speech bubble on the Twitch video (`chat_open`). `GC_DEMO=video,chat`.
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
 - `HudIcon` is a picture from the icon provider (`cpp/icons.cpp`,

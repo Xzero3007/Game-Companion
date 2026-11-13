@@ -98,6 +98,26 @@ game's folder in its command line counts as the game; Heroic covers only
 for sideloaded games. Demo: GC_DEMO=games[,gameform]; GC_NO_GAMES=1 stops
 detection.
 
+## Branch `claude/project-thread-lncux3` (from beta): replacing FreeTube and Streamlink Twitch GUI
+
+Agreed with the person 2026-11-13 (plan: scratchpad streams-plan, approved
+in the thread "replace FreeTube"). Done, not yet merged into beta (the
+release thread merges it and sets the version):
+- YouTube: Playlists tab (search, sort, quick bookmark), own subscriptions
+  with groups, history with continue watching and progress marks, hide
+  watched, Trending (Gaming, Football: Europe, national teams, Süper Lig,
+  Bundesliga, Premier League, Ligue 1, Serie A, LaLiga; no podcasts),
+  Shorts hidden by default, channel and word filters, search filters,
+  chapters and speed, playlists played through. FreeTube taken over once
+  in Settings → Streams → YouTube.
+- Twitch: categories, live notes (off by default), quality per channel,
+  filters (language, reruns, order), past broadcasts and clips, chat panel
+  (read, write when signed in, Twitch/7TV/BTTV emotes as still pictures).
+- Not wanted: YouTube comments. Left out for now: DeArrow, downloads.
+Untested online (the sandbox reaches neither YouTube nor Twitch): Trending
+searches, Twitch GQL fields for categories/VODs/clips/filters, chat login
+and emotes. The person tests these.
+
 ## Testing
 
 - Sandbox: Ubuntu, Qt 6.4, offscreen/xvfb (see CLAUDE.md).

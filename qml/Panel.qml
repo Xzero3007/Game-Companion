@@ -38,6 +38,8 @@ Item {
     property real maxGrow: 700
     /// Its own width, before the user changed it.
     property real ownWidth: 0
+    /// How solid its ground is (the opacity setting; the chat goes clearer).
+    property real ground: Companion.alpha
     default property alias content: body.data
     signal closeClicked
     /// Emitted when it moves, resizes, shows or hides: the input region changes.
@@ -99,7 +101,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: Theme.panel(Companion.alpha)
+        color: Theme.panel(panel.ground)
     }
     Rectangle {
         anchors.top: parent.top

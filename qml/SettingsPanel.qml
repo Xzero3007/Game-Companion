@@ -433,6 +433,16 @@ Panel {
             Hint { text: "Asks Twitch every two minutes while on. A red count shows on the Streams panel's Following tab and the channels show at the top of the list; no pop-up, no sound. Leave one channel out with ⋯ beside it." }
 
             Item { width: 1; height: 4 }
+            Label { text: "Chat" }
+            OnOff {
+                width: parent.width
+                text: "Write in chat with this sign-in"
+                on: Streams.chatWrite
+                onToggled: Streams.saveChatWrite(!Streams.chatWrite)
+            }
+            Hint { text: "Show the chat with the speech bubble on the Twitch video. Off, or not signed in, the chat is read only. Emotes come from Twitch, 7TV and BTTV." }
+
+            Item { width: 1; height: 4 }
             Label { text: "Preset search for the game" }
             Hint { text: "Now: " + parent.game.name + " · Twitch category \u201c" + parent.game.twitch + "\u201d · YouTube \u201c" + parent.game.youtube + "\u201d. Change it with CHANGE in the Streams panel; with game detection, each game brings its own." }
             }
