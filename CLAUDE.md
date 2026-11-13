@@ -67,7 +67,10 @@ learnt, so nothing has to be asked or worked out again.
   chat over IRC (irc.chat.twitch.tv:6697, TLS; anonymous to read, the
   person's twitch.tv token to write; the person, 2026-11-13); chat emotes
   from 7TV (7tv.io, cdn.7tv.app) and BTTV (api.betterttv.net,
-  cdn.betterttv.net), asked with the channel's public Twitch id only. Brave Origin and Legcord are the
+  cdn.betterttv.net), asked with the channel's public Twitch id only. The AION 2 Market's prices (Clicktrough's hourly copy on
+  raw.githubusercontent.com/Xzero3007/A2Tools-DPS-Meter_Clicktrough/market-data/
+  and aion2.exchange's API, read only) and the game's item icons from
+  assets.playnccdn.com, kept on disk (the person, 2026-11-13; src/market.rs). Brave Origin and Legcord are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
 - **Game modules only read** (like the AION 2 meter): never send anything to
