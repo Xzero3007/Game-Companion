@@ -1,6 +1,8 @@
 //! Game Companion: one overlay for every game on Linux (KDE Plasma, Wayland).
 
 mod companion;
+mod games;
+mod games_object;
 mod jellyfin;
 mod jellyfin_object;
 mod native;

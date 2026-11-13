@@ -54,6 +54,8 @@ pub struct Settings {
     /// The Jellyfin tab's choices (the server and its key are kept apart,
     /// in `jellyfin.json`).
     pub jellyfin: JellyfinSettings,
+    /// The Games tab: own entries and hidden games.
+    pub games: crate::games::GamesSettings,
 }
 
 /// The bar at the top: moved sideways by `offset` pixels from the screen's
@@ -271,6 +273,7 @@ impl Default for Settings {
             layouts: BTreeMap::new(),
             streams: StreamsSettings::default(),
             jellyfin: JellyfinSettings::default(),
+            games: Default::default(),
         }
     }
 }
@@ -434,5 +437,36 @@ mod tests {
         assert_eq!(layout.text_level, None);
         assert_eq!(layout.accent_level, None);
         assert_eq!(layout.bar, None);
+    }
+
+    #[test]
+    fn games_keep_loading() {
+        let path = temp_file("games");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        // Files from before the Games tab, and odd entries.
+        std::fs::write(&path, r#"{"alpha": 0.7}"#).unwrap();
+        assert_eq!(Settings::load_from(&path).games, crate::games::GamesSettings::default());
+        std::fs::write(&path, r#"{"games": {"own": [{"id": 2, "name": "Mine"}], "hidden": ["steam:10"]}}"#).unwrap();
+        let s = Settings::load_from(&path);
+        assert_eq!(s.games.own[0].name, "Mine");
+        assert!(s.games.own[0].processes.is_empty());
+        // Missing choices: the hub shows when it starts, the radio does not.
+        assert!(s.games.own[0].show_on_start);
+        assert!(!s.games.own[0].radio_on_start);
+        assert!(s.games.hidden.contains("steam:10"));
+        let mut s = Settings::default();
+        s.games.own.push(crate::games::OwnGame {
+            id: 1,
+            name: "AION 2".into(),
+            command: "wine x.exe".into(),
+            processes: vec!["AION2.exe".into()],
+            twitch: "AION 2".into(),
+            ..Default::default()
+        });
+        s.games.favorites.insert("own:1".into());
+        s.games.last_played.insert("own:1".into(), 1_700_000_000);
+        s.games.options.insert("steam:10".into(), crate::games::GameOptions { radio_on_start: true, ..Default::default() });
+        s.save_to(&path).unwrap();
+        assert_eq!(Settings::load_from(&path), s);
     }
 }
