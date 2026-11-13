@@ -10,7 +10,11 @@ mod jellyfin;
 mod jellyfin_object;
 mod library;
 mod library_object;
+mod launch_check;
+mod launch_demo;
+mod launch_options;
 mod native;
+mod protondb;
 mod radio;
 mod radio_object;
 mod settings;
@@ -19,8 +23,10 @@ mod sponsorblock;
 mod streams;
 mod streams_object;
 mod tray;
+mod system_info;
 mod updater;
 mod updates_object;
+mod vdf_edit;
 
 fn main() {
     if std::env::args().any(|a| a == "--version") {

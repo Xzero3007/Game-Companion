@@ -1,0 +1,652 @@
+//! What this computer has, for the launch option suggestions: graphics
+//! cards and driver, processor, memory, the gaming tools installed, the
+//! session (Wayland or X11) and the main screen (size, refresh, HDR, from
+//! KWin's own file). Only local files are read; nothing is run or sent.
+
+use std::path::{Path, PathBuf};
+
+use serde_json::{json, Value};
+
+/// The tools a suggestion can use, by the program's name.
+pub const TOOLS: &[&str] = &[
+    "gamemoderun",
+    "mangohud",
+    "gamescope",
+    "obs-gamecapture",
+    "prime-run",
+    "game-performance",
+    "powerprofilesctl",
+    "dlss-swapper",
+    "dlss-swapper-dll",
+];
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Gpu {
+    /// "nvidia", "amd", "intel" or "other".
+    pub vendor: String,
+    /// The kernel driver ("nvidia", "amdgpu", "i915", "xe", "nouveau", ...).
+    pub driver: String,
+    /// The DRM card ("card1").
+    pub card: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Display {
+    /// The connector ("DP-1", "HDMI-A-1").
+    pub name: String,
+    pub width: u32,
+    pub height: u32,
+    /// Refresh rate in Hz (KWin's file only).
+    pub refresh: Option<u32>,
+    /// HDR switched on in KDE's display settings.
+    pub hdr: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct SystemInfo {
+    pub gpus: Vec<Gpu>,
+    /// The NVIDIA driver's version ("560.35.03").
+    pub nvidia_version: Option<String>,
+    pub cpu: String,
+    pub threads: u32,
+    pub ram_mb: u64,
+    pub kernel: String,
+    /// Installed tools from `TOOLS`, with where they were found.
+    pub tools: Vec<(String, PathBuf)>,
+    /// PATH was looked through (one of its folders exists), so a tool not
+    /// in `tools` is surely not installed.
+    pub path_scanned: bool,
+    /// "wayland", "x11" or "".
+    pub session: String,
+    pub desktop: String,
+    /// `/dev/ntsync` can be opened for reading and writing (the kernel's NT
+    /// sync driver, Linux 6.14+).
+    pub ntsync: bool,
+    /// The main screen (KDE's primary, or the one chosen in Display).
+    pub display: Option<Display>,
+    /// The Vulkan HDR layer (vk-hdr-layer, `VK_LAYER_hdr_wsi`) is installed,
+    /// for the system or in the user's own data folder.
+    pub hdr_layer: bool,
+    /// `/etc/os-release`'s ID and ID_LIKE words ("cachyos", ["arch"]).
+    pub os_id: String,
+    pub os_like: Vec<String>,
+    /// "amd", "intel", "deck" (the Steam Deck's APU) or "".
+    pub cpu_vendor: String,
+    /// ananicy-cpp runs (a process named so in /proc).
+    pub ananicy: bool,
+    /// The DRM card driving the main screen ("card1"), "" when unknown.
+    pub display_card: String,
+}
+
+impl SystemInfo {
+    /// CachyOS, by os-release.
+    pub fn cachyos(&self) -> bool {
+        self.os_id == "cachyos" || self.os_like.iter().any(|l| l == "cachyos")
+    }
+
+    /// The distribution's family as ProtonDB's groups name it ("cachyos",
+    /// "arch", "steamos", "bazzite", "fedora", "debian", "nixos", "suse",
+    /// "gentoo", "other"; "" when os-release was not read).
+    pub fn distro_group(&self) -> &'static str {
+        let id = self.os_id.as_str();
+        let like = |w: &str| self.os_like.iter().any(|l| l == w);
+        if id.is_empty() {
+            return "";
+        }
+        if self.cachyos() {
+            "cachyos"
+        } else if id == "steamos" {
+            "steamos"
+        } else if id == "bazzite" {
+            "bazzite"
+        } else if matches!(id, "arch" | "endeavouros" | "manjaro" | "garuda" | "artix") || like("arch") {
+            "arch"
+        } else if matches!(id, "fedora" | "nobara") || like("fedora") {
+            "fedora"
+        } else if matches!(id, "debian" | "ubuntu" | "linuxmint" | "pop" | "zorin" | "elementary" | "kali") || like("debian") || like("ubuntu") {
+            "debian"
+        } else if id == "nixos" {
+            "nixos"
+        } else if id.starts_with("opensuse") || id == "suse" || like("suse") || like("opensuse") {
+            "suse"
+        } else if id == "gentoo" {
+            "gentoo"
+        } else {
+            "other"
+        }
+    }
+
+    /// The NVIDIA driver's major version (580 for "580.95.05").
+    pub fn nvidia_major(&self) -> Option<u32> {
+        self.nvidia_version.as_deref()?.split('.').next()?.parse().ok()
+    }
+
+    /// The vendor of the graphics a game runs on: NVIDIA with prime-run,
+    /// else the card driving the main screen, else the only vendor (or the
+    /// separate card's: NVIDIA, then AMD). "deck" on a Steam Deck.
+    pub fn gpu_in_use(&self, prime_run: bool) -> String {
+        if self.cpu_vendor == "deck" {
+            return "deck".into();
+        }
+        if prime_run && self.has_gpu("nvidia") {
+            return "nvidia".into();
+        }
+        if let Some(g) = self.gpus.iter().find(|g| !self.display_card.is_empty() && g.card == self.display_card) {
+            return g.vendor.clone();
+        }
+        ["nvidia", "amd", "intel"].iter().find(|v| self.has_gpu(v)).map(|v| v.to_string()).unwrap_or_default()
+    }
+
+    pub fn has_tool(&self, name: &str) -> bool {
+        self.tools.iter().any(|(n, _)| n == name)
+    }
+
+    pub fn has_gpu(&self, vendor: &str) -> bool {
+        self.gpus.iter().any(|g| g.vendor == vendor)
+    }
+
+    /// NVIDIA's own driver (not nouveau).
+    pub fn nvidia_driver(&self) -> bool {
+        self.gpus.iter().any(|g| g.vendor == "nvidia" && g.driver == "nvidia") || self.nvidia_version.is_some()
+    }
+
+    /// An NVIDIA card next to another one (a laptop's hybrid graphics).
+    pub fn hybrid(&self) -> bool {
+        self.has_gpu("nvidia") && self.gpus.iter().any(|g| g.vendor != "nvidia")
+    }
+
+    pub fn to_json(&self) -> Value {
+        json!({
+            "gpus": self.gpus.iter().map(|g| json!({"vendor": g.vendor, "driver": g.driver, "card": g.card})).collect::<Vec<_>>(),
+            "nvidiaVersion": self.nvidia_version.clone().unwrap_or_default(),
+            "cpu": self.cpu,
+            "threads": self.threads,
+            "ramMb": self.ram_mb,
+            "kernel": self.kernel,
+            "tools": self.tools.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>(),
+            "session": self.session,
+            "desktop": self.desktop,
+            "ntsync": self.ntsync,
+            "display": self.display.as_ref().map(|d| json!({
+                "name": d.name, "width": d.width, "height": d.height,
+                "refresh": d.refresh.unwrap_or(0), "hdr": d.hdr,
+            })).unwrap_or(Value::Null),
+            "hdrLayer": self.hdr_layer,
+            "os": self.os_id,
+            "osLike": self.os_like,
+            "cachyos": self.cachyos(),
+            "cpuVendor": self.cpu_vendor,
+            "ananicy": self.ananicy,
+            "displayCard": self.display_card,
+        })
+    }
+}
+
+/// Where to look: `root` is "/" (a test's folder otherwise), `config` the
+/// user's config folder (for kwinoutputconfig.json), `env` the environment,
+/// `screen` the screen chosen in Display ("" = KDE's primary).
+pub fn detect(root: &Path, config: &Path, env: &dyn Fn(&str) -> Option<String>, screen: &str) -> SystemInfo {
+    let at = |p: &str| root.join(p.trim_start_matches('/'));
+    let read = |p: &str| std::fs::read_to_string(at(p)).unwrap_or_default();
+    let mut info = SystemInfo { gpus: gpus(&at("/sys/class/drm")), ..Default::default() };
+    let nvidia = read("/proc/driver/nvidia/version");
+    info.nvidia_version = nvidia.lines().find_map(|l| {
+        // "... Kernel Module  560.35.03 ..." or "... Open Kernel Module for x86_64  580.95.05 ...".
+        let rest = l.split("Kernel Module").nth(1)?;
+        rest.split_whitespace().find(|w| w.contains('.') && w.chars().all(|c| c.is_ascii_digit() || c == '.')).map(str::to_string)
+    });
+    let cpuinfo = read("/proc/cpuinfo");
+    info.cpu = cpuinfo
+        .lines()
+        .find_map(|l| l.strip_prefix("model name").and_then(|r| r.split_once(':')).map(|(_, v)| v.trim().to_string()))
+        .unwrap_or_default();
+    info.threads = cpuinfo.lines().filter(|l| l.starts_with("processor")).count() as u32;
+    let vendor_id = cpuinfo.lines().find_map(|l| l.strip_prefix("vendor_id").and_then(|r| r.split_once(':')).map(|(_, v)| v.trim().to_string())).unwrap_or_default();
+    // The Steam Deck's APU ("AMD Custom APU 0405" / "0932").
+    info.cpu_vendor = if info.cpu.contains("Custom APU 0405") || info.cpu.contains("Custom APU 0932") {
+        "deck".into()
+    } else if vendor_id == "AuthenticAMD" || info.cpu.starts_with("AMD") {
+        "amd".into()
+    } else if vendor_id == "GenuineIntel" || info.cpu.contains("Intel") {
+        "intel".into()
+    } else {
+        String::new()
+    };
+    let os = Some(read("/etc/os-release")).filter(|t| !t.is_empty()).unwrap_or_else(|| read("/usr/lib/os-release"));
+    let field = |key: &str| {
+        os.lines()
+            .find_map(|l| l.strip_prefix(key).and_then(|r| r.strip_prefix('=')))
+            .map(|v| v.trim().trim_matches(|c| c == '"' || c == '\'').to_ascii_lowercase())
+            .unwrap_or_default()
+    };
+    info.os_id = field("ID");
+    info.os_like = field("ID_LIKE").split_whitespace().map(str::to_string).collect();
+    info.ananicy = process_running(&at("/proc"), "ananicy-cpp");
+    info.ram_mb = read("/proc/meminfo")
+        .lines()
+        .find_map(|l| l.strip_prefix("MemTotal:").and_then(|r| r.split_whitespace().next()).and_then(|n| n.parse::<u64>().ok()))
+        .map(|kb| kb / 1024)
+        .unwrap_or(0);
+    info.kernel = read("/proc/sys/kernel/osrelease").trim().to_string();
+    let path = env("PATH").unwrap_or_else(|| "/usr/local/bin:/usr/bin:/bin".into());
+    info.path_scanned = path.split(':').any(|d| d.starts_with('/') && at(d).is_dir());
+    for tool in TOOLS {
+        let found = path.split(':').filter(|d| d.starts_with('/')).map(|d| at(d).join(tool)).find(|p| is_executable(p));
+        if let Some(found) = found {
+            info.tools.push((tool.to_string(), found));
+        }
+    }
+    info.session = match env("XDG_SESSION_TYPE").as_deref() {
+        Some("wayland") => "wayland".into(),
+        Some("x11") => "x11".into(),
+        _ if env("WAYLAND_DISPLAY").is_some_and(|w| !w.is_empty()) => "wayland".into(),
+        _ if env("DISPLAY").is_some_and(|d| !d.is_empty()) => "x11".into(),
+        _ => String::new(),
+    };
+    info.desktop = env("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    info.ntsync = can_read_write(&at("/dev/ntsync"));
+    let data = env("XDG_DATA_HOME").filter(|d| d.starts_with('/')).or_else(|| env("HOME").filter(|h| h.starts_with('/')).map(|h| format!("{h}/.local/share")));
+    let mut layer_dirs: Vec<PathBuf> = ["/usr/share/vulkan/implicit_layer.d", "/usr/local/share/vulkan/implicit_layer.d", "/etc/vulkan/implicit_layer.d"].iter().map(|d| at(d)).collect();
+    if let Some(data) = data {
+        layer_dirs.push(at(&format!("{data}/vulkan/implicit_layer.d")));
+    }
+    info.hdr_layer = layer_dirs.iter().filter_map(|d| std::fs::read_dir(d).ok()).flat_map(|d| d.flatten()).any(|e| hdr_layer(&e.path()));
+    let connected = connected_outputs(&at("/sys/class/drm"));
+    info.display = main_display(&config.join("kwinoutputconfig.json"), &connected, screen);
+    if let Some(d) = &info.display {
+        info.display_card = card_of(&at("/sys/class/drm"), d);
+    }
+    info
+}
+
+/// Whether a process with this name runs (by `/proc/<pid>/comm`).
+fn process_running(proc_root: &Path, name: &str) -> bool {
+    let Ok(entries) = std::fs::read_dir(proc_root) else { return false };
+    entries
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().bytes().all(|b| b.is_ascii_digit()))
+        .any(|e| std::fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == name))
+}
+
+/// The card the main screen hangs on ("card1" for "card1-DP-2"). Two cards
+/// can both have a connector of that name: then the one where it is
+/// connected and enabled, showing the screen's size, wins (ties: the
+/// lowest card).
+fn card_of(drm: &Path, display: &Display) -> String {
+    let Ok(entries) = std::fs::read_dir(drm) else { return String::new() };
+    let read = |dir: &Path, file: &str| std::fs::read_to_string(dir.join(file)).unwrap_or_default();
+    let mut found: Vec<(u8, String)> = entries
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let (card, rest) = name.split_once('-')?;
+            (card.starts_with("card") && card[4..].bytes().all(|b| b.is_ascii_digit()) && rest == display.name).then_some((e.path(), card.to_string()))
+        })
+        .map(|(dir, card)| {
+            let size = format!("{}x{}", display.width, display.height);
+            let score = u8::from(read(&dir, "status").trim() == "connected") * 4
+                + u8::from(read(&dir, "enabled").trim() == "enabled") * 2
+                + u8::from(read(&dir, "modes").lines().any(|m| m.trim().starts_with(&size)));
+            (score, card)
+        })
+        .collect();
+    let number = |c: &str| c[4..].parse::<u32>().unwrap_or(u32::MAX);
+    found.sort_by(|a, b| b.0.cmp(&a.0).then(number(&a.1).cmp(&number(&b.1))));
+    found.into_iter().next().map(|(_, c)| c).unwrap_or_default()
+}
+
+/// Whether this user may open the file for reading and writing (what
+/// Proton needs of `/dev/ntsync`).
+fn can_read_write(path: &Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    let Ok(c) = std::ffi::CString::new(path.as_os_str().as_bytes()) else { return false };
+    // SAFETY: a valid C string; access only looks at the file.
+    unsafe { libc::access(c.as_ptr(), libc::R_OK | libc::W_OK) == 0 }
+}
+
+/// Names of the Vulkan HDR layer (vk-hdr-layer: "VK_LAYER_hdr_wsi" in
+/// "VkLayer_hdr_wsi.<arch>.json").
+const HDR_LAYERS: &[&str] = &["hdr_wsi", "hdr-wsi"];
+
+/// Whether a layer manifest is the HDR layer: by its file name, else by the
+/// layer's name inside.
+fn hdr_layer(path: &Path) -> bool {
+    let file = path.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+    if !file.ends_with(".json") {
+        return false;
+    }
+    if HDR_LAYERS.iter().any(|n| file.contains(n)) {
+        return true;
+    }
+    let small = std::fs::metadata(path).is_ok_and(|m| m.len() < 64 * 1024);
+    small
+        && std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).is_some_and(|v| {
+            let name = v["layer"]["name"].as_str().unwrap_or("").to_ascii_lowercase();
+            HDR_LAYERS.iter().any(|n| name.contains(n))
+        })
+}
+
+fn is_executable(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+}
+
+/// The graphics cards: `cardN` folders (not their connectors).
+fn gpus(drm: &Path) -> Vec<Gpu> {
+    let Ok(entries) = std::fs::read_dir(drm) else { return Vec::new() };
+    let mut cards: Vec<Gpu> = entries
+        .flatten()
+        .filter_map(|e| {
+            let card = e.file_name().to_string_lossy().into_owned();
+            if !card.starts_with("card") || card.contains('-') {
+                return None;
+            }
+            let device = e.path().join("device");
+            let vendor = std::fs::read_to_string(device.join("vendor")).ok()?;
+            let vendor = match vendor.trim() {
+                "0x10de" => "nvidia",
+                "0x1002" => "amd",
+                "0x8086" => "intel",
+                _ => "other",
+            };
+            let driver = std::fs::read_link(device.join("driver"))
+                .ok()
+                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+                .unwrap_or_default();
+            Some(Gpu { vendor: vendor.into(), driver, card })
+        })
+        .collect();
+    cards.sort_by(|a, b| a.card.cmp(&b.card));
+    cards
+}
+
+/// Connected outputs with their preferred size: `cardN-<connector>/status`
+/// and the first line of `modes`.
+fn connected_outputs(drm: &Path) -> Vec<(String, Option<(u32, u32)>)> {
+    let Ok(entries) = std::fs::read_dir(drm) else { return Vec::new() };
+    let mut out: Vec<(String, Option<(u32, u32)>)> = entries
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let (card, connector) = name.split_once('-')?;
+            if !card.starts_with("card") {
+                return None;
+            }
+            let status = std::fs::read_to_string(e.path().join("status")).ok()?;
+            if status.trim() != "connected" {
+                return None;
+            }
+            let mode = std::fs::read_to_string(e.path().join("modes")).ok().and_then(|m| {
+                let (w, h) = m.lines().next()?.split_once('x')?;
+                Some((w.trim().parse().ok()?, h.trim().trim_end_matches(|c: char| !c.is_ascii_digit()).parse().ok()?))
+            });
+            Some((connector.to_string(), mode))
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+/// The main screen: the chosen one, else KWin's primary for the connected
+/// outputs (as `NativeWindow::kdePrimary`), else the first connected one;
+/// mode and HDR from KWin's file when it knows the output.
+fn main_display(kwin: &Path, connected: &[(String, Option<(u32, u32)>)], screen: &str) -> Option<Display> {
+    let parts: Value = std::fs::read_to_string(kwin).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+    let section = |name: &str| -> Vec<Value> {
+        parts
+            .as_array()
+            .and_then(|a| a.iter().find(|p| p["name"] == name))
+            .and_then(|p| p["data"].as_array().cloned())
+            .unwrap_or_default()
+    };
+    let outputs = section("outputs");
+    let setups = section("setups");
+    let connector = |i: &Value| -> Option<String> {
+        let index = i["outputIndex"].as_u64()? as usize;
+        outputs.get(index)?["connectorName"].as_str().map(str::to_string)
+    };
+    let names: std::collections::BTreeSet<String> = connected.iter().map(|(n, _)| n.clone()).collect();
+    // The setup for the connected outputs: its enabled outputs as
+    // (connector, index into "outputs", priority). KWin's "outputs" can
+    // hold several entries with one connector (other screens once plugged
+    // in there): the setup's outputIndex says which one is meant.
+    let mut setup: Vec<(String, usize, i64)> = Vec::new();
+    for entry in &setups {
+        let list = entry["outputs"].as_array().cloned().unwrap_or_default();
+        let enabled: Vec<(String, usize, i64)> = list
+            .iter()
+            .filter(|e| e["enabled"].as_bool().unwrap_or(true))
+            .filter_map(|e| Some((connector(e)?, e["outputIndex"].as_u64()? as usize, e["priority"].as_i64().unwrap_or(i64::MAX))))
+            .collect();
+        let set: std::collections::BTreeSet<String> = enabled.iter().map(|(c, _, _)| c.clone()).collect();
+        if !set.is_empty() && set == names {
+            setup = enabled;
+            break;
+        }
+    }
+    let primary = setup.iter().min_by_key(|(_, _, p)| *p).map(|(c, _, _)| c.clone());
+    let chosen = Some(screen.to_string())
+        .filter(|s| !s.is_empty() && names.contains(s))
+        .or(primary)
+        .or_else(|| connected.first().map(|(n, _)| n.clone()))?;
+    let mut display = Display { name: chosen.clone(), ..Default::default() };
+    if let Some((w, h)) = connected.iter().find(|(n, _)| *n == chosen).and_then(|(_, m)| *m) {
+        display.width = w;
+        display.height = h;
+    }
+    let output = match setup.iter().find(|(c, _, _)| *c == chosen) {
+        Some((_, index, _)) => outputs.get(*index),
+        None => outputs.iter().find(|o| o["connectorName"] == chosen.as_str()),
+    };
+    if let Some(output) = output {
+        let mode = &output["mode"];
+        if let (Some(w), Some(h)) = (mode["width"].as_u64(), mode["height"].as_u64()) {
+            display.width = w as u32;
+            display.height = h as u32;
+        }
+        // KWin keeps millihertz.
+        display.refresh = mode["refreshRate"].as_u64().filter(|r| *r > 0).map(|r| ((r + 500) / 1000) as u32);
+        display.hdr = output["highDynamicRange"].as_bool().unwrap_or(false);
+    }
+    (display.width > 0 && display.height > 0).then_some(display)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("gc-sys-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write(path: &Path, text: &str) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
+
+    fn tool(path: &Path) {
+        use std::os::unix::fs::PermissionsExt;
+        write(path, "#!/bin/sh\n");
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    /// A made-up laptop: Intel plus NVIDIA, two screens, some tools.
+    pub fn fake_root(name: &str) -> PathBuf {
+        let root = temp(name);
+        let drm = root.join("sys/class/drm");
+        for (card, vendor, driver) in [("card0", "0x8086", "i915"), ("card1", "0x10de", "nvidia")] {
+            write(&drm.join(card).join("device/vendor"), &format!("{vendor}\n"));
+            std::fs::create_dir_all(root.join("drivers").join(driver)).unwrap();
+            std::os::unix::fs::symlink(root.join("drivers").join(driver), drm.join(card).join("device/driver")).unwrap();
+        }
+        write(&drm.join("card1-DP-1/status"), "connected\n");
+        write(&drm.join("card1-DP-1/modes"), "3440x1440\n1920x1080\n");
+        write(&drm.join("card1-DP-2/status"), "connected\n");
+        write(&drm.join("card1-DP-2/modes"), "2560x1440\n");
+        write(&drm.join("card0-eDP-1/status"), "disconnected\n");
+        write(&root.join("proc/driver/nvidia/version"), "NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  580.95.05  Release Build\n");
+        write(&root.join("proc/cpuinfo"), "processor\t: 0\nmodel name\t: AMD Ryzen 7 7800X3D 8-Core Processor\nprocessor\t: 1\nmodel name\t: AMD Ryzen 7 7800X3D 8-Core Processor\n");
+        write(&root.join("proc/meminfo"), "MemTotal:       32768000 kB\nMemFree: 1 kB\n");
+        write(&root.join("proc/sys/kernel/osrelease"), "6.17.1-arch1-1\n");
+        write(&root.join("dev/ntsync"), "");
+        write(&root.join("usr/share/vulkan/implicit_layer.d/VkLayer_hdr_wsi.x86_64.json"), "{}");
+        tool(&root.join("usr/bin/gamemoderun"));
+        tool(&root.join("usr/bin/gamescope"));
+        tool(&root.join("usr/bin/prime-run"));
+        write(&root.join("usr/bin/mangohud"), "not executable");
+        let kwin = r#"[{"name":"outputs","data":[
+            {"connectorName":"DP-1","mode":{"width":3440,"height":1440,"refreshRate":100000},"highDynamicRange":false},
+            {"connectorName":"DP-2","mode":{"width":2560,"height":1440,"refreshRate":164958},"highDynamicRange":true}]},
+            {"name":"setups","data":[{"outputs":[{"outputIndex":0,"enabled":true,"priority":2},{"outputIndex":1,"enabled":true,"priority":1}]}]}]"#;
+        write(&root.join("home/.config/kwinoutputconfig.json"), kwin);
+        root
+    }
+
+    pub fn fake_env(key: &str) -> Option<String> {
+        match key {
+            "PATH" => Some("/usr/local/bin:/usr/bin".into()),
+            "XDG_SESSION_TYPE" => Some("wayland".into()),
+            "XDG_CURRENT_DESKTOP" => Some("KDE".into()),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn reads_a_made_up_computer() {
+        let root = fake_root("laptop");
+        let info = detect(&root, &root.join("home/.config"), &fake_env, "");
+        assert_eq!(info.gpus.len(), 2);
+        assert_eq!((info.gpus[1].vendor.as_str(), info.gpus[1].driver.as_str()), ("nvidia", "nvidia"));
+        assert_eq!(info.gpus[0].driver, "i915");
+        assert!(info.nvidia_driver() && info.hybrid());
+        assert_eq!(info.nvidia_version.as_deref(), Some("580.95.05"));
+        assert_eq!(info.cpu, "AMD Ryzen 7 7800X3D 8-Core Processor");
+        assert_eq!(info.threads, 2);
+        assert_eq!(info.ram_mb, 32000);
+        assert_eq!(info.kernel, "6.17.1-arch1-1");
+        let tools: Vec<&str> = info.tools.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(tools, vec!["gamemoderun", "gamescope", "prime-run"]);
+        assert_eq!((info.session.as_str(), info.desktop.as_str()), ("wayland", "KDE"));
+        assert!(info.ntsync && info.hdr_layer);
+        // KDE's primary is DP-2 (priority 1), with HDR on.
+        assert_eq!(info.display, Some(Display { name: "DP-2".into(), width: 2560, height: 1440, refresh: Some(165), hdr: true }));
+        // The screen chosen in Display wins.
+        let info = detect(&root, &root.join("home/.config"), &fake_env, "DP-1");
+        assert_eq!(info.display.as_ref().map(|d| (d.width, d.refresh, d.hdr)), Some((3440, Some(100), false)));
+        let v = info.to_json();
+        assert_eq!(v["display"]["name"], "DP-1");
+        assert_eq!(v["tools"][0], "gamemoderun");
+    }
+
+    #[test]
+    fn picks_the_setups_output_by_index() {
+        let root = fake_root("index");
+        // An old screen once on DP-2 comes first in "outputs"; the setup
+        // means the third entry.
+        let kwin = r#"[{"name":"outputs","data":[
+            {"connectorName":"DP-2","mode":{"width":1920,"height":1080,"refreshRate":60000},"highDynamicRange":false},
+            {"connectorName":"DP-1","mode":{"width":3440,"height":1440,"refreshRate":100000}},
+            {"connectorName":"DP-2","mode":{"width":2560,"height":1440,"refreshRate":239970},"highDynamicRange":true}]},
+            {"name":"setups","data":[{"outputs":[{"outputIndex":1,"enabled":true,"priority":2},{"outputIndex":2,"enabled":true,"priority":1}]}]}]"#;
+        write(&root.join("home/.config/kwinoutputconfig.json"), kwin);
+        let info = detect(&root, &root.join("home/.config"), &fake_env, "");
+        assert_eq!(info.display, Some(Display { name: "DP-2".into(), width: 2560, height: 1440, refresh: Some(240), hdr: true }));
+        let info = detect(&root, &root.join("home/.config"), &fake_env, "DP-1");
+        assert_eq!(info.display.map(|d| d.refresh), Some(Some(100)));
+    }
+
+    #[test]
+    fn finds_ntsync_and_the_hdr_layer_only_by_name() {
+        let root = fake_root("layers");
+        std::fs::remove_file(root.join("usr/share/vulkan/implicit_layer.d/VkLayer_hdr_wsi.x86_64.json")).unwrap();
+        // Another layer with "hdr" in its name is not the HDR layer.
+        write(&root.join("usr/share/vulkan/implicit_layer.d/VkLayer_MESA_hdrstuff.json"), r#"{"layer":{"name":"VK_LAYER_MESA_other"}}"#);
+        std::fs::remove_file(root.join("dev/ntsync")).unwrap();
+        let info = detect(&root, &root.join("home/.config"), &fake_env, "");
+        assert!(!info.hdr_layer && !info.ntsync);
+        // The user's own layer, found by its name inside.
+        write(&root.join("home/u/.local/share/vulkan/implicit_layer.d/hdr.json"), r#"{"layer":{"name":"VK_LAYER_hdr_wsi"}}"#);
+        write(&root.join("dev/ntsync"), "");
+        let env = |k: &str| if k == "HOME" { Some("/home/u".to_string()) } else { fake_env(k) };
+        let info = detect(&root, &root.join("home/.config"), &env, "");
+        assert!(info.hdr_layer && info.ntsync);
+    }
+
+    #[test]
+    fn reads_distribution_processor_and_ananicy() {
+        let root = fake_root("distro");
+        write(&root.join("etc/os-release"), "NAME=\"CachyOS Linux\"\nID=cachyos\nID_LIKE=arch\n");
+        write(&root.join("proc/812/comm"), "ananicy-cpp\n");
+        write(&root.join("proc/cpuinfo"), "processor\t: 0\nvendor_id\t: AuthenticAMD\nmodel name\t: AMD Ryzen 7 7800X3D 8-Core Processor\n");
+        tool(&root.join("usr/bin/game-performance"));
+        tool(&root.join("usr/bin/powerprofilesctl"));
+        let info = detect(&root, &root.join("home/.config"), &fake_env, "");
+        assert!(info.cachyos() && info.ananicy);
+        assert_eq!((info.os_id.as_str(), info.os_like.clone()), ("cachyos", vec!["arch".to_string()]));
+        assert_eq!(info.distro_group(), "cachyos");
+        assert_eq!(info.cpu_vendor, "amd");
+        assert!(info.has_tool("game-performance") && info.has_tool("powerprofilesctl"));
+        assert_eq!(info.nvidia_major(), Some(580));
+        // The main screen (DP-2) hangs on card1, the NVIDIA card.
+        assert_eq!(info.display_card, "card1");
+        assert_eq!(info.gpu_in_use(false), "nvidia");
+        // Other distributions by their family.
+        let group = |id: &str, like: &str| SystemInfo { os_id: id.into(), os_like: like.split_whitespace().map(str::to_string).collect(), ..Default::default() }.distro_group();
+        assert_eq!(group("endeavouros", "arch"), "arch");
+        assert_eq!(group("nobara", "fedora"), "fedora");
+        assert_eq!(group("bazzite", "fedora"), "bazzite");
+        assert_eq!(group("linuxmint", "ubuntu debian"), "debian");
+        assert_eq!(group("opensuse-tumbleweed", "opensuse suse"), "suse");
+        assert_eq!(group("", ""), "");
+        // A laptop's built-in graphics drive the screen: AMD unless prime-run.
+        let laptop = SystemInfo {
+            gpus: vec![Gpu { vendor: "amd".into(), driver: "amdgpu".into(), card: "card0".into() }, Gpu { vendor: "nvidia".into(), driver: "nvidia".into(), card: "card1".into() }],
+            display_card: "card0".into(),
+            ..Default::default()
+        };
+        assert_eq!((laptop.gpu_in_use(false).as_str(), laptop.gpu_in_use(true).as_str()), ("amd", "nvidia"));
+    }
+
+    #[test]
+    fn picks_the_card_where_the_screen_is_connected() {
+        // Two cards with a "DP-1" each; the screen hangs on card1's.
+        let root = temp("twocards");
+        let drm = root.join("sys/class/drm");
+        write(&drm.join("card0-DP-1/status"), "disconnected\n");
+        write(&drm.join("card0-DP-1/enabled"), "disabled\n");
+        write(&drm.join("card0-DP-1/modes"), "");
+        write(&drm.join("card1-DP-1/status"), "connected\n");
+        write(&drm.join("card1-DP-1/enabled"), "enabled\n");
+        write(&drm.join("card1-DP-1/modes"), "2560x1440\n1920x1080\n");
+        let d = Display { name: "DP-1".into(), width: 2560, height: 1440, refresh: None, hdr: false };
+        assert_eq!(card_of(&drm, &d), "card1");
+        // Both connected: the one showing the screen's size.
+        write(&drm.join("card0-DP-1/status"), "connected\n");
+        write(&drm.join("card0-DP-1/enabled"), "enabled\n");
+        write(&drm.join("card0-DP-1/modes"), "1920x1080\n");
+        assert_eq!(card_of(&drm, &d), "card1");
+        // A connector of another name never counts.
+        let other = Display { name: "DP-10".into(), ..d };
+        assert_eq!(card_of(&drm, &other), "");
+    }
+
+    #[test]
+    fn copes_with_nothing() {
+        let root = temp("empty");
+        let info = detect(&root, &root, &|_| None, "");
+        assert_eq!(info, SystemInfo::default());
+        assert_eq!(info.to_json()["display"], Value::Null);
+    }
+
+    #[test]
+    fn sysfs_alone_gives_a_size() {
+        let root = temp("sysfs");
+        write(&root.join("sys/class/drm/card0-HDMI-A-1/status"), "connected\n");
+        write(&root.join("sys/class/drm/card0-HDMI-A-1/modes"), "1920x1080\n");
+        let info = detect(&root, &root, &|_| None, "");
+        assert_eq!(info.display, Some(Display { name: "HDMI-A-1".into(), width: 1920, height: 1080, refresh: None, hdr: false }));
+    }
+}

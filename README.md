@@ -240,3 +240,11 @@ meter (`Xzero3007/A2Tools-DPS-Meter_Clicktrough`, GPL-3.0).
 
 Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project
 Authors, both under the SIL Open Font License 1.1 (`assets/fonts/OFL-*.txt`).
+
+Launch option data: contains information from the ProtonDB data export
+(github.com/bdefore/protondb-data), made available under the Open Database
+License (ODbL) 1.0; the derived `data/protondb.json.gz` is likewise under the
+ODbL 1.0 (see `NOTICE-ProtonDB.txt`, made by `tools/protondb-extract.py`).
+What the launch option checker knows (`data/launch-options.json`) is written
+from the Proton, GE-Proton, proton-cachyos, vkd3d-proton, DXVK, DXVK-NVAPI and
+Mesa documentation and the CachyOS wiki; each entry names its source.

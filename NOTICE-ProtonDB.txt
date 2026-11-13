@@ -1,0 +1,15 @@
+Contains information from the ProtonDB data export
+(https://github.com/bdefore/protondb-data), which is made available under the
+Open Database License (ODbL) 1.0
+(https://opendatacommons.org/licenses/odbl/1-0/). Any rights in individual
+contents of the database are licensed under the Database Contents License
+(DbCL) 1.0 (https://opendatacommons.org/licenses/dbcl/1-0/), as the export
+states. The derived data/protondb.json.gz is likewise under the ODbL 1.0, its
+contents under the DbCL 1.0.
+
+data/protondb.json.gz is made by tools/protondb-extract.py: per Steam game,
+the counts of working reports, the Proton builds they used and the parts of
+their launch options, also by GPU maker, distribution family and CPU maker.
+Values that were cut at the length limit or that name a reporter's folders
+(and values of LD_PRELOAD and *_PATH, *_RUNTIME, *_FILE, *_DIR settings) are
+left out; only the option's name and count are kept for them.

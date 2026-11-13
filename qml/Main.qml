@@ -62,6 +62,8 @@ Overlay {
         if (demo.indexOf("dps") >= 0) dpsOpen = true
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
+        if (demo.indexOf("games") >= 0) games.demo(demo)
+        if (demo.indexOf("nowelcome") >= 0 && Companion.welcome) Companion.closeWelcome()
         if (demo.indexOf("streams") >= 0) streamsOpen = true
         if (demo.indexOf("video") >= 0) twitchVideo.item = { kind: "twitch", id: "streamer_one", name: "streamer_one", game: "AION 2", title: "" }
         if (demo.indexOf("jellyvideo") >= 0) jellyfinVideo.demo()

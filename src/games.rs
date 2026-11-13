@@ -329,7 +329,7 @@ fn is_steam_tool(appid: u32, name: &str) -> bool {
 }
 
 /// The Steam folders there are: native, the `~/.steam` links, Flatpak.
-fn steam_roots(home: &Path) -> Vec<PathBuf> {
+pub(crate) fn steam_roots(home: &Path) -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = Vec::new();
     for rel in [".local/share/Steam", ".steam/steam", ".steam/root", ".var/app/com.valvesoftware.Steam/.local/share/Steam"] {
         let Ok(root) = home.join(rel).canonicalize() else { continue };
@@ -342,7 +342,7 @@ fn steam_roots(home: &Path) -> Vec<PathBuf> {
 
 /// The library folders a Steam folder lists (new and old
 /// `libraryfolders.vdf`), the folder itself first.
-fn steam_libraries(root: &Path) -> Vec<PathBuf> {
+pub(crate) fn steam_libraries(root: &Path) -> Vec<PathBuf> {
     let mut libraries = vec![root.to_path_buf()];
     for file in [root.join("steamapps/libraryfolders.vdf"), root.join("config/libraryfolders.vdf")] {
         let Some(vdf) = read_vdf(&file) else { continue };
@@ -495,7 +495,7 @@ fn lutris_rows(db: &Path) -> Vec<LutrisRow> {
 }
 
 /// A path for an SQLite URI (`?` and `#` would end it).
-fn uri_path(path: &Path) -> String {
+pub(crate) fn uri_path(path: &Path) -> String {
     encode_path(path)
 }
 

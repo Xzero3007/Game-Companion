@@ -9,6 +9,7 @@
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
@@ -19,7 +20,12 @@ use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
 use crate::games::{self, Game, GameOptions, GamesSettings, Matcher, OwnGame};
+use crate::launch_check;
+use crate::launch_demo;
+use crate::launch_options::{self, Places};
+use crate::protondb;
 use crate::settings;
+use crate::system_info;
 
 #[cxx_qt::bridge]
 pub mod qobject {
@@ -116,6 +122,111 @@ pub mod qobject {
         /// The saved layout a game loads when it starts ("" = none).
         #[qinvokable]
         fn set_layout(self: Pin<&mut Games>, id: &QString, layout: &QString);
+
+        /// The answer to one of the launch option calls below. Those calls
+        /// do their work on a worker thread (they read and write the
+        /// launchers' files) and return a request number at once; the
+        /// answer comes here with that number, `json` as each call says.
+        #[qsignal]
+        fn launch_result(self: Pin<&mut Games>, request: i32, json: QString);
+
+        /// A game's launch options as its launcher keeps them, in Steam's
+        /// form. Answer: JSON `{"id","launcher","supported","text","env":
+        /// [{"name","value"}],"wrappers":[..],"args","file","user","proton":
+        /// {"current","label","name","inUse","global","canSet"},"running",
+        /// "error"}`: `name` the choice as a protonVersions name ("" =
+        /// the launcher's default), `inUse` the build that runs ("" when
+        /// unknown), `running` whether the launcher runs now (writes
+        /// refuse then).
+        #[qinvokable]
+        fn launch_options(self: &Games, id: &QString) -> i32;
+
+        /// Options that fit this computer and this game's Proton build,
+        /// the current options checked, and what others use (ProtonDB,
+        /// Steam games). Answer: JSON `{"suggestions":[{"id","label",
+        /// "explanation","option","recommended","why","warning","group",
+        /// "applied","flavours":[..],"popular":<usage>|null,"available",
+        /// "unavailable_why"}],"context":
+        /// {"flavour","label","sure","cachyos"},"check":<as checkOptions>,
+        /// "warnings":[..],"others":{"title","reports","export","months",
+        /// "source","groups":[{"group","label","reports"}],"proton":
+        /// [{"variant","label","count","share"}],"options":[{"kind","name",
+        /// "value","text","usage":<usage>,"check":<token>}]}|null}`; one
+        /// per group can be on. `<usage>` is `{"count","reports","share",
+        /// "similar":[{"group","label","count","reports","share"}],"like":
+        /// {..}}` (`like`: the first of this PC's groups, GPU, distro, CPU,
+        /// with 5 reports or more, else all reports). `available` false: a
+        /// switch this exact build no longer needs or reads (greyed out,
+        /// `unavailable_why` says why; combineOptions refuses it).
+        #[qinvokable]
+        fn suggestions(self: &Games, id: &QString) -> i32;
+
+        /// Checks launch options word by word for the game's Proton build
+        /// (`text` "" = the game's current options). Answer: JSON
+        /// `{"text","proton":{"flavour","label","sure","cachyos"},"tokens":
+        /// [{"text","kind","name","value","status","explanation","note",
+        /// "warning","replacement","fix","source","flags":[{"flag","status",
+        /// "note","suggestion"}]}],"problems":[{"kind","message","name"}],
+        /// "summary":{"ok",..},"fixed","error"}`. status: ok, outdated,
+        /// invalid, no_effect, not_recommended, unknown; fix: the word's
+        /// replacement ("" = take it out) or null; fixed: the whole text
+        /// with every fix ("" when none or not safely possible). Only the
+        /// newest check's answer is sent: an older request still waiting
+        /// or running when a newer one comes gets no launchResult.
+        #[qinvokable]
+        fn check_options(self: &Games, id: &QString, text: &QString) -> i32;
+
+        /// The game's launch options with the suggestions in `chosen` (a
+        /// JSON list of ids: the ones to have on; applied ones left out are
+        /// taken out) put into its text, not written. Answer: JSON
+        /// `{"text","error"}` (text too complex to change, or an unavailable
+        /// suggestion chosen to be added, is refused in "error", with the
+        /// text as it was).
+        #[qinvokable]
+        fn combine_options(self: &Games, id: &QString, chosen: &QString) -> i32;
+
+        /// Writes a game's launch options (Steam's form) to its launcher's
+        /// file, or an own entry's command. Answer: JSON `{"error"}`, ""
+        /// when done, else why not (e.g. "Close Steam first").
+        #[qinvokable]
+        fn set_launch_options(self: &Games, id: &QString, text: &QString) -> i32;
+
+        /// The Proton and Wine builds installed, as last read (`refresh`
+        /// reads the folders again). Answer: JSON `[{"name","label","path",
+        /// "source","kind","launchers"}]`.
+        #[qinvokable]
+        fn proton_versions(self: &Games, refresh: bool) -> i32;
+
+        /// Sets a game's Proton or Wine build by its `name` ("" = Steam's
+        /// default). Answer: JSON `{"error","warning"}`: error "" when done;
+        /// warning for the user (Heroic: moving between Wine and Proton
+        /// changes the game's prefix), else "".
+        #[qinvokable]
+        fn set_proton(self: &Games, id: &QString, name: &QString) -> i32;
+
+        /// Whether the game's launcher runs now (it writes its settings when
+        /// it quits, undoing a change). Answer: JSON `{"running"}`.
+        #[qinvokable]
+        fn launcher_state(self: &Games, id: &QString) -> i32;
+
+        /// The Proton overview: the builds installed and which build each
+        /// of these games (`ids`, a JSON list) uses. Answer: JSON `{"tools":
+        /// [as protonVersions],"steamDefault","games":[{"id","launcher",
+        /// "choice","inUse","proton","canSet"}]}` with the games that run
+        /// through Proton or Wine (`choice` "" = the launcher's default,
+        /// `inUse` the build that runs, "" when unknown); own entries are
+        /// left out.
+        #[qinvokable]
+        fn proton_overview(self: &Games, ids: &QString) -> i32;
+
+        /// This computer as the suggestions see it. Answer: JSON `{"gpus":
+        /// [{"vendor","driver","card"}],"nvidiaVersion","cpu","threads",
+        /// "ramMb","kernel","tools":[..],"session","desktop","ntsync",
+        /// "display":{"name","width","height","refresh","hdr"}|null,
+        /// "hdrLayer","os","osLike":[..],"cachyos","cpuVendor","ananicy",
+        /// "displayCard"}`.
+        #[qinvokable]
+        fn system_info(self: &Games) -> i32;
     }
 
     impl cxx_qt::Threading for Games {}
@@ -165,6 +276,116 @@ fn watched() -> &'static Mutex<Arc<Matcher>> {
 
 fn home() -> Option<PathBuf> {
     std::env::var_os("HOME").map(PathBuf::from).filter(|p| p.is_absolute())
+}
+
+/// The launchers' and the system's places on this computer.
+fn places() -> Option<Places> {
+    Some(Places { home: home()?, root: PathBuf::from("/"), proc_root: PathBuf::from("/proc") })
+}
+
+/// An own entry's command line (None for other games).
+fn own_command(id: &str) -> Option<String> {
+    let n = id.strip_prefix("own:")?.parse::<u32>().ok()?;
+    settings::read(|s| s.games.own.iter().find(|o| o.id == n).map(|o| o.command.clone()))
+}
+
+/// This computer, read now (a few small files; nothing is run).
+fn system() -> system_info::SystemInfo {
+    if demo_mode() {
+        return launch_demo::system();
+    }
+    let config = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| home().map(|h| h.join(".config")))
+        .unwrap_or_default();
+    let screen = settings::read(|s| s.screen.clone());
+    system_info::detect(Path::new("/"), &config, &|k| std::env::var(k).ok(), &screen)
+}
+
+/// A worker's answer for `launch_result`; `rebuild` puts the library
+/// together again first (an own entry changed).
+struct Answer {
+    json: String,
+    rebuild: bool,
+    /// A newer request of the same kind came: send nothing.
+    stale: bool,
+}
+
+impl Answer {
+    fn json(value: Value) -> Self {
+        Answer { json: value.to_string(), rebuild: false, stale: false }
+    }
+
+    fn stale() -> Self {
+        Answer { json: String::new(), rebuild: false, stale: true }
+    }
+}
+
+/// The newest request of one kind, so older answers can be dropped.
+struct Newest(AtomicU64);
+
+impl Newest {
+    const fn new() -> Self {
+        Newest(AtomicU64::new(0))
+    }
+
+    /// A new request: its generation.
+    fn begin(&self) -> u64 {
+        self.0.fetch_add(1, Ordering::Relaxed) + 1
+    }
+
+    fn is_newest(&self, generation: u64) -> bool {
+        self.0.load(Ordering::Relaxed) == generation
+    }
+}
+
+/// The Proton and Wine builds installed, read once and kept until asked
+/// to read them again (`refresh`).
+fn tools(places: &Places, refresh: bool) -> Arc<Vec<launch_options::Tool>> {
+    if demo_mode() {
+        return Arc::new(launch_demo::tools());
+    }
+    static TOOLS: Mutex<Option<Arc<Vec<launch_options::Tool>>>> = Mutex::new(None);
+    let mut kept = TOOLS.lock().unwrap_or_else(|p| p.into_inner());
+    match kept.as_ref() {
+        Some(list) if !refresh => list.clone(),
+        _ => {
+            let list = Arc::new(launch_options::all_tools(places));
+            *kept = Some(list.clone());
+            list
+        }
+    }
+}
+
+/// A game's launch options as its launcher keeps them (the demo's made-up
+/// ones in demo mode).
+fn current(places: &Places, id: &str) -> launch_options::Current {
+    if demo_mode() {
+        return launch_demo::current(id, own_command(id).as_deref());
+    }
+    launch_options::read(places, id, own_command(id).as_deref())
+}
+
+/// Whether the game's launcher runs now.
+fn launcher_running(places: &Places, launcher: &str) -> bool {
+    if demo_mode() {
+        return launcher == "steam" && launch_demo::launcher_running();
+    }
+    launch_options::launcher_running(places, launcher)
+}
+
+/// Changes an own entry's command; its process names are guessed again
+/// from the new command, as when adding one, unless the user typed their
+/// own. False if there is no such entry.
+fn set_own_command(games: &mut GamesSettings, n: u32, command: String) -> bool {
+    let Some(own) = games.own.iter_mut().find(|o| o.id == n) else { return false };
+    let guessed = own.processes.is_empty() || own.processes == games::own_processes("", &own.command);
+    if guessed {
+        own.processes = games::own_processes("", &command);
+    }
+    own.command = command;
+    true
 }
 
 fn now_seconds() -> u64 {
@@ -282,6 +503,7 @@ impl qobject::Games {
         let scanned = vec![
             Game::new("steam:2694490", "Path of Exile 2", "steam", ""),
             Game::new("steam:1000001", "Space Game", "steam", ""),
+            Game::new(launch_demo::RACER, "Forza Horizon 6", "steam", ""),
             Game::new("lutris:3", "Dungeon Crawler", "lutris", ""),
             Game::new("heroic:legendary:demo", "Racing Game", "heroic", ""),
             Game::new("heroic:gog:1207", "Old Adventure", "heroic", ""),
@@ -294,6 +516,7 @@ impl qobject::Games {
         settings.favorites.insert("own:1".into());
         settings.last_played.insert("own:1".into(), now_seconds());
         settings.last_played.insert("steam:2694490".into(), now_seconds().saturating_sub(86_400));
+        settings.last_played.insert(launch_demo::RACER.into(), now_seconds().saturating_sub(3 * 86_400));
         let list = games::compose(&scanned, &settings);
         self.as_mut().set_library(q(&library_json(&list, &settings)));
         self.as_mut().rust_mut().watch = Arc::new(Matcher::new(games::watch_list(&list, &settings)));
@@ -528,6 +751,192 @@ impl qobject::Games {
         self.rebuild();
     }
 
+    /// Runs a launch option job on a worker thread (one at a time, in the
+    /// order asked) and sends its answer with `launch_result`.
+    fn work(&self, job: impl FnOnce() -> Answer + Send + 'static) -> i32 {
+        static NEXT: AtomicI32 = AtomicI32::new(1);
+        static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+        let request = NEXT.fetch_add(1, Ordering::Relaxed);
+        let thread = self.qt_thread();
+        let spawned = std::thread::Builder::new().name("launch-options".into()).spawn(move || {
+            let answer = {
+                let _turn = ONE_AT_A_TIME.lock().unwrap_or_else(|p| p.into_inner());
+                job()
+            };
+            if answer.stale {
+                return;
+            }
+            let _ = thread.queue(move |mut obj: Pin<&mut qobject::Games>| {
+                if answer.rebuild {
+                    obj.as_mut().rebuild();
+                }
+                obj.launch_result(request, q(&answer.json));
+            });
+        });
+        if spawned.is_err() {
+            return -1;
+        }
+        request
+    }
+
+    fn launch_options(&self, id: &QString) -> i32 {
+        let id = id.to_string();
+        self.work(move || {
+            let Some(places) = places() else { return Answer::json(json!({"id": id, "supported": false, "error": "No home folder"})) };
+            let current = current(&places, &id);
+            let mut answer = current.to_json(&id, &tools(&places, false));
+            answer["running"] = json!(current.supported && launcher_running(&places, &current.launcher));
+            Answer::json(answer)
+        })
+    }
+
+    fn suggestions(&self, id: &QString) -> i32 {
+        let id = id.to_string();
+        self.work(move || {
+            let Some(places) = places() else { return Answer::json(json!({"suggestions": [], "warnings": [], "others": null})) };
+            let current = current(&places, &id);
+            if !current.supported {
+                return Answer::json(json!({"suggestions": [], "warnings": [], "others": null}));
+            }
+            let pdb = launch_options::steam_appid(&id).and_then(|appid| protondb::load(&protondb::data_path()?, appid));
+            let mut answer = launch_check::suggestions_answer(&system(), &current, &tools(&places, false), pdb);
+            if demo_mode() {
+                launch_demo::add_unavailable(&mut answer);
+            }
+            Answer::json(answer)
+        })
+    }
+
+    fn check_options(&self, id: &QString, text: &QString) -> i32 {
+        // Rapid checks (typing): only the newest is worked out and answered.
+        static CHECKS: Newest = Newest::new();
+        let generation = CHECKS.begin();
+        let stale = move || !CHECKS.is_newest(generation);
+        let id = id.to_string();
+        let text = text.to_string();
+        self.work(move || {
+            if stale() {
+                return Answer::stale();
+            }
+            let Some(places) = places() else { return Answer::json(json!({"error": "No home folder"})) };
+            let current = current(&places, &id);
+            let text = if text.trim().is_empty() { current.text.clone() } else { text };
+            let ctx = launch_check::context(&system(), &current, &tools(&places, false));
+            let answer = Answer::json(launch_check::check(&text, &ctx).to_json(&text));
+            if stale() {
+                Answer::stale()
+            } else {
+                answer
+            }
+        })
+    }
+
+    fn combine_options(&self, id: &QString, chosen: &QString) -> i32 {
+        let id = id.to_string();
+        let chosen: Vec<String> = serde_json::from_str(&chosen.to_string()).unwrap_or_default();
+        self.work(move || {
+            let Some(places) = places() else { return Answer::json(json!({"text": "", "error": "No home folder"})) };
+            let current = current(&places, &id);
+            let result = if current.supported {
+                let list = launch_options::suggest(&system(), &current, &tools(&places, false));
+                launch_options::combine(&current, &list, &chosen)
+            } else {
+                Err(current.error.clone())
+            };
+            Answer::json(match result {
+                Ok(text) => json!({"text": text, "error": ""}),
+                Err(e) => json!({"text": current.text, "error": e}),
+            })
+        })
+    }
+
+    fn set_launch_options(&self, id: &QString, text: &QString) -> i32 {
+        let id = id.to_string();
+        let text = text.to_string();
+        let error = |e: &str| Answer::json(json!({"error": e}));
+        self.work(move || {
+            if demo_mode() {
+                return error("Not in the demo");
+            }
+            if let Some(n) = id.strip_prefix("own:").and_then(|n| n.parse::<u32>().ok()) {
+                let command = text.trim().to_string();
+                if let Err(e) = launch_options::parse_own(&command) {
+                    return error(&e);
+                }
+                if !settings::change(|s| set_own_command(&mut s.games, n, command)) {
+                    return error("This game was not found");
+                }
+                return Answer { json: json!({"error": ""}).to_string(), rebuild: true, stale: false };
+            }
+            let Some(places) = places() else { return error("No home folder") };
+            match launch_options::write(&places, &id, &text, now_seconds()) {
+                Ok(()) => error(""),
+                Err(e) => error(&e),
+            }
+        })
+    }
+
+    fn proton_versions(&self, refresh: bool) -> i32 {
+        self.work(move || {
+            let Some(places) = places() else { return Answer::json(json!([])) };
+            Answer { json: launch_options::tools_json(&tools(&places, refresh)), rebuild: false, stale: false }
+        })
+    }
+
+    fn set_proton(&self, id: &QString, name: &QString) -> i32 {
+        let id = id.to_string();
+        let name = name.to_string().trim().to_string();
+        self.work(move || {
+            let answer = |error: &str, warning: &str| Answer::json(json!({"error": error, "warning": warning}));
+            if demo_mode() {
+                // Shows how a warning looks: Heroic between Wine and Proton.
+                let warning = if id.starts_with("heroic:") { launch_options::PREFIX_WARNING } else { "" };
+                return answer("", warning);
+            }
+            let Some(places) = places() else { return answer("No home folder", "") };
+            let mut list = tools(&places, false);
+            if !name.is_empty() && !list.iter().any(|t| t.name == name) {
+                // Installed since the list was read?
+                list = tools(&places, true);
+            }
+            match launch_options::set_tool(&places, &list, &id, &name, now_seconds()) {
+                Ok(warning) => answer("", &warning),
+                Err(e) => answer(&e, ""),
+            }
+        })
+    }
+
+    fn launcher_state(&self, id: &QString) -> i32 {
+        let id = id.to_string();
+        self.work(move || {
+            let Some(places) = places() else { return Answer::json(json!({"running": false})) };
+            let launcher = if launch_options::steam_appid(&id).is_some() {
+                "steam"
+            } else {
+                id.split(':').next().unwrap_or("")
+            };
+            Answer::json(json!({"running": launcher_running(&places, launcher)}))
+        })
+    }
+
+    fn proton_overview(&self, ids: &QString) -> i32 {
+        let ids: Vec<String> = serde_json::from_str(&ids.to_string()).unwrap_or_default();
+        self.work(move || {
+            let Some(places) = places() else { return Answer::json(json!({"tools": [], "steamDefault": "", "games": []})) };
+            let list = tools(&places, false);
+            let (games, steam_default) = if demo_mode() {
+                (ids.iter().map(|id| (id.clone(), launch_demo::current(id, None))).collect(), launch_demo::STEAM_DEFAULT.to_string())
+            } else {
+                launch_options::tool_choices(&places, &ids)
+            };
+            Answer::json(launch_options::usage_json(&games, &list, &steam_default))
+        })
+    }
+
+    fn system_info(&self) -> i32 {
+        self.work(|| Answer { json: system().to_json().to_string(), rebuild: false, stale: false })
+    }
+
     /// Puts an id in one of the settings' sets, or takes it out.
     fn mark(self: Pin<&mut Self>, id: &QString, on: bool, set: fn(&mut GamesSettings) -> &mut BTreeSet<String>) {
         let id = id.to_string();
@@ -549,6 +958,35 @@ impl qobject::Games {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_newest_check_counts() {
+        let checks = Newest::new();
+        let first = checks.begin();
+        assert!(checks.is_newest(first));
+        let second = checks.begin();
+        assert!(!checks.is_newest(first) && checks.is_newest(second));
+        assert!(Answer::stale().stale && !Answer::json(json!({})).stale);
+    }
+
+    #[test]
+    fn own_command_change_guesses_processes_again() {
+        let mut settings = GamesSettings {
+            own: vec![
+                OwnGame { id: 1, name: "A".into(), command: "wine ~/a/A.exe".into(), processes: vec!["A.exe".into()], ..Default::default() },
+                OwnGame { id: 2, name: "B".into(), command: "wine ~/b/B.exe".into(), processes: vec!["mine".into()], ..Default::default() },
+            ],
+            ..Default::default()
+        };
+        assert_eq!(games::own_processes("", "wine ~/a/A.exe"), ["A.exe"]);
+        assert!(set_own_command(&mut settings, 1, "gamemoderun wine ~/a/A2.exe".into()));
+        assert_eq!(settings.own[0].processes, games::own_processes("", "gamemoderun wine ~/a/A2.exe"));
+        assert_eq!(settings.own[0].command, "gamemoderun wine ~/a/A2.exe");
+        // Typed by the user: kept.
+        assert!(set_own_command(&mut settings, 2, "wine ~/b/C.exe".into()));
+        assert_eq!(settings.own[1].processes, ["mine"]);
+        assert!(!set_own_command(&mut settings, 9, "x".into()));
+    }
 
     #[test]
     fn library_lists_what_qml_needs() {
