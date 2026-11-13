@@ -18,7 +18,7 @@ var packages = [
         about: "Loads only while AION 2 runs. Listens only: nothing is sent to the game.",
         plugins: [
             { id: "aion2.dps", short: "M", name: "DPS Meter", about: "Damage and healing of you and your party, skills (Details) and Battle History.", built: true },
-            { id: "aion2.map", short: "MP", name: "Map", about: "The map you are on with your position, spawns, gathering spots, bosses and NPCs; a small map that follows you.", built: false },
+            { id: "aion2.map", short: "MP", name: "Map", about: "The map you are on with your position, spawns, gathering spots, bosses and NPCs; a small map that follows you.", built: true },
             { id: "aion2.market", short: "MK", name: "Market", about: "Your server's market: usual prices, anomalies, materials and what recipes cost.", built: false },
             { id: "aion2.inventory", short: "I", name: "Inventory", about: "Inventory, storage and drop rates.", built: false },
             { id: "aion2.closet", short: "C", name: "Closet", about: "Skins you have and still miss.", built: false },

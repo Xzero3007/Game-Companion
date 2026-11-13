@@ -18,6 +18,9 @@ Item {
     property bool dpsShown: false
     property bool dpsOpen: false
     signal dpsClicked
+    property bool mapShown: false
+    property bool mapOpen: false
+    signal mapClicked
     /// The running game has a module (purple); else it just shows its name.
     property bool gameHasModule: false
     property bool streamsOpen: false
@@ -126,6 +129,14 @@ Item {
             active: bar.dpsOpen
             tip: "AION 2: DPS meter (listens only)"
             onClicked: bar.dpsClicked()
+        }
+        HudButton {
+            visible: bar.mapShown
+            icon: "map"
+            label: "Map"
+            active: bar.mapOpen
+            tip: "AION 2: map with your position (listens only)"
+            onClicked: bar.mapClicked()
         }
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter

@@ -2,6 +2,7 @@ import QtQuick
 import GameCompanion
 import "theme.js" as Theme
 import "plugins.js" as Plugins
+import "aion2"
 
 // The overlay: every part (the bar, the player row, each panel, each
 // video) in a small window of its own on the overlay layer (Surface), as
@@ -18,6 +19,7 @@ Overlay {
     property bool streamsOpen: false
     property bool gamesOpen: false
     property bool dpsOpen: false
+    property bool mapOpen: false
     /// The person closed the DPS panel: it stays closed when AION 2 starts.
     property bool dpsClosed: false
     /// The game id AION 2 runs under (its module stops when that one ends).
@@ -25,7 +27,8 @@ Overlay {
     function aionStarted(id) {
         aionId = id
         // The package and its meter can be switched off (Settings → Plugins).
-        if (!Plugins.loads(plugins, "aion2") || !Plugins.choice(plugins, "aion2.dps").on) return
+        if (!Plugins.loads(plugins, "aion2")) return
+        if (!Plugins.choice(plugins, "aion2.dps").on && !Plugins.choice(plugins, "aion2.map").on) return
         Aion2.start()
         if (!dpsClosed && Plugins.inBar(plugins, "aion2.dps")) dpsOpen = true
     }
@@ -46,6 +49,7 @@ Overlay {
         const ids = []
         if (gamesOpen) ids.push("games")
         if (dpsOpen) ids.push("dps")
+        if (mapOpen) ids.push("map")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
@@ -53,6 +57,7 @@ Overlay {
     function openFrom(ids) {
         gamesOpen = ids.indexOf("games") >= 0
         dpsOpen = ids.indexOf("dps") >= 0
+        mapOpen = ids.indexOf("map") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
@@ -64,6 +69,7 @@ Overlay {
         if (demo.indexOf("radio") >= 0) radioOpen = true
         if (demo.indexOf("games") >= 0) gamesOpen = true
         if (demo.indexOf("dps") >= 0) dpsOpen = true
+        if (demo.indexOf("map") >= 0) mapOpen = true
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("games") >= 0) games.demo(demo)
@@ -188,6 +194,9 @@ Overlay {
             dpsShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.dps")) || root.dpsOpen
             dpsOpen: root.dpsOpen
             onDpsClicked: { root.dpsOpen = !root.dpsOpen; root.dpsClosed = !root.dpsOpen }
+            mapShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.map")) || root.mapOpen
+            mapOpen: root.mapOpen
+            onMapClicked: root.mapOpen = !root.mapOpen
             gameName: Games.runningName
             gameHasModule: Games.runningKnown.length > 0
             streamsOpen: root.streamsOpen
@@ -289,6 +298,16 @@ Overlay {
             defaultX: Math.max(24, root.width - width - 24)
             defaultY: 120
             onCloseClicked: { root.dpsOpen = false; root.dpsClosed = true }
+        }
+    }
+
+    Surface {
+        wanted: root.mapOpen && root.onScreen("map")
+        stack: 3
+        part: MapPanel {
+            defaultX: Math.max(24, (root.width - width) / 2)
+            defaultY: 140
+            onCloseClicked: root.mapOpen = false
         }
     }
 

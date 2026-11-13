@@ -1,0 +1,26 @@
+From Aion 2 Timers' interactive map (aion2timers.com, its map data:
+map/data/maps.json, positions/<map>.json, tiles/ and icons/, build in
+dev/provenance.json, downloaded by dev/fetch_aion2timers.py):
+
+- in data.js: the Kibelisks, the field bosses, the gathering spots, the
+  places a Hidden Cube can appear, the places (dungeon entrances, outposts,
+  Spacetime Rifts, flight circles, Monoliths, passages, field events, the
+  Abyss's artifacts and corridors), the services (merchants, storage,
+  crafting tables, teleport towers), the quest givers and their quests, the
+  monsters' and NPCs' spawn points and levels, the areas' names, and the
+  object ids the meter learns them by (kibelisks, bosses, gather, cubes,
+  places, monsters, npcs, monsterLevels, labels, objectKinds);
+- the spawn points of the pet monsters (spawns), also as A2 Tools' Pet Soul
+  Tracker has them (plugins/pet-souls/maps.js in
+  https://github.com/taengu/A2Tools-Plugins, revision in dev/provenance.json;
+  built there by tools/pet-maps/build.py);
+- the map pictures of Eltnen and Morheim (tiles/eltnen, tiles/morheim: its
+  tiles at the highest zoom, stitched) and of the Abyss's middle and upper
+  layers (tiles/abyss_middle, tiles/abyss_upper);
+- the symbol of the passages and teleport towers (icons/door.webp,
+  icons/npcteleport.webp), the game's.
+
+The spawn points are the game's own data, as the client has it; the pictures
+are the game's world maps. AION 2 names, maps and game material belong to their
+respective owners (NCSOFT / NC Corporation). Attribution is not a licence to
+that material.

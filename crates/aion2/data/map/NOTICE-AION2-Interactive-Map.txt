@@ -1,0 +1,32 @@
+The Hidden Cube spots, the Monolith pieces, the sealed dungeons, battlefields,
+outposts and villages, the regions (names and outlines) in data.js
+(cubeSpots, monoliths, places, regions), and the Kibelisk places the
+calibration of Verteron and Altgard is checked against, come from
+
+  AION2 Interactive Map
+  Copyright (c) 2025 Yihao Liu (tc-imba)
+  https://github.com/aion2-interactive-map/aion2-interactive-map
+  (public/data and public/locales/en, revision in dev/provenance.json)
+
+licensed under Creative Commons Attribution-NonCommercial 4.0 International
+(CC BY-NC 4.0), https://creativecommons.org/licenses/by-nc/4.0/
+
+Changes made: only the kinds named above, with their English names; their
+places turned from pixels of the game's map pictures into game coordinates
+with the calibration of dev/make_data.py (the game's map bounds); the
+regions' outlines kept as polygons, each with its middle for its name. The same licence applies to
+this adapted data: it may be shared and adapted for non-commercial purposes
+only, with credit as above. It is not part of the plugin's GPL-licensed code.
+
+The symbols in icons/ (but door and npcteleport) are the game's minimap
+symbols (© NCSOFT), as the AION2 Interactive Map publishes them
+(public/UI/Resource/Texture/Icon/UT_Marker_*), made 64 px; like the map
+pictures, they are the game's artwork, not covered by its licence.
+
+The world map pictures in tiles/ (verteron, altgard, abyss, poeta, ishalgen)
+are the game's own (© NCSOFT), as the AION2 Interactive Map publishes them on
+its site (its gh-pages branch, UI/Map/WorldMap); its licence does not cover
+them, and they are not ours either: they are the game's artwork, shown as
+every AION 2 map site shows them.
+
+AION 2 names and places belong to their respective owners.

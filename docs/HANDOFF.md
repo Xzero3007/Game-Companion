@@ -24,6 +24,26 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.7.2 to 0.7.5 beta (branch `aion-plugins`, 2026-11-13): texts wrap
+  instead of being cut (launch options, trend words, game cards); Settings
+  → Plugins (qml/plugins.js catalogue, settings `plugins` / `packages`,
+  Companion.setPlugin / setPackage); DPS meter: ping and Odyle, classes in
+  English (`aion2::job_name`), live skills of the chosen player, smaller
+  sizes, its own opacity, fixed list height, input given again 250 ms
+  after a resize; Twitch "load more" and YouTube video languages (thread
+  "FreeTube und Streamlink-GUI ablösen"). 0.7.5: the **Map** (plugin
+  `aion2.map`): `tools/aion2-map-import.py` turns the Clicktrough Map
+  plugin's data.js, areas.js, render.js and marks.js into
+  `qml/aion2/mapkit.js` (globalThis → G, newer syntax lowered,
+  polyfills for Qt 6.4) and copies tiles, icons and notices to
+  `crates/aion2/data/map/`; `qml/aion2/MapView.qml` draws tiles and marks
+  (Canvas, a port of render.js), `qml/aion2/MapPanel.qml` is plugin.js's
+  UI (layers, gathering kinds, search, focus, nearest souls, NEXT);
+  settings in `aion2-map.json` (Aion2.mapSettings / saveMapSettings).
+  `GC_DEMO=map` (Verteron), `GC_DEMO=dpslive,dps` (empty, then a fight
+  that changes every 0.5 s). qt6-imageformats is now a dependency (WebP
+  tiles). Next: Market (hosts approved), then the list's order.
+
 - 0.7.0 beta (branch `integration` merged into beta, 2026-11-13): launch
   options and Proton per game (checker, suggestions by Proton build,
   CachyOS, ProtonDB extract, UI per boards L1-L3), tray icon and autostart
@@ -389,6 +409,11 @@ and emotes. The person tests these.
 
 ## Testing
 
+- Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots
+  and injected clicks: /mnt/project-files/game-companion/kwin-test/
+  (README: layer-shell-qt 6.0 patched for Qt 6.4). The DPS click bug did
+  not show there after a growing live fight (0.7.3 and 0.7.4, locked and
+  unlocked).
 - Sandbox: Ubuntu, Qt 6.4, offscreen/xvfb (see CLAUDE.md).
 - Real KWin: a separate thread on the environment "internet" (Arch
   mirrors allowed) builds an Arch chroot with KWin 6 and tests there; its

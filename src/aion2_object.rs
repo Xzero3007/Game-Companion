@@ -74,6 +74,18 @@ pub mod qobject {
         /// Shows this player's skills (0: the one playing).
         #[qinvokable]
         fn pick(self: Pin<&mut Aion2>, actor: i32);
+
+        /// The Map's pictures (tiles/, icons/) as a file URL, no slash at the end.
+        #[qinvokable]
+        fn map_dir(self: &Aion2) -> QString;
+
+        /// The Map's own choices (layers, follow, zoom ...), JSON ("{}" none).
+        #[qinvokable]
+        fn map_settings(self: &Aion2) -> QString;
+
+        /// Keeps the Map's choices (JSON, at most 64 KB).
+        #[qinvokable]
+        fn save_map_settings(self: &Aion2, json: &QString);
     }
 
     impl cxx_qt::Threading for Aion2 {}
@@ -128,6 +140,39 @@ fn helper() -> PathBuf {
 
 impl cxx_qt::Initialize for qobject::Aion2 {
     fn initialize(mut self: Pin<&mut Self>) {
+        // GC_DEMO=dpslive: starts empty, then a made-up fight that changes
+        // every half second (as a real measurement does), for input checks.
+        if std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "dpslive")) {
+            self.as_mut().set_active(true);
+            self.as_mut().set_state(QString::from("reading"));
+            self.as_mut().set_fight(QString::from(EMPTY));
+            let thread = self.qt_thread();
+            let _ = std::thread::Builder::new().name("aion2-demo".into()).spawn(move || {
+                std::thread::sleep(Duration::from_secs(6));
+                for tick in 0u64.. {
+                    std::thread::sleep(Duration::from_millis(500));
+                    let mut fight: serde_json::Value = serde_json::from_str(DEMO).unwrap_or_default();
+                    fight["time"] = (tick * 500).into();
+                    if let Some(rows) = fight["rows"].as_array_mut() {
+                        rows.truncate(1 + (tick as usize / 4).min(5));
+                        for row in rows.iter_mut() {
+                            let dps = row["dps"].as_u64().unwrap_or(0);
+                            row["dps"] = (dps + tick * 37 % 900).into();
+                        }
+                    }
+                    let fight = fight.to_string();
+                    if thread.queue(move |mut obj: Pin<&mut qobject::Aion2>| obj.as_mut().set_fight(QString::from(&fight))).is_err() {
+                        break;
+                    }
+                }
+            });
+            return;
+        }
+        // GC_DEMO=map: standing in Verteron with monsters around.
+        if std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "map")) {
+            self.as_mut().set_active(true);
+            self.as_mut().set_world(QString::from(DEMO_WORLD));
+        }
         if std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "dps")) {
             self.as_mut().set_active(true);
             self.as_mut().set_state(QString::from("reading"));
@@ -294,6 +339,30 @@ impl qobject::Aion2 {
         }
     }
 
+    fn map_dir(&self) -> QString {
+        let dir = aion2::data_dir().join("map");
+        QString::from(&format!("file://{}", dir.display()))
+    }
+
+    fn map_settings(&self) -> QString {
+        let text = map_settings_file().and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_default();
+        let ok = serde_json::from_str::<serde_json::Value>(&text).is_ok_and(|v| v.is_object());
+        QString::from(if ok { text.as_str() } else { "{}" })
+    }
+
+    fn save_map_settings(&self, json: &QString) {
+        let text = json.to_string();
+        if text.len() > 64 * 1024 || !serde_json::from_str::<serde_json::Value>(&text).is_ok_and(|v| v.is_object()) {
+            return;
+        }
+        if let Some(path) = map_settings_file() {
+            let tmp = path.with_extension("json.tmp");
+            if std::fs::write(&tmp, text).is_ok() {
+                let _ = std::fs::rename(&tmp, &path);
+            }
+        }
+    }
+
     fn pick(mut self: Pin<&mut Self>, actor: i32) {
         self.wanted.store(actor, Ordering::Relaxed);
         self.as_mut().set_picked(actor);
@@ -304,6 +373,15 @@ impl qobject::Aion2 {
         }
     }
 }
+
+/// The Map's choices, beside settings.json.
+fn map_settings_file() -> Option<PathBuf> {
+    crate::settings::Settings::path().map(|p| p.with_file_name("aion2-map.json"))
+}
+
+/// A made-up world for screenshots (GC_DEMO=map): Verteron.
+const DEMO_WORLD: &str = r#"{"at":0,"zone":902,"me":{"x":-108000,"y":-56000,"exact":true},"moving":false,
+"npcs":[[11,2100002,-110660,-58525],[12,2100006,-74581,-53904],[13,2100015,-74634,-51920],[14,2100009,-111486,-24906]],"objects":[]}"#;
 
 /// A made-up fight for screenshots (GC_DEMO=dps).
 const DEMO: &str = r#"{"time":134000,"target":"Training Scarecrow","boss":false,"hpMax":0,"hpNow":0,"rows":[
