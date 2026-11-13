@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 import GameCompanion
 import "theme.js" as Theme
+import "drag.js" as Drag
 
 // The bar docked at the top centre of the screen, with slanted ends and a
 // thin gold line under it: the name, the game module (none yet), the
@@ -154,10 +155,14 @@ Item {
         hoverEnabled: true
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         // The window holds the whole screen while dragging (Surface.held).
-        function hold(on) { const w = Window.window; if (w && w.held !== undefined) w.held = on }
-        function steady() { const w = Window.window; return !w || w.steady === undefined || w.steady }
-        onPressed: (mouse) => { startX = mapToItem(bar.parent, mouse.x, mouse.y).x; hold(true) }
-        onPositionChanged: (mouse) => { if (pressed && steady()) bar.dragShift = mapToItem(bar.parent, mouse.x, mouse.y).x - startX }
+        property point start
+        property var dragState: ({})
+        function hold(on) { if (on) Drag.begin(Window.window); else Drag.end(Window.window) }
+        onPressed: (mouse) => { start = mapToItem(bar.parent, mouse.x, mouse.y); startX = start.x; dragState = {}; hold(true) }
+        onPositionChanged: (mouse) => {
+            if (!pressed || !Drag.steady(Window.window)) return
+            bar.dragShift = Drag.fix(Window.window, mapToItem(bar.parent, mouse.x, mouse.y), start, dragState).x - startX
+        }
         onReleased: { bar.dropped(); hold(false) }
         onCanceled: { bar.dragShift = 0; hold(false) }
     }

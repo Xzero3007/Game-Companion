@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 import GameCompanion
 import "theme.js" as Theme
+import "drag.js" as Drag
 
 // A window of the overlay: square corners, a 2 px gold line on top, a
 // header in capitals. Unlocked, it moves by its header, changes size by the
@@ -236,18 +237,20 @@ Item {
             property real startWidth
             property real startGrow
             // The window holds the whole screen while resizing (Surface.held).
-            function hold(on) { const w = Window.window; if (w && w.held !== undefined) w.held = on }
-            function steady() { const w = Window.window; return !w || w.steady === undefined || w.steady }
+            property var dragState: ({})
+            function hold(on) { if (on) Drag.begin(Window.window); else Drag.end(Window.window) }
+            function steady() { return Drag.steady(Window.window) }
             onPressed: (mouse) => {
                 start = mapToItem(panel.parent, mouse.x, mouse.y)
                 startWidth = panel.width
                 startGrow = panel.grow
+                dragState = {}
                 hold(true)
             }
             onCanceled: hold(false)
             onPositionChanged: (mouse) => {
                 if (!pressed || !steady()) return
-                const p = mapToItem(panel.parent, mouse.x, mouse.y)
+                const p = Drag.fix(Window.window, mapToItem(panel.parent, mouse.x, mouse.y), start, dragState)
                 const room = panel.parent ? panel.parent.width - panel.x : panel.maxWidth
                 panel.width = Math.max(panel.minWidth, Math.min(startWidth + p.x - start.x, panel.maxWidth, room))
                 if (panel.stretchy) {

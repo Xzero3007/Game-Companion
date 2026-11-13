@@ -114,7 +114,10 @@ learnt, so nothing has to be asked or worked out again.
   or note while unlocked (the person, 2026-11-12: in daily use it was in
   the way); the lock in the bar shows the state. While a part is dragged
   or resized, its surface holds the whole screen and stays still
-  (`Surface.held`; moves are ignored for 120 ms until `steady`): a surface
+  (`Surface.held`, `grab`; moves are ignored for 120 ms until `steady`;
+  `qml/drag.js` `fix`: Sway measures the pointer from the window's place at
+  the press, KWin from its place now; the first steady move picks the
+  reading nearer the press, found on Sway by the Arch test thread): a surface
   moved per pointer event jumped about, because KDE places it a moment
   later and the next pointer place came from the old position. The part keeps x/y in **screen
   coordinates**: it lives in `Surface.scene` (screen-sized, shifted by the
