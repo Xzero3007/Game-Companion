@@ -26,6 +26,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 - 0.8.10 QA collection (2026-11-13): #24 LOOT after MN's 0.8.6 test: shop window only at the merchant, farm window, the meter's data taken over (entries below).
 - 0.8.9 QA collection (2026-11-13): #22 game row opens panels while the hub is hidden, #23 no gold edge on video windows while unlocked (entries below).
+- No gold frames on any video (2026-11-13, MN: "alle goldenen rahmen entfernen auch bei youtube videos und wenn es bei jelly einen gibt"). Twitch, YouTube and Jellyfin share `VideoWindow`, so the top line went for all three in 0.8.9; now also Jellyfin's SKIP INTRO button has no gold border (gold label only) and the "next episode" card no gold top line.
 - Video windows without the gold edge (branch `video-edges`, 2026-11-13, MN: "diese goldenen ränder bei geöffnetem schloss bitte entfernen das stört wenn ich in vollbild gucke"). The 2 px gold line along a video's top while unlocked is gone (also in full screen); the gold size corner shows only with the bars, while the pointer is on the video (or while it is dragged), never in full screen.
 - 0.8.8 QA collection (2026-11-13): #19 Twitch All live through the directory query, #20 Boss cheat sheet preview (entries below).
 - 0.8.7 QA collection (2026-11-13): #17 game row input (entry below).

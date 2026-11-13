@@ -1177,8 +1177,8 @@ Item {
         anchors.bottomMargin: win.showBars ? 64 : 14
         width: skipText.implicitWidth + 28
         height: 34
+        // No gold frame on a video (MN): the gold label is enough.
         color: skipMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.25) : Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.85)
-        border.color: Theme.accent
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: skipText
             anchors.centerIn: parent
@@ -1205,7 +1205,6 @@ Item {
         width: Math.min(parent.width - 40, nextColumn.implicitWidth + 32)
         height: nextColumn.implicitHeight + 24
         color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.9)
-        Rectangle { width: parent.width; height: 2; color: Theme.accent }
         Column {
             id: nextColumn
             anchors.centerIn: parent
