@@ -37,7 +37,7 @@ Panel {
     readonly property var fight: JSON.parse(Aion2.fight)
     /// Ping and Odyle energy, as the old meter's bar showed them.
     readonly property var extras: fight.extras || ({ ping: null, odyle: null })
-    /// Its own ground opacity (100, 75, 50, 25 %), on top of the overall one.
+    /// Its own ground opacity (100, 75, 50, 25 or 10 %), on top of the overall one.
     property int opacityPercent: Streams.opacityOf("dps")
     ground: Companion.alpha * opacityPercent / 100
     /// damage, healing, skills, history
@@ -74,6 +74,16 @@ Panel {
         }
         return files[job] ? assets + "classes/" + files[job] + ".png" : ""
     }
+    /// A class's colour for its bars (the old meter's "AION 2 classes" theme):
+    /// strong enough to read with the ground almost clear.
+    function classColour(job) {
+        const colours = {
+            Spiritmaster: "#e06bff", Elementalist: "#e06bff", Ranger: "#41d98a", Assassin: "#7be35a", Templar: "#5f8cff",
+            Sorcerer: "#9a6bff", Chanter: "#ff9a3d", Cleric: "#f2c15a", Gladiator: "#4fd1c5", Brawler: "#e85d5d", "권성": "#e85d5d"
+        }
+        return colours[job] || "#b8b5c0"
+    }
+    function tint(colour, alpha) { const c = Qt.color(colour); return Qt.rgba(c.r, c.g, c.b, alpha) }
     // Skill pictures come from the game's icon server once and stay on disk.
     property int iconsRevision: 0
     Connections {
@@ -340,10 +350,17 @@ Panel {
                             width: parent.width
                             height: 28
                             Rectangle { anchors.fill: parent; color: rowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.075) : Qt.rgba(1, 1, 1, 0.035) }
+                            // The bar in the class's colour, fading in to the right.
                             Rectangle {
+                                id: dmgBar
                                 height: parent.height
                                 width: parent.width * Math.max(0, Math.min(1, value / panel.most))
-                                color: me ? Qt.rgba(0.878, 0.647, 0.149, 0.28) : Qt.rgba(1, 1, 1, 0.07)
+                                readonly property color base: panel.classColour(job)
+                                gradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop { position: 0; color: panel.tint(dmgBar.base, 0.32) }
+                                    GradientStop { position: 1; color: panel.tint(dmgBar.base, 0.68) }
+                                }
                             }
                             Rectangle { visible: me; width: 2; height: parent.height; color: Theme.accent }
                             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
@@ -480,7 +497,13 @@ Panel {
                             Rectangle {
                                 height: parent.height
                                 width: parent.width * Math.max(0, Math.min(1, modelData.damage / Math.max(1, panel.mostSkill)))
-                                color: Qt.rgba(1, 1, 1, 0.07)
+                                id: skillBar
+                                readonly property color base: panel.classColour(panel.pickedRow ? panel.pickedRow.job : "")
+                                gradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop { position: 0; color: panel.tint(skillBar.base, 0.25) }
+                                    GradientStop { position: 1; color: panel.tint(skillBar.base, 0.55) }
+                                }
                             }
                             Item {
                                 id: skillPictureBox
@@ -797,7 +820,7 @@ Panel {
                 font.weight: Font.Bold
                 font.letterSpacing: 1.5
             }
-            // 100, 75, 50, 25 % ground, round.
+            // The ground's opacity: a short list opening upwards (100 to 10 %).
             TextButton {
                 id: opacityButton
                 anchors.right: parent.right
@@ -805,12 +828,56 @@ Panel {
                 implicitHeight: 16
                 pixelSize: 10
                 pad: 4
-                text: panel.opacityPercent + "%"
-                onClicked: {
-                    const steps = [100, 75, 50, 25]
-                    const i = steps.indexOf(panel.opacityPercent)
-                    panel.opacityPercent = steps[(i + 1) % steps.length]
-                    Streams.saveOpacity("dps", panel.opacityPercent)
+                text: panel.opacityPercent + "% " + (opacityList.visible ? "▴" : "▾")
+                onClicked: opacityList.visible = !opacityList.visible
+            }
+            Rectangle {
+                id: opacityList
+                visible: false
+                z: 50
+                anchors.right: parent.right
+                anchors.bottom: opacityButton.top
+                anchors.bottomMargin: 2
+                width: 56
+                height: opacityColumn.height + 2
+                color: "#16151b"
+                border.color: Theme.divider
+                Column {
+                    id: opacityColumn
+                    x: 1
+                    y: 1
+                    width: parent.width - 2
+                    Repeater {
+                        model: [100, 75, 50, 25, 10]
+                        delegate: Item {
+                            required property int modelData
+                            width: opacityColumn.width
+                            height: 20
+                            Rectangle { anchors.fill: parent; color: optMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : "transparent" }
+                            Rectangle { visible: parent.modelData === panel.opacityPercent; width: 2; height: parent.height; color: Theme.accent }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                anchors.centerIn: parent
+                                text: parent.modelData + " %"
+                                color: parent.modelData === panel.opacityPercent ? Theme.accent : Theme.textSoft()
+                                font.family: Theme.display
+                                font.pixelSize: 11
+                                font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                id: optMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    panel.opacityPercent = parent.modelData
+                                    Streams.saveOpacity("dps", parent.modelData)
+                                    opacityList.visible = false
+                                }
+                            }
+                            Accessible.role: Accessible.MenuItem
+                            Accessible.name: modelData + " percent"
+                        }
+                    }
                 }
             }
         }

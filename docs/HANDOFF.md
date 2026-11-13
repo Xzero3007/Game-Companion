@@ -24,6 +24,27 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.1 AION 2 after MN's test (branch `aion-feedback`, 2026-11-13; MN
+  chose "Ja, so bauen" on the five points). Market: a Region dropdown
+  first (Europe first in the list), then that region's servers
+  (`settings.region`, `MarketPanel.region`, `takeServer`); when the game
+  names your server (`gameServer` from the fight's extras) it is taken
+  even if another was picked before (MN's showed Nezekan while playing on
+  Marchutan). MN could not pick a server in the old long list; not
+  reproduced here (xvfb clicks worked), the short lists replace it. An
+  opened favourite shows up to 70 % of the list's room (the list below
+  gives up as much, so the panel keeps its height), with a fade and a gold
+  line while more is below. DPS: bars in the class's colour (the old
+  meter's "aion2-classes" jobColorMap, GPL-3.0), a horizontal gradient
+  0.32 to 0.68 alpha, the skills' bars in the picked player's colour;
+  the ground's opacity is a list opening upwards (100, 75, 50, 25, 10 %;
+  `Streams.saveOpacity("dps")` already allowed 10). CHARS: CHOOSE in the
+  tab row (Content and Limits) shows every entry with an eye; hidden ones
+  (`prefs.hidden`, ids `c:`/`o:`/`t:`/`m:` + the entry's id, in
+  `aion2-characters-view.json`) are left out otherwise; per-character
+  columns hide by the eye in their head. `GC_DEMO=chars,choose`.
+  AltGr+M for the overlay map: KDE keeps the keys; MN sets it in System
+  Settings (the portal's trigger format has no AltGr).
 - 0.8.0 Split bar and overlay map (branch `split-bar`, 2026-11-13; MN
   approved the canvas page "Leiste geteilt und Overlay-Map", boards B1Bars,
   B2Hidden, O1Overlay, O2Settings, with Alt+M). The bar keeps the core

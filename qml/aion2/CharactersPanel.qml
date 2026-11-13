@@ -25,7 +25,19 @@ Panel {
     property var store
     readonly property var st: store ? store.state : CK.empty()
 
-    property var prefs: ({ tab: "roster", sort: "full", display: "all", limitsOf: "" })
+    property var prefs: ({ tab: "roster", sort: "full", display: "all", limitsOf: "", hidden: [] })
+    // ---- what is tracked: Content's and Limits' entries can be hidden ----
+    /// Choosing (CHOOSE in the tab row): every entry shows, an eye on each.
+    property bool choosing: nativeWindow.demo.split(",").indexOf("choose") >= 0
+    function shown(id) { return (prefs.hidden || []).indexOf(id) < 0 }
+    function toggleShown(id) {
+        const h = (prefs.hidden || []).slice()
+        const i = h.indexOf(id)
+        if (i >= 0) h.splice(i, 1); else h.push(id)
+        change("hidden", h)
+    }
+    /// The entries of a list to show now (all of them while choosing).
+    function keep(list) { return choosing ? list : list.filter((x) => shown(x.id)) }
     function change(key, value) {
         const p = Object.assign({}, prefs)
         p[key] = value
@@ -121,29 +133,29 @@ Panel {
 
     // ---- Content: the lead's server, its characters ----
     readonly property var contentView: {
-        rev; now
+        rev; now; prefs; choosing
         const t = now
         const l = lead()
         if (!l) return { server: "", cards: [], chars: [] }
         const sid = l.ch.serverId
         const mine = all().filter((r) => r.ch.serverId === sid)
         const server = st.servers[String(sid)] || {}
-        const cards = CK.CONTENT.filter((c) => c.scope === "server").map((c) => {
+        const cards = keep(CK.CONTENT.filter((c) => c.scope === "server").map((c) => {
             const seen = c.ofChars ? CK.sumOfChars(c, mine.map((r) => r.ch), t) : (server.counts || {})[c.id]
-            return Object.assign({ name: c.name }, cell(c, seen, t))
-        })
-        const cols = CK.CONTENT.filter((c) => c.scope === "char")
+            return Object.assign({ id: "c:" + c.id, name: c.name }, cell(c, seen, t))
+        }))
+        const cols = keep(CK.CONTENT.filter((c) => c.scope === "char").map((c) => Object.assign({ id: "c:" + c.id }, c)))
         const chars = mine.filter(visibleChar)
             .sort((a, b) => (b.key === current) - (a.key === current) || a.ch.name.localeCompare(b.ch.name))
             .map((r) => ({ key: r.key, name: r.ch.name, playing: r.key === current,
                 cells: cols.map((c) => cell(c, (r.ch.counts || {})[c.id], t)) }))
         const siege = server.siege && server.siege.next > t ? server.siege.next : 0
-        return { server: serverName(sid), cards: cards, heads: cols.map((c) => c.name), chars: chars, siege: siege }
+        return { server: serverName(sid), cards: cards, heads: cols.map((c) => c.name), headIds: cols.map((c) => c.id), chars: chars, siege: siege }
     }
 
     // ---- Limits: one character's ----
     readonly property var limitsView: {
-        rev; now
+        rev; now; choosing
         const t = now
         const key = prefs.limitsOf && st.chars[prefs.limitsOf] ? prefs.limitsOf : (lead() ? lead().key : "")
         const ch = st.chars[key]
@@ -151,14 +163,14 @@ Panel {
         const server = st.servers[String(ch.serverId)] || {}
         const rows = CK.OTHER.map((c) => {
             const home = c.scope === "server" ? server : ch
-            return Object.assign({ name: c.name, scope: c.scope === "server" ? "all characters on " + serverName(ch.serverId) : "this character" }, cell(c, (home.counts || {})[c.id], t))
+            return Object.assign({ id: "o:" + c.id, name: c.name, scope: c.scope === "server" ? "all characters on " + serverName(ch.serverId) : "this character" }, cell(c, (home.counts || {})[c.id], t))
         })
         const tickets = []
         const add = (bag, server) => {
             for (const id in bag || {}) {
                 const k = CK.ticketNow(id, bag[id], t)
                 if (!k) continue
-                tickets.push({ name: k.name, value: k.stale ? "?" : CK.grouped(k.left) + (k.extra ? " +" + k.extra : ""), cap: k.max ? "/ " + k.max : "",
+                tickets.push({ id: "t:" + id, name: k.name, value: k.stale ? "?" : CK.grouped(k.left) + (k.extra ? " +" + k.extra : ""), cap: k.max ? "/ " + k.max : "",
                     w: k.stale || !k.max ? 0 : Math.min(1, k.left / k.max), note: (server ? "server · " : "") + (k.stale ? "a reset passed since, " : "as said ") + CK.ago(k.at, t), tone: k.stale ? "dim" : "" })
             }
         }
@@ -168,13 +180,27 @@ Panel {
         const times = []
         for (const id in ch.times || {}) {
             const v = ch.times[id]
-            times.push({ name: CK.ticketName(id), value: v.v > 0 ? CK.span(v.v) : "none left", note: "as said " + CK.ago(v.at, t) })
+            times.push({ id: "m:" + id, name: CK.ticketName(id), value: v.v > 0 ? CK.span(v.v) : "none left", note: "as said " + CK.ago(v.at, t) })
         }
         times.sort((a, b) => a.name.localeCompare(b.name))
-        return { key: key, name: ch.name, server: serverName(ch.serverId), playing: key === current, rows: rows, tickets: tickets, times: times }
+        return { key: key, name: ch.name, server: serverName(ch.serverId), playing: key === current, rows: keep(rows), tickets: keep(tickets), times: keep(times) }
     }
 
     // ---- what it looks like ----
+    // An entry's eye while choosing: open = tracked, struck through = hidden.
+    component Eye: Item {
+        property string entry
+        readonly property bool on: panel.shown(entry)
+        visible: panel.choosing
+        width: 22
+        height: 22
+        Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.45); border.color: parent.on ? Theme.accent : Theme.track }
+        HudIcon { anchors.centerIn: parent; name: parent.on ? "eye" : "hide"; size: 12; color: parent.on ? Theme.accent : Theme.dim() }
+        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: panel.toggleShown(parent.entry) }
+        Accessible.role: Accessible.CheckBox
+        Accessible.checked: on
+        Accessible.name: "Track this"
+    }
     component Head: Text {
         color: Theme.dim()
         font.family: Theme.display
@@ -278,6 +304,15 @@ Panel {
                 }
             }
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
+            // What is tracked: every entry with an eye while choosing.
+            Chip {
+                visible: panel.prefs.tab !== "roster" && panel.all().length > 0
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: panel.choosing ? "Done" : "Choose" + ((panel.prefs.hidden || []).length ? " (" + panel.prefs.hidden.length + " hidden)" : "")
+                on: panel.choosing
+                onClicked: panel.choosing = !panel.choosing
+            }
         }
 
         // Nothing yet.
@@ -536,9 +571,12 @@ Panel {
                             width: (contentCol.width - 18) / 4
                             height: 74
                             color: "#1b1a20"
+                            opacity: panel.shown(modelData.id) ? 1 : 0.4
+                            Eye { z: 2; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 4; entry: modelData.id }
                             Column {
                                 anchors.fill: parent
                                 anchors.margins: 8
+                                anchors.rightMargin: panel.choosing ? 30 : 8
                                 spacing: 4
                                 Line { width: parent.width; font.pixelSize: 11; color: Theme.muted(); text: modelData.name }
                                 Row {
@@ -563,10 +601,14 @@ Panel {
                         model: panel.contentView.heads || []
                         delegate: Head {
                             required property var modelData
+                            required property int index
+                            readonly property string entry: (panel.contentView.headIds || [])[index] || ""
                             width: charHead.width * (1 - charHead.first) / Math.max(1, (panel.contentView.heads || []).length)
                             horizontalAlignment: Text.AlignRight
-                            rightPadding: 10
+                            rightPadding: panel.choosing ? 30 : 10
                             text: modelData.toUpperCase()
+                            opacity: panel.shown(entry) ? 1 : 0.4
+                            Eye { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; entry: parent.entry }
                         }
                     }
                 }
@@ -693,9 +735,12 @@ Panel {
             width: (limitsCol.width - 6) / 2
             height: 52
             color: "#1b1a20"
+            opacity: panel.shown(modelData.id) ? 1 : 0.4
+            Eye { z: 2; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; anchors.rightMargin: 6; entry: modelData.id }
             Column {
                 anchors.fill: parent
                 anchors.margins: 8
+                anchors.rightMargin: panel.choosing ? 36 : 8
                 spacing: 4
                 Item {
                     width: parent.width
