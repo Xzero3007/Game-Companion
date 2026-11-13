@@ -6,6 +6,8 @@ mod games;
 mod games_object;
 mod jellyfin;
 mod jellyfin_object;
+mod library;
+mod library_object;
 mod native;
 mod radio;
 mod radio_object;

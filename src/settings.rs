@@ -141,6 +141,51 @@ pub struct StreamsSettings {
     /// Videos decoded by the graphics card (less work for the processor,
     /// more video memory).
     pub hwdec: bool,
+    /// YouTube lists: Shorts left out, watched videos left out, channels and
+    /// words whose videos never show.
+    pub hide_shorts: bool,
+    pub hide_watched: bool,
+    pub hidden_channels: Vec<crate::streams::Channel>,
+    pub hidden_words: Vec<String>,
+    /// FreeTube's subscriptions are read from its file as they are (until
+    /// they are taken over: then only `channels` count).
+    pub freetube_live: bool,
+    /// The subscriptions group shown ("" = all channels).
+    pub group: String,
+    /// The YouTube search's filter.
+    pub search: SearchFilter,
+    /// The Trending tab's part, and search words changed from the default
+    /// (by part).
+    pub trend_section: String,
+    pub trend_words: BTreeMap<String, Vec<String>>,
+    /// Twitch: a note when followed or favourite channels go live (asked
+    /// every two minutes while on), and the channels left out of it.
+    pub alerts: bool,
+    pub alerts_off: BTreeSet<String>,
+    /// The quality last chosen for a Twitch channel, by login.
+    pub channel_quality: BTreeMap<String, String>,
+    /// Twitch lists: only these languages ([] = all), reruns left out, and
+    /// the order ("viewers" or "new").
+    pub languages: Vec<String>,
+    pub hide_reruns: bool,
+    pub twitch_sort: String,
+}
+
+/// YouTube's search filter: sort ("relevance", "date", "views"), uploaded
+/// ("any", "today", "week", "month", "year") and length ("any", "short",
+/// "medium", "long").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SearchFilter {
+    pub sort: String,
+    pub date: String,
+    pub length: String,
+}
+
+impl Default for SearchFilter {
+    fn default() -> Self {
+        Self { sort: "relevance".into(), date: "any".into(), length: "any".into() }
+    }
 }
 
 impl Default for StreamsSettings {
@@ -158,6 +203,21 @@ impl Default for StreamsSettings {
             video_opacity: BTreeMap::new(),
             sponsorblock: Default::default(),
             hwdec: true,
+            hide_shorts: true,
+            hide_watched: false,
+            hidden_channels: Vec::new(),
+            hidden_words: Vec::new(),
+            freetube_live: true,
+            group: String::new(),
+            search: SearchFilter::default(),
+            trend_section: "gaming".into(),
+            trend_words: BTreeMap::new(),
+            alerts: false,
+            alerts_off: BTreeSet::new(),
+            channel_quality: BTreeMap::new(),
+            languages: Vec::new(),
+            hide_reruns: false,
+            twitch_sort: "viewers".into(),
         }
     }
 }

@@ -23,6 +23,11 @@ const USER: &str = "id login displayName profileImageURL(width: 70) \
     stream { title viewersCount createdAt previewImageURL(width: 320, height: 180) game { displayName } }";
 const STREAM: &str = "title viewersCount createdAt previewImageURL(width: 320, height: 180) game { displayName } \
     broadcaster { login displayName profileImageURL(width: 70) }";
+/// A stream with its kind (live or rerun) and language, for the filters
+/// (asked only while a filter is on; plain `STREAM` if Twitch refuses it).
+const STREAM_MORE: &str = "type title viewersCount createdAt previewImageURL(width: 320, height: 180) game { displayName } \
+    broadcaster { login displayName profileImageURL(width: 70) broadcastSettings { language } }";
+const CATEGORY: &str = "name displayName viewersCount boxArtURL(width: 144, height: 192)";
 
 pub fn valid_login(login: &str) -> bool {
     !login.is_empty() && login.len() <= 25 && login.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
@@ -30,6 +35,16 @@ pub fn valid_login(login: &str) -> bool {
 
 pub fn valid_video_id(id: &str) -> bool {
     id.len() == 11 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// A Twitch past broadcast's number.
+pub fn valid_vod(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 20 && id.chars().all(|c| c.is_ascii_digit())
+}
+
+/// A Twitch clip's name (its slug).
+pub fn valid_clip(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 100 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 /// A YouTube channel id: `UC` and 22 more.
@@ -42,7 +57,9 @@ pub fn stream_url(kind: &str, id: &str) -> Result<String, String> {
     match kind {
         "twitch" if valid_login(id) => Ok(format!("https://www.twitch.tv/{}", id.to_ascii_lowercase())),
         "youtube" if valid_video_id(id) => Ok(format!("https://www.youtube.com/watch?v={id}")),
-        "twitch" | "youtube" => Err("not a channel or video".into()),
+        "twitchvod" if valid_vod(id) => Ok(format!("https://www.twitch.tv/videos/{id}")),
+        "twitchclip" if valid_clip(id) => Ok(format!("https://clips.twitch.tv/{id}")),
+        "twitch" | "youtube" | "twitchvod" | "twitchclip" => Err("not a channel or video".into()),
         _ => Err("only Twitch and YouTube play here".into()),
     }
 }
@@ -112,14 +129,42 @@ pub fn twitch_query(kind: &str, arg: &Value) -> Result<Value, String> {
                 "variables": { "l": logins },
             }))
         }
-        "live" => match arg.as_str().map(str::trim).filter(|g| !g.is_empty()) {
-            Some(game) if game.len() <= 100 => Ok(json!({
-                "query": format!("query($g: String!) {{ game(name: $g) {{ streams(first: 30) {{ edges {{ node {{ {STREAM} }} }} }} }} }}"),
-                "variables": { "g": game },
-            })),
-            Some(_) => Err("not a game".into()),
-            None => Ok(json!({ "query": format!("query {{ streams(first: 30) {{ edges {{ node {{ {STREAM} }} }} }} }}") })),
-        },
+        "live" | "liveMore" => {
+            let fields = if kind == "liveMore" { STREAM_MORE } else { STREAM };
+            match arg.as_str().map(str::trim).filter(|g| !g.is_empty()) {
+                Some(game) if game.len() <= 100 => Ok(json!({
+                    "query": format!("query($g: String!) {{ game(name: $g) {{ streams(first: 30) {{ edges {{ node {{ {fields} }} }} }} }} }}"),
+                    "variables": { "g": game },
+                })),
+                Some(_) => Err("not a game".into()),
+                None => Ok(json!({ "query": format!("query {{ streams(first: 30) {{ edges {{ node {{ {fields} }} }} }} }}") })),
+            }
+        }
+        // The most watched categories (Twitch's directory).
+        "categories" => Ok(json!({ "query": format!("query {{ games(first: 40) {{ edges {{ node {{ {CATEGORY} }} }} }} }}") })),
+        "searchCategories" => {
+            let text = arg.as_str().map(str::trim).filter(|t| !t.is_empty() && t.len() <= 100).ok_or("no search words")?;
+            Ok(json!({
+                "query": format!("query($q: String!) {{ searchFor(userQuery: $q, platform: \"web\") {{ games {{ items {{ {CATEGORY} }} }} }} }}"),
+                "variables": { "q": text },
+            }))
+        }
+        // A channel's past broadcasts, newest first.
+        "videos" => {
+            let login = arg.as_str().map(str::trim).filter(|l| valid_login(l)).ok_or("not a channel name")?;
+            Ok(json!({
+                "query": "query($l: String!) { user(login: $l) { videos(first: 30, sort: TIME) { edges { node { id title lengthSeconds publishedAt viewCount previewThumbnailURL(width: 320, height: 180) game { displayName } } } } } }",
+                "variables": { "l": login.to_ascii_lowercase() },
+            }))
+        }
+        // A channel's most watched clips of the last month.
+        "clips" => {
+            let login = arg.as_str().map(str::trim).filter(|l| valid_login(l)).ok_or("not a channel name")?;
+            Ok(json!({
+                "query": "query($l: String!) { user(login: $l) { clips(first: 30, criteria: { period: LAST_MONTH, sort: VIEWS_DESC }) { edges { node { slug title durationSeconds viewCount createdAt thumbnailURL } } } } }",
+                "variables": { "l": login.to_ascii_lowercase() },
+            }))
+        }
         // The signed-in user's followed channels that are live (only
         // `sort: RELEVANCE` answers).
         "followedLive" => Ok(json!({
@@ -171,7 +216,70 @@ fn twitch_card(user: &Value, stream: Option<&Value>) -> Option<Value> {
         "since": s("createdAt").and_then(Value::as_str).unwrap_or(""),
         "picture": s("previewImageURL").and_then(Value::as_str).unwrap_or(""),
         "game": s("game").and_then(|g| g.get("displayName")).and_then(Value::as_str).unwrap_or(""),
+        "rerun": s("type").and_then(Value::as_str).is_some_and(|t| t.eq_ignore_ascii_case("rerun")),
+        "language": user.pointer("/broadcastSettings/language").and_then(Value::as_str).unwrap_or("").to_ascii_lowercase(),
     }))
+}
+
+/// Twitch's categories as cards: `{name, title, viewers, picture}`, most
+/// watched first.
+pub fn twitch_categories(data: &Value) -> Vec<Value> {
+    let mut nodes: Vec<&Value> = Vec::new();
+    if let Some(edges) = data.pointer("/games/edges").and_then(Value::as_array) {
+        nodes.extend(edges.iter().filter_map(|e| e.get("node")));
+    }
+    if let Some(items) = data.pointer("/searchFor/games/items").and_then(Value::as_array) {
+        nodes.extend(items);
+    }
+    let mut out: Vec<Value> = nodes
+        .into_iter()
+        .filter_map(|n| {
+            let name = n.get("name").and_then(Value::as_str).filter(|s| !s.is_empty())?;
+            Some(json!({
+                "name": name,
+                "title": n.get("displayName").and_then(Value::as_str).unwrap_or(name),
+                "viewers": n.get("viewersCount").and_then(Value::as_u64).unwrap_or(0),
+                "picture": n.get("boxArtURL").and_then(Value::as_str).unwrap_or(""),
+            }))
+        })
+        .collect();
+    if data.get("games").is_some() {
+        out.sort_by(|a, b| b["viewers"].as_u64().cmp(&a["viewers"].as_u64()));
+    }
+    out
+}
+
+/// A channel's past broadcasts and clips as list entries: `{kind ("vod" or
+/// "clip"), id, title, length, published, views, picture, game}`.
+pub fn twitch_recordings(data: &Value) -> Vec<Value> {
+    let mut out = Vec::new();
+    for n in data.pointer("/user/videos/edges").and_then(Value::as_array).into_iter().flatten().filter_map(|e| e.get("node")) {
+        let Some(id) = n.get("id").and_then(Value::as_str).filter(|i| valid_vod(i)) else { continue };
+        out.push(json!({
+            "kind": "vod",
+            "id": id,
+            "title": n.get("title").and_then(Value::as_str).unwrap_or(""),
+            "length": n.get("lengthSeconds").and_then(Value::as_f64).unwrap_or(0.0),
+            "published": n.get("publishedAt").and_then(Value::as_str).unwrap_or(""),
+            "views": n.get("viewCount").and_then(Value::as_u64).unwrap_or(0),
+            "picture": n.get("previewThumbnailURL").and_then(Value::as_str).unwrap_or(""),
+            "game": n.pointer("/game/displayName").and_then(Value::as_str).unwrap_or(""),
+        }));
+    }
+    for n in data.pointer("/user/clips/edges").and_then(Value::as_array).into_iter().flatten().filter_map(|e| e.get("node")) {
+        let Some(id) = n.get("slug").and_then(Value::as_str).filter(|i| valid_clip(i)) else { continue };
+        out.push(json!({
+            "kind": "clip",
+            "id": id,
+            "title": n.get("title").and_then(Value::as_str).unwrap_or(""),
+            "length": n.get("durationSeconds").and_then(Value::as_f64).unwrap_or(0.0),
+            "published": n.get("createdAt").and_then(Value::as_str).unwrap_or(""),
+            "views": n.get("viewCount").and_then(Value::as_u64).unwrap_or(0),
+            "picture": n.get("thumbnailURL").and_then(Value::as_str).unwrap_or(""),
+            "game": "",
+        }));
+    }
+    out
 }
 
 /// Twitch's answer (`data`) as cards: live ones first, by viewers.
@@ -306,6 +414,7 @@ pub fn search_entries(all: &Value) -> Vec<Value> {
                 "duration": e.get("duration").and_then(Value::as_f64).unwrap_or(0.0),
                 "views": e.get("view_count").and_then(Value::as_u64).unwrap_or(0),
                 "live": e.get("live_status").and_then(Value::as_str) == Some("is_live"),
+                "short": e.get("url").and_then(Value::as_str).is_some_and(|u| u.contains("/shorts/")),
                 "published": "",
                 "picture": format!("https://i.ytimg.com/vi/{id}/mqdefault.jpg"),
             }))
@@ -326,21 +435,84 @@ pub fn query_encode(text: &str) -> String {
     out
 }
 
+/// YouTube's search filter (the results page's `sp`): sort ("relevance",
+/// "date", "views"), uploaded ("any", "hour", "today", "week", "month",
+/// "year") and length ("any", "short" under 4 minutes, "medium" 4 to 20,
+/// "long" over 20). Videos only.
+pub fn search_param(sort: &str, date: &str, length: &str) -> String {
+    let mut bytes: Vec<u8> = Vec::new();
+    match sort {
+        "date" => bytes.extend([0x08, 2]),
+        "views" => bytes.extend([0x08, 3]),
+        _ => {}
+    }
+    let mut filter: Vec<u8> = Vec::new();
+    let d = match date {
+        "hour" => 1,
+        "today" => 2,
+        "week" => 3,
+        "month" => 4,
+        "year" => 5,
+        _ => 0,
+    };
+    if d > 0 {
+        filter.extend([0x08, d]);
+    }
+    filter.extend([0x10, 1]);
+    let l = match length {
+        "short" => 1,
+        "long" => 2,
+        "medium" => 3,
+        _ => 0,
+    };
+    if l > 0 {
+        filter.extend([0x18, l]);
+    }
+    bytes.push(0x12);
+    bytes.push(filter.len() as u8);
+    bytes.extend(filter);
+    query_encode(&base64(&bytes))
+}
+
+fn base64(bytes: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for c in bytes.chunks(3) {
+        let n = (u32::from(c[0]) << 16) | (u32::from(*c.get(1).unwrap_or(&0)) << 8) | u32::from(*c.get(2).unwrap_or(&0));
+        for i in 0..4 {
+            if i <= c.len() {
+                out.push(T[(n >> (18 - 6 * i) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
 /// YouTube's search through yt-dlp: the first 20 videos, newest uploads
 /// first if asked (YouTube's results page sorted by upload date).
 pub fn youtube_search(text: &str, newest: bool) -> Result<Vec<Value>, String> {
+    youtube_search_with(text, if newest { "CAI%3D" } else { "" }, 20)
+}
+
+/// YouTube's search with a filter (`sp`, "" for none): the first `count`.
+pub fn youtube_search_with(text: &str, sp: &str, count: usize) -> Result<Vec<Value>, String> {
     let text = text.trim().replace(['\n', '\r'], " ");
     if text.is_empty() || text.len() > 100 {
         return Err("no search words".into());
     }
-    let target = if newest {
-        format!("https://www.youtube.com/results?search_query={}&sp=CAI%3D", query_encode(&text))
+    if !sp.chars().all(|c| c.is_ascii_alphanumeric() || c == '%') {
+        return Err("not a search filter".into());
+    }
+    let target = if sp.is_empty() {
+        format!("ytsearch{count}:{text}")
     } else {
-        format!("ytsearch20:{text}")
+        format!("https://www.youtube.com/results?search_query={}&sp={sp}", query_encode(&text))
     };
     let out = run_with_timeout(
         Command::new("yt-dlp")
-            .args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-end", "20", "--dump-single-json", "--"])
+            .args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-end", &count.to_string(), "--dump-single-json", "--"])
             .arg(&target),
         Duration::from_secs(40),
     )
@@ -351,6 +523,77 @@ pub fn youtube_search(text: &str, newest: bool) -> Result<Vec<Value>, String> {
     }
     let all: Value = serde_json::from_slice(&out.stdout).map_err(|e| e.to_string())?;
     Ok(search_entries(&all))
+}
+
+/// The Trending tab's parts: Gaming, and Football by competition.
+pub const TREND_SECTIONS: [&str; 9] = ["gaming", "europe", "national", "tr", "de", "en", "fr", "it", "es"];
+
+/// The search words each Trending part asks YouTube by default (several
+/// searches are merged).
+pub fn trend_words(section: &str) -> Vec<String> {
+    let w: &[&str] = match section {
+        "gaming" => &["gaming"],
+        "europe" => &["Champions League highlights", "Europa League highlights", "Conference League highlights"],
+        "national" => &["Türkiye milli takım maç özeti", "Germany national team highlights", "Nations League highlights", "European qualifiers highlights"],
+        "tr" => &["Süper Lig maç özeti"],
+        "de" => &["Bundesliga highlights"],
+        "en" => &["Premier League highlights"],
+        "fr" => &["Ligue 1 highlights"],
+        "it" => &["Serie A highlights"],
+        "es" => &["LaLiga highlights"],
+        _ => &[],
+    };
+    w.iter().map(|s| s.to_string()).collect()
+}
+
+/// A Trending part: Gaming is this week's most watched gaming videos;
+/// Football this week's videos for each search, merged in turns (the most
+/// relevant of each first), each video once.
+pub fn youtube_trending(section: &str, words: &[String]) -> Result<Vec<Value>, String> {
+    let sp = if section == "gaming" { search_param("views", "week", "any") } else { search_param("relevance", "week", "any") };
+    let words: Vec<String> = words.iter().map(|w| w.trim().to_string()).filter(|w| !w.is_empty()).take(6).collect();
+    if words.is_empty() {
+        return Err("No search words for this part (Settings → Streams).".into());
+    }
+    let per = if words.len() == 1 { 40 } else { 20 };
+    let handles: Vec<_> = words
+        .into_iter()
+        .map(|w| {
+            let sp = sp.clone();
+            std::thread::spawn(move || youtube_search_with(&w, &sp, per))
+        })
+        .collect();
+    let mut lists = Vec::new();
+    let mut failed = None;
+    for h in handles {
+        match h.join().unwrap_or_else(|_| Err("search failed".into())) {
+            Ok(l) => lists.push(l),
+            Err(e) => failed = Some(e),
+        }
+    }
+    let merged = merge_turns(lists);
+    if merged.is_empty() {
+        if let Some(e) = failed {
+            return Err(e);
+        }
+    }
+    Ok(merged)
+}
+
+/// Lists merged in turns, each video once.
+pub fn merge_turns(lists: Vec<Vec<Value>>) -> Vec<Value> {
+    let mut out: Vec<Value> = Vec::new();
+    let longest = lists.iter().map(Vec::len).max().unwrap_or(0);
+    for i in 0..longest {
+        for l in &lists {
+            if let Some(v) = l.get(i) {
+                if !out.iter().any(|o| o["id"] == v["id"]) {
+                    out.push(v.clone());
+                }
+            }
+        }
+    }
+    out
 }
 
 /// The text between `<tag ...>` and `</tag>` from `from` on.
@@ -376,8 +619,10 @@ pub fn parse_feed(xml: &str) -> Vec<Value> {
             if !valid_video_id(id) {
                 return None;
             }
+            let short = entry.contains("/shorts/");
             Some(json!({
                 "id": id,
+                "short": short,
                 "title": xml_unescape(xml_text(entry, "title").unwrap_or("")),
                 "channel": channel,
                 "channelId": channel_id,
@@ -402,23 +647,31 @@ fn freetube_files() -> Vec<PathBuf> {
 }
 
 /// FreeTube's subscriptions out of its profiles file (NeDB: a JSON document
-/// a line, a later line of the same `_id` replacing an earlier one).
+/// a line, a later line of the same `_id` replacing an earlier one). Each
+/// profile other than "All Channels" becomes a group.
 pub fn freetube_subscriptions(text: &str) -> Vec<Channel> {
-    let mut profiles: Vec<(String, Value)> = Vec::new();
-    for line in text.lines() {
-        let Ok(doc) = serde_json::from_str::<Value>(line) else { continue };
-        let Some(key) = doc.get("_id").and_then(Value::as_str).map(str::to_string) else { continue };
-        profiles.retain(|(k, _)| *k != key);
-        if doc.get("$$deleted").and_then(Value::as_bool) != Some(true) {
-            profiles.push((key, doc));
-        }
-    }
     let mut out: Vec<Channel> = Vec::new();
-    for (_, profile) in &profiles {
+    for profile in crate::library::nedb(text) {
+        let group = match profile.get("_id").and_then(Value::as_str) {
+            Some("allChannels") => None,
+            _ => profile.get("name").and_then(Value::as_str).map(|n| n.trim().chars().filter(|c| !c.is_control()).take(40).collect::<String>()).filter(|n| !n.is_empty()),
+        };
         for sub in profile.get("subscriptions").and_then(Value::as_array).into_iter().flatten() {
             let Some(id) = sub.get("id").and_then(Value::as_str) else { continue };
-            if valid_channel_id(id) && !out.iter().any(|c| c.id == id) {
-                out.push(Channel { id: id.into(), name: sub.get("name").and_then(Value::as_str).unwrap_or(id).into() });
+            if !valid_channel_id(id) {
+                continue;
+            }
+            let i = match out.iter().position(|c| c.id == id) {
+                Some(i) => i,
+                None => {
+                    out.push(Channel { id: id.into(), name: sub.get("name").and_then(Value::as_str).unwrap_or(id).into(), groups: Vec::new() });
+                    out.len() - 1
+                }
+            };
+            if let Some(g) = &group {
+                if !out[i].groups.contains(g) {
+                    out[i].groups.push(g.clone());
+                }
             }
         }
     }
@@ -430,10 +683,13 @@ pub fn freetube() -> Option<Vec<Channel>> {
     freetube_files().iter().find_map(|f| std::fs::read_to_string(f).ok()).map(|t| freetube_subscriptions(&t))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Channel {
     pub id: String,
     pub name: String,
+    /// The groups it is in (as FreeTube's profiles), by name.
+    pub groups: Vec<String>,
 }
 
 /// Twitch: one request at a time, a quarter second apart (as the meter asks).
@@ -797,11 +1053,53 @@ mod tests {
         assert_eq!(v[0]["channel"], "A & B");
         let db = r#"{"_id":"allChannels","subscriptions":[{"id":"UCabcdefghijklmnopqrstuv","name":"One"}]}
 {"_id":"p2","subscriptions":[{"id":"UCabcdefghijklmnopqrstuv","name":"One"},{"id":"nope","name":"x"}]}"#;
-        assert_eq!(freetube_subscriptions(db), vec![Channel { id: "UCabcdefghijklmnopqrstuv".into(), name: "One".into() }]);
+        assert_eq!(freetube_subscriptions(db), vec![Channel { id: "UCabcdefghijklmnopqrstuv".into(), name: "One".into(), groups: Vec::new() }]);
+        let db = r#"{"_id":"allChannels","name":"All Channels","subscriptions":[{"id":"UCabcdefghijklmnopqrstuv","name":"One"}]}
+{"_id":"g1","name":"Gaming","subscriptions":[{"id":"UCabcdefghijklmnopqrstuv","name":"One"}]}"#;
+        assert_eq!(freetube_subscriptions(db)[0].groups, vec!["Gaming".to_string()]);
         assert_eq!(twitch_token_of(" OAuth abcdefghij0123456789ABCDEFGHIJ "), Some("abcdefghij0123456789abcdefghij".into()));
         assert_eq!(twitch_token_of("short"), None);
         assert_eq!(query_encode("AION 2 türkçe&x"), "AION+2+t%C3%BCrk%C3%A7e%26x");
         assert_eq!(curl_quote("a\"b\\c"), "\"a\\\"b\\\\c\"");
+    }
+
+    #[test]
+    fn search_filters_and_trending() {
+        // YouTube's own: videos sorted by upload date; this week's, by views.
+        assert_eq!(search_param("date", "any", "any"), "CAISAhAB");
+        assert_eq!(search_param("views", "week", "any"), "CAMSBAgDEAE%3D");
+        assert_eq!(search_param("relevance", "any", "long"), "EgQQARgC");
+        assert_eq!(trend_words("tr"), vec!["Süper Lig maç özeti".to_string()]);
+        assert!(trend_words("x").is_empty());
+        let a = vec![json!({"id": "1"}), json!({"id": "2"})];
+        let b = vec![json!({"id": "2"}), json!({"id": "3"}), json!({"id": "4"})];
+        let ids: Vec<Value> = merge_turns(vec![a, b]).into_iter().map(|v| v["id"].clone()).collect();
+        assert_eq!(ids, vec![json!("1"), json!("2"), json!("3"), json!("4")]);
+        assert!(youtube_search_with("x", "bad&sp", 5).is_err());
+    }
+
+    #[test]
+    fn twitch_categories_and_recordings() {
+        let data = json!({ "games": { "edges": [
+            { "node": { "name": "Lost Ark", "displayName": "Lost Ark", "viewersCount": 9, "boxArtURL": "https://static-cdn.jtvnw.net/a.jpg" } },
+            { "node": { "name": "AION 2", "displayName": "AION 2", "viewersCount": 21 } } ] } });
+        let c = twitch_categories(&data);
+        assert_eq!(c[0]["name"], "AION 2");
+        let data = json!({ "user": {
+            "videos": { "edges": [{ "node": { "id": "123", "title": "Raid", "lengthSeconds": 3600 } }, { "node": { "id": "x/y" } }] },
+            "clips": { "edges": [{ "node": { "slug": "Funny-Clip_1", "title": "Ha", "durationSeconds": 30 } }] } } });
+        let r = twitch_recordings(&data);
+        assert_eq!(r.len(), 2);
+        assert_eq!(r[0]["kind"], "vod");
+        assert_eq!(r[1]["id"], "Funny-Clip_1");
+        assert_eq!(stream_url("twitchvod", "123").unwrap(), "https://www.twitch.tv/videos/123");
+        assert_eq!(stream_url("twitchclip", "Funny-Clip_1").unwrap(), "https://clips.twitch.tv/Funny-Clip_1");
+        assert!(stream_url("twitchvod", "12a").is_err());
+        let card = twitch_card(&json!({ "login": "one", "broadcastSettings": { "language": "DE" } }), Some(&json!({ "type": "rerun" }))).unwrap();
+        assert_eq!(card["rerun"], true);
+        assert_eq!(card["language"], "de");
+        assert!(twitch_query("liveMore", &json!("AION 2")).unwrap()["query"].as_str().unwrap().contains("broadcastSettings"));
+        assert!(twitch_query("videos", &json!("bad name")).is_err());
     }
 
     #[test]

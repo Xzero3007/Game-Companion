@@ -40,7 +40,7 @@ fn main() {
         .qt_module("OpenGL")
         .qt_module("Network")
         .qt_module("Svg")
-        .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/streams_object.rs", "src/jellyfin_object.rs", "src/games_object.rs", "src/aion2_object.rs", "src/native.rs"])
+        .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/streams_object.rs", "src/library_object.rs", "src/jellyfin_object.rs", "src/games_object.rs", "src/aion2_object.rs", "src/native.rs"])
         .cpp_file("cpp/native.h")
         .cpp_file("cpp/native.cpp")
         .cpp_file("cpp/mpvvideo.h")
