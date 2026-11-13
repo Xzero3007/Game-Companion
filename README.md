@@ -291,6 +291,14 @@ rebuilt by `tools/aion2-schedule-import.py`. Boss times from Aion 2 Timers
 (aion2timers.com, by HomelessGuyNABox), when switched on, are read from its
 public feed, rarely and kept.
 
+Armory: the gear, enhance and Amplify tables, soul binding pools and stat
+descriptions (`crates/aion2/data/armory/data.json`) come from the
+Clicktrough Armory plugin, which took them from Aion2Data and questlog.gg's
+item database, and counted the strongest players' picks from Shugo.GG's
+leaderboard (see `crates/aion2/data/armory/NOTICE-*.txt`);
+characters are read from NC's official character pages, builds from
+questlog.gg through a bookmark that saves a file (nothing is sent).
+
 Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project
 Authors, both under the SIL Open Font License 1.1 (`assets/fonts/OFL-*.txt`).
 

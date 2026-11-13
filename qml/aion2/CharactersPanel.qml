@@ -482,7 +482,7 @@ Panel {
                         rightPadding: 8
                         font.pixelSize: 10
                         color: Theme.accent
-                        text: parent.build ? (parent.build.p != null ? Math.round(parent.build.p * 100) + " % " : "") + parent.build.name : ""
+                        text: parent.build ? "build " + (parent.build.p != null ? Math.round(parent.build.p * 100) + " %" : "—") : ""
                     }
                 }
                 Line {

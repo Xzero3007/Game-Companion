@@ -72,7 +72,7 @@ pub fn bookmark_files() -> serde_json::Value {
             out.push((at, serde_json::json!({ "name": name, "at": at as u64, "size": meta.len() })));
         }
     }
-    out.sort_by(|a, b| b.0.cmp(&a.0));
+    out.sort_by_key(|b| std::cmp::Reverse(b.0));
     serde_json::Value::Array(out.into_iter().take(20).map(|x| x.1).collect())
 }
 
