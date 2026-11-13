@@ -965,6 +965,79 @@ pub fn youtube_channel_range(channel: &str, first: usize, last: usize) -> Result
     Ok(search_entries(&all))
 }
 
+/// A channel picture's address as the app shows it: YouTube's picture
+/// server only (yt3.ggpht.com; yt3.googleusercontent.com serves the same
+/// pictures and is asked under the allowed name), sized 88 px square.
+pub fn avatar_url(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    let rest = raw.strip_prefix("https:").or_else(|| raw.strip_prefix("http:")).unwrap_or(raw);
+    let rest = rest.strip_prefix("//")?;
+    let path = rest.strip_prefix("yt3.ggpht.com/").or_else(|| rest.strip_prefix("yt3.googleusercontent.com/"))?;
+    // The size and look come after the last "=".
+    let path = path.split_once('=').map_or(path, |(p, _)| p);
+    let ok = !path.is_empty() && path.len() <= 400 && path.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '/'));
+    ok.then(|| format!("https://yt3.ggpht.com/{path}=s88-c-k-c0x00ffffff-no-rj"))
+}
+
+/// A channel's picture from yt-dlp's answer for its page: the uncropped
+/// avatar, else a square one.
+pub fn pick_avatar(info: &Value) -> Option<String> {
+    let thumbs = info.get("thumbnails").and_then(Value::as_array)?;
+    let url = |t: &Value| t.get("url").and_then(Value::as_str).and_then(avatar_url);
+    thumbs
+        .iter()
+        .find(|t| t.get("id").and_then(Value::as_str) == Some("avatar_uncropped"))
+        .and_then(url)
+        .or_else(|| {
+            thumbs
+                .iter()
+                .filter(|t| t.get("width").and_then(Value::as_u64).is_some_and(|w| w > 0 && Some(w) == t.get("height").and_then(Value::as_u64)))
+                .find_map(url)
+        })
+}
+
+/// A YouTube channel's picture, asked once through yt-dlp (its page, no
+/// videos). Ok("") when the channel has none.
+pub fn channel_picture(channel: &str) -> Result<String, String> {
+    if !valid_channel_id(channel) {
+        return Err("not a YouTube channel".into());
+    }
+    let out = run_with_timeout(
+        Command::new("yt-dlp")
+            .args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-items", "0", "--dump-single-json", "--"])
+            .arg(format!("https://www.youtube.com/channel/{channel}")),
+        Duration::from_secs(40),
+    )?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        return Err(err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("yt-dlp failed").chars().take(300).collect());
+    }
+    let all: Value = serde_json::from_slice(&out.stdout).map_err(|e| e.to_string())?;
+    Ok(pick_avatar(&all).unwrap_or_default())
+}
+
+/// The channel pictures FreeTube keeps with its subscriptions (its
+/// profiles file), by channel id.
+pub fn freetube_pictures(text: &str) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for profile in crate::library::nedb(text) {
+        for sub in profile.get("subscriptions").and_then(Value::as_array).into_iter().flatten() {
+            let (Some(id), Some(pic)) = (sub.get("id").and_then(Value::as_str), sub.get("thumbnail").and_then(Value::as_str).and_then(avatar_url)) else {
+                continue;
+            };
+            if valid_channel_id(id) && !out.iter().any(|(o, _)| o == id) {
+                out.push((id.into(), pic));
+            }
+        }
+    }
+    out
+}
+
+/// FreeTube's channel pictures on this computer (read only).
+pub fn freetube_pictures_here() -> Vec<(String, String)> {
+    freetube_files().iter().find_map(|f| std::fs::read_to_string(f).ok()).map(|t| freetube_pictures(&t)).unwrap_or_default()
+}
+
 /// A YouTube channel's newest videos (its public feed).
 pub fn youtube_feed(channel: &str) -> Result<Vec<Value>, String> {
     if !valid_channel_id(channel) {
@@ -1314,5 +1387,35 @@ mod tests {
         assert!(!found.is_empty());
         let channel = found.iter().find_map(|v| v["channelId"].as_str().filter(|c| valid_channel_id(c))).unwrap().to_string();
         assert!(!youtube_feed(&channel).unwrap().is_empty());
+    }
+    #[test]
+    fn channel_pictures() {
+        let want = "https://yt3.ggpht.com/abc-DEF_1/x=s88-c-k-c0x00ffffff-no-rj";
+        assert_eq!(avatar_url("https://yt3.googleusercontent.com/abc-DEF_1/x=s0").as_deref(), Some(want));
+        assert_eq!(avatar_url("https://yt3.ggpht.com/abc-DEF_1/x=s176-c-k").as_deref(), Some(want));
+        assert_eq!(avatar_url("//yt3.ggpht.com/abc-DEF_1/x").as_deref(), Some(want));
+        // Other hosts and odd paths: nothing.
+        assert_eq!(avatar_url("https://example.com/abc=s0"), None);
+        assert_eq!(avatar_url("https://yt3.ggpht.com.example.com/abc"), None);
+        assert_eq!(avatar_url("https://yt3.ggpht.com/a?b"), None);
+        let info = json!({ "thumbnails": [
+            { "url": "https://yt3.googleusercontent.com/banner=w1060", "id": "banner_uncropped" },
+            { "url": "https://yt3.googleusercontent.com/sq=s900", "width": 900, "height": 900, "id": "7" },
+            { "url": "https://yt3.googleusercontent.com/av=s0", "id": "avatar_uncropped" }
+        ] });
+        assert_eq!(pick_avatar(&info).as_deref(), Some("https://yt3.ggpht.com/av=s88-c-k-c0x00ffffff-no-rj"));
+        let square = json!({ "thumbnails": [{ "url": "https://yt3.googleusercontent.com/wide=w1060", "width": 1060, "height": 175 },
+            { "url": "https://yt3.googleusercontent.com/sq=s900", "width": 900, "height": 900 }] });
+        assert_eq!(pick_avatar(&square).as_deref(), Some("https://yt3.ggpht.com/sq=s88-c-k-c0x00ffffff-no-rj"));
+        assert_eq!(pick_avatar(&json!({})), None);
+        let db = r#"{"_id":"allChannels","name":"All Channels","subscriptions":[{"id":"UCabcdefghijklmnopqrstuv","name":"One","thumbnail":"https://yt3.ggpht.com/one=s176-c-k"},{"id":"UCbbbbbbbbbbbbbbbbbbbbbb","name":"Two","thumbnail":"https://evil.example/x"}]}"#;
+        assert_eq!(freetube_pictures(db), vec![("UCabcdefghijklmnopqrstuv".to_string(), "https://yt3.ggpht.com/one=s88-c-k-c0x00ffffff-no-rj".to_string())]);
+    }
+
+    #[test]
+    #[ignore = "needs YouTube"]
+    fn channel_picture_from_youtube() {
+        let pic = channel_picture("UCBR8-60-B28hp2BmDPdntcQ").unwrap();
+        assert!(pic.starts_with("https://yt3.ggpht.com/"), "{pic}");
     }
 }

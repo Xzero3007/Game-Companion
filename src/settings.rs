@@ -195,6 +195,8 @@ pub struct StreamsSettings {
     /// (by part).
     pub trend_section: String,
     pub trend_words: BTreeMap<String, Vec<String>>,
+    /// YouTube channels' pictures by channel id, asked once each.
+    pub channel_pictures: BTreeMap<String, String>,
     /// Twitch: a note when followed or favourite channels go live (asked
     /// every two minutes while on), and the channels left out of it.
     pub alerts: bool,
@@ -257,6 +259,7 @@ impl Default for StreamsSettings {
             video_languages: crate::streams::system_languages(),
             trend_section: "gaming".into(),
             trend_words: BTreeMap::new(),
+            channel_pictures: BTreeMap::new(),
             alerts: false,
             alerts_off: BTreeSet::new(),
             channel_quality: BTreeMap::new(),

@@ -28,8 +28,15 @@ new session (or the same one after a usage limit) carries on from here.
   list), All live still sent the same 30, so live lists now ask Twitch
   sorted by viewers (`options: { sort: VIEWER_COUNT }`, as Twitch's own
   directory), plain if refused. Scroll speed up to 500 %. Jellyfin music
-  untested by MN (their account has no music access). Open: YouTube
-  Channels with pictures and full names (plan with MN).
+  untested by MN (their account has no music access). YouTube Channels
+  show each channel's picture (square, its first letter until it loads)
+  and the name on up to two lines: pictures come once per channel, first
+  from FreeTube's profiles file, else yt-dlp on the channel page (three at
+  a time, `Streams.fetchChannelPictures` while the list shows), kept in
+  settings `streams.channel_pictures` ("" = none, not asked again; a
+  failed one is asked again at the next start). Only yt3.ggpht.com
+  addresses (yt3.googleusercontent.com rewritten to it, `avatar_url`).
+  Not checked against YouTube here (sandbox has no YouTube).
 - 0.8.3 Pet Finder in the Map (branch `claude/project-thread-xbwq5u`, 2026-11-13;
   MN chose "Ja, so bauen" on canvas page "Pet Finder in der Map", backlog
   A6). `aion2::pets` reads the pet frames (00 90 list at login, 0D 90 souls,

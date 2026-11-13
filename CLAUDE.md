@@ -314,7 +314,11 @@ learnt, so nothing has to be asked or worked out again.
   (`liveSorted`, `liveMoreSorted`), plain if Twitch refuses it; why a page failed shows under the
   list, `twitchMoreNote`;
   YouTube pages too: `load_more_youtube`, yt-dlp `--playlist-items`,
-  subscriptions 60 a page from the kept 200), quality per channel, live notes (a thread every 120 s while
+  subscriptions 60 a page from the kept 200), channel pictures (0.8.4:
+  once per channel, FreeTube's profiles file first, else yt-dlp
+  `--playlist-items 0` on the channel page, `streams::channel_picture`;
+  settings `channel_pictures`, the `channelPictures` property, shown
+  square in the Channels list; yt3.ggpht.com only), quality per channel, live notes (a thread every 120 s while
   on, generation `ALERTS_RUN`; red count, no pop-up). Videos: chapters
   (mpv `chapter-list`), speed, queue (playlists played through, shuffle,
   loop). `GC_DEMO=streams,yt-<view>` / `tw-<view>`, `news`, `groups`,
