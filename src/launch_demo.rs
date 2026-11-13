@@ -32,6 +32,7 @@ pub fn system() -> SystemInfo {
         threads: 16,
         ram_mb: 32_000,
         kernel: "6.18.2-2-cachyos".into(),
+        path_scanned: true,
         tools: ["gamemoderun", "mangohud", "gamescope", "game-performance"].iter().map(|t| (t.to_string(), PathBuf::from("/usr/bin").join(t))).collect(),
         session: "wayland".into(),
         desktop: "KDE".into(),

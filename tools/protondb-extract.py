@@ -9,7 +9,9 @@ For every Steam game with at least MIN_REPORTS working reports (verdict
 variants they used and the launch-option parts they wrote (environment
 variables by name with their most common value, and wrapper programs),
 each with its count. Only option parts are kept, never notes or system
-details; each count also by system group: GPU maker (nvidia, amd,
+details; values longer than MAX_VALUE, values naming a folder in a home
+or on a mounted disk, and values of LD_PRELOAD and *_PATH, *_RUNTIME,
+*_FILE, *_DIR settings are left out (name and count stay); each count also by system group: GPU maker (nvidia, amd,
 intel, deck), distribution family (cachyos, arch, steamos, bazzite, fedora,
 debian, nixos, suse, gentoo, other) and CPU maker (amd, intel, deck), so
 the app can weigh what people with a system like this one use. The result
@@ -27,6 +29,12 @@ TOP_OPTIONS = 16
 TOP_PROTON = 4
 ENV = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
 WRAPPER = re.compile(r"^[A-Za-z0-9_./+-]+$")
+MAX_VALUE = 120
+# Values that may show a reporter's own folders or files: dropped (the
+# option's name and count stay).
+PRIVATE_VALUE = re.compile(r"/home/|/mnt/|/run/media|/media/|/var/home|~/")
+PRIVATE_NAME = re.compile(r"^LD_PRELOAD$|_PATH$|_RUNTIME$|_FILE$|_DIR$|CONFIG_FILE$")
+GE = re.compile(r"\bge\b|proton-ge|ge-proton|glorious")
 KNOWN_WRAPPERS = {
     "gamemoderun", "mangohud", "gamescope", "game-performance", "prime-run",
     "dlss-swapper", "obs-gamecapture", "strangle", "taskset", "nice",
@@ -76,6 +84,13 @@ def cpu_of(s):
     return ""
 
 
+def value_of(name, value):
+    """The value to keep, or "" (cut at the length limit, or private)."""
+    if len(value) > MAX_VALUE or PRIVATE_NAME.search(name) or PRIVATE_VALUE.search(value):
+        return ""
+    return value
+
+
 def parts(text):
     """The env vars and wrappers before %command% (the args after it count too
     as "arg:<word>")."""
@@ -92,7 +107,7 @@ def parts(text):
         if not seen_cmd:
             m = ENV.match(w)
             if m:
-                out.append(("env", m.group(1), m.group(2)[:120]))
+                out.append(("env", m.group(1), value_of(m.group(1), m.group(2))))
                 continue
             base = w.rsplit("/", 1)[-1]
             if base in KNOWN_WRAPPERS:
@@ -136,7 +151,7 @@ def main():
         if variant in ("ge", "notListed", "older") and resp.get("customProtonVersion"):
             name = str(resp["customProtonVersion"]).strip()[:40]
             low = name.lower()
-            variant = "cachyos" if "cachyos" in low else "ge" if "ge" in low else variant
+            variant = "cachyos" if "cachyos" in low else "ge" if GE.search(low) else variant
         if variant:
             g["proton"][variant] += 1
         opts = resp.get("launchOptions")

@@ -53,6 +53,9 @@ pub struct SystemInfo {
     pub kernel: String,
     /// Installed tools from `TOOLS`, with where they were found.
     pub tools: Vec<(String, PathBuf)>,
+    /// PATH was looked through (one of its folders exists), so a tool not
+    /// in `tools` is surely not installed.
+    pub path_scanned: bool,
     /// "wayland", "x11" or "".
     pub session: String,
     pub desktop: String,
@@ -226,6 +229,7 @@ pub fn detect(root: &Path, config: &Path, env: &dyn Fn(&str) -> Option<String>, 
         .unwrap_or(0);
     info.kernel = read("/proc/sys/kernel/osrelease").trim().to_string();
     let path = env("PATH").unwrap_or_else(|| "/usr/local/bin:/usr/bin:/bin".into());
+    info.path_scanned = path.split(':').any(|d| d.starts_with('/') && at(d).is_dir());
     for tool in TOOLS {
         let found = path.split(':').filter(|d| d.starts_with('/')).map(|d| at(d).join(tool)).find(|p| is_executable(p));
         if let Some(found) = found {
@@ -250,7 +254,7 @@ pub fn detect(root: &Path, config: &Path, env: &dyn Fn(&str) -> Option<String>, 
     let connected = connected_outputs(&at("/sys/class/drm"));
     info.display = main_display(&config.join("kwinoutputconfig.json"), &connected, screen);
     if let Some(d) = &info.display {
-        info.display_card = card_of(&at("/sys/class/drm"), &d.name);
+        info.display_card = card_of(&at("/sys/class/drm"), d);
     }
     info
 }
@@ -264,14 +268,31 @@ fn process_running(proc_root: &Path, name: &str) -> bool {
         .any(|e| std::fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == name))
 }
 
-/// The card a connector belongs to ("card1" for "card1-DP-2").
-fn card_of(drm: &Path, connector: &str) -> String {
+/// The card the main screen hangs on ("card1" for "card1-DP-2"). Two cards
+/// can both have a connector of that name: then the one where it is
+/// connected and enabled, showing the screen's size, wins (ties: the
+/// lowest card).
+fn card_of(drm: &Path, display: &Display) -> String {
     let Ok(entries) = std::fs::read_dir(drm) else { return String::new() };
-    entries
+    let read = |dir: &Path, file: &str| std::fs::read_to_string(dir.join(file)).unwrap_or_default();
+    let mut found: Vec<(u8, String)> = entries
         .flatten()
-        .map(|e| e.file_name().to_string_lossy().into_owned())
-        .find_map(|n| n.split_once('-').filter(|(c, rest)| c.starts_with("card") && *rest == connector).map(|(c, _)| c.to_string()))
-        .unwrap_or_default()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let (card, rest) = name.split_once('-')?;
+            (card.starts_with("card") && card[4..].bytes().all(|b| b.is_ascii_digit()) && rest == display.name).then_some((e.path(), card.to_string()))
+        })
+        .map(|(dir, card)| {
+            let size = format!("{}x{}", display.width, display.height);
+            let score = u8::from(read(&dir, "status").trim() == "connected") * 4
+                + u8::from(read(&dir, "enabled").trim() == "enabled") * 2
+                + u8::from(read(&dir, "modes").lines().any(|m| m.trim().starts_with(&size)));
+            (score, card)
+        })
+        .collect();
+    let number = |c: &str| c[4..].parse::<u32>().unwrap_or(u32::MAX);
+    found.sort_by(|a, b| b.0.cmp(&a.0).then(number(&a.1).cmp(&number(&b.1))));
+    found.into_iter().next().map(|(_, c)| c).unwrap_or_default()
 }
 
 /// Whether this user may open the file for reading and writing (what
@@ -587,6 +608,29 @@ mod tests {
             ..Default::default()
         };
         assert_eq!((laptop.gpu_in_use(false).as_str(), laptop.gpu_in_use(true).as_str()), ("amd", "nvidia"));
+    }
+
+    #[test]
+    fn picks_the_card_where_the_screen_is_connected() {
+        // Two cards with a "DP-1" each; the screen hangs on card1's.
+        let root = temp("twocards");
+        let drm = root.join("sys/class/drm");
+        write(&drm.join("card0-DP-1/status"), "disconnected\n");
+        write(&drm.join("card0-DP-1/enabled"), "disabled\n");
+        write(&drm.join("card0-DP-1/modes"), "");
+        write(&drm.join("card1-DP-1/status"), "connected\n");
+        write(&drm.join("card1-DP-1/enabled"), "enabled\n");
+        write(&drm.join("card1-DP-1/modes"), "2560x1440\n1920x1080\n");
+        let d = Display { name: "DP-1".into(), width: 2560, height: 1440, refresh: None, hdr: false };
+        assert_eq!(card_of(&drm, &d), "card1");
+        // Both connected: the one showing the screen's size.
+        write(&drm.join("card0-DP-1/status"), "connected\n");
+        write(&drm.join("card0-DP-1/enabled"), "enabled\n");
+        write(&drm.join("card0-DP-1/modes"), "1920x1080\n");
+        assert_eq!(card_of(&drm, &d), "card1");
+        // A connector of another name never counts.
+        let other = Display { name: "DP-10".into(), ..d };
+        assert_eq!(card_of(&drm, &other), "");
     }
 
     #[test]

@@ -156,7 +156,40 @@ Agreed with the person 2026-11-13 (see CLAUDE.md plan step 4):
   ,others|,end], games,proton, games,launchown; `nowelcome` closes the
   welcome. Screenshots in /mnt/project-files/game-companion/screens/launch/.
 
-Open points: merge launch-fixes, test on real KWin (Arch thread), the person's test; the check follows the saved Proton build, not one picked but not saved yet.
+  Second QA round (branch `launch-fixes`, 2026-11-13): retirements follow
+  the exact build. `Family::CachyOs(major)` (from the build's name, else
+  its `version` file; unknown = newest, and the note says so); byFlavour
+  `from` works for Valve, proton-cachyos and GE (`from` + `fromRelease`).
+  Version facts read from the tagged scripts: PROTON_USE_NTSYNC only in
+  GE-Proton10-9 and proton-cachyos 10 (retired GE10-10 / cachyos 11),
+  PROTON_ENABLE_HDR/USE_HDR until GE-Proton11-9 (HDR detection; `=0` still
+  turns HDR off: `keepValues`, ok with a note) and proton-cachyos 10,
+  PROTON_ENABLE_NVAPI until Proton 8 / GE-Proton8 (on by default from 9),
+  PROTON_VKD3D_HEAP, PROTON_MEDIA_USE_GST, PROTON_VKREFLEX until
+  proton-cachyos 10. Suggestions (the person): `ntsync`, `nvapi`,
+  `vkd3d_heap`, `enable_hdr` (`launch_check::gated`) are listed for the
+  builds of their family; each suggestion has `available` and
+  `unavailable_why` (plain English, from the KB's `unavailable` text);
+  unavailable ones are greyed out in the UI and `combineOptions` refuses
+  to add them. Fixes keep values literal (a misspelt name changes only the
+  name; rebuilt values are single-quoted when needed; the fixed text is
+  lexed again and dropped if it would not split as meant). Misspelling
+  fixes only for plain misspellings: a correction that swaps an on/off
+  word, a number or a negation gets "did you mean" without a fix;
+  NEVER_CORRECT lists real settings outside the KB; removed flags
+  (VKD3D_CONFIG dxr11, RADV_PERFTEST aco/gpl/ngg/rt/emulate_rt/wave32) are
+  outdated and taken out. A missing %command% after gamescope's words goes
+  after its `--` (adding `--`), no fixed text when unsure. Fixes never set
+  a setting twice; a bare known name (`PROTON_ENABLE_WAYLAND`) becomes
+  `NAME=1`; a setting after a wrapper is moved in front. checkOptions only
+  answers the newest request (older ones get no launchResult). ProtonDB
+  values are quoted; the extractor drops values cut at 120 characters, with
+  home/mount paths, or of LD_PRELOAD/*_PATH/*_RUNTIME/*_FILE/*_DIR, and
+  tells GE by a word match (data regenerated from the 2026-11-02 export).
+  display card picked by connector per card (two GPUs with the same
+  connector name).
+
+Open points: QA of the merged branch, test on real KWin (Arch thread), the person's test; the check follows the saved Proton build, not one picked but not saved yet.
 Known limits: PoE 1 outside Steam counts as PoE 2; any process with a
 game's folder in its command line counts as the game; Heroic covers only
 for sideloaded games. Demo: GC_DEMO=games[,gameform]; GC_NO_GAMES=1 stops

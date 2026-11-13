@@ -1400,6 +1400,12 @@ pub struct Suggestion {
     pub popular: Option<Value>,
     /// Its share for the rank (0 when unknown).
     pub share: f64,
+    /// False for a switch this exact build does not need or read any more
+    /// (`launch_check::gated`): shown greyed out with `unavailable_why`,
+    /// and `combine` refuses to add it.
+    pub available: bool,
+    /// Why it cannot be added, in plain English ("" when available).
+    pub unavailable_why: String,
 }
 
 impl Suggestion {
@@ -1409,6 +1415,7 @@ impl Suggestion {
             "recommended": self.recommended, "why": self.why, "warning": self.warning, "group": self.group,
             "applied": self.applied, "flavours": self.flavours,
             "popular": self.popular.clone().unwrap_or(Value::Null),
+            "available": self.available, "unavailable_why": self.unavailable_why,
         })
     }
 }
@@ -1462,6 +1469,8 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
             flavours,
             popular: None,
             share: 0.0,
+            available: true,
+            unavailable_why: String::new(),
         });
     };
     let cachyos = sys.cachyos();
@@ -1569,6 +1578,7 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
     let sure = current.proton == Some(true);
     let only_proton = if sure { "" } else { " Only for games that run through Proton." };
     let in_use = if proton { proton_in_use(current, tools) } else { None };
+    let has_proton = in_use.is_some();
     if let Some((f, label)) = in_use {
         let hdr_screen = sys.display.as_ref().is_some_and(|d| d.hdr);
         let wayland_warning = crate::launch_check::find("env", "PROTON_ENABLE_WAYLAND").map(|e| e.warning.clone()).unwrap_or_default();
@@ -1687,6 +1697,12 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
             );
         }
     }
+    // Switches that only some builds read: available or greyed out with
+    // the reason, judged for the exact build.
+    let gated = if has_proton { crate::launch_check::gated(sys, &crate::launch_check::context(sys, current, tools)) } else { Vec::new() };
+    for g in &gated {
+        add(g.id, g.label, &g.explanation, g.option.clone(), false, if g.available { format!("{}{only_proton}", g.why) } else { g.why.clone() }, "", "");
+    }
     if sys.nvidia_driver() {
         add(
             "nv_shader_cache",
@@ -1702,6 +1718,10 @@ pub fn suggest(sys: &SystemInfo, current: &Current, tools: &[Tool]) -> Vec<Sugge
     // MangoHud also counts as on when gamescope runs it (--mangoapp).
     let mangoapp = current.spec.wrappers.iter().chain(current.spec.command.iter()).any(|w| w.iter().any(|x| x == "--mangoapp"));
     for s in &mut out {
+        if let Some(g) = gated.iter().find(|g| g.id == s.id && !g.available) {
+            s.available = false;
+            s.unavailable_why = g.why.clone();
+        }
         s.applied = parse(&s.option).is_ok_and(|part| contains(&current.spec, &part)) || (s.id == "mangohud" && mangoapp);
     }
     out
@@ -2064,6 +2084,9 @@ pub fn combine(current: &Current, list: &[Suggestion], chosen: &[String]) -> Res
         parse(text)?;
     }
     let is_chosen = |s: &Suggestion| chosen.iter().any(|c| c == s.id);
+    if let Some(s) = list.iter().find(|s| !s.available && !s.applied && is_chosen(s)) {
+        return Err(format!("{} cannot be added: {}", s.label, s.unavailable_why));
+    }
     let mut groups: Vec<&str> = Vec::new();
     let mut keep: Vec<&Suggestion> = Vec::new();
     for s in list.iter().filter(|s| s.applied && is_chosen(s)) {
@@ -2604,8 +2627,21 @@ mod tests {
         let ids: Vec<&str> = list.iter().map(|s| s.id).collect();
         assert_eq!(
             ids,
-            ["gamemode", "prime_run", "mangohud", "gamescope", "gamescope_hdr", "wayland", "no_ntsync", "fsr4_upgrade", "dlss_upgrade", "local_shader_cache", "nvidia_libs", "optiscaler", "nv_shader_cache"]
+            [
+                "gamemode", "prime_run", "mangohud", "gamescope", "gamescope_hdr", "wayland", "no_ntsync", "fsr4_upgrade", "dlss_upgrade", "local_shader_cache", "nvidia_libs", "optiscaler", "ntsync", "nvapi",
+                "enable_hdr", "nv_shader_cache"
+            ]
         );
+        // Switches GE-Proton10-25 no longer needs: listed, greyed out, why.
+        let by_id = |id: &str| list.iter().find(|s| s.id == id).unwrap();
+        assert!(!by_id("ntsync").available && by_id("ntsync").unavailable_why.contains("GE-Proton10-10 and later"));
+        assert!(!by_id("nvapi").available && by_id("nvapi").unavailable_why.contains("GE-Proton9-1"));
+        // HDR detection came in GE-Proton11-9: the switch still works here.
+        assert!(by_id("enable_hdr").available && by_id("enable_hdr").unavailable_why.is_empty());
+        assert!(list.iter().filter(|s| s.id != "ntsync" && s.id != "nvapi").all(|s| s.available));
+        let json = suggestions_json(&list);
+        assert_eq!(json[12]["available"], false);
+        assert!(json[12]["unavailable_why"].as_str().unwrap().contains("NTSync is already on"));
         let gamescope = &list[3];
         assert_eq!(gamescope.option, "gamescope -W 2560 -H 1440 -r 165 -f -- %command%");
         assert!(list.iter().all(|s| !s.explanation.is_empty() && !s.why.is_empty() && !s.flavours.is_empty()));
@@ -2637,7 +2673,35 @@ mod tests {
         let hdr = system(false, true);
         let list = suggest(&hdr, &cachy, &tools);
         let ids: Vec<&str> = list.iter().map(|s| s.id).collect();
-        assert_eq!(ids, ["gamemode", "mangohud", "gamescope", "gamescope_hdr", "wayland", "proton_hdr", "no_ntsync", "fsr4_upgrade", "local_shader_cache", "optiscaler"]);
+        assert_eq!(ids, ["gamemode", "mangohud", "gamescope", "gamescope_hdr", "wayland", "proton_hdr", "no_ntsync", "fsr4_upgrade", "local_shader_cache", "optiscaler", "ntsync", "vkd3d_heap", "enable_hdr"]);
+        // A proton-cachyos of unknown version counts as the newest (11):
+        // its retired switches are greyed out, saying so.
+        let heap = list.iter().find(|s| s.id == "vkd3d_heap").unwrap();
+        assert!(!heap.available && heap.unavailable_why.contains("11.0-20260521") && heap.unavailable_why.contains("could not be told"));
+        // proton-cachyos 10.0 still reads them; 11 does not.
+        let mut cachy10 = cachy.clone();
+        cachy10.tool = "proton-cachyos-10.0-20260410-slr".into();
+        let list10 = suggest(&hdr, &cachy10, &tools);
+        for id in ["ntsync", "vkd3d_heap", "enable_hdr"] {
+            let s = list10.iter().find(|s| s.id == id).unwrap();
+            assert!(s.available && s.unavailable_why.is_empty(), "{id}");
+        }
+        let mut cachy11 = cachy.clone();
+        cachy11.tool = "proton-cachyos-11.0-20261015-slr".into();
+        let list11 = suggest(&hdr, &cachy11, &tools);
+        let heap = list11.iter().find(|s| s.id == "vkd3d_heap").unwrap();
+        assert!(!heap.available && heap.unavailable_why.contains("descriptor heap built in") && !heap.unavailable_why.contains("could not be told"));
+        // An unavailable one cannot be added; available ones can.
+        let mut c11 = cachy11.clone();
+        c11.text = "%command%".into();
+        c11.spec = parse("%command%").unwrap();
+        let l = suggest(&hdr, &c11, &tools);
+        assert!(combine(&c11, &l, &["vkd3d_heap".to_string()]).unwrap_err().contains("cannot be added"));
+        let mut c10 = cachy10.clone();
+        c10.text = "%command%".into();
+        c10.spec = parse("%command%").unwrap();
+        let l = suggest(&hdr, &c10, &tools);
+        assert_eq!(combine(&c10, &l, &["vkd3d_heap".to_string()]).unwrap(), "PROTON_VKD3D_HEAP=1 %command%");
         let hdr_option = &list.iter().find(|s| s.id == "proton_hdr").unwrap().option;
         assert_eq!(hdr_option, "DXVK_HDR=1 %command%");
         assert!(list.iter().find(|s| s.id == "fsr4_upgrade").unwrap().explanation.contains("proton-cachyos downloads the FSR4 DLL"));
@@ -2795,7 +2859,8 @@ mod tests {
         let current = read(&p, "steam:10", None);
         let list = rec(&nvidia_only, &current);
         assert!(list.contains(&("nv_shader_cache", true)) && list.contains(&("gamemode", true)));
-        assert!(list.contains(&("dlss_upgrade", false)) && !list.iter().any(|(id, _)| *id == "nvapi" || *id == "ntsync"));
+        assert!(list.contains(&("dlss_upgrade", false)) && list.contains(&("nvapi", false)) && list.contains(&("ntsync", false)));
+        assert!(suggest(&nvidia_only, &current, &tools).iter().filter(|s| s.id == "nvapi" || s.id == "ntsync").all(|s| !s.available));
         // A Steam game without its own choice might be native: shown, "only
         // for Proton".
         let mut current = read(&p, "steam:20", None);
