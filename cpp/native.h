@@ -28,6 +28,10 @@ class NativeWindow : public QObject
     /// The screen the overlay is on, in its own pixels.
     Q_PROPERTY(int screenWidth READ screenWidth NOTIFY screenChanged)
     Q_PROPERTY(int screenHeight READ screenHeight NOTIFY screenChanged)
+    /// The screen's name (its connector, e.g. "DP-2").
+    Q_PROPERTY(QString screenName READ screenName NOTIFY screenChanged)
+    /// The screens to choose from, JSON: [{"id", "name"}] (Settings).
+    Q_PROPERTY(QString screenList READ screenList NOTIFY screenChanged)
     /// GC_SCREENSHOT is set: the parts go into one window (`shotScene`, a
     /// screen-sized item) instead of their own, to be grabbed whole.
     Q_PROPERTY(bool screenshotMode READ screenshotMode CONSTANT)
@@ -41,6 +45,10 @@ public:
     QString testVideo() const { return m_testVideo; }
     int screenWidth() const;
     int screenHeight() const;
+    QString screenName() const;
+    QString screenList() const;
+    /// The screen the user picked by name ("" = KDE's primary screen).
+    Q_INVOKABLE void setPreferredScreen(const QString &name);
 
     /// Makes a part's window an overlay surface (before it is first shown).
     Q_INVOKABLE void attach(QQuickWindow *window);
@@ -65,6 +73,13 @@ signals:
 
 private:
     QScreen *screen() const;
+    /// KDE's primary screen, by its connector name, from KWin's own output
+    /// settings ("" when unknown).
+    QString kdePrimary() const;
+    void screensChanged();
+    QString m_preferred;
+    QString m_kdePrimary;
+    QScreen *m_watched = nullptr;
     bool m_layerShell = false;
     QString m_demo;
     QString m_testVideo;

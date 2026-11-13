@@ -41,6 +41,9 @@ pub struct Settings {
     /// Whether updates come from the beta channel (test builds of the
     /// `beta` branch) instead of the stable releases.
     pub beta_updates: bool,
+    /// The screen the overlay is on, by its connector name ("" = KDE's
+    /// primary screen). Read by the C++ side at the start.
+    pub screen: String,
     /// What stays on screen while the hub is hidden, by id (panels, the
     /// player row).
     pub pins: BTreeSet<String>,
@@ -262,6 +265,7 @@ impl Default for Settings {
             places: BTreeMap::new(),
             welcome: true,
             beta_updates: false,
+            screen: String::new(),
             pins: BTreeSet::new(),
             radio: RadioSettings::default(),
             layouts: BTreeMap::new(),
