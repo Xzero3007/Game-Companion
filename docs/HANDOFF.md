@@ -24,6 +24,20 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- Event Timers / Schedule (branch `claude/project-thread-xz7nqt`, PR against
+  beta, version from QA; 2026-11-13; MN chose "Ja, Aion 2 Timers gleich mit"
+  on the canvas page "Zeitplan (Event Timers)", boards T1–T3). TIMERS in the
+  game row opens SCHEDULE: BOSSES (from the game's boss map when a map is
+  opened, plus Aion 2 Timers' feed when switched on) and EVENTS (fixed times
+  from taengu's Event Timers tables, server time per region); bells set
+  alerts (banner, sound, optional voice). Settings → Plugins → AION 2 →
+  Event Timers → SETTINGS. Not taken over: the old plugin's pinned icons and
+  anchor grid, the Kokoro voice (the desktop's spd-say instead), teleport
+  numbers, the a2tools.app feed and the World Boss Train. To check on MN's
+  PC: that opening the map in the game fills BOSSES, that Aion 2 Timers
+  answers (it may refuse non-browser requests: the reason shows under the
+  list), and that the A2T names match (A2T? = guessed by number).
+
 - 0.8.6 Pet Finder after MN's 0.8.3 test (2026-11-13, MN: "b aber doppelt so hohe zeilen"): a FROM row in the PETS tab (Verteron, Altgard, Abyss, Fire Temple, Draupnir, Krao Cave, Chest only; several at once, none = all; `settings.petFrom`), rows and portraits 92 px (`PetsTab.rowH`).
 - 0.8.5 Fixes after MN's test of 0.8.2 (branch `aion-fixes2`,
   2026-11-13). The game row's buttons took no clicks on KWin when it first

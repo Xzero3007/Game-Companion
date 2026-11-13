@@ -22,6 +22,7 @@ Overlay {
     property bool mapOpen: false
     property bool marketOpen: false
     property bool charactersOpen: false
+    property bool scheduleOpen: false
     /// The person closed the DPS panel: it stays closed when AION 2 starts.
     property bool dpsClosed: false
     /// The game id AION 2 runs under (its module stops when that one ends).
@@ -30,7 +31,7 @@ Overlay {
         aionId = id
         // The package and its meter can be switched off (Settings → Plugins).
         if (!Plugins.loads(plugins, "aion2")) return
-        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters"].some((id) => Plugins.choice(plugins, id).on)) return
+        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters", "aion2.timers"].some((id) => Plugins.choice(plugins, id).on)) return
         Aion2.start()
         if (!dpsClosed && Plugins.inBar(plugins, "aion2.dps")) dpsOpen = true
     }
@@ -56,6 +57,7 @@ Overlay {
         if (mapOpen) ids.push("map")
         if (marketOpen) ids.push("market")
         if (charactersOpen) ids.push("characters")
+        if (scheduleOpen) ids.push("schedule")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
@@ -66,6 +68,7 @@ Overlay {
         mapOpen = ids.indexOf("map") >= 0
         marketOpen = ids.indexOf("market") >= 0
         charactersOpen = ids.indexOf("characters") >= 0
+        scheduleOpen = ids.indexOf("schedule") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
@@ -80,6 +83,8 @@ Overlay {
         if (demo.indexOf("map") >= 0) mapOpen = true
         if (demo.indexOf("market") >= 0) marketOpen = true
         if (demo.indexOf("chars") >= 0) charactersOpen = true
+        if (demo.indexOf("schedule") >= 0) scheduleOpen = true
+        if (demo.indexOf("alert") >= 0) alertBanner.show("Bodyguard Teegant", "Verteron", Date.now() + 5 * 60000 + 30000)
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("games") >= 0) games.demo(demo)
@@ -245,6 +250,9 @@ Overlay {
             charactersShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.characters")) || root.charactersOpen || characterStore.demo
             charactersOpen: root.charactersOpen
             onCharactersClicked: root.charactersOpen = !root.charactersOpen
+            scheduleShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.timers")) || root.scheduleOpen || timerStore.demo
+            scheduleOpen: root.scheduleOpen
+            onScheduleClicked: root.scheduleOpen = !root.scheduleOpen
         }
     }
 
@@ -389,6 +397,38 @@ Overlay {
         }
     }
 
+    // The Schedule's memory and alerts (bosses the game told, fixed times).
+    TimerStore {
+        id: timerStore
+        characters: characterStore
+        onAlerted: (name, where, start) => alertBanner.show(name, where, start)
+    }
+
+    Surface {
+        wanted: root.scheduleOpen && root.onScreen("schedule")
+        stack: 3
+        part: SchedulePanel {
+            store: timerStore
+            defaultX: Math.max(24, (root.width - width) / 2 + 60)
+            defaultY: 170
+            onCloseClicked: root.scheduleOpen = false
+            onShowOnMap: (id, name) => { if (!root.mapUsable) return; root.mapOpen = true; Qt.callLater(() => mapPanel.focusBoss(id, name)) }
+        }
+    }
+
+    // An alert over the game: with the hub or without, never in the way
+    // for long (20 s, or a click).
+    Surface {
+        wanted: alertBanner.shown
+        stack: 6
+        part: AlertBanner {
+            id: alertBanner
+            store: timerStore
+            x: (root.width - width) / 2
+            y: Companion.shown ? bar.height * bar.scale + 52 : 8
+        }
+    }
+
     Surface {
         wanted: root.radioOpen && root.onScreen("radio")
         stack: 3
@@ -422,6 +462,7 @@ Overlay {
             id: settings
             pinnable: false
             mapSource: mapPanel
+            timerStore: timerStore
             defaultX: root.width - width - 24
             defaultY: 120
             onCloseClicked: root.settingsOpen = false

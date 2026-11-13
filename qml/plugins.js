@@ -24,7 +24,7 @@ var packages = [
             { id: "aion2.closet", short: "C", name: "Closet", about: "Skins you have and still miss.", built: false },
             { id: "aion2.armory", short: "A", name: "Armory", about: "Gear and its upgrades.", built: false },
             { id: "aion2.shugo", short: "S", name: "Shugo Cards", about: "Shugo cards and what they bring.", built: false },
-            { id: "aion2.timers", short: "T", name: "Event Timers", about: "Field bosses and events with their times.", built: false },
+            { id: "aion2.timers", short: "T", name: "Event Timers", about: "Field bosses (as the game tells them when you open a map) and the fixed events in your server's time, with alerts before the ones you pick.", built: true },
             { id: "aion2.characters", short: "CH", name: "Characters", about: "Your characters: Odyle energy and when it is full, the content each has left, the day's and week's limits.", built: true },
             { id: "aion2.boss", short: "B", name: "Boss Notes", about: "Phases and hints with a countdown in fights.", built: false }
         ]

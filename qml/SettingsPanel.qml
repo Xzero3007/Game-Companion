@@ -2,6 +2,7 @@ import QtQuick
 import GameCompanion
 import "theme.js" as Theme
 import "plugins.js" as Plugins
+import "aion2/timekit.js" as TK
 
 // Settings: how solid the panels are, the shortcuts, and what this is.
 Panel {
@@ -11,6 +12,7 @@ Panel {
     width: 500
 
     property string tab: nativeWindow.demo.indexOf("display") >= 0 ? "display"
+        : nativeWindow.demo.indexOf("timers") >= 0 ? "plugins"
         : nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0
         || nativeWindow.demo.indexOf("ytsettings") >= 0 ? "streams" : "general"
     property var keys: JSON.parse(Companion.shortcuts)
@@ -21,6 +23,8 @@ Panel {
     minWidth: 400
     /// The Map panel: the overlay map's settings are kept in its own.
     property var mapSource: null
+    /// The Schedule's store (its settings fold out under Event Timers).
+    property var timerStore: null
     function keyOf(id) {
         for (const k of keys) if (k.id === id) return k.key
         return ""
@@ -131,7 +135,10 @@ Panel {
                     readonly property real headHeight: Math.max(48, plugText.implicitHeight + 16)
                     // The Map's overlay map: its settings fold out under it.
                     readonly property bool hasOverlay: p.id === "aion2.map" && !!settings.mapSource
-                    property bool expanded: hasOverlay && nativeWindow.demo.indexOf("overlay") >= 0
+                    // The Event Timers' sources and alerts fold out the same way.
+                    readonly property bool hasTimers: p.id === "aion2.timers" && !!settings.timerStore
+                    property bool expanded: (hasOverlay && nativeWindow.demo.indexOf("overlay") >= 0)
+                        || (hasTimers && nativeWindow.demo.indexOf("timers") >= 0)
                     height: headHeight + (expanded ? overlayBox.height + 12 : 0)
                     opacity: (p.fixed || c.on) && usable ? 1 : 0.55
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
@@ -198,6 +205,14 @@ Panel {
                         y: 10
                         spacing: 8
                         SmallToggle {
+                            visible: plugRow.hasTimers
+                            width: 92
+                            text: "SETTINGS " + (plugRow.expanded ? "▴" : "▾")
+                            on: plugRow.expanded
+                            tip: "Where the times come from, and the alerts"
+                            onClicked: plugRow.expanded = !plugRow.expanded
+                        }
+                        SmallToggle {
                             visible: plugRow.hasOverlay
                             width: 92
                             text: "OVERLAY " + (plugRow.expanded ? "▴" : "▾")
@@ -231,7 +246,7 @@ Panel {
                         y: plugRow.headHeight
                         width: plugRow.width - 42
                         height: item ? item.implicitHeight : 0
-                        sourceComponent: OverlaySettings { map: settings.mapSource }
+                        sourceComponent: plugRow.hasTimers ? timersComponent : overlayComponent
                     }
                 }
             }
@@ -1058,6 +1073,103 @@ Panel {
             font.pixelSize: 12
         }
         Flow { id: holder; width: parent.width - 102; spacing: 6 }
+    }
+
+    Component { id: overlayComponent; OverlaySettings { map: settings.mapSource } }
+    Component { id: timersComponent; ScheduleSettings { store: settings.timerStore } }
+
+    // The Event Timers' settings (canvas board T3): where the times come
+    // from, and how alerts show.
+    component ScheduleSettings: Column {
+        id: sch
+        property var store
+        readonly property var p: store.prefs
+        spacing: 8
+        OverlayLine {
+            label: "The game"
+            Chip { text: sch.p.game ? "On" : "Off"; on: sch.p.game; onClicked: sch.store.change({ game: !sch.p.game }) }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                width: parent.width - 60; wrapMode: Text.WordWrap; topPadding: 4
+                text: "boss times when you open a map; read only"; color: Theme.dim(); font.family: Theme.body; font.pixelSize: 12 }
+        }
+        OverlayLine {
+            label: "Fixed times"
+            Chip { text: sch.p.fixed ? "On" : "Off"; on: sch.p.fixed; onClicked: sch.store.change({ fixed: !sch.p.fixed }) }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                width: parent.width - 60; wrapMode: Text.WordWrap; topPadding: 4
+                text: "events and scheduled bosses from the game's tables; offline"; color: Theme.dim(); font.family: Theme.body; font.pixelSize: 12 }
+        }
+        OverlayLine {
+            label: "Aion 2 Timers"
+            Chip { text: sch.p.a2t ? "On" : "Off"; on: sch.p.a2t; onClicked: { sch.store.change({ a2t: !sch.p.a2t }); if (sch.store.prefs.a2t) sch.store.refreshFeed(true) } }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                width: parent.width - 60; wrapMode: Text.WordWrap
+                text: "aion2timers.com (by HomelessGuyNABox) fills in the maps you haven't opened: one request every 5 minutes while the Schedule is open, else every 15 while a boss alert waits. Asks with your server's name only."
+                    + (sch.store.serverSlug() ? " (" + sch.store.serverSlug() + ")" : "")
+                color: Theme.dim(); font.family: Theme.body; font.pixelSize: 12 }
+        }
+        OverlayLine {
+            label: "Server time"
+            Chip { text: "From my server"; on: sch.p.region === "auto"; onClicked: sch.store.change({ region: "auto" }) }
+            Repeater {
+                model: [1, 2, 3, 4, 5]
+                delegate: Chip {
+                    required property int modelData
+                    text: TK.REGIONS[modelData].name
+                    on: sch.p.region !== "auto" && Number(sch.p.region) === modelData
+                    onClicked: sch.store.change({ region: modelData })
+                }
+            }
+        }
+        OverlayLine {
+            label: "Alert"
+            Repeater {
+                model: [1, 3, 5, 10, 15]
+                delegate: Chip {
+                    required property int modelData
+                    text: modelData + " min before"
+                    on: sch.p.lead === modelData
+                    onClicked: sch.store.change({ lead: modelData })
+                }
+            }
+            Chip { text: "Also as it starts"; on: sch.p.atStart; onClicked: sch.store.change({ atStart: !sch.p.atStart }) }
+        }
+        OverlayLine {
+            label: "Show"
+            Chip { text: "Banner"; on: sch.p.banner; onClicked: sch.store.change({ banner: !sch.p.banner }) }
+            Chip { text: "Voice"; on: sch.p.voice; visible: Aion2.canSpeak() || sch.p.voice; onClicked: sch.store.change({ voice: !sch.p.voice }) }
+            Chip { text: "Also while AION 2 is closed"; on: sch.p.closed; onClicked: sch.store.change({ closed: !sch.p.closed }) }
+        }
+        OverlayLine {
+            label: "Sound"
+            Chip { text: "None"; on: sch.p.sound === "none"; onClicked: sch.store.change({ sound: "none" }) }
+            Repeater {
+                model: ["chime", "bell", "ping", "gong", "soft"]
+                delegate: Chip {
+                    required property string modelData
+                    text: modelData
+                    on: sch.p.sound === modelData
+                    onClicked: { sch.store.change({ sound: modelData }); Aion2.chime(modelData, sch.p.volume) }
+                }
+            }
+        }
+        OverlayLine {
+            label: "Volume"
+            HudSlider {
+                width: 150
+                from: 0
+                to: 100
+                value: sch.p.volume
+                onMoved: (v) => { sch.store.change({ volume: Math.round(v) }); Aion2.chime(sch.p.sound === "none" ? "chime" : sch.p.sound, Math.round(v)) }
+            }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                height: 24; verticalAlignment: Text.AlignVCenter
+                text: sch.p.volume + " %"; color: Theme.accent; font.family: Theme.body; font.pixelSize: 12 }
+        }
+        OverlayLine {
+            label: ""
+            Chip { text: "Forget this server's boss times"; onClicked: sch.store.forget() }
+        }
     }
 
     // The overlay map's settings (canvas board O2Settings): on, size,
