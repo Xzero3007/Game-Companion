@@ -10,16 +10,23 @@ import "theme.js" as Theme
 Panel {
     id: panel
     panelId: "dps"
-    title: "DPS Meter"
-    tag: "AION 2"
+    // Narrow: shorter header, fewer words in the foot.
+    readonly property bool narrow: width < 400
+    title: width < 330 ? "DPS" : "DPS Meter"
+    tag: narrow ? "" : "AION 2"
     width: 512
-    minWidth: 400
+    minWidth: 280
     maxWidth: 900
     badge: clock(fight.time)
     actionText: Aion2.opened.length > 0 ? "" : "Reset"
     onActionClicked: Aion2.reset()
 
     readonly property var fight: JSON.parse(Aion2.fight)
+    /// Ping and Odyle energy, as the old meter's bar showed them.
+    readonly property var extras: fight.extras || ({ ping: null, odyle: null })
+    /// Its own ground opacity (100, 75, 50, 25 %), on top of the overall one.
+    property int opacityPercent: Streams.opacityOf("dps")
+    ground: Companion.alpha * opacityPercent / 100
     /// damage, healing, skills, history
     property string tab: {
         const demo = nativeWindow.demo
@@ -513,18 +520,50 @@ Panel {
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.left: dot.right
                 anchors.leftMargin: 8
-                anchors.right: partyText.left
+                anchors.right: liveInfo.left
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
+                visible: panel.width >= 470
                 text: "Listens only. Never sends anything to the game."
                 color: Theme.dim()
                 font.family: Theme.body
                 font.pixelSize: 11
             }
+            // Odyle energy (basic, + charged) and the ping, as in the old meter.
+            Row {
+                id: liveInfo
+                anchors.right: partyText.left
+                anchors.rightMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 10
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                    visible: !!panel.extras.odyle && Aion2.opened.length === 0
+                    textFormat: Text.StyledText
+                    text: panel.extras.odyle
+                        ? "<font color='" + Theme.dim() + "'>ODYLE</font> " + panel.extras.odyle[0].toLocaleString(Qt.locale("en_US"), "f", 0)
+                          + " <font color='" + Theme.purpleText + "'>(+" + panel.extras.odyle[1].toLocaleString(Qt.locale("en_US"), "f", 0) + ")</font>"
+                        : ""
+                    color: Theme.text()
+                    font.family: Theme.body
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                    visible: panel.extras.ping !== null && panel.extras.ping !== undefined && Aion2.opened.length === 0
+                    text: panel.extras.ping + " ms"
+                    color: panel.extras.ping > 150 ? Theme.red : Theme.textSoft()
+                    font.family: Theme.body
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                }
+            }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 id: partyText
-                anchors.right: parent.right
+                anchors.right: opacityButton.left
+                anchors.rightMargin: panel.narrow ? 0 : 10
+                width: panel.narrow ? 0 : implicitWidth
+                visible: !panel.narrow
                 anchors.verticalCenter: parent.verticalCenter
                 text: "PARTY · " + panel.fight.rows.filter((r) => !r.others).length
                 color: Theme.dim()
@@ -532,6 +571,20 @@ Panel {
                 font.pixelSize: 11
                 font.weight: Font.Bold
                 font.letterSpacing: 1.5
+            }
+            // 100, 75, 50, 25 % ground, round.
+            TextButton {
+                id: opacityButton
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                implicitHeight: 24
+                text: panel.opacityPercent + "%"
+                onClicked: {
+                    const steps = [100, 75, 50, 25]
+                    const i = steps.indexOf(panel.opacityPercent)
+                    panel.opacityPercent = steps[(i + 1) % steps.length]
+                    Streams.saveOpacity("dps", panel.opacityPercent)
+                }
             }
         }
     }

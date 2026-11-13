@@ -37,3 +37,20 @@ pub fn data_dir() -> std::path::PathBuf {
     }
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
 }
+
+/// A class's English name: the game's tables name them in Korean
+/// (e.g. 궁성, "Ranger").
+pub fn job_name(job: &str) -> String {
+    let english = match job.trim() {
+        "검성" => "Gladiator",
+        "수호성" => "Templar",
+        "살성" => "Assassin",
+        "궁성" => "Ranger",
+        "마도성" => "Sorcerer",
+        "정령성" => "Spiritmaster",
+        "치유성" => "Cleric",
+        "호법성" => "Chanter",
+        other => return other.to_string(),
+    };
+    english.to_string()
+}

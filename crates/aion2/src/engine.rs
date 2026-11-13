@@ -3,7 +3,7 @@
 //! fight as the meter's page got it (`DpsData`). Runs only while AION 2
 //! runs; everything stops with `stop` (or when dropped).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -89,6 +89,36 @@ impl Engine {
         // the runner starts it and lives as long as the engine runs.
         let _ = std::thread::Builder::new().name("aion2-runner".into()).spawn(move || runner.run());
         engine
+    }
+
+    /// One player's skills in the fight now, from the fight's targets'
+    /// details (the fast snapshot leaves its per-skill lists empty).
+    pub fn live_skills(&self, data: &DpsData, actor: i32) -> serde_json::Value {
+        let calc = self.calculator.lock();
+        let Some(calc) = calc.as_ref() else { return serde_json::json!([]) };
+        let mut targets = data.detail_target_ids.clone();
+        if targets.is_empty() && data.target_id != 0 {
+            targets.push(data.target_id);
+        }
+        let mut entries = Vec::new();
+        for target in targets {
+            entries.extend(calc.get_target_details(target, Some(&[actor])).skills);
+        }
+        if entries.is_empty() {
+            return skills(data, actor);
+        }
+        detail_skills(&entries, actor)
+    }
+
+    /// Ping (ms) and Odyle energy, as the meter's bar showed them:
+    /// {"ping": ms|null, "odyle": [basic, charged]|null}.
+    pub fn extras(&self) -> serde_json::Value {
+        let calc = self.calculator.lock();
+        let Some(calc) = calc.as_ref() else { return serde_json::json!({ "ping": null, "odyle": null }) };
+        serde_json::json!({
+            "ping": calc.ping_ms(),
+            "odyle": calc.odyle_energy().map(|(basic, charged)| [basic, charged]),
+        })
     }
 
     /// The fight now, as the meter's page asked for it every 200 ms.
@@ -377,12 +407,12 @@ pub fn summary(data: &DpsData) -> serde_json::Value {
             } else if p.is_others {
                 "Others".to_string()
             } else {
-                format!("[{}]", p.job)
+                format!("[{}]", crate::job_name(&p.job))
             };
             serde_json::json!({
                 "id": id,
                 "name": name,
-                "job": p.job,
+                "job": crate::job_name(&p.job),
                 "dps": p.dps.round() as i64,
                 "amount": p.amount.round() as i64,
                 "share": (p.damage_contribution * 10.0).round() / 10.0,
@@ -431,6 +461,59 @@ pub fn skills(data: &DpsData, actor: i32) -> serde_json::Value {
                 "perfect": rate(s.perfect_times),
                 "double": rate(s.double_times),
                 "parry": rate(s.parry_times),
+            })
+        })
+        .collect();
+    list.sort_by(|a, b| b["damage"].as_i64().cmp(&a["damage"].as_i64()));
+    serde_json::Value::Array(list)
+}
+
+/// One player's skills from a fight's details (live or saved), merged by
+/// skill, most damage first: the SKILLS tab's rows.
+pub fn detail_skills(entries: &[crate::entity::details_context::DetailSkillEntry], actor: i32) -> serde_json::Value {
+    #[derive(Default)]
+    struct Sum {
+        name: String,
+        hits: i64,
+        damage: i64,
+        crit: i64,
+        back: i64,
+        perfect: i64,
+        double: i64,
+        parry: i64,
+    }
+    let mut by_code: HashMap<i32, Sum> = HashMap::new();
+    for e in entries.iter().filter(|e| e.actor_id == actor) {
+        let s = by_code.entry(e.code).or_default();
+        if s.name.is_empty() {
+            s.name = e.name.clone();
+        }
+        s.hits += e.time as i64;
+        s.damage += e.dmg as i64;
+        s.crit += e.crit as i64;
+        s.back += e.back as i64;
+        s.perfect += e.perfect as i64;
+        s.double += e.double as i64;
+        s.parry += e.parry as i64;
+    }
+    let total: i64 = by_code.values().map(|s| s.damage).sum();
+    let mut list: Vec<_> = by_code
+        .into_iter()
+        .filter(|(_, s)| s.hits > 0 || s.damage > 0)
+        .map(|(code, s)| {
+            let hits = s.hits.max(1) as f64;
+            let rate = |n: i64| ((n as f64) / hits * 1000.0).round() / 10.0;
+            serde_json::json!({
+                "code": code,
+                "name": if s.name.is_empty() { format!("#{code}") } else { s.name.clone() },
+                "casts": s.hits,
+                "damage": s.damage,
+                "share": if total > 0 { ((s.damage as f64) / (total as f64) * 1000.0).round() / 10.0 } else { 0.0 },
+                "crit": rate(s.crit),
+                "back": rate(s.back),
+                "perfect": rate(s.perfect),
+                "double": rate(s.double),
+                "parry": rate(s.parry),
             })
         })
         .collect();
@@ -518,6 +601,29 @@ mod tests {
         assert_eq!((rows[1]["name"].as_str(), rows[1]["dps"].as_i64()), (Some("[Gladiator]"), Some(10)));
         assert_eq!(rows[1]["share"].as_f64(), Some(33.3));
         assert_eq!(s["hpNow"].as_i64(), Some(700));
+    }
+
+    #[test]
+    fn detail_skills_merge_by_skill_for_one_player() {
+        use crate::entity::details_context::DetailSkillEntry;
+        let entry = |actor: i32, code: i32, hits: i32, dmg: i32, crit: i32| {
+            let mut e: DetailSkillEntry = serde_json::from_value(serde_json::json!({
+                "actorId": actor, "code": code, "name": "", "time": hits, "dmg": dmg,
+                "multiHitCount": 0, "multiHitDamage": 0, "crit": crit, "parry": 0, "back": 0,
+                "perfect": 0, "double": 0, "regen": 0
+            }))
+            .unwrap_or_else(|e| panic!("{e}"));
+            e.name = if code == 1 { "Strike".into() } else { String::new() };
+            e
+        };
+        // Two targets' entries of the same skill add up; another player's stay out.
+        let list = detail_skills(&[entry(5, 1, 4, 100, 2), entry(5, 1, 4, 100, 0), entry(5, 2, 1, 600, 1), entry(6, 1, 9, 900, 0)], 5);
+        let list = list.as_array().unwrap();
+        assert_eq!(list.len(), 2);
+        assert_eq!((list[0]["name"].as_str(), list[0]["damage"].as_i64(), list[0]["share"].as_f64()), (Some("#2"), Some(600), Some(75.0)));
+        assert_eq!((list[1]["casts"].as_i64(), list[1]["crit"].as_f64()), (Some(8), Some(25.0)));
+        assert_eq!(crate::job_name("궁성"), "Ranger");
+        assert_eq!(crate::job_name("Cleric"), "Cleric");
     }
 
     #[test]

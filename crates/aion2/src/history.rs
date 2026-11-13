@@ -33,7 +33,7 @@ fn list_entry(r: &FightRecord) -> serde_json::Value {
         "start": r.start_time_ms,
         "duration": r.duration_ms,
         "total": r.total_damage,
-        "jobs": r.jobs,
+        "jobs": r.jobs.iter().map(|j| crate::job_name(j)).collect::<Vec<_>>(),
         "train": r.is_train,
     })
 }
@@ -197,8 +197,8 @@ pub fn summary(record: &FightRecord) -> serde_json::Value {
             let h = heal.get(&a.actor_id).copied().unwrap_or(0);
             serde_json::json!({
                 "id": a.actor_id,
-                "name": if a.nickname.is_empty() { format!("[{}]", a.job) } else { a.nickname.clone() },
-                "job": a.job,
+                "name": if a.nickname.is_empty() { format!("[{}]", crate::job_name(&a.job)) } else { a.nickname.clone() },
+                "job": crate::job_name(&a.job),
                 "dps": (d as f64 / seconds).round() as i64,
                 "amount": d,
                 "share": if total > 0 { ((d as f64) / (total as f64) * 1000.0).round() / 10.0 } else { 0.0 },

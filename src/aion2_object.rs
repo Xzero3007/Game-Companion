@@ -162,12 +162,14 @@ impl qobject::Aion2 {
             while !stop.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_millis(500));
                 let snapshot = engine.snapshot();
-                let fight = engine::summary(&snapshot).to_string();
+                let mut fight = engine::summary(&snapshot);
+                fight["extras"] = engine.extras();
+                let fight = fight.to_string();
                 let actor = match wanted.load(Ordering::Relaxed) {
                     0 => snapshot.local_player_id.map_or(0, |id| id as i32),
                     id => id,
                 };
-                let skills = engine::skills(&snapshot, actor).to_string();
+                let skills = engine.live_skills(&snapshot, actor).to_string();
                 let status = engine.status();
                 let mut seen = last.lock().unwrap_or_else(|p| p.into_inner());
                 let fight_changed = seen.0 != fight;
@@ -263,8 +265,22 @@ impl qobject::Aion2 {
             self.as_mut().rust_mut().live = live;
         }
         self.as_mut().set_opened(QString::from(&id));
-        self.as_mut().set_fight(QString::from(&history::summary(&record).to_string()));
-        self.as_mut().set_skills(QString::from("[]"));
+        let summary = history::summary(&record);
+        // The saved fight's skills: the picked player's, else the top row's.
+        let picked = *self.picked();
+        let actor = summary["rows"]
+            .as_array()
+            .and_then(|rows| {
+                rows.iter()
+                    .find(|r| picked != 0 && r["id"].as_i64() == Some(picked as i64))
+                    .or_else(|| rows.iter().find(|r| r["me"].as_bool() == Some(true)))
+                    .or_else(|| rows.first())
+            })
+            .and_then(|r| r["id"].as_i64())
+            .unwrap_or(0) as i32;
+        let skills = engine::detail_skills(&record.details.skills, actor).to_string();
+        self.as_mut().set_fight(QString::from(&summary.to_string()));
+        self.as_mut().set_skills(QString::from(&skills));
     }
 
     fn remove_fight(mut self: Pin<&mut Self>, id: &QString) {
@@ -281,6 +297,11 @@ impl qobject::Aion2 {
     fn pick(mut self: Pin<&mut Self>, actor: i32) {
         self.wanted.store(actor, Ordering::Relaxed);
         self.as_mut().set_picked(actor);
+        // A saved fight shown: its skills follow the pick at once.
+        let opened = self.opened().clone();
+        if !opened.is_empty() {
+            self.open_fight(&opened);
+        }
     }
 }
 
@@ -291,7 +312,7 @@ const DEMO: &str = r#"{"time":134000,"target":"Training Scarecrow","boss":false,
 {"id":3,"name":"Party 3","job":"Ranger","dps":29300,"amount":3926200,"share":18.4,"hps":0,"heal":0,"me":false,"others":false},
 {"id":4,"name":"Party 4","job":"Assassin","dps":23900,"amount":3202600,"share":15.0,"hps":0,"heal":0,"me":false,"others":false},
 {"id":5,"name":"Party 5","job":"Templar","dps":16500,"amount":2211000,"share":10.4,"hps":1200,"heal":160800,"me":false,"others":false},
-{"id":6,"name":"Party 6","job":"Cleric","dps":9100,"amount":1219400,"share":7.7,"hps":14800,"heal":1983200,"me":false,"others":false}]}"#;
+{"id":6,"name":"Party 6","job":"Cleric","dps":9100,"amount":1219400,"share":7.7,"hps":14800,"heal":1983200,"me":false,"others":false}],"extras":{"ping":15,"odyle":[75,1850]}}"#;
 
 /// Made-up history for screenshots (GC_DEMO=dps,history).
 const DEMO_HISTORY: &str = r#"[

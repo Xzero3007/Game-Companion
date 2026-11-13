@@ -171,6 +171,16 @@ impl DpsCalculator {
         self.data_storage.set_current_target(0);
     }
 
+    /// Game Companion: the ping now (ms), as the meter's bar showed it.
+    pub fn ping_ms(&self) -> Option<i32> {
+        self.ping_tracker.current_ping_ms()
+    }
+
+    /// Game Companion: Odyle energy (basic, charged), as the game last sent it.
+    pub fn odyle_energy(&self) -> Option<(u32, u32)> {
+        self.data_storage.odyle_energy()
+    }
+
     pub fn get_dps(&mut self) -> DpsData {
         // A zone change flushed combat data; drop our cached snapshot and saved-target
         // state so the meter resets this cycle instead of returning the stale snapshot.

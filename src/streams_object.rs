@@ -988,15 +988,16 @@ impl qobject::Streams {
 
     fn opacity_of(&self, slot: &QString) -> i32 {
         let slot = slot.to_string();
-        // The chat's ground can go almost clear (its text keeps an outline).
-        let low = if slot == "chat" { 10 } else { 50 };
+        // The chat's and the DPS meter's ground can go almost clear (their
+        // text keeps an outline).
+        let low = if slot == "chat" || slot == "dps" { 10 } else { 50 };
         settings::read(|s| s.streams.video_opacity.get(&slot).copied()).map_or(100, |p| i32::from(p.clamp(low, 100)))
     }
 
     fn save_opacity(self: Pin<&mut Self>, slot: &QString, percent: i32) {
         let slot = slot.to_string();
-        if slot == "twitch" || slot == "youtube" || slot == "chat" {
-            let p = percent.clamp(if slot == "chat" { 10 } else { 50 }, 100) as u8;
+        if slot == "twitch" || slot == "youtube" || slot == "chat" || slot == "dps" {
+            let p = percent.clamp(if slot == "chat" || slot == "dps" { 10 } else { 50 }, 100) as u8;
             settings::change(|s| s.streams.video_opacity.insert(slot.clone(), p));
         }
     }
