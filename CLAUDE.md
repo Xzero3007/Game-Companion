@@ -16,7 +16,8 @@ learnt, so nothing has to be asked or worked out again.
   outputs equal the connected ones, its output with the lowest priority,
   1-based there, mapped by outputIndex to "outputs"[i].connectorName =
   QScreen::name(); Settings → Display "Show on" overrides it, settings
-  `screen`; `NativeWindow::screen`; `place` gives each window that screen's origin
+  `screen`; a layer surface's output is fixed when it is made, so `place`
+  hides a visible window, sets the new screen and shows it again (0.4.7); `NativeWindow::screen`; `place` gives each window that screen's origin
   plus its place, else Qt moves it to the screen at that point: 0.4.1 drew
   on the Acer). Check with an offscreen `configfile` of two screens,
   `GC_SCREEN=<name>` (the offscreen platform makes the one at 0,0 primary)
