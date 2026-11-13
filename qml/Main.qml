@@ -21,6 +21,7 @@ Overlay {
     property bool dpsOpen: false
     property bool mapOpen: false
     property bool marketOpen: false
+    property bool charactersOpen: false
     /// The person closed the DPS panel: it stays closed when AION 2 starts.
     property bool dpsClosed: false
     /// The game id AION 2 runs under (its module stops when that one ends).
@@ -29,7 +30,7 @@ Overlay {
         aionId = id
         // The package and its meter can be switched off (Settings → Plugins).
         if (!Plugins.loads(plugins, "aion2")) return
-        if (!Plugins.choice(plugins, "aion2.dps").on && !Plugins.choice(plugins, "aion2.map").on && !Plugins.choice(plugins, "aion2.market").on) return
+        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters"].some((id) => Plugins.choice(plugins, id).on)) return
         Aion2.start()
         if (!dpsClosed && Plugins.inBar(plugins, "aion2.dps")) dpsOpen = true
     }
@@ -52,6 +53,7 @@ Overlay {
         if (dpsOpen) ids.push("dps")
         if (mapOpen) ids.push("map")
         if (marketOpen) ids.push("market")
+        if (charactersOpen) ids.push("characters")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
@@ -61,6 +63,7 @@ Overlay {
         dpsOpen = ids.indexOf("dps") >= 0
         mapOpen = ids.indexOf("map") >= 0
         marketOpen = ids.indexOf("market") >= 0
+        charactersOpen = ids.indexOf("characters") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
@@ -74,6 +77,7 @@ Overlay {
         if (demo.indexOf("dps") >= 0) dpsOpen = true
         if (demo.indexOf("map") >= 0) mapOpen = true
         if (demo.indexOf("market") >= 0) marketOpen = true
+        if (demo.indexOf("chars") >= 0) charactersOpen = true
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("games") >= 0) games.demo(demo)
@@ -204,6 +208,9 @@ Overlay {
             marketShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.market")) || root.marketOpen
             marketOpen: root.marketOpen
             onMarketClicked: root.marketOpen = !root.marketOpen
+            charactersShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.characters")) || root.charactersOpen || characterStore.demo
+            charactersOpen: root.charactersOpen
+            onCharactersClicked: root.charactersOpen = !root.charactersOpen
             gameName: Games.runningName
             gameHasModule: Games.runningKnown.length > 0
             streamsOpen: root.streamsOpen
@@ -327,6 +334,21 @@ Overlay {
             defaultX: Math.max(24, (root.width - width) / 2 + 40)
             defaultY: 160
             onCloseClicked: root.marketOpen = false
+        }
+    }
+
+    // Every character the game showed, kept while the app runs (the
+    // Characters panel and later areas read it).
+    CharacterStore { id: characterStore }
+
+    Surface {
+        wanted: root.charactersOpen && root.onScreen("characters")
+        stack: 3
+        part: CharactersPanel {
+            store: characterStore
+            defaultX: Math.max(24, (root.width - width) / 2 - 40)
+            defaultY: 150
+            onCloseClicked: root.charactersOpen = false
         }
     }
 
