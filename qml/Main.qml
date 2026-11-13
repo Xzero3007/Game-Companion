@@ -1,6 +1,7 @@
 import QtQuick
 import GameCompanion
 import "theme.js" as Theme
+import "plugins.js" as Plugins
 
 // The overlay: every part (the bar, the player row, each panel, each
 // video) in a small window of its own on the overlay layer (Surface), as
@@ -23,9 +24,12 @@ Overlay {
     property string aionId: ""
     function aionStarted(id) {
         aionId = id
+        // The package and its meter can be switched off (Settings → Plugins).
+        if (!Plugins.loads(plugins, "aion2") || !Plugins.choice(plugins, "aion2.dps").on) return
         Aion2.start()
-        if (!dpsClosed) dpsOpen = true
+        if (!dpsClosed && Plugins.inBar(plugins, "aion2.dps")) dpsOpen = true
     }
+    readonly property var plugins: JSON.parse(Companion.plugins)
     readonly property var keys: JSON.parse(Companion.shortcuts)
     readonly property var pins: JSON.parse(Companion.pins)
 
@@ -181,7 +185,7 @@ Overlay {
             radioOpen: root.radioOpen
             gamesOpen: root.gamesOpen
             onGamesClicked: root.gamesOpen = !root.gamesOpen
-            dpsShown: Aion2.active || root.dpsOpen
+            dpsShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.dps")) || root.dpsOpen
             dpsOpen: root.dpsOpen
             onDpsClicked: { root.dpsOpen = !root.dpsOpen; root.dpsClosed = !root.dpsOpen }
             gameName: Games.runningName

@@ -62,6 +62,28 @@ pub struct Settings {
     pub jellyfin: JellyfinSettings,
     /// The Games tab: own entries and hidden games.
     pub games: crate::games::GamesSettings,
+    /// Each plugin's choice (Settings → Plugins), by its id; a plugin not
+    /// listed is on and in the bar.
+    pub plugins: BTreeMap<String, PluginChoice>,
+    /// Whether a game's package loads when the game runs, by the
+    /// package's id; one not listed loads.
+    pub packages: BTreeMap<String, bool>,
+}
+
+/// One plugin's choice: on or off, and where its button sits.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PluginChoice {
+    pub on: bool,
+    /// "bar" (its own button) or "hidden" (no button; opened from the
+    /// Plugins page).
+    pub place: String,
+}
+
+impl Default for PluginChoice {
+    fn default() -> Self {
+        Self { on: true, place: "bar".into() }
+    }
 }
 
 /// The bar at the top: moved sideways by `offset` pixels from the screen's
@@ -351,6 +373,8 @@ impl Default for Settings {
             streams: StreamsSettings::default(),
             jellyfin: JellyfinSettings::default(),
             games: Default::default(),
+            plugins: BTreeMap::new(),
+            packages: BTreeMap::new(),
         }
     }
 }

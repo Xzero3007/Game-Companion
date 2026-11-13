@@ -68,6 +68,7 @@ fn main() {
             "qml/theme.js",
             "qml/drag.js",
             "qml/launch.js",
+            "qml/plugins.js",
         ]);
     // SAFETY: only adds include paths and a define to the C++ build.
     let builder = unsafe {

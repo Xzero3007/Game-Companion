@@ -61,6 +61,9 @@ pub mod qobject {
         #[qproperty(QString, shortcuts)]
         /// What stays while the hub is hidden, as a JSON list of ids.
         #[qproperty(QString, pins)]
+        /// The plugin choices as JSON: {"plugins": {id: {on, place}},
+        /// "packages": {id: load}}.
+        #[qproperty(QString, plugins)]
         /// The saved layouts' names, as a JSON list.
         #[qproperty(QString, layouts)]
         /// Goes up when a layout is loaded: panels then take their places again.
@@ -73,6 +76,15 @@ pub mod qobject {
 
         #[qinvokable]
         fn toggle_locked(self: Pin<&mut Companion>);
+
+        /// Switches a plugin on or off and sets where its button sits
+        /// ("bar" or "hidden").
+        #[qinvokable]
+        fn set_plugin(self: Pin<&mut Companion>, id: &QString, on: bool, place: &QString);
+
+        /// Whether a game's package loads with the game.
+        #[qinvokable]
+        fn set_package(self: Pin<&mut Companion>, id: &QString, load: bool);
 
         #[qinvokable]
         fn toggle_shown(self: Pin<&mut Companion>);
@@ -192,6 +204,7 @@ pub struct CompanionRust {
     welcome: bool,
     shortcuts: QString,
     pins: QString,
+    plugins: QString,
     layouts: QString,
     layout_revision: i32,
     shortcut_state: Vec<(&'static str, shortcuts::Status)>,
@@ -233,6 +246,7 @@ impl Default for CompanionRust {
             welcome,
             shortcuts: QString::from(&shortcuts_json(&shortcut_state)),
             pins: QString::from(&pins),
+            plugins: QString::from(&settings::read(plugins_json)),
             layouts: QString::from(&layouts),
             layout_revision: 0,
             shortcut_state,
@@ -248,6 +262,10 @@ fn layouts_json(layouts: &std::collections::BTreeMap<String, settings::Layout>) 
 
 fn numbers_json(values: &[f64]) -> String {
     serde_json::to_string(values).unwrap_or_else(|_| "[]".into())
+}
+
+fn plugins_json(s: &settings::Settings) -> String {
+    serde_json::json!({ "plugins": s.plugins, "packages": s.packages }).to_string()
 }
 
 fn pins_json(pins: &std::collections::BTreeSet<String>) -> String {
@@ -514,6 +532,31 @@ impl qobject::Companion {
         // The lock stays as it is: hidden, the pinned things keep it.
         let shown = !*self.shown();
         self.set_shown(shown);
+    }
+
+    fn set_plugin(self: Pin<&mut Self>, id: &QString, on: bool, place: &QString) {
+        let id = id.to_string();
+        let place = place.to_string();
+        if id.is_empty() || id.len() > 64 || !matches!(place.as_str(), "bar" | "hidden") {
+            return;
+        }
+        let json = settings::change(|s| {
+            s.plugins.insert(id, settings::PluginChoice { on, place });
+            plugins_json(s)
+        });
+        self.set_plugins(QString::from(&json));
+    }
+
+    fn set_package(self: Pin<&mut Self>, id: &QString, load: bool) {
+        let id = id.to_string();
+        if id.is_empty() || id.len() > 64 {
+            return;
+        }
+        let json = settings::change(|s| {
+            s.packages.insert(id, load);
+            plugins_json(s)
+        });
+        self.set_plugins(QString::from(&json));
     }
 
     fn toggle_pin(self: Pin<&mut Self>, id: &QString) {

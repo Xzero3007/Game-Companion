@@ -1,13 +1,14 @@
 import QtQuick
 import GameCompanion
 import "theme.js" as Theme
+import "plugins.js" as Plugins
 
 // Settings: how solid the panels are, the shortcuts, and what this is.
 Panel {
     id: settings
     panelId: "settings"
     title: "Settings"
-    width: 440
+    width: 500
 
     property string tab: nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0
         || nativeWindow.demo.indexOf("ytsettings") >= 0 ? "streams" : "general"
@@ -20,7 +21,7 @@ Panel {
     signal saveLayoutRequested(string name)
     signal loadLayoutRequested(string name)
     Component.onCompleted: {
-        for (const t of ["display", "layouts", "streams-settings", "shortcuts", "about"]) if (nativeWindow.demo.indexOf(t) >= 0) tab = t.replace("-settings", "")
+        for (const t of ["display", "layouts", "streams-settings", "shortcuts", "about", "plugins"]) if (nativeWindow.demo.indexOf(t) >= 0) tab = t.replace("-settings", "")
         if (nativeWindow.demo.indexOf("startmenu") >= 0) startChoice.open = true
     }
 
@@ -31,6 +32,7 @@ Panel {
         Row {
             spacing: 12
             Tab { name: "general"; label: "General" }
+            Tab { name: "plugins"; label: "Plugins" }
             Tab { name: "display"; label: "Display" }
             Tab { name: "layouts"; label: "Layouts" }
             Tab { name: "streams"; label: "Streams" }
@@ -38,6 +40,177 @@ Panel {
             Tab { name: "about"; label: "About" }
         }
         Rectangle { width: parent.width; height: 1; color: Theme.divider; anchors.topMargin: -12 }
+
+        // Plugins: grouped by package (global, then one per game), each
+        // plugin on or off and with its button in the bar or not.
+        Column {
+            id: pluginsPage
+            visible: settings.tab === "plugins"
+            width: parent.width
+            spacing: 10
+            readonly property var all: JSON.parse(Companion.plugins)
+            property string packageId: nativeWindow.demo.indexOf("pluginsglobal") >= 0 ? "global" : "aion2"
+            readonly property var pack: Plugins.packages.filter((p) => p.id === packageId)[0]
+
+            Row {
+                spacing: 16
+                Repeater {
+                    model: Plugins.packages
+                    delegate: Item {
+                        required property var modelData
+                        readonly property bool chosen: pluginsPage.packageId === modelData.id
+                        readonly property bool loaded: modelData.id === "aion2" && Aion2.active
+                        width: packRow.implicitWidth
+                        height: 26
+                        Row {
+                            id: packRow
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 6
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 7
+                                height: 7
+                                color: !modelData.game ? Theme.muted() : parent.parent.loaded ? Theme.purple : "transparent"
+                                border.color: modelData.game ? Theme.purple : Theme.muted()
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                                text: modelData.name.toUpperCase()
+                                color: parent.parent.chosen ? Theme.accent : (packMouse.containsMouse ? Theme.text() : Theme.dim())
+                                font.family: Theme.display
+                                font.pixelSize: 12
+                                font.weight: Font.Bold
+                                font.letterSpacing: 1.5
+                            }
+                        }
+                        Rectangle { visible: parent.chosen; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent }
+                        MouseArea {
+                            id: packMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: pluginsPage.packageId = modelData.id
+                        }
+                        Accessible.role: Accessible.PageTab
+                        Accessible.name: modelData.name
+                    }
+                }
+            }
+
+            Hint {
+                text: pluginsPage.pack.about
+                    + (pluginsPage.pack.id === "aion2" ? (Aion2.active ? " Running now: loaded." : " Not running: nothing loaded.") : "")
+            }
+            OnOff {
+                visible: pluginsPage.pack.game
+                width: parent.width
+                text: "Load with the game"
+                on: Plugins.loads(pluginsPage.all, pluginsPage.pack.id)
+                onToggled: Companion.setPackage(pluginsPage.pack.id, !Plugins.loads(pluginsPage.all, pluginsPage.pack.id))
+            }
+            Hint {
+                visible: pluginsPage.pack.plugins.length === 0
+                text: "No plugins in this package yet."
+            }
+
+            Repeater {
+                model: pluginsPage.pack.plugins
+                delegate: Item {
+                    id: plugRow
+                    required property var modelData
+                    readonly property var p: modelData
+                    readonly property var c: Plugins.choice(pluginsPage.all, p.id)
+                    readonly property bool usable: !pluginsPage.pack.game || Plugins.loads(pluginsPage.all, pluginsPage.pack.id)
+                    width: pluginsPage.width
+                    height: Math.max(48, plugText.implicitHeight + 16)
+                    opacity: (p.fixed || c.on) && usable ? 1 : 0.55
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
+                    Rectangle {
+                        y: 8
+                        width: 30
+                        height: 30
+                        color: pluginsPage.pack.game ? Qt.rgba(155 / 255, 107 / 255, 232 / 255, 0.25) : Qt.rgba(1, 1, 1, 0.08)
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                            anchors.centerIn: parent
+                            text: plugRow.p.short
+                            color: pluginsPage.pack.game ? "#e6dbfa" : Theme.textSoft()
+                            font.family: Theme.display
+                            font.pixelSize: 13
+                            font.weight: Font.Bold
+                        }
+                    }
+                    Column {
+                        id: plugText
+                        x: 42
+                        y: 8
+                        width: parent.width - 42 - controls.width - 10
+                        spacing: 2
+                        Row {
+                            spacing: 8
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                                text: plugRow.p.name
+                                color: Theme.text()
+                                font.family: Theme.body
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                            }
+                            Rectangle {
+                                visible: !plugRow.p.built
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: comingText.implicitWidth + 10
+                                height: 16
+                                color: "transparent"
+                                border.color: Theme.dim()
+                                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                                    id: comingText
+                                    anchors.centerIn: parent
+                                    text: "COMING"
+                                    color: Theme.dim()
+                                    font.family: Theme.display
+                                    font.pixelSize: 10
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.2
+                                }
+                            }
+                        }
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: plugRow.p.about
+                            color: Theme.muted()
+                            font.family: Theme.body
+                            font.pixelSize: 12
+                        }
+                    }
+                    Row {
+                        id: controls
+                        anchors.right: parent.right
+                        y: 10
+                        spacing: 8
+                        // Where its button sits: the bar, or none.
+                        SmallToggle {
+                            visible: !plugRow.p.fixed
+                            enabled: plugRow.c.on
+                            width: 78
+                            text: plugRow.c.place === "bar" ? "IN BAR" : "HIDDEN"
+                            on: plugRow.c.on && plugRow.c.place === "bar"
+                            tip: "Whether its button shows in the bar"
+                            onClicked: Companion.setPlugin(plugRow.p.id, plugRow.c.on, plugRow.c.place === "bar" ? "hidden" : "bar")
+                        }
+                        SmallToggle {
+                            width: 52
+                            text: plugRow.p.fixed ? "CORE" : plugRow.c.on ? "ON" : "OFF"
+                            on: plugRow.p.fixed || plugRow.c.on
+                            enabled: !plugRow.p.fixed
+                            tip: plugRow.p.fixed ? "Part of Game Companion itself" : "Switch the plugin on or off"
+                            onClicked: Companion.setPlugin(plugRow.p.id, !plugRow.c.on, plugRow.c.place)
+                        }
+                    }
+                }
+            }
+            Hint { text: pluginsPage.pack.game
+                ? "Global plugins sit in their own group and are never mixed with a game's. A plugin marked COMING is still being moved over from the AION 2 meter; your choice is kept for when it arrives."
+                : "Radio and Streams are part of Game Companion and always there." }
+        }
 
         // General
         Column {
@@ -807,6 +980,38 @@ Panel {
             Hint { text: "The overlay works without the internet. It goes online only for the radio you play, Twitch and YouTube in Streams, SponsorBlock when you switch it on, and to look for its own updates on GitHub." }
             Hint { text: "Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project Authors, both under the SIL Open Font License 1.1." }
         }
+    }
+
+    // A small framed switch: its text in the accent while on.
+    component SmallToggle: Rectangle {
+        id: smallToggle
+        property string text
+        property bool on: false
+        property string tip: ""
+        signal clicked
+        height: 26
+        color: smallMouse.containsMouse && enabled ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.12) : "transparent"
+        border.color: on ? Theme.accent : Theme.track
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow
+            anchors.centerIn: parent
+            text: smallToggle.text
+            color: smallToggle.on ? Theme.accent : Theme.dim()
+            font.family: Theme.display
+            font.pixelSize: 11
+            font.weight: Font.Bold
+            font.letterSpacing: 1.5
+        }
+        MouseArea {
+            id: smallMouse
+            anchors.fill: parent
+            enabled: smallToggle.enabled
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: smallToggle.clicked()
+        }
+        Accessible.role: Accessible.Button
+        Accessible.name: text
+        Accessible.description: tip
     }
 
     component Tab: Item {
