@@ -1,4 +1,5 @@
 import QtQuick
+import GameCompanion
 
 // The mouse wheel over a list: each notch glides it a set distance (Qt's
 // own wheel scrolling crept along). Lies over the list and takes only the
@@ -6,7 +7,12 @@ import QtQuick
 // it one to one. Notches in a row, and the many small steps of a
 // high-resolution wheel, add to where the glide goes without starting it
 // again (SmoothedAnimation keeps its speed when the goal moves): the list
-// runs on evenly instead of jerking at every step.
+// runs on evenly instead of jerking at every step. Settings → Display
+// "Scroll speed" scales every step (Companion.wheelSpeed, percent).
+//
+// A notch is told by its angle (a multiple of 120): on KDE Wayland Qt
+// gives a mouse wheel's notch a small pixel delta as well (about 15 px),
+// which was taken for a touchpad and scrolled almost nothing (MN).
 MouseArea {
     id: wheelArea
     /// The list (or any Flickable) it scrolls.
@@ -36,12 +42,16 @@ MouseArea {
         const top = flick.originY - flick.topMargin
         const clamp = (y) => Math.max(top, Math.min(top + room, y))
         flick.cancelFlick()
-        if (wheel.pixelDelta.y !== 0) {
-            // A touchpad says pixels: follow it as it is.
+        const speed = Companion.wheelSpeed / 100
+        const angle = wheel.angleDelta.y
+        const notch = angle !== 0 && (angle % 120 === 0 || wheel.pixelDelta.y === 0)
+        if (!notch && wheel.pixelDelta.y !== 0) {
+            // A touchpad (or a fine wheel) says pixels: follow them.
             gliding = false
-            flick.contentY = clamp(flick.contentY - wheel.pixelDelta.y)
+            flick.contentY = clamp(flick.contentY - wheel.pixelDelta.y * speed)
             return
         }
+        if (angle === 0) { wheel.accepted = false; return }
         if (!glide.running) {
             // Start from where the list is now (it may have moved otherwise).
             gliding = false
@@ -50,7 +60,7 @@ MouseArea {
             gliding = true
         }
         // A wheel says eighths of a degree (120 a notch).
-        target = clamp(target - wheel.angleDelta.y / 120 * step)
+        target = clamp(target - angle / 120 * step * speed)
         pos = target
     }
 }

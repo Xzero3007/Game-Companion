@@ -87,6 +87,11 @@ pub mod qobject {
         #[qinvokable]
         fn find_next(self: Pin<&mut Jellyfin>, slot: &QString, series: &QString, item: &QString);
 
+        /// Looks for the track `step` places from `item` in its album (1
+        /// the next, -1 the one before); it comes with `next_found`.
+        #[qinvokable]
+        fn find_track(self: Pin<&mut Jellyfin>, slot: &QString, album: &QString, item: &QString, step: i32);
+
         /// The next episode (JSON item), or "" for none.
         #[qsignal]
         fn next_found(self: Pin<&mut Jellyfin>, slot: QString, after: QString, next: QString);
@@ -353,16 +358,26 @@ impl qobject::Jellyfin {
                 let source_id = source.get("Id").and_then(Value::as_str).filter(|s| jellyfin::token_ok(s)).unwrap_or(&item).to_string();
                 let session = info.get("PlaySessionId").and_then(Value::as_str).filter(|s| jellyfin::token_ok(s)).unwrap_or("").to_string();
                 let tracks = if source.is_null() { json!({ "audio": [], "subs": [], "audioIndex": -1, "subIndex": -1 }) } else { jellyfin::tracks_of(&source) };
-                let transcode = !matches!(quality.as_str(), "original" | "audio");
+                // A music track: its file as it is, whatever the video quality.
+                let music = jellyfin::sound_only(&source);
+                let transcode = !music && !matches!(quality.as_str(), "original" | "audio");
                 let audio_index = if audio >= 0 { Some(audio as u32) } else { tracks["audioIndex"].as_i64().filter(|a| *a >= 0).map(|a| a as u32) };
-                let path = jellyfin::stream_path(&item, &source_id, &session, &quality, if transcode { audio_index } else { None });
+                let path = if music {
+                    jellyfin::audio_path(&item, &source_id)
+                } else {
+                    jellyfin::stream_path(&item, &source_id, &session, &quality, if transcode { audio_index } else { None })
+                };
                 let (url, header) = jellyfin::mpv_source(&account, &path)?;
-                Ok(json!({ "url": url, "header": header, "source": source_id, "session": session, "transcode": transcode, "tracks": tracks }))
+                Ok(json!({ "url": url, "header": header, "source": source_id, "session": session, "transcode": transcode, "tracks": tracks, "music": music }))
             })();
+            let music = answer.as_ref().is_ok_and(|a| a["music"] == true);
             let answer = answer.unwrap_or_else(|e| json!({ "error": e })).to_string();
             let (s2, i2) = (slot.clone(), item.clone());
             let _ = thread.queue(move |obj: Pin<&mut qobject::Jellyfin>| obj.prepared(q(&slot), q(&item), q(&answer)));
-            // Then the parts to skip, which may take a few tries.
+            // Then the parts to skip, which may take a few tries (music has none).
+            if music {
+                return;
+            }
             if let Some(account) = jellyfin::load_account() {
                 let segs = Value::Array(jellyfin::skip_segments(&account, &i2)).to_string();
                 let _ = thread.queue(move |obj: Pin<&mut qobject::Jellyfin>| obj.segments_loaded(q(&s2), q(&i2), q(&segs)));
@@ -436,6 +451,16 @@ impl qobject::Jellyfin {
         let thread = self.qt_thread();
         std::thread::spawn(move || {
             let next = jellyfin::next_episode(&account, &series, &item).ok().flatten().map(|v| v.to_string()).unwrap_or_default();
+            let _ = thread.queue(move |obj: Pin<&mut qobject::Jellyfin>| obj.next_found(q(&slot), q(&item), q(&next)));
+        });
+    }
+
+    fn find_track(self: Pin<&mut Self>, slot: &QString, album: &QString, item: &QString, step: i32) {
+        let (slot, album, item) = (slot.to_string(), album.to_string(), item.to_string());
+        let Some(account) = jellyfin::load_account() else { return };
+        let thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let next = jellyfin::album_track(&account, &album, &item, step.signum() as i64).ok().flatten().map(|v| v.to_string()).unwrap_or_default();
             let _ = thread.queue(move |obj: Pin<&mut qobject::Jellyfin>| obj.next_found(q(&slot), q(&item), q(&next)));
         });
     }

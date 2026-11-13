@@ -16,6 +16,8 @@ Item {
     property string slot
     readonly property string panelId: "video-" + slot
     readonly property bool jelly: slot === "jellyfin"
+    /// A Jellyfin music track: its album's cover shows, and the album plays on.
+    readonly property bool music: jelly && !!item && !!item.item && item.item.type === "Audio"
     readonly property string label: slot === "twitch" ? "Twitch" : jelly ? "Jellyfin" : "YouTube"
     /// What plays: { kind, id, name, title } (Jellyfin: and `item`, the
     /// panel's item, and `start`, where to begin).
@@ -262,6 +264,11 @@ Item {
         function onNextFound(slot, after, next) {
             if (slot !== win.slot || !win.item || win.item.id !== after || next.length === 0) return
             const it = JSON.parse(next)
+            // The album's next (or previous) track: at once.
+            if (it.type === "Audio") {
+                win.play({ kind: "jellyfin", id: it.id, title: it.name, name: it.sub, item: it, start: 0 })
+                return
+            }
             win.nextItem = it
             win.nextNote = "NEXT: " + (it.code ? it.code + " · " : "") + it.name
             nextTimer.restart()
@@ -356,6 +363,7 @@ Item {
                 win.jfStopped()
                 const it = win.item.item
                 if (Jellyfin.autoNext && it && it.type === "Episode" && it.seriesId) Jellyfin.findNext(win.slot, it.seriesId, win.item.id)
+                else if (it && it.type === "Audio" && it.albumId) Jellyfin.findTrack(win.slot, it.albumId, win.item.id, 1)
             }
         }
         function onPausedChanged() { if (win.jf.started) win.jfReport("progress") }
@@ -523,6 +531,20 @@ Item {
                 // Jellyfin: the home network's server, nothing else.
                 local: win.jelly
             }
+        }
+    }
+    // A music track: its album's cover over the (empty or tiny) picture.
+    Rectangle {
+        anchors.fill: parent
+        visible: win.music
+        color: "#0e0d11"
+        opacity: win.videoOpacity
+        Image {
+            anchors.fill: parent
+            anchors.margins: 12
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true
+            source: win.music ? (win.item.item.picture || "") : ""
         }
     }
     readonly property var video: videoLoader.item || idleVideo
@@ -790,8 +812,26 @@ Item {
                 onStepped: (d) => win.setVolume(win.volume + d)
                 onPicked: (v) => win.setVolume(v)
             }
-            SeekButton { back: true }
-            SeekButton { back: false }
+            IconButton {
+                visible: win.music && !!win.item.item.albumId
+                anchors.verticalCenter: parent.verticalCenter
+                icon: "prev"
+                iconSize: 13
+                color: Theme.text()
+                tip: "Previous track"
+                onClicked: Jellyfin.findTrack(win.slot, win.item.item.albumId, win.item.id, -1)
+            }
+            IconButton {
+                visible: win.music && !!win.item.item.albumId
+                anchors.verticalCenter: parent.verticalCenter
+                icon: "next"
+                iconSize: 13
+                color: Theme.text()
+                tip: "Next track"
+                onClicked: Jellyfin.findTrack(win.slot, win.item.item.albumId, win.item.id, 1)
+            }
+            SeekButton { back: true; visible: !win.music && video.duration > 0 }
+            SeekButton { back: false; visible: !win.music && video.duration > 0 }
             IconButton {
                 visible: !!win.nextInQueue
                 anchors.verticalCenter: parent.verticalCenter

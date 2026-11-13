@@ -305,7 +305,11 @@ learnt, so nothing has to be asked or worked out again.
   Twitch's cursors, `fetch_twitch`, `load_more_twitch` at the list's end
   or by "Load more", `GC_DEMO=…,more`; the cursor is written into the
   query as a string: a typed `$a: Cursor` variable brought nothing on
-  MN's test; why a page failed shows under the list, `twitchMoreNote`;
+  MN's test; on 0.7.7 Twitch sent the first page again for a cursor, so
+  when a page brings nothing new `load_more_twitch` asks for a longer list
+  from the top instead (`{"first": n}`, `twitch_query_page`, 30 more each
+  time, at most `TWITCH_LONGEST` 100); why a page failed shows under the
+  list, `twitchMoreNote`;
   YouTube pages too: `load_more_youtube`, yt-dlp `--playlist-items`,
   subscriptions 60 a page from the kept 200), quality per channel, live notes (a thread every 120 s while
   on, generation `ALERTS_RUN`; red count, no pop-up). Videos: chapters
@@ -331,9 +335,22 @@ learnt, so nothing has to be asked or worked out again.
 - Jellyfin Continue and Next up (`series_first`): an episode shows the
   series' name, then code and episode, with the series' thumb (else
   backdrop, else poster); collections (boxsets) are a library.
+- Jellyfin music (0.8.2, MN): a music library opens to its albums (by
+  artist), an album to its tracks (`folder`, kind `MusicAlbum`); a track
+  (`sound_only` source) plays its file as it is (`audio_path`, no
+  segments asked) in the Jellyfin window with the album's cover over it,
+  previous/next track buttons and the album played through
+  (`find_track` → `album_track`). The fake server has a music library
+  (`song.ogg`); without a sound card a `~/.asoundrc` with
+  `pcm.!default { type null }` lets mpv play (and end) sound in the
+  sandbox (remove it after).
 - `WheelScroll`: a `Behavior` with `SmoothedAnimation` on `pos`, so wheel
   steps add to the goal without restarting the glide (MN: scrolling felt
-  poor); lists keep `cacheBuffer: 600`.
+  poor); lists keep `cacheBuffer: 600`. A notch is told by its angle (a
+  multiple of 120): on KDE Wayland Qt gives a wheel notch a small pixel
+  delta too, which was taken for a touchpad (MN: scrolled far too little).
+  Settings → Display "Scroll speed" (`Companion.wheelSpeed`, 50 to 300 %)
+  scales every step. `GC_DEMO=settings,display`.
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
 - `HudIcon` is a picture from the icon provider (`cpp/icons.cpp`,

@@ -123,7 +123,18 @@ pub fn next_cursor(data: &Value, at: &str) -> Option<String> {
 /// Twitch's query for a list, from a page cursor on (live lists,
 /// categories, past broadcasts and clips page; the others ignore it).
 pub fn twitch_query_after(kind: &str, arg: &Value, after: Option<&str>) -> Result<Value, String> {
+    twitch_query_page(kind, arg, after, None)
+}
+
+/// The most a longer list asks Twitch for at once.
+pub const TWITCH_LONGEST: usize = 100;
+
+/// As `twitch_query_after`; `first` asks the live lists and categories for
+/// that many at once (from the top, when Twitch sends the first page again
+/// for a cursor: MN's 0.7.7 showed it doing so).
+pub fn twitch_query_page(kind: &str, arg: &Value, after: Option<&str>, first: Option<usize>) -> Result<Value, String> {
     let after = after.filter(|c| valid_cursor(c));
+    let n = |default: usize| first.map_or(default, |f| f.clamp(1, TWITCH_LONGEST));
     // The first page asks exactly as before; later pages write the cursor
     // in as a string (Twitch refused it as a typed variable).
     let from = after.map(|c| format!(", after: \"{c}\"")).unwrap_or_default();
@@ -162,15 +173,15 @@ pub fn twitch_query_after(kind: &str, arg: &Value, after: Option<&str>) -> Resul
             let page = format!("edges {{ cursor node {{ {fields} }} }} pageInfo {{ hasNextPage }}");
             match arg.as_str().map(str::trim).filter(|g| !g.is_empty()) {
                 Some(game) if game.len() <= 100 => Ok(json!({
-                    "query": format!("query($g: String!) {{ game(name: $g) {{ streams(first: 30{from}) {{ {page} }} }} }}"),
+                    "query": format!("query($g: String!) {{ game(name: $g) {{ streams(first: {}{from}) {{ {page} }} }} }}", n(30)),
                     "variables": { "g": game },
                 })),
                 Some(_) => Err("not a game".into()),
-                None => Ok(json!({ "query": format!("query {{ streams(first: 30{from}) {{ {page} }} }}") })),
+                None => Ok(json!({ "query": format!("query {{ streams(first: {}{from}) {{ {page} }} }}", n(30)) })),
             }
         }
         // The most watched categories (Twitch's directory).
-        "categories" => Ok(json!({ "query": format!("query {{ games(first: 40{from}) {{ edges {{ cursor node {{ {CATEGORY} }} }} pageInfo {{ hasNextPage }} }} }}") })),
+        "categories" => Ok(json!({ "query": format!("query {{ games(first: {}{from}) {{ edges {{ cursor node {{ {CATEGORY} }} }} pageInfo {{ hasNextPage }} }} }}", n(40)) })),
         "searchCategories" => {
             let text = arg.as_str().map(str::trim).filter(|t| !t.is_empty() && t.len() <= 100).ok_or("no search words")?;
             Ok(json!({
@@ -1199,6 +1210,12 @@ mod tests {
         assert!(!twitch_query("live", &Value::Null).unwrap()["query"].as_str().unwrap().contains("after"));
         assert!(!twitch_query_after("categories", &Value::Null, Some("bad cursor")).unwrap()["query"].as_str().unwrap().contains("after"));
         assert!(!twitch_query_after("categories", &Value::Null, Some("x\"}")).unwrap()["query"].as_str().unwrap().contains("after"));
+        let long = twitch_query_page("live", &Value::Null, None, Some(60)).unwrap();
+        assert!(long["query"].as_str().unwrap().contains("streams(first: 60)"));
+        let capped = twitch_query_page("categories", &Value::Null, None, Some(500)).unwrap();
+        assert!(capped["query"].as_str().unwrap().contains("games(first: 100)"));
+        let game = twitch_query_page("live", &json!("AION 2"), None, Some(90)).unwrap();
+        assert!(game["query"].as_str().unwrap().contains("streams(first: 90)"));
         let v = twitch_query_after("videos", &json!("someone"), Some("xyz")).unwrap();
         assert!(v["query"].as_str().unwrap().contains("after: \"xyz\", sort"));
         let page = json!({ "streams": { "edges": [{ "cursor": "c1" }, { "cursor": "c2" }], "pageInfo": { "hasNextPage": true } } });

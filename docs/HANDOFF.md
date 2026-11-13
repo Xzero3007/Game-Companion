@@ -24,6 +24,16 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.2 Streams after MN's 0.7.7 test (branch `claude/project-thread-lncux3`,
+  2026-11-13; MN said "ja" to the plan). Twitch "Load more": Twitch sent
+  the first page again for a cursor, so when a page brings nothing new the
+  live lists and categories ask for a longer list from the top (60, 90, at
+  most 100; `twitch_query_page`). Mouse wheel: a notch is told by its angle
+  (KDE Wayland gives a notch a ~15 px pixel delta too, taken for a
+  touchpad); Settings → Display "Scroll speed" 50 to 300 %. Jellyfin music:
+  library → albums → tracks, played in the Jellyfin window with the cover,
+  previous/next, the album played through. Open: whether Twitch honours the
+  longer list (unreachable from the sandbox), the wheel on MN's mouse.
 - 0.8.1 AION 2 after MN's test (branch `aion-feedback`, 2026-11-13; MN
   chose "Ja, so bauen" on the five points). Market: a Region dropdown
   first (Europe first in the list), then that region's servers
