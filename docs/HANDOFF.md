@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.12 QA collection (2026-11-13): #29 AION 2 Armory with builds tied to characters (entry below).
 - 0.8.11 QA collection (2026-11-13): #27 no gold frames left on video windows (entry below).
 - 0.8.10 QA collection (2026-11-13): #24 LOOT after MN's 0.8.6 test: shop window only at the merchant, farm window, the meter's data taken over (entries below).
 - 0.8.9 QA collection (2026-11-13): #22 game row opens panels while the hub is hidden, #23 no gold edge on video windows while unlocked (entries below).
