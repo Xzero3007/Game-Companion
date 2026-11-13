@@ -30,6 +30,12 @@ Window {
     /// moved with every pointer event jumped about: KDE places it a moment
     /// later, and the pointer's next place came from the old position.
     property bool held: false
+    /// Where the window was when the press came (see drag.js).
+    property point heldOrigin: Qt.point(0, 0)
+    function grab(on) {
+        if (on && !held) heldOrigin = Qt.point(area.x, area.y)
+        held = on
+    }
     /// The window has had time to take the whole screen: pointer places
     /// are measured from it from now on (MoveArea ignores moves until then).
     property bool steady: false

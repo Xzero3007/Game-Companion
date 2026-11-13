@@ -53,6 +53,7 @@ fn main() {
             "assets/fonts/Rajdhani-SemiBold.ttf",
             "assets/fonts/Inter.ttf",
             "qml/theme.js",
+            "qml/drag.js",
         ]);
     // SAFETY: only adds include paths and a define to the C++ build.
     let builder = unsafe {
