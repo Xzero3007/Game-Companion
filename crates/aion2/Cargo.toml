@@ -38,3 +38,13 @@ ruzstd = "0.7"
 # The meter's online parts (accounts, uploads) were left out; their code
 # paths stay behind features this crate never has.
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("online", "desktop", "net"))'] }
+
+[lints.clippy]
+# The meter's files stay as they were, so its changes can be taken over
+# again: style and complexity hints are not followed here; the lints that
+# find bugs are.
+style = { level = "allow", priority = -1 }
+complexity = { level = "allow", priority = -1 }
+perf = { level = "allow", priority = -1 }
+# Test tables of the meter.
+single_range_in_vec_init = "allow"

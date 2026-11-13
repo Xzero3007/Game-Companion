@@ -16,6 +16,7 @@ Overlay {
     property bool radioOpen: false
     property bool streamsOpen: false
     property bool gamesOpen: false
+    property bool dpsOpen: false
     readonly property var keys: JSON.parse(Companion.shortcuts)
     readonly property var pins: JSON.parse(Companion.pins)
 
@@ -31,12 +32,14 @@ Overlay {
     function openPanels() {
         const ids = []
         if (gamesOpen) ids.push("games")
+        if (dpsOpen) ids.push("dps")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
     }
     function openFrom(ids) {
         gamesOpen = ids.indexOf("games") >= 0
+        dpsOpen = ids.indexOf("dps") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
@@ -47,6 +50,8 @@ Overlay {
         if (demo.indexOf("settings") >= 0) settingsOpen = true
         if (demo.indexOf("radio") >= 0) radioOpen = true
         if (demo.indexOf("games") >= 0) gamesOpen = true
+        if (demo.indexOf("dps") >= 0) dpsOpen = true
+        if (Games.runningKnown === "aion2") { Aion2.start(); dpsOpen = true }
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("streams") >= 0) streamsOpen = true
         if (demo.indexOf("video") >= 0) twitchVideo.item = { kind: "twitch", id: "streamer_one", name: "streamer_one", game: "AION 2", title: "" }
@@ -72,10 +77,13 @@ Overlay {
     Connections {
         target: Games
         function onStopped(id) {
+            if (Aion2.active && nativeWindow.demo.indexOf("dps") < 0) Aion2.stop()
             if (root.shownForGame && Companion.shown) Companion.toggleShown()
             root.shownForGame = false
         }
         function onStarted(id) {
+            // AION 2's module reads while the game runs.
+            if (Games.runningKnown === "aion2") { Aion2.start(); root.dpsOpen = true }
             // Built-in games no launcher lists (known:…) are not in the library.
             const g = JSON.parse(Games.library).find((x) => x.id === id)
                 || { name: Games.runningName, twitch: Games.twitchPreset, youtube: Games.youtubePreset, showOnStart: true, radioOnStart: false }
@@ -154,6 +162,9 @@ Overlay {
             radioOpen: root.radioOpen
             gamesOpen: root.gamesOpen
             onGamesClicked: root.gamesOpen = !root.gamesOpen
+            dpsShown: Aion2.active
+            dpsOpen: root.dpsOpen
+            onDpsClicked: root.dpsOpen = !root.dpsOpen
             gameName: Games.runningName
             gameHasModule: Games.runningKnown.length > 0
             streamsOpen: root.streamsOpen
@@ -232,6 +243,16 @@ Overlay {
             defaultX: Math.max(24, (root.width - width) / 2)
             defaultY: 120
             onCloseClicked: root.gamesOpen = false
+        }
+    }
+
+    Surface {
+        wanted: root.dpsOpen && root.onScreen("dps")
+        stack: 3
+        part: DpsPanel {
+            defaultX: 24
+            defaultY: 120
+            onCloseClicked: root.dpsOpen = false
         }
     }
 

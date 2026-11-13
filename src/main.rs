@@ -1,5 +1,6 @@
 //! Game Companion: one overlay for every game on Linux (KDE Plasma, Wayland).
 
+mod aion2_object;
 mod companion;
 mod games;
 mod games_object;

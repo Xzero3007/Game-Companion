@@ -17,6 +17,8 @@ Item {
     property string badge: ""
     /// An icon left of the title (HudIcon names).
     property string icon: ""
+    /// A game module's purple tag beside the title ("AION 2"), or "".
+    property string tag: ""
     /// Whether it can be pinned (it then stays while the hub is hidden).
     property bool pinnable: true
     readonly property bool pinned: Companion.pins.indexOf('"' + panelId + '"') >= 0
@@ -128,6 +130,7 @@ Item {
             color: Theme.accent
         }
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+            id: titleText
             anchors.left: panel.icon.length > 0 ? titleIcon.right : parent.left
             anchors.leftMargin: panel.icon.length > 0 ? 10 : 14
             anchors.verticalCenter: parent.verticalCenter
@@ -137,6 +140,25 @@ Item {
             font.pixelSize: 15
             font.weight: Font.Bold
             font.letterSpacing: 2
+        }
+        Rectangle {
+            visible: panel.tag.length > 0
+            anchors.left: titleText.right
+            anchors.leftMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            width: tagText.implicitWidth + 14
+            height: tagText.implicitHeight + 2
+            color: Qt.rgba(0.608, 0.42, 0.91, 0.4)
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                id: tagText
+                anchors.centerIn: parent
+                text: panel.tag.toUpperCase()
+                color: "#e6dbfa"
+                font.family: Theme.display
+                font.pixelSize: 11
+                font.weight: Font.Bold
+                font.letterSpacing: 1.5
+            }
         }
         Item {
             id: pinButton

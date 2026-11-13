@@ -731,6 +731,7 @@ dependencies = [
 name = "game-companion"
 version = "0.5.1"
 dependencies = [
+ "aion2",
  "cxx",
  "cxx-qt",
  "cxx-qt-build",

@@ -14,6 +14,10 @@ Item {
     signal radioClicked
     property bool gamesOpen: false
     signal gamesClicked
+    /// The AION 2 module's DPS meter: its button while AION 2 runs.
+    property bool dpsShown: false
+    property bool dpsOpen: false
+    signal dpsClicked
     /// The running game has a module (purple); else it just shows its name.
     property bool gameHasModule: false
     property bool streamsOpen: false
@@ -114,6 +118,14 @@ Item {
             active: bar.gamesOpen
             tip: "Games: your library and what runs"
             onClicked: bar.gamesClicked()
+        }
+        HudButton {
+            visible: bar.dpsShown
+            icon: "dps"
+            label: "DPS"
+            active: bar.dpsOpen
+            tip: "AION 2: DPS meter (listens only)"
+            onClicked: bar.dpsClicked()
         }
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter

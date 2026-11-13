@@ -71,7 +71,8 @@ learnt, so nothing has to be asked or worked out again.
   the private repo `Xzero3007/A2Tools-Clicktrough-Notes`.
 - Never push to or open anything on `taengu/*` repos.
 - Take data only where its licence allows it, and credit it as text.
-- One project per repo. The Clicktrough meter stays in its own repos.
+- One project per repo. The Clicktrough meter stays in its own repos until
+  the AION 2 module replaces it (plan step 5).
 - Commit as `Claude <noreply@anthropic.com>` on `main` (or a branch and PR
   when the person wants to review first); end commit messages with the
   session's attribution lines.
@@ -104,7 +105,15 @@ learnt, so nothing has to be asked or worked out again.
    through its launcher (e.g. `steam://rungameid/<id>`); no network. The same
    game list feeds the detection. Design approved (2026-11-12): canvas page
    "Games (step 4)", boards G4Library and G4AddGame.
-5. AION 2 module: first only start the Clicktrough meter with the game.
+5. AION 2 module (the person, 2026-11-12/13, replaces "only start the
+   meter"): the Clicktrough meter becomes Game Companion's AION 2 module and
+   the fork is retired once it is replaced. Decisions (what comes along,
+   boss timer sources, pictures): `/mnt/project-files/game-companion/
+   aion-module-decisions.md`. Order: helper, parser, DPS panel (done on
+   branch `aion-module`), then Details and Battle History, then the plugins
+   one by one (Map, Market, Inventory, Closet, Armory, Shugo, Event Timers,
+   Pet Finder, Roster, Boss Notes with the Telegraph's parts). This replaces
+   the rule "the meter stays in its own repos" for the module.
    Plex: later, home network only, as its own step.
 
 ## How it works
@@ -274,6 +283,28 @@ learnt, so nothing has to be asked or worked out again.
 - Video checks under xvfb are flaky: the picture sometimes goes black or
   striped after a few seconds in one run and not the next (llvmpipe under
   load). Repeat a run before believing a regression.
+
+- AION 2 module: `crates/aion2` is the meter's parser core (taengu's
+  A2Tools DPS Meter v2.0.80, GPL-3.0, plus the Clicktrough backports and
+  patches), files kept as they were so changes can be taken over again
+  (clippy's style hints are off there). Feature `live`: the capture
+  (libpcap by dlopen) and `CaptureDispatcher`. `platform/mod.rs` is the
+  shim for what the meter asked of the OS (`window_detector::set_running`).
+  The helper `game-companion-capture` (crates/aion2/src/bin) is the only
+  part with `cap_net_raw` (packaging/arch/game-companion.install), runs
+  only as the app's child (its parent's exe must be `game-companion`),
+  dies with it, and writes TCP segments to stdout (`aion2::link`); the
+  app writes the port detector's state back on its stdin so the capture
+  filter follows the game. `aion2::engine::Engine` runs it all;
+  `src/aion2_object.rs` (`Aion2` singleton) starts it when Games says
+  AION 2 runs and hands QML the fight (`engine::summary`) every 500 ms only
+  when it changed. `qml/DpsPanel.qml` (canvas board A4Window). The game's
+  tables: crates/aion2/data → /usr/share/game-companion/aion2
+  (`GC_AION2_DATA`), the helper `GC_AION2_HELPER`. `GC_DEMO=dps` shows a
+  made-up fight. Packet logging and the meter's sharing ring are left out:
+  nothing captured is written down. Check the helper in the sandbox: copy
+  /bin/bash to a folder as `game-companion` and run the helper from it
+  (`libpcap0.8` installed), loopback traffic on a port other than 80/443.
 
 ## Checking a change
 

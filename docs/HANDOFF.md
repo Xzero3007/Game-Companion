@@ -37,6 +37,19 @@ new session (or the same one after a usage limit) carries on from here.
   game), start with the desktop (Companion.autostart, `--hidden`), on
   start: Streams preset, show hub, radio, layout (Main.qml Connections).
 
+## In progress: AION 2 module on branch `aion-module` (from beta)
+
+The person asked (2026-11-13) to port the meter; decisions in
+/mnt/project-files/game-companion/aion-module-decisions.md. Done: crate
+aion2 (parser, 300 tests), capture helper with cap_net_raw, engine, Aion2
+singleton, DPS panel (Damage, Healing, Reset, boss HP). Next: QA review,
+the person's test in the game (only they can play), Details (skill table),
+Battle History, then plugins in the agreed order. Not merged into beta
+until reviewed.
+
+Branch `launch-options` (from beta): launch options, system check with
+suggestions and Proton versions (logic first), asked 2026-11-13.
+
 ## In progress: step 4 (game detection, Games tab) on `beta`
 
 Agreed with the person 2026-11-13 (see CLAUDE.md plan step 4):

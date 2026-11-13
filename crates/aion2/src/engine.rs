@@ -206,6 +206,51 @@ impl Drop for Engine {
     }
 }
 
+/// The fight as the panel shows it: rows by damage, the fight's time (ms)
+/// and its target.
+pub fn summary(data: &DpsData) -> serde_json::Value {
+    let mut rows: Vec<_> = data
+        .map
+        .iter()
+        .filter(|(_, p)| p.amount > 0.0 || p.heal_amount > 0.0)
+        .map(|(id, p)| {
+            let me = data.local_player_id == Some(*id as i64);
+            let name = if !p.nickname.is_empty() {
+                p.nickname.clone()
+            } else if p.is_others {
+                "Others".to_string()
+            } else {
+                format!("[{}]", p.job)
+            };
+            serde_json::json!({
+                "id": id,
+                "name": name,
+                "job": p.job,
+                "dps": p.dps.round() as i64,
+                "amount": p.amount.round() as i64,
+                "share": (p.damage_contribution * 10.0).round() / 10.0,
+                "hps": p.hps.round() as i64,
+                "heal": p.heal_amount.round() as i64,
+                "me": me,
+                "others": p.is_others,
+            })
+        })
+        .collect();
+    rows.sort_by(|a, b| b["amount"].as_i64().cmp(&a["amount"].as_i64()));
+    serde_json::json!({
+        "time": data.battle_time,
+        "target": data.target_name,
+        "boss": data.target_is_boss,
+        "hpMax": data.target_max_hp,
+        "hpNow": if data.target_current_hp >= 0 {
+            data.target_current_hp
+        } else {
+            (data.target_max_hp - data.target_total_damage).max(0)
+        },
+        "rows": rows,
+    })
+}
+
 /// Skills whose damage comes over time (language-independent).
 fn dot_skill_ids(data_dir: &Path) -> HashSet<i32> {
     std::fs::read_to_string(data_dir.join("dot_skill_ids.json"))
@@ -227,5 +272,32 @@ mod tests {
         assert!(!dot_skill_ids(&data).is_empty());
         assert!(engine.snapshot().map.is_empty());
         engine.stop();
+    }
+
+    #[test]
+    fn the_summary_puts_the_most_damage_first_and_marks_the_player() {
+        use crate::entity::personal_data::PersonalData;
+        let mut data = DpsData::new();
+        let mut a = PersonalData::new(String::new());
+        a.job = "Gladiator".into();
+        a.amount = 100.0;
+        a.dps = 10.4;
+        a.damage_contribution = 33.333;
+        let mut b = PersonalData::new(String::new());
+        b.nickname = "Me".into();
+        b.amount = 200.0;
+        data.map.insert(1, a);
+        data.map.insert(2, b);
+        data.map.insert(3, PersonalData::new(String::new()));
+        data.local_player_id = Some(2);
+        data.target_max_hp = 1000;
+        data.target_total_damage = 300;
+        let s = summary(&data);
+        let rows = s["rows"].as_array().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!((rows[0]["name"].as_str(), rows[0]["me"].as_bool()), (Some("Me"), Some(true)));
+        assert_eq!((rows[1]["name"].as_str(), rows[1]["dps"].as_i64()), (Some("[Gladiator]"), Some(10)));
+        assert_eq!(rows[1]["share"].as_f64(), Some(33.3));
+        assert_eq!(s["hpNow"].as_i64(), Some(700));
     }
 }
