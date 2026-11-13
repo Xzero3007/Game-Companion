@@ -73,6 +73,13 @@ Overlay {
     Connections {
         target: Companion
         function onShownChanged() { if (!Companion.shown) hubHint.flash() }
+        // From the tray's menu (the hub is shown already).
+        function onSettingsRequested() { root.settingsOpen = true }
+        function onUpdatesRequested() {
+            root.settingsOpen = true
+            settings.tab = "general"
+            Updates.check()
+        }
     }
 
     // A game started: its preset search in Streams, and what the user
@@ -97,7 +104,7 @@ Overlay {
             const g = JSON.parse(Games.library).find((x) => x.id === id)
                 || { name: Games.runningName, twitch: Games.twitchPreset, youtube: Games.youtubePreset, showOnStart: true, radioOnStart: false }
             if (g.twitch.length > 0 || g.youtube.length > 0) Streams.changeGame(g.name, g.twitch, g.youtube)
-            if (g.showOnStart && !Companion.shown) { Companion.toggleShown(); root.shownForGame = true }
+            if (Companion.showOnGame && g.showOnStart && !Companion.shown) { Companion.toggleShown(); root.shownForGame = true }
             if (g.layout && g.layout.length > 0) {
                 const open = Companion.loadLayout(g.layout)
                 if (open.length > 0) root.openFrom(JSON.parse(open))

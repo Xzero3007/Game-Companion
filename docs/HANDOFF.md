@@ -34,8 +34,45 @@ new session (or the same one after a usage limit) carries on from here.
   Games bar button, detection and libraries (src/games.rs,
   src/games_object.rs, singleton Games: library JSON, running, started /
   stopped signals, launch, own entries, options, favourites, layouts per
-  game), start with the desktop (Companion.autostart, `--hidden`), on
+  game), start with the desktop (now Companion.autostartMode, see the
+  tray branch), on
   start: Streams preset, show hub, radio, layout (Main.qml Connections).
+
+## In progress: tray icon and start options on branch `tray-autostart` (from beta)
+
+Approved by the person 2026-11-13. Built, waiting for review and the
+person's test on KDE:
+- Tray icon (`src/tray.rs`): a StatusNotifierItem with a dbusmenu through
+  the ksni crate (Unlicense, pure Rust, on the zbus 5 / async-io the
+  shortcuts already use). Chosen over QSystemTrayIcon because that needs
+  QtWidgets and a QApplication (plus KDE's platform theme deciding how it
+  shows); ksni needs nothing new on the system and its threads sleep on
+  the D-Bus socket (idle 0 ticks measured). Left click = Companion
+  toggle_shown; menu: Show/Hide hub, Lock/Unlock, Settings, Check for
+  updates, Quit (native::quit). Menu labels and tooltip follow
+  shown/locked (`on_shown_changed` / `on_locked_changed` → `sync_tray`).
+  Started on a "tray" thread with `assume_sni_available` (waits for
+  Plasma's watcher when started before the panel; re-registers when
+  plasmashell restarts). The icon: the bar's Games gamepad in #e0a526 at
+  16 to 64 px, drawn by `gc_tray_icon` (cpp/icons.cpp) and sent as
+  pixmaps. Settings `tray` (default on), `Companion.tray` /
+  `setTrayOn`; `GC_NO_TRAY=1` skips it. Settings and Check for updates
+  arrive in QML as `Companion.settingsRequested` / `updatesRequested`.
+- Start (Settings → General): `Companion.autostartMode` "off" / "hidden" /
+  "visible", `setAutostartTo`; read from the autostart entry's Exec line
+  (`--hidden` = hidden, so entries from before stay hidden). "Show the hub
+  when a game starts": settings `show_on_game` (default on), gates the
+  per-game showOnStart in Main.qml.
+- One copy (`src/instance.rs`): the flock as before plus
+  `$XDG_RUNTIME_DIR/game-companion.sock` (0600); a second start writes
+  "show" and exits 0 (a second `--hidden` start just ends). The listener
+  thread sleeps in accept and queues onto the Qt thread.
+- Checked in the sandbox: unit tests (menu, actions, autostart entries,
+  socket); under dbus-run-session with a fake StatusNotifierWatcher
+  (python3.12 dbus): registration, IconPixmap, left click, menu Unlock,
+  Quit, a watcher that appears late, second start shows the hub, idle 0
+  ticks with and without the tray. Only the person can check how Plasma
+  draws it. Demo: `GC_DEMO=settings,startmenu`.
 
 ## Decisions 2026-11-13 (the person)
 

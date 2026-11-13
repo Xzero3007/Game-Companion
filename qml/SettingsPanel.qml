@@ -20,6 +20,7 @@ Panel {
     signal loadLayoutRequested(string name)
     Component.onCompleted: {
         for (const t of ["display", "layouts", "streams-settings", "shortcuts", "about"]) if (nativeWindow.demo.indexOf(t) >= 0) tab = t.replace("-settings", "")
+        if (nativeWindow.demo.indexOf("startmenu") >= 0) startChoice.open = true
     }
 
     Column {
@@ -50,13 +51,38 @@ Panel {
 
             Item { width: 1; height: 6 }
             Label { text: "Start" }
+            Dropdown {
+                id: startChoice
+                width: parent.width
+                z: 30
+                label: "With the desktop"
+                options: [
+                    { id: "off", name: "Off" },
+                    { id: "hidden", name: "Hidden (tray icon only)" },
+                    { id: "visible", name: "Visible (hub shown)" }
+                ]
+                current: Companion.autostartMode
+                onChosen: (id) => Companion.setAutostartTo(id)
+            }
+            Hint { text: Companion.autostartMode === "hidden"
+                ? "Starts when you log in with only the tray icon; the hub shows when a game starts or from the tray."
+                : Companion.autostartMode === "visible"
+                ? "Starts when you log in with the hub shown."
+                : "Start it yourself from the application menu. Starting it again while it runs brings the hub forward." }
             OnOff {
                 width: parent.width
-                text: "Start with the desktop"
-                on: Companion.autostart
-                onToggled: Companion.setAutostartOn(!Companion.autostart)
+                text: "Show the hub when a game starts"
+                on: Companion.showOnGame
+                onToggled: Companion.setShowOnGameOn(!Companion.showOnGame)
             }
-            Hint { text: "Starts hidden when you log in and shows when a game starts (Games: each game's start options)." }
+            Hint { text: "Hides again when the game ends. Each game's own start options (Games) apply on top." }
+            OnOff {
+                width: parent.width
+                text: "Tray icon"
+                on: Companion.tray
+                onToggled: Companion.setTrayOn(!Companion.tray)
+            }
+            Hint { text: "A gold gamepad in the panel while Game Companion runs: a click shows or hides the hub, a right click opens its menu." }
 
             Item { width: 1; height: 6 }
             Label { text: "Updates" }
