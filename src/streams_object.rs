@@ -422,7 +422,17 @@ pub fn filter_videos(list: Vec<Value>, s: &settings::StreamsSettings) -> (Vec<Va
 /// next page starts (`{}` when there is none; one cursor per part).
 fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: Option<&str>, more: Option<&Value>) -> Result<(Vec<Value>, Value), String> {
     let cursor = |k: &str| more.and_then(|m| m.get(k)).and_then(Value::as_str).map(str::to_string);
+    // A longer list from the top instead of a cursor (`{"first": n}`), and
+    // the next one's length while there may be more.
+    let first = more.and_then(|m| m.get("first")).and_then(Value::as_u64).map(|n| n as usize);
     let mut next = serde_json::Map::new();
+    let longer = |got: usize, next: &mut serde_json::Map<String, Value>| {
+        if let Some(n) = first {
+            if got >= n.saturating_sub(5) && n < streams::TWITCH_LONGEST {
+                next.insert("first".into(), json!((n + 30).min(streams::TWITCH_LONGEST)));
+            }
+        }
+    };
     let filtered = !st.languages.is_empty() || st.hide_reruns;
     // Live lists: with the stream's kind and language while a filter is on
     // (plain if Twitch refuses those fields).
@@ -430,19 +440,22 @@ fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: O
         let after = cursor("live");
         let page = |data: &Value, next: &mut serde_json::Map<String, Value>| {
             let at = if game.is_null() { "/streams" } else { "/game/streams" };
-            if let Some(c) = streams::next_cursor(data, at) {
+            if first.is_some() {
+                let got = data.pointer(&format!("{at}/edges")).and_then(Value::as_array).map_or(0, Vec::len);
+                longer(got, next);
+            } else if let Some(c) = streams::next_cursor(data, at) {
                 next.insert("live".into(), json!(c));
             }
         };
         if filtered {
-            if let Ok(data) = streams::twitch(&streams::twitch_query_after("liveMore", &game, after.as_deref())?, None) {
+            if let Ok(data) = streams::twitch(&streams::twitch_query_page("liveMore", &game, after.as_deref(), first)?, None) {
                 if data.get("_errors").is_none() {
                     page(&data, &mut next);
                     return Ok(streams::twitch_cards(&data));
                 }
             }
         }
-        let data = streams::twitch(&streams::twitch_query_after("live", &game, after.as_deref())?, None)?;
+        let data = streams::twitch(&streams::twitch_query_page("live", &game, after.as_deref(), first)?, None)?;
         page(&data, &mut next);
         Ok(streams::twitch_cards(&data))
     };
@@ -451,8 +464,10 @@ fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: O
         "category" => live(json!(text))?,
         "live" => live(Value::Null)?,
         "categories" if text.trim().is_empty() => {
-            let data = streams::twitch(&streams::twitch_query_after("categories", &Value::Null, cursor("live").as_deref())?, None)?;
-            if let Some(c) = streams::next_cursor(&data, "/games") {
+            let data = streams::twitch(&streams::twitch_query_page("categories", &Value::Null, cursor("live").as_deref(), first)?, None)?;
+            if first.is_some() {
+                longer(data.pointer("/games/edges").and_then(Value::as_array).map_or(0, Vec::len), &mut next);
+            } else if let Some(c) = streams::next_cursor(&data, "/games") {
                 next.insert("live".into(), json!(c));
             }
             streams::twitch_categories(&data)
@@ -505,6 +520,11 @@ fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: O
     };
     let cards = if matches!(view, "categories" | "recordings") { cards } else { filter_cards(cards, st) };
     Ok((cards, Value::Object(next)))
+}
+
+/// What tells a Twitch card from another (channels, categories, videos).
+fn card_key(c: &Value) -> String {
+    format!("{}{}{}", c["login"].as_str().unwrap_or(""), c["name"].as_str().unwrap_or(""), c["id"].as_str().unwrap_or(""))
 }
 
 pub fn filter_cards(mut cards: Vec<Value>, s: &settings::StreamsSettings) -> Vec<Value> {
@@ -834,9 +854,22 @@ impl qobject::Streams {
         self.as_mut().set_twitch_loading_more(true);
         self.as_mut().set_twitch_more_note(QString::default());
         let st = settings::read(|s| s.streams.clone());
+        let shown: Vec<Value> = serde_json::from_str(&self.twitch().to_string()).unwrap_or_default();
+        let known: std::collections::HashSet<String> = shown.iter().map(card_key).collect();
         let thread = self.qt_thread();
         std::thread::spawn(move || {
-            let result = fetch_twitch(&view, &text, &st, None, Some(&more));
+            let mut result = fetch_twitch(&view, &text, &st, None, Some(&more));
+            // Twitch may send the first page again for a cursor (MN's
+            // 0.7.7): then ask for a longer list from the top instead.
+            let pages = matches!(view.as_str(), "game" | "category" | "live" | "categories");
+            if let Ok((cards, _)) = &result {
+                if pages && more.get("first").is_none() && cards.iter().all(|c| known.contains(&card_key(c))) {
+                    let n = (known.len() + 30).min(streams::TWITCH_LONGEST);
+                    if n > known.len() {
+                        result = fetch_twitch(&view, &text, &st, None, Some(&json!({ "first": n })));
+                    }
+                }
+            }
             let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
                 // Another list came meanwhile: this page is not its.
                 if obj.rust().twitch_request != request {
@@ -853,9 +886,8 @@ impl qobject::Streams {
                 };
                 let mut all: Vec<Value> = serde_json::from_str(&obj.twitch().to_string()).unwrap_or_default();
                 let before = all.len();
-                let key = |c: &Value| format!("{}{}{}", c["login"].as_str().unwrap_or(""), c["name"].as_str().unwrap_or(""), c["id"].as_str().unwrap_or(""));
                 for c in cards {
-                    if !all.iter().any(|x| key(x) == key(&c)) {
+                    if !all.iter().any(|x| card_key(x) == card_key(&c)) {
                         all.push(c);
                     }
                 }

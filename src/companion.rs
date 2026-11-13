@@ -44,6 +44,8 @@ pub mod qobject {
         #[qproperty(f64, text_level)]
         /// How bright the bar's and the player row's gold is, 0.4 to 1.
         #[qproperty(f64, accent_level)]
+        /// How far a wheel notch scrolls, in percent (50 to 300).
+        #[qproperty(i32, wheel_speed)]
         /// The gold brightness presets P1 to P3, as a JSON list.
         #[qproperty(QString, accent_presets)]
         /// The opacity presets P1 to P3, as a JSON list of three numbers.
@@ -127,6 +129,10 @@ pub mod qobject {
         #[qinvokable]
         fn save_alpha(self: Pin<&mut Companion>, alpha: f64);
 
+        /// Sets and keeps how far a wheel notch scrolls.
+        #[qinvokable]
+        fn save_wheel_speed(self: Pin<&mut Companion>, percent: i32);
+
         /// Sets and keeps how bright the white and grey text is.
         #[qinvokable]
         fn save_text_level(self: Pin<&mut Companion>, level: f64);
@@ -200,6 +206,7 @@ pub struct CompanionRust {
     alpha: f64,
     text_level: f64,
     accent_level: f64,
+    wheel_speed: i32,
     accent_presets: QString,
     alpha_presets: QString,
     text_presets: QString,
@@ -228,6 +235,7 @@ impl Default for CompanionRust {
         });
         let (accent_level, accent_presets) = settings::read(|s| (s.accent_level, numbers_json(&s.accent_presets)));
         let (show_on_game, tray) = settings::read(|s| (s.show_on_game, s.tray));
+        let wheel_speed = settings::read(|s| settings::clamp_wheel_speed(s.wheel_speed as i32)) as i32;
         let shortcut_state: Vec<_> = shortcuts::ALL.iter().map(|s| (s.id, shortcuts::Status::Bound(None))).collect();
         Self {
             // Always start locked: the game gets every click until the user
@@ -242,6 +250,7 @@ impl Default for CompanionRust {
             alpha,
             text_level,
             accent_level,
+            wheel_speed,
             accent_presets: QString::from(&accent_presets),
             alpha_presets: QString::from(&alpha_presets),
             text_presets: QString::from(&text_presets),
@@ -581,6 +590,12 @@ impl qobject::Companion {
         let alpha = settings::clamp_alpha(alpha);
         settings::change(|s| s.alpha = alpha);
         self.set_alpha(alpha);
+    }
+
+    fn save_wheel_speed(self: Pin<&mut Self>, percent: i32) {
+        let percent = settings::clamp_wheel_speed(percent);
+        settings::change(|s| s.wheel_speed = percent);
+        self.set_wheel_speed(percent as i32);
     }
 
     fn save_text_level(self: Pin<&mut Self>, level: f64) {

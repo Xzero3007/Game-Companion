@@ -10,7 +10,8 @@ Panel {
     title: "Settings"
     width: 500
 
-    property string tab: nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0
+    property string tab: nativeWindow.demo.indexOf("display") >= 0 ? "display"
+        : nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0
         || nativeWindow.demo.indexOf("ytsettings") >= 0 ? "streams" : "general"
     property var keys: JSON.parse(Companion.shortcuts)
     readonly property var layouts: JSON.parse(Companion.layouts)
@@ -368,6 +369,18 @@ Panel {
                 }
             }
             Hint { text: "Where the bar and the panels show. Now on " + nativeWindow.screenName + "." }
+
+            Item { width: 1; height: 6 }
+            Label { text: "Scrolling" }
+            Dropdown {
+                width: parent.width
+                z: 29
+                label: "Scroll speed"
+                options: [50, 100, 150, 200, 300].map((p) => ({ id: String(p), name: p + " %" }))
+                current: String(Companion.wheelSpeed)
+                onChosen: (id) => Companion.saveWheelSpeed(parseInt(id))
+            }
+            Hint { text: "How far one notch of the mouse wheel moves a list." }
 
             Item { width: 1; height: 6 }
             Label { text: "Panel opacity" }
