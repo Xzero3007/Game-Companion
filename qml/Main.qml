@@ -20,6 +20,7 @@ Overlay {
     property bool gamesOpen: false
     property bool dpsOpen: false
     property bool mapOpen: false
+    property bool marketOpen: false
     /// The person closed the DPS panel: it stays closed when AION 2 starts.
     property bool dpsClosed: false
     /// The game id AION 2 runs under (its module stops when that one ends).
@@ -28,7 +29,7 @@ Overlay {
         aionId = id
         // The package and its meter can be switched off (Settings → Plugins).
         if (!Plugins.loads(plugins, "aion2")) return
-        if (!Plugins.choice(plugins, "aion2.dps").on && !Plugins.choice(plugins, "aion2.map").on) return
+        if (!Plugins.choice(plugins, "aion2.dps").on && !Plugins.choice(plugins, "aion2.map").on && !Plugins.choice(plugins, "aion2.market").on) return
         Aion2.start()
         if (!dpsClosed && Plugins.inBar(plugins, "aion2.dps")) dpsOpen = true
     }
@@ -50,6 +51,7 @@ Overlay {
         if (gamesOpen) ids.push("games")
         if (dpsOpen) ids.push("dps")
         if (mapOpen) ids.push("map")
+        if (marketOpen) ids.push("market")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
@@ -58,6 +60,7 @@ Overlay {
         gamesOpen = ids.indexOf("games") >= 0
         dpsOpen = ids.indexOf("dps") >= 0
         mapOpen = ids.indexOf("map") >= 0
+        marketOpen = ids.indexOf("market") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
@@ -70,6 +73,7 @@ Overlay {
         if (demo.indexOf("games") >= 0) gamesOpen = true
         if (demo.indexOf("dps") >= 0) dpsOpen = true
         if (demo.indexOf("map") >= 0) mapOpen = true
+        if (demo.indexOf("market") >= 0) marketOpen = true
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("games") >= 0) games.demo(demo)
@@ -197,6 +201,9 @@ Overlay {
             mapShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.map")) || root.mapOpen
             mapOpen: root.mapOpen
             onMapClicked: root.mapOpen = !root.mapOpen
+            marketShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.market")) || root.marketOpen
+            marketOpen: root.marketOpen
+            onMarketClicked: root.marketOpen = !root.marketOpen
             gameName: Games.runningName
             gameHasModule: Games.runningKnown.length > 0
             streamsOpen: root.streamsOpen
@@ -305,9 +312,21 @@ Overlay {
         wanted: root.mapOpen && root.onScreen("map")
         stack: 3
         part: MapPanel {
+            id: mapPanel
             defaultX: Math.max(24, (root.width - width) / 2)
             defaultY: 140
             onCloseClicked: root.mapOpen = false
+        }
+    }
+
+    Surface {
+        wanted: root.marketOpen && root.onScreen("market")
+        stack: 3
+        part: MarketPanel {
+            onShowOnMap: (name) => { root.mapOpen = true; Qt.callLater(() => mapPanel.focusGather(name)) }
+            defaultX: Math.max(24, (root.width - width) / 2 + 40)
+            defaultY: 160
+            onCloseClicked: root.marketOpen = false
         }
     }
 

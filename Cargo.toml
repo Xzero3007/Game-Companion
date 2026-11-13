@@ -1,6 +1,6 @@
 [package]
 name = "game-companion"
-version = "0.7.5"
+version = "0.7.6"
 edition = "2021"
 license = "GPL-3.0-or-later"
 description = "An overlay for every game on Linux (KDE Plasma, Wayland)"

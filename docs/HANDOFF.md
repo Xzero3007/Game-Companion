@@ -42,7 +42,20 @@ new session (or the same one after a usage limit) carries on from here.
   settings in `aion2-map.json` (Aion2.mapSettings / saveMapSettings).
   `GC_DEMO=map` (Verteron), `GC_DEMO=dpslive,dps` (empty, then a fight
   that changes every 0.5 s). qt6-imageformats is now a dependency (WebP
-  tiles). Next: Market (hosts approved), then the list's order.
+  tiles). 0.7.6: the **Market** (plugin `aion2.market`):
+  `tools/aion2-market-import.py` turns data.js, items.js, anomaly.js and
+  calc.js into `qml/aion2/marketkit.js` (numeric separators and
+  toLocaleString lowered for Qt 6.4); `qml/aion2/MarketPanel.qml` is
+  plugin.js (six tabs, favourites pinned, map button → the Map's
+  `focusGather`, NPC prices). Downloads in `src/market.rs` (only the
+  Clicktrough copy on raw.githubusercontent.com and aion2.exchange/api;
+  icons from assets.playnccdn.com kept in ~/.cache/game-companion/aion2/
+  icons); `Aion2.webGet` / `webGot`, `icon` / `iconReady`, `loadStore` /
+  `keepStore` (aion2-<key>.json). The player's server comes with the
+  fight's `extras.server`. `GC_DEMO=market` opens it (real prices from the
+  copy). **The other plugins wait**: MN wants their overlaps checked first
+  (thread "Synergien der alten Plugins prüfen"). From now on: feature
+  branch + PR against beta, the QA thread merges.
 
 - 0.7.0 beta (branch `integration` merged into beta, 2026-11-13): launch
   options and Proton per game (checker, suggestions by Proton build,
@@ -413,7 +426,7 @@ and emotes. The person tests these.
   and injected clicks: /mnt/project-files/game-companion/kwin-test/
   (README: layer-shell-qt 6.0 patched for Qt 6.4). The DPS click bug did
   not show there after a growing live fight (0.7.3 and 0.7.4, locked and
-  unlocked).
+  unlocked). MN plays in borderless fullscreen (always; do not ask again).
 - Sandbox: Ubuntu, Qt 6.4, offscreen/xvfb (see CLAUDE.md).
 - Real KWin: a separate thread on the environment "internet" (Arch
   mirrors allowed) builds an Arch chroot with KWin 6 and tests there; its

@@ -95,7 +95,7 @@ Window {
     Timer { id: settleInput; interval: 250; onTriggered: surface.applyInput() }
     onVisibleChanged: if (visible) input()
     Component.onCompleted: {
-        if (part) { part.parent = home; part.z = stack }
+        if (part) { part.parent = home; part.z = stack; surface.objectName = part.panelId !== undefined ? part.panelId : String(part).split("(")[0] }
         nativeWindow.attach(surface)
         nativeWindow.place(surface, area)
         attached = true

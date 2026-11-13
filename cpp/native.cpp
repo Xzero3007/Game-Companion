@@ -313,6 +313,14 @@ void NativeWindow::setInput(QQuickWindow *window, bool all, const QVariantList &
         window->setMask(region);
     }
     window->setProperty("gcMask", region);
+    // GC_DEBUG_INPUT=1: every input region given, for click problems on
+    // the person's desktop (which part, its place, what takes clicks).
+    static const bool debug = qEnvironmentVariableIsSet("GC_DEBUG_INPUT");
+    if (debug) {
+        qInfo().noquote() << "input" << window->objectName() << "area" << window->property("gcArea").toRect()
+                          << "size" << window->size() << (all ? "all" : "only") << region.boundingRect()
+                          << "rects" << region.rectCount();
+    }
 }
 
 void NativeWindow::setKeyboard(QQuickWindow *window, bool wanted)

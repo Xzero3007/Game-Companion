@@ -110,13 +110,16 @@ impl Engine {
         detail_skills(&entries, actor)
     }
 
-    /// Ping (ms) and Odyle energy, as the meter's bar showed them:
-    /// {"ping": ms|null, "odyle": [basic, charged]|null}.
+    /// Ping (ms) and Odyle energy, as the meter's bar showed them, and the
+    /// player's server: {"ping": ms|null, "odyle": [basic, charged]|null,
+    /// "server": the game's number|null}.
     pub fn extras(&self) -> serde_json::Value {
         let calc = self.calculator.lock();
-        let Some(calc) = calc.as_ref() else { return serde_json::json!({ "ping": null, "odyle": null }) };
+        let Some(calc) = calc.as_ref() else { return serde_json::json!({ "ping": null, "odyle": null, "server": null }) };
+        let server = calc.server_id();
         serde_json::json!({
             "ping": calc.ping_ms(),
+            "server": (server != 0).then_some(server),
             "odyle": calc.odyle_energy().map(|(basic, charged)| [basic, charged]),
         })
     }
