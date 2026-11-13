@@ -157,9 +157,10 @@ pub mod qobject {
         /// {..}}` (`like`: the first of this PC's groups, GPU, distro, CPU,
         /// with 5 reports or more, else all reports). `available` false: a
         /// switch this exact build no longer needs or reads (greyed out,
-        /// `unavailable_why` says why; combineOptions refuses it).
+        /// `unavailable_why` says why; combineOptions refuses it). `text`:
+        /// the form's options to judge "applied" by ("" = the saved ones).
         #[qinvokable]
-        fn suggestions(self: &Games, id: &QString) -> i32;
+        fn suggestions(self: &Games, id: &QString, text: &QString) -> i32;
 
         /// Checks launch options word by word for the game's Proton build
         /// (`text` "" = the game's current options). Answer: JSON
@@ -181,9 +182,10 @@ pub mod qobject {
         /// taken out) put into its text, not written. Answer: JSON
         /// `{"text","error"}` (text too complex to change, or an unavailable
         /// suggestion chosen to be added, is refused in "error", with the
-        /// text as it was).
+        /// text as it was). `text`: the form's options to start from, so
+        /// unsaved edits stay ("" = the saved ones).
         #[qinvokable]
-        fn combine_options(self: &Games, id: &QString, chosen: &QString) -> i32;
+        fn combine_options(self: &Games, id: &QString, chosen: &QString, text: &QString) -> i32;
 
         /// Writes a game's launch options (Steam's form) to its launcher's
         /// file, or an own entry's command. Answer: JSON `{"error"}`, ""
@@ -790,11 +792,12 @@ impl qobject::Games {
         })
     }
 
-    fn suggestions(&self, id: &QString) -> i32 {
+    fn suggestions(&self, id: &QString, text: &QString) -> i32 {
         let id = id.to_string();
+        let text = text.to_string();
         self.work(move || {
             let Some(places) = places() else { return Answer::json(json!({"suggestions": [], "warnings": [], "others": null})) };
-            let current = current(&places, &id);
+            let current = current(&places, &id).with_text(&text);
             if !current.supported {
                 return Answer::json(json!({"suggestions": [], "warnings": [], "others": null}));
             }
@@ -831,12 +834,13 @@ impl qobject::Games {
         })
     }
 
-    fn combine_options(&self, id: &QString, chosen: &QString) -> i32 {
+    fn combine_options(&self, id: &QString, chosen: &QString, text: &QString) -> i32 {
         let id = id.to_string();
         let chosen: Vec<String> = serde_json::from_str(&chosen.to_string()).unwrap_or_default();
+        let text = text.to_string();
         self.work(move || {
             let Some(places) = places() else { return Answer::json(json!({"text": "", "error": "No home folder"})) };
-            let current = current(&places, &id);
+            let current = current(&places, &id).with_text(&text);
             let result = if current.supported {
                 let list = launch_options::suggest(&system(), &current, &tools(&places, false));
                 launch_options::combine(&current, &list, &chosen)

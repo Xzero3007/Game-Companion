@@ -196,7 +196,7 @@ pub struct CompanionRust {
     layout_revision: i32,
     shortcut_state: Vec<(&'static str, shortcuts::Status)>,
     /// The tray icon while it shows.
-    tray_handle: Option<tray::Handle>,
+    tray_handle: Option<tray::Worker>,
     /// Goes up whenever the tray is switched on or off: a tray that
     /// finishes starting after it was switched off again goes away.
     tray_generation: u64,
@@ -444,9 +444,9 @@ impl qobject::Companion {
         } else {
             let mut rust = self.as_mut().rust_mut();
             rust.tray_generation += 1;
-            if let Some(handle) = rust.tray_handle.take() {
-                // Ends on ksni's thread; nothing to wait for here.
-                drop(handle.shutdown());
+            if let Some(worker) = rust.tray_handle.take() {
+                // Ends on the tray's worker; nothing to wait for here.
+                worker.shutdown();
             }
         }
     }
@@ -475,7 +475,7 @@ impl qobject::Companion {
             let started = tray::spawn(tray);
             let _ = done_thread.queue(move |mut obj: Pin<&mut qobject::Companion>| match started {
                 Ok(handle) if obj.rust().tray_generation == generation && *obj.tray() => {
-                    obj.as_mut().rust_mut().tray_handle = Some(handle);
+                    obj.as_mut().rust_mut().tray_handle = Some(tray::Worker::new(handle));
                     // The hub or the lock may have changed meanwhile.
                     obj.sync_tray();
                 }
@@ -487,12 +487,9 @@ impl qobject::Companion {
 
     /// Brings the tray's menu and tooltip up to the hub and the lock.
     fn sync_tray(&self) {
-        let Some(handle) = self.rust().tray_handle.as_ref() else { return };
-        let (shown, locked) = (*self.shown(), *self.locked());
-        handle.update(|t| {
-            t.shown = shown;
-            t.locked = locked;
-        });
+        // Off the Qt thread: ksni's update waits for its own thread.
+        let Some(worker) = self.rust().tray_handle.as_ref() else { return };
+        worker.set(*self.shown(), *self.locked());
     }
 
     fn tray_action(mut self: Pin<&mut Self>, action: tray::Action) {

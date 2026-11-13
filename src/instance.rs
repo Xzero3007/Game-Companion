@@ -12,7 +12,7 @@ use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// What a second start sends.
 const SHOW: &[u8] = b"show\n";
@@ -57,12 +57,26 @@ pub fn bind(dir: &Path) -> Option<UnixListener> {
     use std::os::unix::fs::PermissionsExt;
     let path = socket_path(dir);
     let _ = std::fs::remove_file(&path);
+    // Made 0600 from the start (no moment where others could connect).
+    // SAFETY: umask only changes this process's file creation mask; it is
+    // put back right after. bind runs at the start, before other threads
+    // create files.
+    let old = unsafe { libc::umask(0o177) };
     // Close-on-exec (Rust's default): no child inherits it.
-    let listener = UnixListener::bind(&path).ok()?;
+    let bound = UnixListener::bind(&path);
+    // SAFETY: as above, putting the old mask back.
+    unsafe { libc::umask(old) };
+    let listener = bound.ok()?;
     // Only the user may connect (the runtime folder is theirs already; the
     // cache folder fallback may not be).
     let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
     Some(listener)
+}
+
+/// Takes the socket file away when the app ends (the lock goes by itself).
+/// A copy that crashed leaves it; the next start replaces it.
+pub fn remove_socket(dir: &Path) {
+    let _ = std::fs::remove_file(socket_path(dir));
 }
 
 /// Keeps the listener until `serve` takes it.
@@ -80,12 +94,21 @@ pub fn ask_to_show(dir: &Path) -> bool {
 }
 
 /// Reads one request from a second start: true for "show".
-fn read_request(mut stream: UnixStream) -> bool {
-    // A client that never writes cannot hold the listener for long.
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
+fn read_request(stream: UnixStream) -> bool {
+    read_request_within(stream, Duration::from_secs(1))
+}
+
+/// Reads one request, giving the client `limit` in all (not per read): a
+/// client that writes a byte now and then cannot hold the listener either.
+fn read_request_within(mut stream: UnixStream, limit: Duration) -> bool {
+    let deadline = Instant::now() + limit;
     let mut buf = [0u8; 16];
     let mut len = 0;
     while len < buf.len() {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() || stream.set_read_timeout(Some(left)).is_err() {
+            break;
+        }
         match stream.read(&mut buf[len..]) {
             Ok(0) => break,
             Ok(n) => {
@@ -119,6 +142,10 @@ fn serve_on(listener: UnixListener, show: impl Fn() + Send + 'static) {
                 }
                 // The socket broke for good: stop listening.
                 Err(e) if matches!(e.raw_os_error(), Some(libc::EBADF | libc::EINVAL | libc::ENOTSOCK)) => break,
+                // Out of file descriptors or memory, or the like: accept
+                // would fail again at once, so wait a little instead of
+                // spinning.
+                Err(e) if e.kind() != std::io::ErrorKind::Interrupted => std::thread::sleep(Duration::from_millis(100)),
                 Err(_) => {}
             }
         }
@@ -163,6 +190,41 @@ mod tests {
         assert!(ask_to_show(&dir));
         rx.recv_timeout(Duration::from_secs(3)).expect("the second show arrives");
         assert!(rx.try_recv().is_err(), "quit was not taken as show");
+    }
+
+    #[test]
+    fn a_slow_client_gets_one_deadline_in_all() {
+        let (mut client, server) = UnixStream::pair().unwrap();
+        let writer = std::thread::spawn(move || {
+            // A byte every 150 ms: each read would succeed within a
+            // per-read timeout, but not "show\n" within the deadline.
+            for b in SHOW {
+                if client.write_all(&[*b]).is_err() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(150));
+            }
+        });
+        let start = Instant::now();
+        assert!(!read_request_within(server, Duration::from_millis(400)));
+        assert!(start.elapsed() < Duration::from_millis(700), "{:?}", start.elapsed());
+        writer.join().unwrap();
+        // In time it counts.
+        let (mut client, server) = UnixStream::pair().unwrap();
+        client.write_all(SHOW).unwrap();
+        assert!(read_request_within(server, Duration::from_millis(400)));
+    }
+
+    #[test]
+    fn the_socket_is_private_and_removed_at_the_end() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = scratch("private");
+        let listener = bind(&dir).unwrap();
+        let mode = std::fs::metadata(socket_path(&dir)).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        drop(listener);
+        remove_socket(&dir);
+        assert!(!socket_path(&dir).exists());
     }
 
     #[test]

@@ -801,7 +801,8 @@ fn judge(entry: &Entry, token: &mut TokenCheck, ctx: &Ctx) {
         return;
     }
     if over.is_some_and(|o| o.from.is_some()) && family == Family::CachyOs(NEWEST) {
-        token.add_note(&format!("Which proton-cachyos version {} is could not be told, so it is judged as the newest.", if ctx.tool.is_empty() { "this" } else { ctx.tool.as_str() }));
+        let name = if ctx.tool.is_empty() { String::new() } else { format!(" ({})", ctx.tool) };
+        token.add_note(&format!("Could not tell which proton-cachyos version this is{name}; judged as the newest."));
     }
     match status {
         "retired" if entry.kind == "env" && keeps_value(entry, over, &token.value) => {
@@ -1340,8 +1341,8 @@ pub fn gated(sys: &SystemInfo, ctx: &Ctx) -> Vec<Gated> {
                 let over = entry.by_flavour.get(f.name()).filter(|o| o.applies(f));
                 let own = over.map(|o| o.unavailable.as_str()).filter(|u| !u.is_empty()).unwrap_or(entry.unavailable.as_str());
                 let mut why = if own.is_empty() { t.note.clone() } else { own.to_string() };
-                if f == Family::CachyOs(NEWEST) && !why.contains("could not be told") {
-                    why.push_str(" (The proton-cachyos version could not be told, so it is judged as the newest.)");
+                if f == Family::CachyOs(NEWEST) && !why.contains("Could not tell") {
+                    why.push_str(" (Could not tell which proton-cachyos version this is; judged as the newest.)");
                 }
                 why
             };
@@ -1683,7 +1684,7 @@ mod tests {
             let mut unknown = ctx(Family::CachyOs(NEWEST));
             unknown.tool = "proton-cachyos-slr".into();
             let t = check(text, &unknown).token(name).cloned().unwrap();
-            assert!(t.status == "outdated" && t.note.contains("could not be told"), "{name}: {t:?}");
+            assert!(t.status == "outdated" && t.note.contains("Could not tell which proton-cachyos version"), "{name}: {t:?}");
         }
         // The version from the build's name or its version file.
         assert_eq!(cachyos_major("proton-cachyos-10.0-20250819-slr"), Some(10));

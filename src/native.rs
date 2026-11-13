@@ -24,6 +24,13 @@ pub fn quit() {
     ffi::gc_quit()
 }
 
+/// Called by Qt's aboutToQuit (cpp/native.cpp): takes the single-instance
+/// socket file away. Not on a signal or a crash; the next start replaces it.
+#[no_mangle]
+pub extern "C" fn gc_about_to_quit() {
+    crate::instance::remove_socket(&crate::instance::runtime_dir());
+}
+
 /// The tray icon in every size the tray offers (needs the Qt app).
 pub fn tray_icons() -> Vec<(i32, Vec<u8>)> {
     crate::tray::SIZES.iter().map(|&size| (size, ffi::gc_tray_icon(size))).collect()

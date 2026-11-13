@@ -59,14 +59,16 @@ Panel {
                 label: "With the desktop"
                 options: [
                     { id: "off", name: "Off" },
-                    { id: "hidden", name: "Hidden (tray icon only)" },
+                    { id: "hidden", name: Companion.tray ? "Hidden (tray icon only)" : "Hidden" },
                     { id: "visible", name: "Visible (hub shown)" }
                 ]
                 current: Companion.autostartMode
                 onChosen: (id) => Companion.setAutostartTo(id)
             }
             Hint { text: Companion.autostartMode === "hidden"
-                ? "Starts when you log in with only the tray icon; the hub shows when a game starts or from the tray."
+                ? (Companion.tray
+                    ? "Starts when you log in with only the tray icon; the hub shows when a game starts or from the tray."
+                    : "Starts hidden when you log in, with no tray icon (it is off below); the hub shows when a game starts, with Alt+Y, or when you start Game Companion again from the application menu.")
                 : Companion.autostartMode === "visible"
                 ? "Starts when you log in with the hub shown."
                 : "Start it yourself from the application menu. Starting it again while it runs brings the hub forward." }

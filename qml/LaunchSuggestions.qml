@@ -37,6 +37,9 @@ Column {
         return names
     }
     readonly property bool edited: fieldText.trim() !== savedText.trim()
+    /// What the suggestions start from: the field as it is now (its unsaved
+    /// edits stay), or the saved options when the field is empty.
+    readonly property string base: fieldText.trim().length > 0 ? fieldText : savedText
 
     spacing: 0
 
@@ -48,7 +51,7 @@ Column {
     }
 
     Component.onCompleted: {
-        req.ask(Games.suggestions(game.id), (a) => {
+        req.ask(Games.suggestions(game.id, view.base), (a) => {
             if (!a) return
             view.suggest = a
             // Applied ones stay on; recommended ones start on unless their
@@ -73,7 +76,9 @@ Column {
     function whyNot(s) { return s.unavailable_why || s.unavailableWhy || "It does nothing with this game's Proton build." }
 
     function toggle(s) {
-        if (!usable(s)) return
+        // One that does nothing here can still be taken out (or kept) when
+        // the options have it already.
+        if (!usable(s) && !s.applied) return
         const on = Object.assign({}, chosen)
         if (on[s.id]) delete on[s.id]
         else {
@@ -90,9 +95,10 @@ Column {
         combine()
     }
     function combine() {
+        req.forget(previewRequest)
         previewing = true
         const ids = Object.keys(chosen).filter((k) => chosen[k])
-        const r = Games.combineOptions(game.id, JSON.stringify(ids))
+        const r = Games.combineOptions(game.id, JSON.stringify(ids), view.base)
         previewRequest = r
         req.ask(r, (a) => {
             if (r !== view.previewRequest) return
@@ -415,7 +421,7 @@ Column {
                 spacing: 8
                 opacity: view.previewing ? 0.6 : 1
                 Repeater {
-                    model: view.preview ? Launch.diffWords(view.savedText, view.preview.text) : []
+                    model: view.preview ? Launch.diffWords(view.base, view.preview.text) : []
                     delegate: Text { style: Theme.textStyle(); styleColor: Theme.shadow
                         required property var modelData
                         text: modelData.text
@@ -437,7 +443,7 @@ Column {
             width: parent.width
             wrapMode: Text.WordWrap
             text: view.preview && view.preview.error.length > 0 ? view.preview.error
-                : "Gold = new. Your own parts stay where they are." + (view.edited ? " Built from the saved options: your unsaved edits in the field are replaced." : "")
+                : "Gold = new. Your own parts stay where they are." + (view.edited && view.base === view.fieldText ? " Built from the options in the field, your unsaved edits included." : "")
             color: view.preview && view.preview.error.length > 0 ? Launch.red : Theme.dim()
             font.family: Theme.body
             font.pixelSize: 11
@@ -559,7 +565,7 @@ Column {
         MouseArea {
             id: rowMouse
             anchors.fill: parent
-            enabled: row.usable
+            enabled: row.usable || row.s.applied
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: view.toggle(row.s)
@@ -596,7 +602,7 @@ Column {
             }
             // Short while off; all of it once on.
             Small {
-                text: row.s.why.length > 0 ? row.s.explanation + " " + row.s.why : row.s.explanation
+                text: row.usable && row.s.why.length > 0 ? row.s.explanation + " " + row.s.why : row.s.explanation
                 color: row.usable ? Theme.muted() : Theme.dim()
                 maximumLineCount: row.on ? 12 : 1
                 elide: Text.ElideRight
@@ -710,7 +716,7 @@ Column {
         MouseArea {
             id: radioMouse
             anchors.fill: parent
-            enabled: radio.usable
+            enabled: radio.usable || radio.applied
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: radio.picked()
@@ -747,7 +753,7 @@ Column {
                 Tag { visible: !radio.usable; text: "NO EFFECT HERE"; tint: Theme.dim(); anchors.verticalCenter: parent.verticalCenter }
             }
             Small { text: radio.whyNot; color: Theme.textSoft(); font.pixelSize: 11 }
-            Small { visible: radio.on && text.length > 0; text: radio.why; font.pixelSize: 11 }
+            Small { visible: radio.on && radio.usable && text.length > 0; text: radio.why; font.pixelSize: 11 }
             Small { visible: radio.on && text.length > 0; text: radio.warning; color: Launch.red; font.pixelSize: 11 }
             Small { visible: radio.on && text.length > 0; text: view.usageLine(radio.popular); color: Theme.dim(); font.pixelSize: 11 }
         }
