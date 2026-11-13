@@ -451,7 +451,11 @@ learnt, so nothing has to be asked or worked out again.
   `src/voice.rs`). Cheat sheets per dungeon (Ludra first) in
   `bossstarters.js`: starters from public guides, roles fade other roles'
   rows. Stores "boss", "boss-sheets", "boss-fights". Not done yet: overlay
-  slots and resizing. `GC_DEMO=boss[,bossfight|,ludra][,sheets|,fights|,voice]`.
+  slots and resizing. Preview outside the dungeon (MN, 0.8.6 test): SHEETS →
+  "Show over game" (`previewDungeon`, `previewKey`, not kept), ▶ on an entry
+  or a click on its row over the game plays it (`playEntry`: big call and
+  voice, `previewPhase` marked current). `GC_DEMO=boss[,bossfight|,ludra][,sheets|,fights|,voice]`,
+  `boss,sheets,preview`.
 
 - LOOT (`qml/aion2/LootPanel.qml`, `LootStore.qml`, `ClosetWindow.qml`,
   `PriceBook.qml`; logic `lootkit.js` from `tools/aion2-loot-import.py`):

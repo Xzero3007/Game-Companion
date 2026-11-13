@@ -618,6 +618,14 @@ words), fight summaries, voice settings. Version set by QA. Open: overlay
 slots 1-3 and resizing; the Ludra starter words are from public guides and
 unchecked (MN corrects them after a run); not tested against a live fight.
 
+## Branch `claude/project-thread-pv2u8z` (from beta): Boss cheat sheet preview
+
+MN (0.8.6 test): "how can I test or see the Ludra things?" SHEETS on a
+Ludra boss → "Show over game" shows the cheat sheet over the game outside
+the dungeon, with its boss tabs and a close button; ▶ on an entry (or a
+click on its row over the game while unlocked) plays it as in the fight:
+the big call for 6 s, the words spoken, the row marked as current.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots

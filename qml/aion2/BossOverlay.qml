@@ -16,20 +16,22 @@ Item {
     property var brain: null
     readonly property var p: brain ? brain.prefs : ({})
     readonly property var st: brain ? brain.noteState : ({ fight: null })
-    readonly property string dungeon: brain ? brain.dungeon : ""
+    readonly property string dungeon: brain ? brain.shownDungeon : ""
+    readonly property bool previewing: !!brain && brain.previewDungeon !== "" && !st.fight
     readonly property var dinfo: dungeon && brain ? brain.dungeons[dungeon] : null
     /// The boss tab picked by hand (else the one fought, else the first).
     property string picked: ""
     onDungeonChanged: picked = ""
     readonly property string bossKey: {
         if (st.fight) return st.fight.key
+        if (previewing && brain.previewKey) return brain.previewKey
         if (picked) return picked
         if (dinfo) return brain.lastKey && brain.dungeons[dungeon].bosses.some((b) => b.key === brain.lastKey) ? brain.lastKey : dinfo.bosses[0].key
         return p.keep && brain ? brain.lastKey : ""
     }
     readonly property var sheet: brain && bossKey ? (brain.sheetsRevision, brain.sheet(bossKey)) : null
-    readonly property bool cheat: !!dinfo && p.inDungeon !== false
-    readonly property bool wanted: p.overlay !== false && !!brain
+    readonly property bool cheat: !!dinfo && (p.inDungeon !== false || previewing)
+    readonly property bool wanted: previewing || p.overlay !== false && !!brain
         && ((st.fight && (st.hasSheet || cheat)) || cheat || (p.keep && !!sheet && !!brain.lastKey))
     readonly property var mine: brain && dungeon ? brain.myRoles(dungeon) : []
 
@@ -38,7 +40,7 @@ Item {
     /// current), else straight from the sheet.
     readonly property var rows: {
         if (!sheet) return []
-        const cur = st.fight && st.phase ? st.phase.id : ""
+        const cur = st.fight && st.phase ? st.phase.id : previewing ? brain.previewPhase : ""
         const list = st.fight && st.list ? st.list : (sheet.entries || []).map((e) => ({ id: e.id, kind: e.kind, name: e.name, text: e.text || "", role: e.role || "",
             when: brain.describe(e.when), fired: false }))
         return list.filter((e) => e.kind !== "alert" || !st.fight).map((e) => Object.assign({}, e, { current: e.id === cur, mine: forMe(e) }))
@@ -101,7 +103,7 @@ Item {
                 width: parent.width - 20
                 Caps {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: (ov.st.fight ? ov.st.fight.name : ov.cheat ? "Cheat sheet" : ov.brain ? ov.brain.bossName(ov.bossKey) : "").toUpperCase()
+                    text: (ov.st.fight ? ov.st.fight.name : ov.previewing ? "Preview" : ov.cheat ? "Cheat sheet" : ov.brain ? ov.brain.bossName(ov.bossKey) : "").toUpperCase()
                     font.pixelSize: 13
                     width: Math.min(implicitWidth, parent.width - 120)
                 }
@@ -110,6 +112,15 @@ Item {
                     text: ov.dinfo ? ov.dinfo.name : ""
                     width: Math.min(implicitWidth, 150)
                 }
+            }
+            IconButton {
+                visible: ov.previewing
+                anchors.right: parent.right
+                anchors.rightMargin: 4
+                anchors.verticalCenter: parent.verticalCenter
+                icon: "close"
+                tip: "Close the preview"
+                onClicked: ov.brain.stopPreview()
             }
             Caps {
                 visible: !!ov.st.fight
@@ -144,7 +155,7 @@ Item {
                     height: 28
                     Caps { id: tabText; anchors.verticalCenter: parent.verticalCenter; text: modelData.name.toUpperCase(); font.pixelSize: 11; color: parent.current ? Theme.accent : Theme.muted() }
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: parent.current ? Theme.accent : "transparent" }
-                    MouseArea { anchors.fill: parent; enabled: !Companion.locked; cursorShape: Qt.PointingHandCursor; onClicked: ov.picked = modelData.key }
+                    MouseArea { anchors.fill: parent; enabled: !Companion.locked; cursorShape: Qt.PointingHandCursor; onClicked: { if (ov.previewing) { ov.brain.previewKey = modelData.key; ov.brain.previewPhase = "" } else ov.picked = modelData.key } }
                 }
             }
         }
@@ -197,6 +208,12 @@ Item {
                     x: 10; width: parent.width - 20; height: entry.height
                     color: modelData.current ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.10) : "#1b1a20"
                     Rectangle { visible: modelData.current; width: 3; height: parent.height; color: Theme.accent }
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: ov.previewing && !Companion.locked
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: { const e = (ov.sheet.entries || []).find((x) => x.id === modelData.id); if (e) ov.brain.playEntry(ov.bossKey, e) }
                 }
                 Column {
                     id: entry
@@ -257,7 +274,7 @@ Item {
             visible: notes.length > 0 && ov.p.showNotes !== false
             x: 10; width: parent.width - 20
             topPadding: 4
-            height: visible ? implicitHeight + 8 : 0
+            bottomPadding: 8
             wrapMode: Text.WordWrap
             text: "Notes: " + notes
             color: Theme.dim(); font.family: Theme.body; font.pixelSize: 11

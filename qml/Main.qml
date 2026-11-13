@@ -461,7 +461,7 @@ Overlay {
     // Your sheet over the game in a boss fight, the cheat sheet in its
     // dungeon: with the hub or without.
     Surface {
-        wanted: bossOverlay.wanted && root.bossUsable && (Aion2.active || bossBrain.demo.indexOf("bossfight") >= 0 || bossBrain.demo.indexOf("ludra") >= 0)
+        wanted: bossOverlay.wanted && root.bossUsable && (Aion2.active || bossBrain.previewDungeon !== "" || bossBrain.demo.indexOf("bossfight") >= 0 || bossBrain.demo.indexOf("ludra") >= 0)
         stack: 2
         part: BossOverlay { id: bossOverlay; brain: bossBrain }
     }
