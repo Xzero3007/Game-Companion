@@ -104,8 +104,13 @@ learnt, so nothing has to be asked or worked out again.
 
 - One surface per part (0.4.0, the person, 2026-11-12, after stutters
   with a stream over the game): `qml/Surface.qml` is a `Window` holding one
-  part (bar, player row, each panel, each video, the unlocked frame's four
-  edges and note, the hub hint). The part keeps x/y in **screen
+  part (bar, player row, each panel, each video, the hub hint). No frame
+  or note while unlocked (the person, 2026-11-12: in daily use it was in
+  the way); the lock in the bar shows the state. While a part is dragged
+  or resized, its surface holds the whole screen and stays still
+  (`Surface.held`; moves are ignored for 120 ms until `steady`): a surface
+  moved per pointer event jumped about, because KDE places it a moment
+  later and the next pointer place came from the old position. The part keeps x/y in **screen
   coordinates**: it lives in `Surface.scene` (screen-sized, shifted by the
   surface's place), its parent. `nativeWindow.attach` makes the window a
   layer-shell surface (overlay layer, anchored top and left, exclusive
@@ -151,7 +156,7 @@ learnt, so nothing has to be asked or worked out again.
   bindings follow): HudBar, HudButton and PlayerRow pass true, IconButton
   and VolumeBar take a `hud` property; elsewhere `Theme.text()`;
   every `Text` has `style: Theme.textStyle(); styleColor: Theme.shadow`
-  (a 1 px shadow under half opacity): keep both for new text. The bar and
+  (a dark outline under half opacity): keep both for new text. The bar and
   the player row scale from their top left; the surface takes the scaled
   size.
 - `qml/theme.js`: the design's colours and fonts (a JS library, not a QML

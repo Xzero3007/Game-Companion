@@ -108,7 +108,7 @@ Panel {
                 current: Companion.alpha
                 onPicked: (v) => Companion.saveAlpha(v)
             }
-            Hint { text: "How much of the game shows through the bar and the panels. Under half, text gets a thin shadow to stay readable." }
+            Hint { text: "How much of the game shows through the bar and the panels. Under half, text gets a dark outline to stay readable." }
 
             Item { width: 1; height: 6 }
             Label { text: "Bar text brightness" }

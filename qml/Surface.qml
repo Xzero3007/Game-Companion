@@ -25,6 +25,17 @@ Window {
     /// The item the part lives in: screen coordinates.
     readonly property Item scene: holder
 
+    /// While a part is dragged or resized: the window covers the whole
+    /// screen and stays still, the part moves inside it. A window that
+    /// moved with every pointer event jumped about: KDE places it a moment
+    /// later, and the pointer's next place came from the old position.
+    property bool held: false
+    /// The window has had time to take the whole screen: pointer places
+    /// are measured from it from now on (MoveArea ignores moves until then).
+    property bool steady: false
+    onHeldChanged: { steady = false; if (held) settle.restart() }
+    Timer { id: settle; interval: 120; onTriggered: surface.steady = true }
+
     property bool attached: false
     transientParent: null
     title: "Game Companion"
@@ -36,6 +47,7 @@ Window {
     // cut to the screen.
     readonly property rect area: {
         if (!part) return Qt.rect(0, 0, 1, 1)
+        if (held) return Qt.rect(0, 0, screenW, screenH)
         const s = part.scale
         let x1 = part.x, y1 = part.y
         let x2 = part.x + part.width * s, y2 = part.y + part.height * s

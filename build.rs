@@ -9,7 +9,6 @@ fn main() {
         QmlFile::from("qml/Panel.qml"),
         QmlFile::from("qml/WelcomePanel.qml"),
         QmlFile::from("qml/SettingsPanel.qml"),
-        QmlFile::from("qml/UnlockedFrame.qml"),
         QmlFile::from("qml/TextButton.qml"),
         QmlFile::from("qml/HudSlider.qml"),
         QmlFile::from("qml/IconButton.qml"),

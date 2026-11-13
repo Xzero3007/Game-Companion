@@ -235,13 +235,18 @@ Item {
             property point start
             property real startWidth
             property real startGrow
+            // The window holds the whole screen while resizing (Surface.held).
+            function hold(on) { const w = Window.window; if (w && w.held !== undefined) w.held = on }
+            function steady() { const w = Window.window; return !w || w.steady === undefined || w.steady }
             onPressed: (mouse) => {
                 start = mapToItem(panel.parent, mouse.x, mouse.y)
                 startWidth = panel.width
                 startGrow = panel.grow
+                hold(true)
             }
+            onCanceled: hold(false)
             onPositionChanged: (mouse) => {
-                if (!pressed) return
+                if (!pressed || !steady()) return
                 const p = mapToItem(panel.parent, mouse.x, mouse.y)
                 const room = panel.parent ? panel.parent.width - panel.x : panel.maxWidth
                 panel.width = Math.max(panel.minWidth, Math.min(startWidth + p.x - start.x, panel.maxWidth, room))
@@ -250,7 +255,7 @@ Item {
                     panel.grow = Math.max(0, Math.min(startGrow + p.y - start.y, panel.maxGrow, below))
                 }
             }
-            onReleased: panel.remember()
+            onReleased: { panel.remember(); hold(false) }
             onDoubleClicked: { panel.width = panel.ownWidth; panel.grow = 0; panel.remember() }
         }
         Accessible.role: Accessible.Grip

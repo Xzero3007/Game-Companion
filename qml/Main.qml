@@ -56,7 +56,6 @@ Overlay {
         function onShownChanged() { if (!Companion.shown) hubHint.flash() }
     }
 
-    readonly property bool unlockedShown: !Companion.locked && (Companion.shown || root.pins.length > 0)
 
     // Screenshots (GC_SCREENSHOT): every part in one window, grabbed whole.
     Window {
@@ -72,7 +71,8 @@ Overlay {
         }
     }
 
-    // Screenshots only (GC_DEMO=backdrop): a stand-in for the game.
+    // Screenshots only (GC_DEMO=backdrop): a stand-in for the game
+    // (GC_DEMO=backdrop,bright: a light sky, the hardest ground for text).
     Surface {
         wanted: nativeWindow.demo.indexOf("backdrop") >= 0
         clickable: false
@@ -81,6 +81,13 @@ Overlay {
             width: root.width
             height: root.height
             color: "#262a2e"
+            gradient: nativeWindow.demo.indexOf("bright") >= 0 ? sky : null
+            Gradient {
+                id: sky
+                GradientStop { position: 0; color: "#c9d2dc" }
+                GradientStop { position: 0.6; color: "#e9edf1" }
+                GradientStop { position: 1; color: "#8f9fb2" }
+            }
             Text {
                 anchors.centerIn: parent
                 text: "GAME VIEW"
@@ -89,23 +96,6 @@ Overlay {
                 font.weight: Font.DemiBold
                 font.letterSpacing: 6
             }
-        }
-    }
-
-    // Unlocked: a thin gold frame around the screen, as four strips (no
-    // window over the whole screen), and a note at the bottom.
-    Surface { wanted: root.unlockedShown; clickable: false; stack: 1; part: Edge { width: root.width; height: 2 } }
-    Surface { wanted: root.unlockedShown; clickable: false; stack: 1; part: Edge { y: root.height - 2; width: root.width; height: 2 } }
-    Surface { wanted: root.unlockedShown; clickable: false; stack: 1; part: Edge { width: 2; height: root.height } }
-    Surface { wanted: root.unlockedShown; clickable: false; stack: 1; part: Edge { x: root.width - 2; width: 2; height: root.height } }
-    Surface {
-        wanted: root.unlockedShown
-        clickable: false
-        stack: 1
-        part: UnlockedFrame {
-            x: (root.width - width) / 2
-            y: root.height - height - 2
-            lockKey: root.keyOf("lock")
         }
     }
 
@@ -235,5 +225,4 @@ Overlay {
         }
     }
 
-    component Edge: Rectangle { color: Theme.accent }
 }

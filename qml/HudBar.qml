@@ -153,10 +153,13 @@ Item {
         property real startX: 0
         hoverEnabled: true
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-        onPressed: (mouse) => startX = mapToItem(bar.parent, mouse.x, mouse.y).x
-        onPositionChanged: (mouse) => { if (pressed) bar.dragShift = mapToItem(bar.parent, mouse.x, mouse.y).x - startX }
-        onReleased: bar.dropped()
-        onCanceled: bar.dragShift = 0
+        // The window holds the whole screen while dragging (Surface.held).
+        function hold(on) { const w = Window.window; if (w && w.held !== undefined) w.held = on }
+        function steady() { const w = Window.window; return !w || w.steady === undefined || w.steady }
+        onPressed: (mouse) => { startX = mapToItem(bar.parent, mouse.x, mouse.y).x; hold(true) }
+        onPositionChanged: (mouse) => { if (pressed && steady()) bar.dragShift = mapToItem(bar.parent, mouse.x, mouse.y).x - startX }
+        onReleased: { bar.dropped(); hold(false) }
+        onCanceled: { bar.dragShift = 0; hold(false) }
     }
 
     component ToolTipText: Rectangle {

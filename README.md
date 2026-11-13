@@ -12,7 +12,7 @@ to the game.
   fullscreen, borderless or windowed mode. Not inside Gamescope (Steam Deck
   mode), where no other overlay can show.
 - **One lock.** Locked (as it starts), every click goes to the game and only
-  the lock button in the bar takes clicks. Unlocked, a thin gold frame shows,
+  the lock button in the bar takes clicks. Unlocked (the lock in the bar shows gold),
   panels move by their header and their buttons work; the overlay only takes
   the keyboard when you click into it.
 - **Global shortcuts through KDE**, suggested as:
@@ -27,7 +27,7 @@ to the game.
   gold corner at a panel's bottom right makes it wider or narrower (the
   radio's list also taller); a double-click on it gives back its own size.
 - **Display** (Settings → Display): one opacity for the bar and all panels,
-  from solid down to 5 % (under half, text gets a thin shadow); for the
+  from solid down to 5 % (under half, text gets a dark outline); for the
   bar and the player row under it (panels stay as designed), the
   brightness of the white and grey text and of the gold, 100 down to
   40 %; the bar's size, 100 down to 60 % (with the player row). Opacity,

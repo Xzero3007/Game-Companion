@@ -1073,15 +1073,19 @@ Item {
             cursorShape: Qt.SizeFDiagCursor
             property point start
             property real startWidth
-            onPressed: (m) => { start = mapToItem(win.parent, m.x, m.y); startWidth = win.width }
+            // The window holds the whole screen while resizing (Surface.held).
+            function hold(on) { const w = Window.window; if (w && w.held !== undefined) w.held = on }
+            function steady() { const w = Window.window; return !w || w.steady === undefined || w.steady }
+            onPressed: (m) => { start = mapToItem(win.parent, m.x, m.y); startWidth = win.width; hold(true) }
             onPositionChanged: (m) => {
-                if (!pressed) return
+                if (!pressed || !steady()) return
                 const p = mapToItem(win.parent, m.x, m.y)
                 const room = win.parent ? Math.min(win.parent.width - win.x, (win.parent.height - win.y) * 16 / 9) : 1920
                 win.width = Math.max(240, Math.min(startWidth + p.x - start.x, room))
                 win.height = Math.round(win.width * 9 / 16)
             }
-            onReleased: win.remember()
+            onReleased: { win.remember(); hold(false) }
+            onCanceled: hold(false)
         }
         Accessible.role: Accessible.Grip
         Accessible.name: "Resize the video"

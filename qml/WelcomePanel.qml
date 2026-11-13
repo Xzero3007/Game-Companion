@@ -25,7 +25,7 @@ Panel {
         Para {
             text: "<b>Locked</b> (as it starts): every click goes to the game. Only the lock in the bar takes clicks."
         }
-        Para { text: "<b>Unlocked</b>: a gold frame shows. Move panels by their header and use their buttons." }
+        Para { text: "<b>Unlocked</b>: the lock in the bar shows gold. Move panels by their header and use their buttons." }
 
         Column {
             width: parent.width

@@ -24,10 +24,11 @@ function dim(hud) { return textShade("#8d8996", hud) }
 // The gold in the bar and the player row, darkened as the user set it.
 function accentFor(hud) { return hud ? shade(accent, GC.Companion.accentLevel) : accent }
 
-// Almost see-through panels: text gets a thin dark shadow (Text.Raised)
-// so it stays readable over the game.
-var shadow = Qt.rgba(0, 0, 0, 0.85)
-function textStyle() { return GC.Companion.alpha < 0.5 ? 2 : 0 }
+// Almost see-through panels (under half): text gets a dark outline all
+// round (Text.Outline) so it stays readable over a light game; a shadow
+// on one side was not enough over a bright sky.
+var shadow = Qt.rgba(0, 0, 0, 0.9)
+function textStyle() { return GC.Companion.alpha < 0.5 ? 1 : 0 }
 var track = "#4a4752"
 var trackDark = "#2a2830"
 var divider = Qt.rgba(1, 1, 1, 0.08)
