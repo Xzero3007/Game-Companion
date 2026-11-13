@@ -6,6 +6,7 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QString>
+#include <QtCore/QVariantList>
 #include <QtQuick/QQuickFramebufferObject>
 
 #include <memory>
@@ -38,6 +39,10 @@ class MpvVideo : public QQuickFramebufferObject
     /// For the home network's server (Jellyfin): set before the first video.
     /// No yt-dlp, no mpv scripts, no proxy: mpv goes straight to the address.
     Q_PROPERTY(bool local READ local WRITE setLocal NOTIFY localChanged)
+    /// The video's chapters: [{title, time}] (time in seconds).
+    Q_PROPERTY(QVariantList chapters READ chapters NOTIFY chaptersChanged)
+    /// How fast it plays (1 = as recorded).
+    Q_PROPERTY(double speed READ speed WRITE setSpeed NOTIFY speedChanged)
 
 public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
@@ -56,6 +61,9 @@ public:
     bool drawable() const;
     bool hwdec() const { return m_hwdec; }
     bool local() const { return m_local; }
+    QVariantList chapters() const { return m_chapters; }
+    double speed() const { return m_speed; }
+    void setSpeed(double speed);
     void setHwdec(bool on);
     void setLocal(bool on);
 
@@ -91,6 +99,8 @@ signals:
     void drawableChanged();
     void hwdecChanged();
     void localChanged();
+    void chaptersChanged();
+    void speedChanged();
 
 protected:
     /// Moved to another window: draw there (a video waiting for its render
@@ -131,6 +141,8 @@ private:
     double m_duration = 0;
     bool m_hwdec = true;
     bool m_local = false;
+    QVariantList m_chapters;
+    double m_speed = 1.0;
 };
 
 /// Registers MpvVideo for QML.

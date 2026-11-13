@@ -64,9 +64,54 @@ Item {
     readonly property bool playing: video.state === "playing" || video.state === "buffering" || video.state === "loading"
     readonly property string playState: !active ? "idle" : video.state
 
+    // ---------- YouTube: where it stopped, playlists ----------
+    /// Seekable: YouTube, Jellyfin, Twitch's past broadcasts and clips.
+    readonly property bool seekable: !!item && (item.kind === "youtube" || item.kind === "twitchvod" || item.kind === "twitchclip" || jelly)
+    /// The YouTube video's details as the lists have them.
+    function videoJson() {
+        if (!item) return ""
+        const v = item.video || {}
+        return JSON.stringify({ id: item.id, title: v.title || item.title || video.title || "", channel: v.channel || item.name || "",
+                                channelId: v.channelId || "", duration: video.duration || v.duration || 0, published: v.published || "" })
+    }
+    function keepPosition() {
+        if (item && item.kind === "youtube" && video.position > 0) Library.record(videoJson(), video.position, video.duration)
+    }
+    Timer {
+        // Every 10 seconds while a YouTube video plays: where it is (to go on later).
+        interval: 10000
+        repeat: true
+        running: win.active && !!win.item && win.item.kind === "youtube" && video.state === "playing" && !video.paused
+        onTriggered: win.keepPosition()
+    }
+    /// The next in a playlist played through, or null.
+    readonly property var nextInQueue: {
+        if (!item || !item.queue) return null
+        const i = item.index + 1
+        if (i < item.queue.length) return { at: i, v: item.queue[i] }
+        return item.loop && item.queue.length > 0 ? { at: 0, v: item.queue[0] } : null
+    }
+    function playNext() {
+        const n = nextInQueue
+        if (!n) return
+        play({ kind: "youtube", id: n.v.id, title: n.v.title, name: n.v.channel, video: n.v, queue: item.queue, index: n.at, loop: item.loop, playlist: item.playlist })
+    }
+    Connections {
+        target: !win.jelly ? video : null
+        function onStateChanged() {
+            if (video.state === "ended" && win.item && win.item.kind === "youtube") {
+                Library.record(win.videoJson(), video.duration, video.duration)
+                if (win.nextInQueue) win.playNext()
+            }
+        }
+    }
+
     function play(what) {
         if (jelly && item && jf.started) jfStopped()
+        keepPosition()
         item = what
+        if (what.kind === "twitch") quality = Streams.qualityFor(what.id) || Streams.quality
+        else if (!jelly) quality = Streams.quality
         tries = 0
         segments = []
         skipped = ({})
@@ -81,7 +126,7 @@ Item {
             load(what.start || 0)
             return
         }
-        load(0)
+        load(what.kind === "youtube" ? Library.resumeAt(what.id) : 0)
         if (what.kind === "youtube") Streams.loadSegments(slot, what.id)
     }
     function load(start) {
@@ -119,6 +164,7 @@ Item {
     }
     function stop() {
         if (jelly && jf.started) jfStopped()
+        keepPosition()
         nextTimer.stop()
         nextNote = ""
         video.stop()
@@ -174,7 +220,7 @@ Item {
         }
         tries++
         reconnecting = true
-        const at = item.kind === "youtube" || jelly ? Math.max(0, video.position) : 0
+        const at = seekable ? Math.max(0, video.position) : 0
         load(at)
     }
 
@@ -393,7 +439,8 @@ Item {
         if (jelly) Jellyfin.saveQuality(q)
         else Streams.saveQuality(q)
         quality = q
-        const at = item && (item.kind === "youtube" || jelly) ? video.position : 0
+        if (item && item.kind === "twitch") Streams.saveChannelQuality(item.id, q)
+        const at = seekable ? video.position : 0
         load(at)
     }
 
@@ -487,6 +534,8 @@ Item {
         property real position: 0
         property real duration: 0
         property bool drawable: true
+        property var chapters: []
+        property real speed: 1
         function play(url, format, start, header) { return false }
         function setTrack(kind, id) {}
         function addSubtitle(url) {}
@@ -526,6 +575,7 @@ Item {
         enabled: !Companion.locked
     }
     readonly property bool barsWanted: pointerOn.hovered || qualityPicker.open || opacityPicker.open || audioPicker.open || subtitlePicker.open
+        || speedPicker.open || chapterPicker.open
     onBarsWantedChanged: if (!barsWanted) barsLinger.restart()
     Timer { id: barsLinger; interval: 700 }
 
@@ -543,8 +593,17 @@ Item {
         onDoubleClicked: win.togglePause()
     }
     readonly property bool showBars: !Companion.locked && (barsWanted || barsLinger.running || nativeWindow.demo.indexOf("video") >= 0)
-    onShowBarsChanged: if (!showBars) { qualityPicker.open = false; opacityPicker.open = false; audioPicker.open = false; subtitlePicker.open = false }
-    function closePickers() { qualityPicker.open = false; opacityPicker.open = false; audioPicker.open = false; subtitlePicker.open = false }
+    onShowBarsChanged: if (!showBars) closePickers()
+    function closePickers() {
+        qualityPicker.open = false; opacityPicker.open = false; audioPicker.open = false; subtitlePicker.open = false
+        speedPicker.open = false; chapterPicker.open = false
+    }
+    /// The chapter at a time ("" none).
+    function chapterAt(t) {
+        let name = ""
+        for (const c of video.chapters) if (c.time <= t) name = c.title || ""
+        return name
+    }
 
     // Top bar: name, pin, quality, close.
     Rectangle {
@@ -580,6 +639,7 @@ Item {
                 width: parent.width - 90
                 elide: Text.ElideRight
                 text: win.item ? (win.item.kind === "twitch" ? win.item.name + (win.item.game ? " · " + win.item.game : "")
+                    : win.item.kind === "twitchvod" || win.item.kind === "twitchclip" ? [win.item.name, win.item.title].filter((t) => t).join(" · ")
                     : win.jelly ? [win.item.title, win.item.name].filter((t) => t).join(" · ")
                     : (win.item.title || video.title)) : ""
                 color: Theme.textSoft()
@@ -646,6 +706,22 @@ Item {
                 Accessible.name: "Quality: " + win.qualityName(win.quality)
             }
             TrackButton {
+                visible: video.chapters.length > 1
+                text: "CHAPTERS"
+                picker: chapterPicker
+            }
+            IconButton {
+                visible: !!win.item && win.item.kind === "youtube"
+                anchors.verticalCenter: parent.verticalCenter
+                readonly property bool on: Library.revision >= 0 && !!win.item && JSON.parse(Library.mark(win.item.id)).quick
+                icon: "bookmark"
+                iconSize: 13
+                filled: on
+                color: on ? Theme.accent : Theme.muted()
+                tip: on ? "Remove from the bookmark list" : "Bookmark"
+                onClicked: Library.toggleQuick(win.videoJson())
+            }
+            TrackButton {
                 visible: win.jelly && !!win.jf.tracks && win.jf.tracks.audio.length > 1
                 text: "SOUND"
                 picker: audioPicker
@@ -703,6 +779,15 @@ Item {
             }
             SeekButton { back: true }
             SeekButton { back: false }
+            IconButton {
+                visible: !!win.nextInQueue
+                anchors.verticalCenter: parent.verticalCenter
+                icon: "next"
+                iconSize: 13
+                color: Theme.text()
+                tip: win.nextInQueue ? "Next: " + win.nextInQueue.v.title : ""
+                onClicked: win.playNext()
+            }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 // Small, the time line's own label says it.
@@ -714,6 +799,32 @@ Item {
             }
         }
         Item {
+            visible: win.seekable && video.duration > 0
+            anchors.right: opacityItem.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: speedText.implicitWidth + 12
+            height: 26
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                id: speedText
+                anchors.centerIn: parent
+                text: (Math.round(video.speed * 100) / 100) + "× ▾"
+                color: speedPicker.open || Math.abs(video.speed - 1) > 0.01 ? Theme.accent : speedMouse.containsMouse ? Theme.text() : Theme.muted()
+                font.family: Theme.display
+                font.pixelSize: 12
+                font.weight: Font.Bold
+            }
+            MouseArea {
+                id: speedMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: { const o = !speedPicker.open; win.closePickers(); speedPicker.open = o }
+            }
+            Accessible.role: Accessible.ComboBox
+            Accessible.name: "Speed: " + speedText.text
+        }
+        Item {
+            id: opacityItem
             anchors.right: parent.right
             anchors.rightMargin: 22
             anchors.verticalCenter: parent.verticalCenter
@@ -763,6 +874,19 @@ Item {
                 height: parent.height
                 color: Theme.accent
             }
+            // Chapters: a thin gap where each begins.
+            Repeater {
+                model: video.duration > 0 ? video.chapters : []
+                delegate: Rectangle {
+                    required property var modelData
+                    visible: modelData.time > 0
+                    x: parent.width * modelData.time / video.duration - 1
+                    width: 2
+                    height: parent.height
+                    color: "#0c0c0f"
+                    z: 2
+                }
+            }
             Repeater {
                 model: video.duration > 0 ? win.segments : []
                 delegate: Rectangle {
@@ -795,7 +919,7 @@ Item {
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 id: hoverTime
                 anchors.centerIn: parent
-                text: win.clock(timeLine.timeAt(seekMouse.mouseX))
+                text: { const t = timeLine.timeAt(seekMouse.mouseX); const c = win.chapterAt(t); return win.clock(t) + (c ? " · " + c : "") }
                 color: Theme.text()
                 font.family: Theme.body
                 font.pixelSize: 11
@@ -948,6 +1072,29 @@ Item {
         options: win.qualities
         current: win.quality
         onChosen: (id) => win.setQuality(id)
+    }
+    Picker {
+        id: chapterPicker
+        anchors.right: parent.right
+        anchors.rightMargin: 36
+        y: 36
+        width: Math.min(300, win.width - 48)
+        maxHeight: win.height - y - 44
+        options: video.chapters.map((c, i) => ({ id: String(i), name: win.clock(c.time) + "  " + (c.title || "Chapter " + (i + 1)) }))
+        current: { let at = -1; video.chapters.forEach((c, i) => { if (c.time <= video.position) at = i }); return String(at) }
+        onChosen: (id) => video.seek(video.chapters[Number(id)].time, false)
+    }
+    Picker {
+        id: speedPicker
+        anchors.right: parent.right
+        anchors.rightMargin: 90
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 40
+        width: 90
+        maxHeight: win.height - 80
+        options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((v) => ({ id: String(v), name: v + "×" }))
+        current: String(Math.round(video.speed * 100) / 100)
+        onChosen: (id) => video.speed = Number(id)
     }
     Picker {
         id: audioPicker

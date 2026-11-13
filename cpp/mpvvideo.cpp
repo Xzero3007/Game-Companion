@@ -314,6 +314,8 @@ bool MpvVideo::ensureStarted()
     mpv().observe_property(m_mpv, 0, "media-title", MPV_FORMAT_STRING);
     mpv().observe_property(m_mpv, 0, "time-pos", MPV_FORMAT_DOUBLE);
     mpv().observe_property(m_mpv, 0, "duration", MPV_FORMAT_DOUBLE);
+    mpv().observe_property(m_mpv, 0, "chapter-list", MPV_FORMAT_NODE);
+    mpv().observe_property(m_mpv, 0, "speed", MPV_FORMAT_DOUBLE);
     mpv().set_wakeup_callback(m_mpv, onWakeup, this);
     m_core = std::make_shared<MpvCore>();
     m_core->handle = m_mpv;
@@ -473,6 +475,16 @@ void MpvVideo::addSubtitle(const QString &url)
     mpv().command(m_mpv, args);
 }
 
+void MpvVideo::setSpeed(double speed)
+{
+    if (!(speed >= 0.25 && speed <= 4)) {
+        return;
+    }
+    m_speed = speed;
+    setMpv("speed", QString::number(speed, 'f', 2));
+    emit speedChanged();
+}
+
 void MpvVideo::setPaused(bool paused)
 {
     setMpv("pause", paused ? QStringLiteral("yes") : QStringLiteral("no"));
@@ -583,7 +595,40 @@ void MpvVideo::readEvents()
                 } else if (name == "duration") {
                     m_duration = v;
                     emit durationChanged();
+                } else if (name == "speed" && !qFuzzyCompare(v, m_speed)) {
+                    m_speed = v;
+                    emit speedChanged();
                 }
+            } else if (p->format == MPV_FORMAT_NODE && name == "chapter-list") {
+                // [{title, time}], read out of mpv's own list.
+                QVariantList list;
+                const auto *node = static_cast<mpv_node *>(p->data);
+                if (node->format == MPV_FORMAT_NODE_ARRAY && node->u.list) {
+                    for (int i = 0; i < node->u.list->num; ++i) {
+                        const mpv_node &entry = node->u.list->values[i];
+                        if (entry.format != MPV_FORMAT_NODE_MAP || !entry.u.list) {
+                            continue;
+                        }
+                        QVariantMap chapter;
+                        for (int k = 0; k < entry.u.list->num; ++k) {
+                            const char *key = entry.u.list->keys ? entry.u.list->keys[k] : nullptr;
+                            const mpv_node &value = entry.u.list->values[k];
+                            if (!key) {
+                                continue;
+                            }
+                            if (qstrcmp(key, "title") == 0 && value.format == MPV_FORMAT_STRING) {
+                                chapter.insert(QStringLiteral("title"), QString::fromUtf8(value.u.string));
+                            } else if (qstrcmp(key, "time") == 0 && value.format == MPV_FORMAT_DOUBLE) {
+                                chapter.insert(QStringLiteral("time"), value.u.double_);
+                            }
+                        }
+                        if (chapter.contains(QStringLiteral("time"))) {
+                            list.append(chapter);
+                        }
+                    }
+                }
+                m_chapters = list;
+                emit chaptersChanged();
             } else if (p->format == MPV_FORMAT_STRING && name == "media-title") {
                 m_title = QString::fromUtf8(*static_cast<char **>(p->data));
                 emit titleChanged();
