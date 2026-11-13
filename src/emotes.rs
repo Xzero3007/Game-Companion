@@ -27,7 +27,7 @@ fn valid_id(s: &str) -> bool {
 }
 
 fn fetch(url: &str) -> Option<Value> {
-    let bytes = streams::get(url, Duration::from_secs(15)).ok()?;
+    let bytes = streams::get_direct(url, Duration::from_secs(15)).ok()?;
     serde_json::from_slice(&bytes).ok()
 }
 

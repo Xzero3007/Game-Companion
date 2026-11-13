@@ -7,8 +7,14 @@
 
 namespace {
 
+#ifdef GC_CHAT_TEST
+// Only the test harness (tools/, built by hand) talks to a made-up server.
+const char *const HOST = "127.0.0.1";
+const quint16 PORT = 16697;
+#else
 const char *const HOST = "irc.chat.twitch.tv";
 const quint16 PORT = 6697;
+#endif
 
 bool validLogin(const QString &s)
 {
@@ -106,11 +112,18 @@ TwitchChat::TwitchChat(QObject *parent) : QObject(parent)
         write("JOIN #" + m_channel.toLatin1());
     });
     connect(&m_socket, &QSslSocket::readyRead, this, &TwitchChat::readLines);
+#ifdef GC_CHAT_TEST
+    connect(&m_socket, &QSslSocket::sslErrors, this, [this] { m_socket.ignoreSslErrors(); });
+#endif
     connect(&m_socket, &QSslSocket::disconnected, this, [this] {
         if (m_channel.isEmpty()) {
             return;
         }
-        // Lost: again after a while (longer each time, at most a minute).
+        // Lost: again after a while (longer each time, at most a minute);
+        // a retry already waiting (Twitch's RECONNECT) stays as it is.
+        if (m_retry.isActive()) {
+            return;
+        }
         setState(QStringLiteral("connecting"), QStringLiteral("Reconnecting…"));
         m_retry.start(qMin(60000, 2000 * (1 << qMin(m_tries++, 5))));
     });
@@ -165,7 +178,12 @@ void TwitchChat::connectNow()
         return;
     }
     m_authed = false;
+    m_retry.stop();
+    // Dropping the old connection must not count as losing it (that would
+    // start the retry again, and again).
+    m_socket.blockSignals(true);
     m_socket.abort();
+    m_socket.blockSignals(false);
     setState(QStringLiteral("connecting"));
     m_socket.connectToHostEncrypted(QString::fromLatin1(HOST), PORT);
 }
@@ -178,8 +196,9 @@ void TwitchChat::leave()
     m_token.clear();
     m_authed = false;
     if (m_socket.state() != QAbstractSocket::UnconnectedState) {
-        m_socket.disconnectFromHost();
+        m_socket.blockSignals(true);
         m_socket.abort();
+        m_socket.blockSignals(false);
     }
     if (!m_roomId.isEmpty()) {
         m_roomId.clear();
@@ -197,7 +216,13 @@ bool TwitchChat::send(const QString &text)
     if (!canSend() || t.isEmpty()) {
         return false;
     }
-    t.truncate(500);
+    if (t.size() > 500) {
+        t.truncate(500);
+        // Never half a surrogate pair at the end.
+        if (t.at(t.size() - 1).isHighSurrogate()) {
+            t.chop(1);
+        }
+    }
     write("PRIVMSG #" + m_channel.toLatin1() + " :" + t.toUtf8());
     emit message(m_ownName.isEmpty() ? m_user : m_ownName, m_ownColour, t, QString(), true, false);
     return true;

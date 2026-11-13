@@ -461,6 +461,10 @@ Panel {
                     onClicked: takeNote.text = Streams.takeFreetube()
                 }
             }
+            Connections {
+                target: Streams
+                function onFreetubeTaken(note) { takeNote.text = note; Library.refresh() }
+            }
             Hint {
                 id: takeNote
                 text: Streams.freetubeLive
