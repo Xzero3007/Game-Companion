@@ -47,6 +47,8 @@ Panel {
     Timer { id: saveTimer; interval: 400; onTriggered: Aion2.keepStore("characters-view", JSON.stringify(panel.prefs)) }
     Component.onCompleted: {
         try { prefs = Object.assign({}, prefs, JSON.parse(Aion2.loadStore("characters-view") || "{}")) } catch (e) { }
+        // Screenshots: GC_DEMO=chars,limits (or ,content) opens that tab.
+        for (const t of ["content", "limits"]) if (nativeWindow.demo.split(",").indexOf(t) >= 0) prefs = Object.assign({}, prefs, { tab: t })
     }
 
     // The time the numbers are for: again with every change of the store,
@@ -733,23 +735,33 @@ Panel {
         Rectangle {
             required property var modelData
             width: (limitsCol.width - 6) / 2
-            height: 52
+            // Long names (the game's entries) take a second line, not "…".
+            height: Math.max(52, boxColumn.implicitHeight + 16)
             color: "#1b1a20"
             opacity: panel.shown(modelData.id) ? 1 : 0.4
             Eye { z: 2; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; anchors.rightMargin: 6; entry: modelData.id }
             Column {
-                anchors.fill: parent
+                id: boxColumn
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
                 anchors.margins: 8
                 anchors.rightMargin: panel.choosing ? 36 : 8
                 spacing: 4
                 Item {
                     width: parent.width
-                    height: 16
-                    Line { width: parent.width - valueRow.width - 6; anchors.verticalCenter: parent.verticalCenter; text: modelData.name }
+                    height: Math.max(16, nameLine.implicitHeight)
+                    Line {
+                        id: nameLine
+                        width: parent.width - valueRow.width - 6
+                        wrapMode: Text.WordWrap
+                        maximumLineCount: 2
+                        text: modelData.name
+                    }
                     Row {
                         id: valueRow
                         anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.top: parent.top
                         spacing: 4
                         Figure { font.pixelSize: 14; text: modelData.value; color: panel.toneColor(modelData.tone) }
                         Line { anchors.baseline: parent.children[0].baseline; font.pixelSize: 11; color: Theme.dim(); text: modelData.cap || "" }

@@ -930,7 +930,10 @@ Panel {
                 visible: r.kind === "item" || r.kind === "sub" || r.kind === "subhead"
                 anchors.fill: parent
                 readonly property bool inner: r.kind !== "item"
-                readonly property var w: inner ? (r.five ? [0.4, 0.12, 0.16, 0.16, 0.16] : [0.46, 0.14, 0.2, 0.2]) : panel.widths
+                // An open item's rows keep the list's columns (their figures under its own).
+                readonly property int columns: (r.cells || []).length + (r.kind === "subhead" ? 0 : 1)
+                readonly property var w: !inner || panel.widths.length === columns ? panel.widths
+                    : r.five ? [0.4, 0.12, 0.16, 0.16, 0.16] : [0.46, 0.14, 0.2, 0.2]
                 Item {
                     id: nameCell
                     x: parent.inner ? 34 : 0

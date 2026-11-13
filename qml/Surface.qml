@@ -93,7 +93,10 @@ Window {
     // given again then, so a resized window never keeps a stale one (the
     // DPS panel took no clicks after its first fight grew it, on KWin).
     Timer { id: settleInput; interval: 250; onTriggered: surface.applyInput() }
-    onVisibleChanged: if (visible) input()
+    // Shown for the first time, a layer surface takes its input region only
+    // once the compositor has configured it: given again a moment later
+    // (the game row took no clicks on KWin until it was hidden and shown).
+    onVisibleChanged: if (visible) { input(); settleInput.restart() }
     Component.onCompleted: {
         if (part) { part.parent = home; part.z = stack; surface.objectName = part.panelId !== undefined ? part.panelId : String(part).split("(")[0] }
         nativeWindow.attach(surface)
