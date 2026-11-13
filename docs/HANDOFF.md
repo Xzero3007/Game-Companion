@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.12 QA collection (2026-11-13): #29 AION 2 Armory with builds tied to characters (entry below).
 - 0.8.11 QA collection (2026-11-13): #27 no gold frames left on video windows (entry below).
 - 0.8.10 QA collection (2026-11-13): #24 LOOT after MN's 0.8.6 test: shop window only at the merchant, farm window, the meter's data taken over (entries below).
 - 0.8.9 QA collection (2026-11-13): #22 game row opens panels while the hub is hidden, #23 no gold edge on video windows while unlocked (entries below).
@@ -659,6 +660,26 @@ Ludra boss → "Show over game" shows the cheat sheet over the game outside
 the dungeon, with its boss tabs and a close button; ▶ on an entry (or a
 click on its row over the game while unlocked) plays it as in the fight:
 the big call for 6 s, the words spoken, the row marked as current.
+
+## Branch `claude/project-thread-4nn18t` (from beta): Armory with builds
+
+MN (2026-11-13): the Armory, with builds tied to characters better than the
+old app. Allowed hosts: aion2.plaync.com, api-search.plaync.com,
+profileimg.plaync.com (decision card). Design: canvas page "Armory mit
+Builds" (AR1–AR4), MN: "ja passt", and every old tab gently improved:
+Overview (build progress and next steps first, steps open their tab, the
+build's Daevanion points on the boards), Gear (old Gear + Reference +
+calculator + Compare in one list per slot, ticks leave slots out of
+progress/steps/Goals), Soul binding (wishes kept in the build, picker in
+place, chance beside misses), Skills (targets with − / +, "Aim", folded
+rows), Daevanion (the build's closed nodes first, marked on the map),
+Stats (build's deity stats against yours, searchable glossary), Goals (goal
+GS belongs to the build, CP beside it), Builds (new: make from questlog.gg
+file / copy / strongest players / empty, put on characters, versions),
+History (build progress line, version marks, boss fights with DPS).
+CHARACTERS shows "build NN %" under the gear score. Open: tested only with
+made-up data in the sandbox (NC's pages are blocked here); the first real
+reading is MN's test.
 
 ## Testing
 

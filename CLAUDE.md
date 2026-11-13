@@ -74,7 +74,9 @@ learnt, so nothing has to be asked or worked out again.
   (www.aion2timers.com/api/fieldboss.php?action=feed&server=<region-name>,
   read only, off until switched on, every 5 min while the Schedule is open
   or 15 while a boss alert waits; src/aion2timers.rs; the person,
-  2026-11-13). Brave Origin and Legcord are the
+  2026-11-13); the Armory's NC character pages (aion2.plaync.com,
+  api-search.plaync.com, profileimg.plaync.com; read only, no account;
+  src/armory.rs `allowed`; MN, 2026-11-13). Brave Origin and Legcord are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
 - **Game modules only read** (like the AION 2 meter): never send anything to
@@ -472,6 +474,30 @@ learnt, so nothing has to be asked or worked out again.
   `FarmWindow.qml` opens itself while farming; the shop window's switches
   are per place (merchant, Market). Positions in `Aion2.world` are in cm.
   `short` is a reserved word in QML's JS: name helpers otherwise.
+
+- Armory (MN 2026-11-13, canvas page "Armory mit Builds", boards AR1–AR4):
+  the Clicktrough Armory plugin with builds tied to characters.
+  `qml/aion2/armorykit.js` is the plugin's calc.js and nc.js unchanged
+  (made by `tools/aion2-armory-import.py <A2Tools-Clicktrough-Plugins
+  plugins dir>`, which also writes `crates/aion2/data/armory/data.json`,
+  loaded by `Aion2.armoryData()` → `AK.load`); its tests
+  `tools/armory-test/calc.test.cjs` (run each file with `node --test`).
+  `buildkit.js` (+ `builds.test.cjs`): builds = reference + targets (soul
+  wishes, skill levels, compared items, levels, picks, slots left out, goal
+  GS), on several characters, one active each, versions within 10 min,
+  progress per area, next steps (gone from the next reading = done).
+  `ArmoryStore.qml` (in Main): state in store "armory", one snapshot and
+  history per character ("armory-s-"/"armory-h-" + hash), reads NC's pages
+  through `Aion2.webGet` (promises, no async on Qt 6.4), a played character
+  by itself every 6 h while the plugin is on, the game's own CP/GS between
+  readings; `progressOf(key)` feeds CHARACTERS' gear column. Panel
+  `ArmoryPanel.qml` with tab files `Armory<Tab>.qml`, parts in `AUi.qml`
+  (no Repeater inside inline components, no inline component made by a
+  nested Repeater: Qt 6.4 crashed; no property named `top`, `scale`, `C`
+  or a signal `set`). questlog.gg builds come from the Armory bookmark's
+  file in Downloads (`armory-*.json`, `src/armory.rs`). Battle History
+  entries carry `players` [[name, damage]] for HISTORY's boss fights.
+  `GC_DEMO=armory[,gear[,compare]|,soul[,pick]|,askills|,daev|,stats|,goals|,builds|,ahistory]`.
 
 ## Checking a change
 

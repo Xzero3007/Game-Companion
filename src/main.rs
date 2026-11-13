@@ -4,6 +4,7 @@ mod aion2_object;
 mod alert;
 mod aion2timers;
 mod appinfo;
+mod armory;
 mod companion;
 mod covers;
 mod emotes;

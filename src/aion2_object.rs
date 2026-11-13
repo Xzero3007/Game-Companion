@@ -104,12 +104,28 @@ pub mod qobject {
         #[qinvokable]
         fn pet_data(self: &Aion2) -> QString;
 
+        /// The Armory's tables (armory/data.json in the module's data: the
+        /// game's enhance tables, items, soul bindings, stats' words, the
+        /// strongest players' counts), "{}" when missing.
+        #[qinvokable]
+        fn armory_data(self: &Aion2) -> QString;
+
+        /// The Armory bookmark's files in the Downloads folder
+        /// (armory-*.json, the newest first): JSON [{name, at, size}].
+        #[qinvokable]
+        fn armory_files(self: &Aion2) -> QString;
+
+        /// One of those files' text (by its name, at most 8 MB), "" if not.
+        #[qinvokable]
+        fn armory_file(self: &Aion2, name: &QString) -> QString;
+
         /// Keeps the Map's choices (JSON, at most 64 KB).
         #[qinvokable]
         fn save_map_settings(self: &Aion2, json: &QString);
 
         /// Asks the Market's price sources for `url` (Clicktrough's copy or
-        /// aion2.exchange only); the answer comes as `web_got(id, ...)`.
+        /// aion2.exchange only) or the Armory's (NC's character pages and
+        /// search, `armory::allowed`); the answer comes as `web_got(id, ...)`.
         #[qinvokable]
         fn web_get(self: Pin<&mut Aion2>, id: i32, url: &QString);
 
@@ -588,6 +604,19 @@ impl qobject::Aion2 {
     fn pet_data(&self) -> QString {
         let text = std::fs::read_to_string(aion2::data_dir().join("pets").join("pets.json")).unwrap_or_default();
         QString::from(if text.trim_start().starts_with('{') { text.as_str() } else { "{}" })
+    }
+
+    fn armory_data(&self) -> QString {
+        let text = std::fs::read_to_string(aion2::data_dir().join("armory").join("data.json")).unwrap_or_default();
+        QString::from(if text.trim_start().starts_with('{') { text.as_str() } else { "{}" })
+    }
+
+    fn armory_files(&self) -> QString {
+        QString::from(&crate::armory::bookmark_files().to_string())
+    }
+
+    fn armory_file(&self, name: &QString) -> QString {
+        QString::from(&crate::armory::bookmark_file(&name.to_string()).unwrap_or_default())
     }
 
     fn save_map_settings(&self, json: &QString) {

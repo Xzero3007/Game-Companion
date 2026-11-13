@@ -22,7 +22,7 @@ var packages = [
             { id: "aion2.market", short: "MK", name: "Market", about: "Your server's market: usual prices, anomalies, materials and what recipes cost.", built: true },
             { id: "aion2.inventory", short: "I", name: "Inventory", about: "LOOT: inventory, storages, the session's drops, farm days and dungeon drop rates.", built: true },
             { id: "aion2.closet", short: "C", name: "Closet", about: "LOOT: the Black Cloud Merchant's skins and pets, the skins you miss, combining; a window at the shop.", built: true },
-            { id: "aion2.armory", short: "A", name: "Armory", about: "Gear and its upgrades.", built: false },
+            { id: "aion2.armory", short: "A", name: "Armory", about: "Your characters as NC's official character pages show them (gear, soul bindings, skills, Daevanion, stats), builds tied to characters with their progress and next steps, upgrade costs, history beside your boss fights. Reads aion2.plaync.com, api-search.plaync.com and profileimg.plaync.com.", built: true },
             { id: "aion2.shugo", short: "S", name: "Shugo Cards", about: "LOOT: what lay behind the cards of each Shugo Festival and Invasion round, and which place pays.", built: true },
             { id: "aion2.timers", short: "T", name: "Event Timers", about: "Field bosses (as the game tells them when you open a map) and the fixed events in your server's time, with alerts before the ones you pick.", built: true },
             { id: "aion2.characters", short: "CH", name: "Characters", about: "Your characters: Odyle energy and when it is full, the content each has left, the day's and week's limits.", built: true },
