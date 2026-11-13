@@ -44,7 +44,21 @@ Overlay {
     readonly property var pins: JSON.parse(Companion.pins)
 
     // On screen: with the hub, or pinned while it is hidden.
-    function onScreen(id) { return Companion.shown || pins.indexOf(id) >= 0 }
+    function onScreen(id) { return Companion.shown || pins.indexOf(id) >= 0 || rowShown.indexOf(id) >= 0 }
+
+    // Panels opened from the pinned game row while the hub is hidden: they
+    // show although they are not pinned, until the hub is shown or hidden
+    // again (MN: with the bar hidden, the row's buttons opened nothing).
+    property var rowShown: []
+    function fromRow(id, open) {
+        if (onScreen(id)) return !open
+        rowShown = rowShown.concat([id])
+        return true
+    }
+    Connections {
+        target: Companion
+        function onShownChanged() { root.rowShown = [] }
+    }
 
     function keyOf(id) {
         for (const k of keys) if (k.id === id) return k.key
@@ -246,27 +260,27 @@ Overlay {
             gameName: Games.runningName.length > 0 ? Games.runningName : "AION 2"
             dpsShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.dps")) || root.dpsOpen
             dpsOpen: root.dpsOpen
-            onDpsClicked: { root.dpsOpen = !root.dpsOpen; root.dpsClosed = !root.dpsOpen }
+            onDpsClicked: { root.dpsOpen = root.fromRow("dps", root.dpsOpen); root.dpsClosed = !root.dpsOpen }
             mapShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.map")) || root.mapOpen
             mapOpen: root.mapOpen
-            onMapClicked: root.mapOpen = !root.mapOpen
+            onMapClicked: root.mapOpen = root.fromRow("map", root.mapOpen)
             overlayOn: mapPanel.settings.overlay.on
             onMapOverlayClicked: mapPanel.toggleOverlay()
             marketShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.market")) || root.marketOpen
             marketOpen: root.marketOpen
-            onMarketClicked: root.marketOpen = !root.marketOpen
+            onMarketClicked: root.marketOpen = root.fromRow("market", root.marketOpen)
             charactersShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.characters")) || root.charactersOpen || characterStore.demo
             charactersOpen: root.charactersOpen
-            onCharactersClicked: root.charactersOpen = !root.charactersOpen
+            onCharactersClicked: root.charactersOpen = root.fromRow("characters", root.charactersOpen)
             scheduleShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.timers")) || root.scheduleOpen || timerStore.demo
             scheduleOpen: root.scheduleOpen
-            onScheduleClicked: root.scheduleOpen = !root.scheduleOpen
+            onScheduleClicked: root.scheduleOpen = root.fromRow("schedule", root.scheduleOpen)
             bossShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.boss")) || root.bossOpen
             bossOpen: root.bossOpen
-            onBossClicked: root.bossOpen = !root.bossOpen
+            onBossClicked: root.bossOpen = root.fromRow("boss", root.bossOpen)
             lootShown: (Aion2.active && root.lootInBar) || root.lootOpen || lootStore.demo
             lootOpen: root.lootOpen
-            onLootClicked: root.lootOpen = !root.lootOpen
+            onLootClicked: root.lootOpen = root.fromRow("loot", root.lootOpen)
         }
     }
 
