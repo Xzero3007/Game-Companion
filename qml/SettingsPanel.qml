@@ -717,6 +717,24 @@ Panel {
             Hint { text: parent.filters.channels.length > 0 ? "Hidden channels: a click shows one again. Hide one with ⋯ beside its video." : "Hide a channel with ⋯ beside one of its videos." }
 
             Item { width: 1; height: 4 }
+            Label { text: "Video languages" }
+            Flow {
+                width: parent.width
+                spacing: 6
+                readonly property var chosen: JSON.parse(Streams.videoLanguages)
+                Repeater {
+                    model: [["de", "German"], ["tr", "Turkish"], ["en", "English"], ["fr", "French"], ["it", "Italian"], ["es", "Spanish"], ["nl", "Dutch"], ["pl", "Polish"]]
+                    delegate: Chip {
+                        required property var modelData
+                        text: modelData[1]
+                        on: parent.chosen.indexOf(modelData[0]) >= 0
+                        onClicked: Streams.toggleVideoLanguage(modelData[0])
+                    }
+                }
+            }
+            Hint { text: "Searches and Trending ask YouTube in these languages, so videos from those countries come first; Gaming, Europe and the national teams also search with each language's word (\u201cgaming deutsch\u201d). None chosen: as YouTube gives it. Takes effect on the next load." }
+
+            Item { width: 1; height: 4 }
             Label { text: "Trending: search words" }
             Repeater {
                 model: [["gaming", "Gaming"], ["europe", "Europe"], ["national", "National teams"], ["tr", "Süper Lig"], ["de", "Bundesliga"],

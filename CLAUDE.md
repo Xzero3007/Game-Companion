@@ -289,7 +289,11 @@ learnt, so nothing has to be asked or worked out again.
   default (`hide_shorts`), watched, channels and words left out; search
   filters as YouTube's `sp` (protobuf, `search_param`); Trending is yt-dlp
   searches per part (`TREND_SECTIONS`, words changeable in Settings), as
-  YouTube's own trending page is gone. Twitch: categories, a channel's
+  YouTube's own trending page is gone. Video languages (`video_languages`,
+  default the desktop's `LANG`): searches ask yt-dlp with `youtube:lang=`
+  (hl; region follows the IP, yt-dlp has no `gl`), Trending once per
+  language, Gaming/Europe/national with the language's word
+  (`trend_searches`; MN saw Indian channels with plain "gaming"). Twitch: categories, a channel's
   past broadcasts and clips (played through yt-dlp), filters (language,
   reruns, order; `liveMore` falls back to plain `live` if Twitch refuses
   its fields; live lists, categories, past broadcasts and clips page by

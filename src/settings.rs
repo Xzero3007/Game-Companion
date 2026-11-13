@@ -182,6 +182,9 @@ pub struct StreamsSettings {
     pub group: String,
     /// The YouTube search's filter.
     pub search: SearchFilter,
+    /// The languages YouTube's videos should be in (searches and Trending
+    /// ask in them; [] = as YouTube gives it). By default the desktop's.
+    pub video_languages: Vec<String>,
     /// The Trending tab's part, and search words changed from the default
     /// (by part).
     pub trend_section: String,
@@ -244,6 +247,7 @@ impl Default for StreamsSettings {
             freetube_live: true,
             group: String::new(),
             search: SearchFilter::default(),
+            video_languages: crate::streams::system_languages(),
             trend_section: "gaming".into(),
             trend_words: BTreeMap::new(),
             alerts: false,

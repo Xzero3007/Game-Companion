@@ -70,6 +70,8 @@ pub mod qobject {
         /// and each part's search words: JSON `{part: [words]}`.
         #[qproperty(QString, trend_section)]
         #[qproperty(QString, trend_words)]
+        /// The video languages chosen: JSON `["de", …]`.
+        #[qproperty(QString, video_languages)]
         /// Twitch: live notes on, and the channels left out (JSON list).
         #[qproperty(bool, alerts)]
         #[qproperty(QString, alerts_off)]
@@ -206,6 +208,10 @@ pub mod qobject {
         /// A Trending part's search words, separated by commas ("" = the default).
         #[qinvokable]
         fn change_trend_words(self: Pin<&mut Streams>, section: &QString, text: &QString);
+        /// Takes a video language in or out ("de", "tr", …; see
+        /// `streams::VIDEO_LANGUAGES`).
+        #[qinvokable]
+        fn toggle_video_language(self: Pin<&mut Streams>, code: &QString);
         #[qinvokable]
         fn switch_alerts(self: Pin<&mut Streams>, on: bool);
         /// Leaves a channel out of the live notes, or takes it in again.
@@ -302,6 +308,7 @@ pub struct StreamsRust {
     chat_docked: bool,
     twitch_request: u64,
     youtube_request: u64,
+    video_languages: QString,
     /// The list shown and where its next page starts.
     twitch_more: Option<(String, String, Value)>,
     twitch_has_more: bool,
@@ -601,6 +608,7 @@ impl Default for StreamsRust {
             search_filter: q(&serde_json::to_string(&s.search).unwrap_or_default()),
             trend_section: q(&s.trend_section),
             trend_words: q(&trend_words_json(&s)),
+            video_languages: q(&serde_json::to_string(&s.video_languages).unwrap_or_else(|_| "[]".into())),
             alerts: s.alerts,
             alerts_off: q(&serde_json::to_string(&s.alerts_off).unwrap_or_else(|_| "[]".into())),
             live_news: q("[]"),
@@ -886,18 +894,20 @@ impl qobject::Streams {
         self.as_mut().set_youtube_message(QString::default());
         let thread = self.qt_thread();
         std::thread::spawn(move || {
+            // Searches ask in the first chosen language.
+            let lang = st.video_languages.first().map(String::as_str).unwrap_or("");
             let result = (|| -> Result<Vec<Value>, String> {
                 match view.as_str() {
-                    "game" => streams::youtube_search(&st.game.youtube, true),
+                    "game" => streams::youtube_search(&st.game.youtube, true, lang),
                     "search" => {
                         let f = &st.search;
-                        streams::youtube_search_with(&text, &streams::search_param(&f.sort, &f.date, &f.length), 30)
+                        streams::youtube_search_with(&text, &streams::search_param(&f.sort, &f.date, &f.length), 30, lang)
                     }
                     "channel" => streams::youtube_feed(text.trim()),
                     "trending" => {
                         let part = if streams::TREND_SECTIONS.contains(&text.as_str()) { text.clone() } else { st.trend_section.clone() };
                         let words = st.trend_words.get(&part).cloned().unwrap_or_else(|| streams::trend_words(&part));
-                        streams::youtube_trending(&part, &words)
+                        streams::youtube_trending(&part, &words, &st.video_languages)
                     }
                     _ => {
                         let mut ids: Vec<String> = all_channels(&st)
@@ -1337,6 +1347,24 @@ impl qobject::Streams {
             serde_json::to_string(&s.streams.search).unwrap_or_default()
         });
         self.set_search_filter(q(&j));
+    }
+
+    fn toggle_video_language(self: Pin<&mut Self>, code: &QString) {
+        let code = code.to_string();
+        if !streams::valid_language(&code) {
+            return;
+        }
+        let j = settings::change(|s| {
+            let l = &mut s.streams.video_languages;
+            match l.iter().position(|c| *c == code) {
+                Some(i) => {
+                    l.remove(i);
+                }
+                None => l.push(code.clone()),
+            }
+            serde_json::to_string(l).unwrap_or_else(|_| "[]".into())
+        });
+        self.set_video_languages(q(&j));
     }
 
     fn change_trend_words(self: Pin<&mut Self>, section: &QString, text: &QString) {

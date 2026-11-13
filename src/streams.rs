@@ -536,12 +536,30 @@ fn base64(bytes: &[u8]) -> String {
 
 /// YouTube's search through yt-dlp: the first 20 videos, newest uploads
 /// first if asked (YouTube's results page sorted by upload date).
-pub fn youtube_search(text: &str, newest: bool) -> Result<Vec<Value>, String> {
-    youtube_search_with(text, if newest { "CAI%3D" } else { "" }, 20)
+pub fn youtube_search(text: &str, newest: bool, lang: &str) -> Result<Vec<Value>, String> {
+    youtube_search_with(text, if newest { "CAI%3D" } else { "" }, 20, lang)
 }
 
-/// YouTube's search with a filter (`sp`, "" for none): the first `count`.
-pub fn youtube_search_with(text: &str, sp: &str, count: usize) -> Result<Vec<Value>, String> {
+/// The video languages one can choose (YouTube's own codes), with the word
+/// that makes a search find videos in that language ("" none needed).
+pub const VIDEO_LANGUAGES: [(&str, &str); 8] =
+    [("de", "deutsch"), ("tr", "türkçe"), ("en", ""), ("fr", "français"), ("it", "italiano"), ("es", "español"), ("nl", "nederlands"), ("pl", "po polsku")];
+
+pub fn valid_language(l: &str) -> bool {
+    VIDEO_LANGUAGES.iter().any(|(c, _)| *c == l)
+}
+
+/// The languages chosen by default: the desktop's, if it is one of them.
+pub fn system_languages() -> Vec<String> {
+    let lang = ["LC_ALL", "LC_MESSAGES", "LANG"].iter().filter_map(|k| std::env::var(k).ok()).find(|v| !v.is_empty()).unwrap_or_default();
+    let code: String = lang.chars().take_while(|c| c.is_ascii_alphabetic()).collect::<String>().to_ascii_lowercase();
+    if valid_language(&code) { vec![code] } else { Vec::new() }
+}
+
+/// YouTube's search with a filter (`sp`, "" for none): the first `count`;
+/// `lang` ("" none) asks YouTube in that language (yt-dlp's `lang`), which
+/// leans the results towards it.
+pub fn youtube_search_with(text: &str, sp: &str, count: usize, lang: &str) -> Result<Vec<Value>, String> {
     let text = text.trim().replace(['\n', '\r'], " ");
     if text.is_empty() || text.len() > 100 {
         return Err("no search words".into());
@@ -554,10 +572,13 @@ pub fn youtube_search_with(text: &str, sp: &str, count: usize) -> Result<Vec<Val
     } else {
         format!("https://www.youtube.com/results?search_query={}&sp={sp}", query_encode(&text))
     };
+    let mut cmd = Command::new("yt-dlp");
+    cmd.args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-end", &count.to_string(), "--dump-single-json"]);
+    if valid_language(lang) && lang != "en" {
+        cmd.args(["--extractor-args", &format!("youtube:lang={lang}")]);
+    }
     let out = run_with_timeout(
-        Command::new("yt-dlp")
-            .args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-end", &count.to_string(), "--dump-single-json", "--"])
-            .arg(&target),
+        cmd.arg("--").arg(&target),
         Duration::from_secs(40),
     )
     .map_err(|e| if e.contains("No such file") { "yt-dlp is not installed (sudo pacman -S yt-dlp)".into() } else { e })?;
@@ -590,21 +611,46 @@ pub fn trend_words(section: &str) -> Vec<String> {
     w.iter().map(|s| s.to_string()).collect()
 }
 
+/// The searches a Trending part makes for the chosen video languages:
+/// each search word once per language, asked in that language; Gaming,
+/// Europe and the national teams also with the language's own word ("gaming
+/// deutsch"), as their words alone find the whole world's videos. The
+/// leagues' names are their country's already. No language: as they are.
+pub fn trend_searches(section: &str, words: &[String], langs: &[String]) -> Vec<(String, String)> {
+    let words: Vec<String> = words.iter().map(|w| w.trim().to_string()).filter(|w| !w.is_empty()).collect();
+    let langs: Vec<&str> = langs.iter().map(String::as_str).filter(|l| valid_language(l)).collect();
+    if langs.is_empty() {
+        return words.into_iter().map(|w| (w, String::new())).collect();
+    }
+    let widen = matches!(section, "gaming" | "europe" | "national");
+    let mut out = Vec::new();
+    for w in &words {
+        for l in &langs {
+            let suffix = VIDEO_LANGUAGES.iter().find(|(c, _)| c == l).map_or("", |(_, s)| *s);
+            let text = if widen && !suffix.is_empty() { format!("{w} {suffix}") } else { w.clone() };
+            if !out.iter().any(|(t, _): &(String, String)| *t == text) {
+                out.push((text, l.to_string()));
+            }
+        }
+    }
+    out
+}
+
 /// A Trending part: Gaming is this week's most watched gaming videos;
 /// Football this week's videos for each search, merged in turns (the most
 /// relevant of each first), each video once.
-pub fn youtube_trending(section: &str, words: &[String]) -> Result<Vec<Value>, String> {
+pub fn youtube_trending(section: &str, words: &[String], langs: &[String]) -> Result<Vec<Value>, String> {
     let sp = if section == "gaming" { search_param("views", "week", "any") } else { search_param("relevance", "week", "any") };
-    let words: Vec<String> = words.iter().map(|w| w.trim().to_string()).filter(|w| !w.is_empty()).take(6).collect();
-    if words.is_empty() {
+    let searches: Vec<(String, String)> = trend_searches(section, words, langs).into_iter().take(8).collect();
+    if searches.is_empty() {
         return Err("No search words for this part (Settings → Streams).".into());
     }
-    let per = if words.len() == 1 { 40 } else { 20 };
-    let handles: Vec<_> = words
+    let per = if searches.len() == 1 { 40 } else { 20 };
+    let handles: Vec<_> = searches
         .into_iter()
-        .map(|w| {
+        .map(|(w, lang)| {
             let sp = sp.clone();
-            std::thread::spawn(move || youtube_search_with(&w, &sp, per))
+            std::thread::spawn(move || youtube_search_with(&w, &sp, per, &lang))
         })
         .collect();
     let mut lists = Vec::new();
@@ -1030,6 +1076,18 @@ pub fn streamlink_stop(slot: &str) {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn trend_searches_follow_languages() {
+        let w = vec!["gaming".to_string()];
+        assert_eq!(trend_searches("gaming", &w, &[]), vec![("gaming".to_string(), String::new())]);
+        let l = vec!["de".to_string(), "tr".to_string(), "en".to_string(), "xx".to_string()];
+        let s = trend_searches("gaming", &w, &l);
+        assert_eq!(s, vec![("gaming deutsch".into(), "de".into()), ("gaming türkçe".into(), "tr".into()), ("gaming".into(), "en".into())]);
+        // The leagues' names stay: once per language, asked in it.
+        let b = trend_searches("de", &["Bundesliga highlights".to_string()], &l);
+        assert_eq!(b, vec![("Bundesliga highlights".into(), "de".into())]);
+    }
+
+    #[test]
     fn base_follows_redirects_only_where_meant() {
         assert!(curl_base().contains("\nlocation\n"));
         assert!(!curl_base().replace("location\n", "").contains("location"));
@@ -1148,7 +1206,7 @@ mod tests {
         let b = vec![json!({"id": "2"}), json!({"id": "3"}), json!({"id": "4"})];
         let ids: Vec<Value> = merge_turns(vec![a, b]).into_iter().map(|v| v["id"].clone()).collect();
         assert_eq!(ids, vec![json!("1"), json!("2"), json!("3"), json!("4")]);
-        assert!(youtube_search_with("x", "bad&sp", 5).is_err());
+        assert!(youtube_search_with("x", "bad&sp", 5, "").is_err());
     }
 
     #[test]
@@ -1191,7 +1249,7 @@ mod tests {
         let cards = twitch_cards(&twitch(&twitch_query("live", &json!("Just Chatting")).unwrap(), None).unwrap());
         assert!(!cards.is_empty(), "no live streams");
         assert!(cards[0]["live"].as_bool().unwrap());
-        let found = youtube_search("aion 2", true).unwrap();
+        let found = youtube_search("aion 2", true, "").unwrap();
         assert!(!found.is_empty());
         let channel = found.iter().find_map(|v| v["channelId"].as_str().filter(|c| valid_channel_id(c))).unwrap().to_string();
         assert!(!youtube_feed(&channel).unwrap().is_empty());
