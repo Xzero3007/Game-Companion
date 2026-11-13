@@ -328,6 +328,7 @@ Panel {
         width: parent.width
         active: panel.editing !== null && panel.suggesting && panel.launchTab !== null
         visible: active
+        height: active && item ? item.implicitHeight : 0
         sourceComponent: LaunchSuggestions {
             game: panel.editing
             fieldText: panel.launchTab ? panel.launchTab.text : ""
@@ -344,6 +345,7 @@ Panel {
         width: parent.width
         active: panel.editing === null && panel.protonView
         visible: active
+        height: active && item ? item.implicitHeight : 0
         sourceComponent: ProtonOverview {
             games: panel.visibleGames
             choices: choiceList
@@ -585,7 +587,26 @@ Panel {
         property int waiting: 0
         property var errors: []
         property string warning: ""
-        readonly property bool launchBlocked: launch !== null && launch.running && (launch.dirty || page === "launch")
+        /// The GENERAL and PRESET SEARCH fields as last saved (or opened).
+        property var base: ({})
+        function snapshot() {
+            return { name: nameField.text, command: commandField.text, processes: processField.text,
+                twitch: twitchField.text, youtube: youtubeField.text, show: showBox.checked,
+                radio: radioBox.checked, layout: layoutChoice.picked }
+        }
+        readonly property bool generalDirty: isNew || nameField.text !== base.name || commandField.text !== base.command
+            || processField.text !== base.processes || twitchField.text !== base.twitch || youtubeField.text !== base.youtube
+            || showBox.checked !== base.show || radioBox.checked !== base.radio || layoutChoice.picked !== base.layout
+        readonly property bool launchDirty: launch !== null && launch.dirty
+        /// The LAUNCH part cannot be written while its launcher runs; the
+        /// rest still saves.
+        readonly property bool launchBlocked: launchDirty && launch.running
+        /// Cancel was pressed with unsaved LAUNCH edits: asks once, inline.
+        property bool confirmCancel: false
+        function cancel() {
+            if (launchDirty && !confirmCancel) confirmCancel = true
+            else panel.editing = null
+        }
         spacing: 14
         topPadding: 2
         bottomPadding: 4
@@ -599,6 +620,7 @@ Panel {
             youtubeField.text = g.youtube || ""
             showBox.checked = g.showOnStart === undefined ? true : g.showOnStart
             radioBox.checked = g.radioOnStart === true
+            base = snapshot()
             panel.launchTab = Qt.binding(() => form.launch)
         }
         Component.onDestruction: panel.launchTab = null
@@ -858,7 +880,7 @@ Panel {
             }
             // Where the change goes (LAUNCH).
             Row {
-                visible: form.page === "launch" && form.launch !== null && form.launch.supported && !form.own
+                visible: form.page === "launch" && form.launch !== null && form.launch.supported && !form.own && !form.confirmCancel
                 anchors.left: parent.left
                 anchors.right: buttons.left
                 anchors.rightMargin: 14
@@ -885,11 +907,13 @@ Panel {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 spacing: 10
-                TextButton { text: "Cancel"; onClicked: panel.editing = null }
+                visible: !form.confirmCancel
+                TextButton { text: "Cancel"; onClicked: form.cancel() }
                 Rectangle {
                     width: saveText.implicitWidth + 32
                     height: 34
-                    readonly property bool ready: !form.saving && !form.launchBlocked
+                    readonly property bool ready: !form.saving
+                        && (form.generalDirty || (form.launchDirty && !form.launchBlocked))
                         && (!form.own || (nameField.text.trim().length > 0 && commandField.text.trim().length > 0))
                     color: ready ? (saveMouse.containsMouse ? Theme.accentLight : Theme.accent) : "transparent"
                     border.color: ready ? Theme.accent : "#3a3842"
@@ -915,6 +939,23 @@ Panel {
                     Accessible.role: Accessible.Button
                     Accessible.name: "Save"
                 }
+            }
+            // Cancel with unsaved LAUNCH edits: one question, in place.
+            Row {
+                visible: form.confirmCancel
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                spacing: 10
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Discard changes?"
+                    color: Theme.text()
+                    font.family: Theme.body
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                }
+                TextButton { text: "Discard"; danger: true; onClicked: panel.editing = null }
+                TextButton { text: "Keep editing"; onClicked: form.confirmCancel = false }
             }
         }
 
@@ -945,6 +986,12 @@ Panel {
             errors = []
             warning = ""
             waiting = 0
+            // What is saved now counts as unchanged from here on.
+            base = snapshot()
+            confirmCancel = false
+            // The launcher runs: its part waits, the form stays open.
+            const held = launchBlocked
+            const heldNote = held ? "Saved, except the launch options: close " + panel.launcherName(g.launcher) + " first, then save again." : ""
             const done = () => {
                 form.waiting -= 1
                 if (form.waiting > 0) return
@@ -956,24 +1003,34 @@ Panel {
                 panel.notice = form.warning
                 panel.editing = null
             }
-            if (launch && launch.textDirty) {
+            if (!held && launch && launch.textDirty) {
                 waiting += 1
-                saveRequests.ask(Games.setLaunchOptions(g.id, launch.text.trim()), (a) => {
+                const text = launch.text.trim()
+                saveRequests.ask(Games.setLaunchOptions(g.id, text), (a) => {
                     if (!a || a.error.length > 0) form.errors = form.errors.concat([(a ? a.error : "no answer") + "."])
+                    else if (form.launch) form.launch.markTextSaved(text)
                     done()
                 })
             }
-            if (launch && launch.protonDirty) {
+            if (!held && launch && launch.protonDirty) {
                 waiting += 1
-                saveRequests.ask(Games.setProton(g.id, launch.protonPick), (a) => {
+                const pick = launch.protonPick
+                saveRequests.ask(Games.setProton(g.id, pick), (a) => {
                     if (!a || a.error.length > 0) form.errors = form.errors.concat([(a ? a.error : "no answer") + "."])
-                    else if (a.warning.length > 0) form.warning = a.warning
+                    else {
+                        if (a.warning.length > 0) form.warning = a.warning
+                        if (form.launch) form.launch.markProtonSaved(pick)
+                    }
                     done()
                 })
             }
             if (waiting > 0) {
                 saving = true
                 panel.formError = ""
+                return
+            }
+            if (held) {
+                panel.formError = heldNote
                 return
             }
             panel.editing = null

@@ -44,6 +44,9 @@ Column {
     readonly property bool textDirty: supported && !own && field.text.trim() !== savedText.trim()
     readonly property bool protonDirty: canSetProton && protonPick !== (info.proton.name || "")
     readonly property bool dirty: textDirty || protonDirty
+    /// The check is of the text in the field now (no edit since, none
+    /// waiting): only then may its fixes be put in.
+    readonly property bool checkFresh: !checking && !checkTimer.running && check !== null && check.text === field.text
     readonly property var chips: Launch.chips(field.text, check, own)
     readonly property var openToken: {
         for (const c of chips) if (c.text === openChip && c.token) return c
@@ -51,6 +54,19 @@ Column {
     }
     readonly property string fileName: supported && info.file ? info.file.split("/").pop() : ""
     readonly property var protonChoices: canSetProton ? Launch.choicesFor(tools, info.launcher, steamDefault) : []
+
+    /// After a save (also a partial one): what was written counts as saved,
+    /// so a retry writes (and backs up) only the part still changed.
+    function markTextSaved(t) {
+        savedText = t
+    }
+    function markProtonSaved(name) {
+        if (!info || !info.proton) return
+        const i = Object.assign({}, info)
+        i.proton = Object.assign({}, info.proton)
+        i.proton.name = name
+        info = i
+    }
 
     function setText(t) {
         field.text = t
@@ -75,11 +91,13 @@ Column {
             tab.tools = a || []
             if (tab.demoPicker) demoPickerTimer.start()
         })
-        req.ask(Games.suggestions(game.id), (a) => tab.suggest = a)
+        req.ask(Games.suggestions(game.id, ""), (a) => tab.suggest = a)
     }
     onVisibleChanged: if (visible && own && supported && ownText !== field.text) setText(ownText)
 
     function runCheck() {
+        req.forget(checkRequest)
+        checkRequest = -1
         if (field.text.trim().length === 0) {
             check = null
             checking = false
@@ -107,11 +125,14 @@ Column {
     }
     Timer { id: checkTimer; interval: 400; onTriggered: tab.runCheck() }
 
-    // While the launcher runs, look again every 3 s (only then).
+    // While the launcher runs, look again every 3 s (only then, and only
+    // while the panel shows: a hidden hub keeps its window but hides it).
+    // Also from another tab of the form while changes here wait to be
+    // saved, so SAVE can write them once the launcher is closed.
     Timer {
         interval: 3000
         repeat: true
-        running: tab.running && tab.visible
+        running: tab.running && (tab.visible || tab.dirty) && !!tab.Window.window && tab.Window.window.visible
         onTriggered: req.ask(Games.launcherState(tab.game.id), (a) => {
             if (!a || !tab.info) return
             const i = Object.assign({}, tab.info)
@@ -355,7 +376,7 @@ Column {
                     TextButton {
                         id: fixButton
                         readonly property var fix: tab.openToken && tab.openToken.token ? tab.openToken.token.fix : null
-                        visible: fix !== null && fix !== undefined
+                        visible: fix !== null && fix !== undefined && tab.checkFresh
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         height: 30
@@ -438,7 +459,7 @@ Column {
             }
             TextButton {
                 id: fixAll
-                visible: tab.check !== null && tab.check.fixed.length > 0 && tab.check.fixed !== field.text
+                visible: tab.checkFresh && tab.check.fixed.length > 0 && tab.check.fixed !== field.text
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 height: 30

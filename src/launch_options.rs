@@ -984,6 +984,17 @@ pub struct Current {
 }
 
 impl Current {
+    /// The same game with `text` in place of its saved options (the form's
+    /// unsaved text); "" keeps the saved ones.
+    pub fn with_text(mut self, text: &str) -> Current {
+        if text.trim().is_empty() || !self.supported {
+            return self;
+        }
+        self.text = text.to_string();
+        self.spec = if self.launcher == "own" { parse_own(text) } else { parse(text) }.unwrap_or_default();
+        self
+    }
+
     pub fn to_json(&self, id: &str, tools: &[Tool]) -> Value {
         let label = |name: &str| tools.iter().find(|t| t.name == name).map(|t| t.label.clone()).unwrap_or_else(|| name.to_string());
         json!({
@@ -2677,7 +2688,7 @@ mod tests {
         // A proton-cachyos of unknown version counts as the newest (11):
         // its retired switches are greyed out, saying so.
         let heap = list.iter().find(|s| s.id == "vkd3d_heap").unwrap();
-        assert!(!heap.available && heap.unavailable_why.contains("11.0-20260521") && heap.unavailable_why.contains("could not be told"));
+        assert!(!heap.available && heap.unavailable_why.contains("11.0-20260521") && heap.unavailable_why.contains("Could not tell"));
         // proton-cachyos 10.0 still reads them; 11 does not.
         let mut cachy10 = cachy.clone();
         cachy10.tool = "proton-cachyos-10.0-20260410-slr".into();
@@ -2690,7 +2701,7 @@ mod tests {
         cachy11.tool = "proton-cachyos-11.0-20261015-slr".into();
         let list11 = suggest(&hdr, &cachy11, &tools);
         let heap = list11.iter().find(|s| s.id == "vkd3d_heap").unwrap();
-        assert!(!heap.available && heap.unavailable_why.contains("descriptor heap built in") && !heap.unavailable_why.contains("could not be told"));
+        assert!(!heap.available && heap.unavailable_why.contains("descriptor heap built in") && !heap.unavailable_why.contains("Could not tell"));
         // An unavailable one cannot be added; available ones can.
         let mut c11 = cachy11.clone();
         c11.text = "%command%".into();
@@ -2774,6 +2785,15 @@ mod tests {
         let list = suggest(&system(false, false), &own, &tools);
         assert_eq!(combine(&own, &list, &ids(&["gamemode", "mangohud"])).unwrap(), "WINEPREFIX=$HOME/p gamemoderun mangohud wine ~/a.exe");
         assert_eq!(combine(&own, &list, &ids(&["gamemode"])).unwrap(), "WINEPREFIX=$HOME/p gamemoderun wine ~/a.exe");
+
+        // From the form's unsaved text: its edits stay, "applied" follows it.
+        let edited = read(&p, "steam:10", None).with_text("PROTON_LOG=1 mangohud %command% -novid");
+        assert_eq!(edited.text, "PROTON_LOG=1 mangohud %command% -novid");
+        let list = suggest(&system(true, true), &edited, &tools);
+        assert!(list.iter().any(|s| s.id == "mangohud" && s.applied));
+        assert_eq!(combine(&edited, &list, &ids(&["mangohud", "gamemode"])).unwrap(), "PROTON_LOG=1 gamemoderun mangohud %command% -novid");
+        // "" keeps the saved text.
+        assert_eq!(read(&p, "steam:10", None).with_text("  ").text, current.text);
     }
 
     fn ids(list: &[&str]) -> Vec<String> {

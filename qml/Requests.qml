@@ -17,6 +17,14 @@ QtObject {
         count += 1
     }
 
+    /// Stops waiting for a request a newer one replaced (a superseded check
+    /// gets no answer at all, which would keep `busy` on).
+    function forget(request) {
+        if (request < 0 || waiting[request] === undefined) return
+        delete waiting[request]
+        count -= 1
+    }
+
     property Connections link: Connections {
         target: Games
         function onLaunchResult(request, json) {

@@ -33,6 +33,9 @@ Column {
         const g = games.find((x) => x.id === id)
         return g ? g.name : id
     }
+    /// Steam games in the library the overview leaves out (no Proton
+    /// choice: maybe native).
+    readonly property int unlisted: overview ? games.filter((g) => !g.own && g.launcher === "steam" && !used.some((u) => u.id === g.id)).length : 0
     readonly property var rows: {
         const list = used.filter((u) => u.canSet).slice()
         const last = (id) => { const g = games.find((x) => x.id === id); return g ? g.lastPlayed : 0 }
@@ -60,7 +63,7 @@ Column {
     Timer {
         interval: 3000
         repeat: true
-        running: view.steamRunning && view.visible
+        running: view.steamRunning && view.visible && !!view.Window.window && view.Window.window.visible
         onTriggered: view.checkSteam()
     }
 
@@ -245,6 +248,22 @@ Column {
                 Repeater {
                     model: view.rows
                     delegate: GameRow {}
+                }
+                // Steam games with no Proton choice yet are left out (they
+                // may be native): their LAUNCH tab sets one.
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    visible: view.overview !== null && view.unlisted > 0
+                    x: 16
+                    width: parent.width - 32
+                    topPadding: 10
+                    bottomPadding: 6
+                    wrapMode: Text.WordWrap
+                    text: view.unlisted + (view.unlisted === 1 ? " Steam game has" : " Steam games have")
+                        + " no Proton choice yet (they may run natively) and " + (view.unlisted === 1 ? "is" : "are")
+                        + " not listed here. Set one in the game's LAUNCH tab (right-click the game, or its pencil)."
+                    color: Theme.dim()
+                    font.family: Theme.body
+                    font.pixelSize: 11
                 }
             }
         }
