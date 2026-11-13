@@ -17,9 +17,10 @@ new session (or the same one after a usage limit) carries on from here.
   if its build number is lower.
 - When the person says a beta is good: merge `beta` into `main` (fast
   forward if possible), bump nothing extra, push.
-- Milestones: tag `milestone/<name>` on beta at each working step
-  (`git tag milestone/x && git push origin milestone/x`), so a broken step
-  can be reset without losing the rest.
+- Milestones: a branch `milestone/<name>` at each working step on beta
+  (`git branch milestone/x && git push origin milestone/x`; tag pushes are
+  refused by this environment's git proxy), so a broken step can be reset
+  without losing the rest.
 
 ## Done
 
