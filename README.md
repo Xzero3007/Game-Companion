@@ -150,7 +150,16 @@ to the game.
   pkexec, without a password by the package's own root script, which checks
   the checksum again itself; with the password if that is missing) and starts
   again. Only a copy installed by pacman updates itself this way.
-- **Turn off** in Settings → General closes the whole app, with the radio.
+- **Tray icon** (a gold gamepad in KDE's panel while the app runs; Settings
+  → General → Tray icon switches it off): a click shows or hides the hub;
+  the right-click menu has Show/Hide hub, Lock/Unlock, Settings, Check for
+  updates and Quit. A StatusNotifierItem over local D-Bus, no polling.
+- **Start with the desktop** (Settings → General): Off, Hidden (only the
+  tray icon until a game starts) or Visible (the hub at once); "Show the
+  hub when a game starts" can be switched off. One copy runs at a time:
+  starting it again while it runs brings the hub forward.
+- **Turn off** in Settings → General (or Quit in the tray menu) closes the
+  whole app, with the radio.
 - **Nothing else goes online.** The fonts ship with the app, the shortcuts
   are local D-Bus; the only network use is the radio stream you pick, the
   streams you open, your Jellyfin server at home, and the update check on GitHub.
@@ -200,7 +209,8 @@ GC_DEMO=backdrop,unlocked,settings GC_SCREENSHOT=shot.png cargo run --no-default
 `GC_DEMO` takes `backdrop`, `unlocked`, `settings`, `shortcuts`, `about`,
 `radio`, `radio-playing`, `hidden`, `streams` (with `yt-playlists`,
 `yt-history`, `yt-trending`, `tw-categories`, `news`, `groups`), `video`,
-`chat`, `ytsettings`.
+`chat`, `ytsettings`, `startmenu` (the start choice open).
+`GC_NO_TRAY=1` starts without the tray icon.
 
 ## How it is built
 
@@ -214,6 +224,8 @@ Qt 6 / QML for the interface, Rust for the logic, joined by
 | `src/shortcuts.rs` | Global shortcuts through the GlobalShortcuts portal |
 | `src/library.rs`, `src/library_object.rs` | YouTube playlists and history (`Library` singleton) |
 | `src/emotes.rs`, `cpp/twitchchat.cpp` | Twitch chat and its 7TV/BTTV emotes |
+| `src/tray.rs` | The tray icon and its menu (StatusNotifierItem, ksni) |
+| `src/instance.rs` | One copy at a time; a second start asks the running one to show |
 | `src/radio.rs`, `src/radio_object.rs` | Stations, the radio's network guard, the mpv player, the `Radio` QML singleton |
 | `data/stations.json` | The station list |
 | `cpp/native.cpp` | The Qt app; each part's window on KDE's overlay layer, its place and where it takes clicks |

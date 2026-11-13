@@ -41,6 +41,12 @@ pub struct Settings {
     /// Whether updates come from the beta channel (test builds of the
     /// `beta` branch) instead of the stable releases.
     pub beta_updates: bool,
+    /// Whether the icon shows in the desktop's tray (panel) while the app
+    /// runs.
+    pub tray: bool,
+    /// Whether the hub shows when a game starts (each game's own start
+    /// option applies on top).
+    pub show_on_game: bool,
     /// The screen the overlay is on, by its connector name ("" = KDE's
     /// primary screen). Read by the C++ side at the start.
     pub screen: String,
@@ -336,6 +342,8 @@ impl Default for Settings {
             places: BTreeMap::new(),
             welcome: true,
             beta_updates: false,
+            tray: true,
+            show_on_game: true,
             screen: String::new(),
             pins: BTreeSet::new(),
             radio: RadioSettings::default(),
@@ -436,6 +444,16 @@ mod tests {
         let s = Settings::load_from(&temp_file("missing"));
         assert_eq!(s, Settings::default());
         assert!(s.welcome);
+    }
+
+    #[test]
+    fn older_files_keep_the_tray_and_show_on_game() {
+        let path = temp_file("older");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, r#"{"alpha":0.5}"#).unwrap();
+        let s = Settings::load_from(&path);
+        assert!(s.tray && s.show_on_game);
+        assert_eq!(s.alpha, 0.5);
     }
 
     #[test]

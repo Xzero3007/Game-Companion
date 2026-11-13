@@ -8,6 +8,7 @@ use cxx_qt_lib::QString;
 
 use crate::settings::{self, Place};
 use crate::shortcuts;
+use crate::tray;
 
 #[cxx_qt::bridge]
 pub mod qobject {
@@ -27,9 +28,14 @@ pub mod qobject {
         /// Whether the hub shows (the bar, the player row, the panels).
         /// Hidden, only what is pinned stays on screen.
         #[qproperty(bool, shown)]
-        /// Whether the companion starts with the desktop (KDE's autostart
-        /// folder holds its entry), hidden until a game starts.
-        #[qproperty(bool, autostart)]
+        /// How the companion starts with the desktop (KDE's autostart
+        /// folder holds its entry): "off", "hidden" (only the tray icon
+        /// until a game starts) or "visible" (the hub at once).
+        #[qproperty(QString, autostart_mode)]
+        /// Whether the hub shows when a game starts.
+        #[qproperty(bool, show_on_game)]
+        /// Whether the icon shows in the desktop's tray.
+        #[qproperty(bool, tray)]
         /// How solid the panels are, 0.05 to 1. QML may set it while a
         /// slider moves; `save_alpha` keeps it.
         #[qproperty(f64, alpha)]
@@ -71,9 +77,27 @@ pub mod qobject {
         #[qinvokable]
         fn toggle_shown(self: Pin<&mut Companion>);
 
-        /// Starts with the desktop or not (writes or removes the entry).
+        /// Starts with the desktop or not: "off", "hidden" or "visible"
+        /// (writes, rewrites or removes the entry).
         #[qinvokable]
-        fn set_autostart_on(self: Pin<&mut Companion>, on: bool);
+        fn set_autostart_to(self: Pin<&mut Companion>, mode: &QString);
+
+        /// Shows the hub when a game starts, or not.
+        #[qinvokable]
+        fn set_show_on_game_on(self: Pin<&mut Companion>, on: bool);
+
+        /// Shows the tray icon or takes it away.
+        #[qinvokable]
+        fn set_tray_on(self: Pin<&mut Companion>, on: bool);
+
+        /// The tray's "Settings": QML opens the settings panel.
+        #[qsignal]
+        fn settings_requested(self: Pin<&mut Companion>);
+
+        /// The tray's "Check for updates": QML asks Updates and opens
+        /// Settings → General, where the answer shows.
+        #[qsignal]
+        fn updates_requested(self: Pin<&mut Companion>);
 
         /// Keeps the screen the user picked ("" = KDE's primary screen).
         #[qinvokable]
@@ -154,7 +178,9 @@ pub mod qobject {
 pub struct CompanionRust {
     locked: bool,
     shown: bool,
-    autostart: bool,
+    autostart_mode: QString,
+    show_on_game: bool,
+    tray: bool,
     alpha: f64,
     text_level: f64,
     accent_level: f64,
@@ -169,6 +195,11 @@ pub struct CompanionRust {
     layouts: QString,
     layout_revision: i32,
     shortcut_state: Vec<(&'static str, shortcuts::Status)>,
+    /// The tray icon while it shows.
+    tray_handle: Option<tray::Handle>,
+    /// Goes up whenever the tray is switched on or off: a tray that
+    /// finishes starting after it was switched off again goes away.
+    tray_generation: u64,
 }
 
 impl Default for CompanionRust {
@@ -179,6 +210,7 @@ impl Default for CompanionRust {
             (s.text_level, numbers_json(&s.alpha_presets), numbers_json(&s.text_presets), s.bar)
         });
         let (accent_level, accent_presets) = settings::read(|s| (s.accent_level, numbers_json(&s.accent_presets)));
+        let (show_on_game, tray) = settings::read(|s| (s.show_on_game, s.tray));
         let shortcut_state: Vec<_> = shortcuts::ALL.iter().map(|s| (s.id, shortcuts::Status::Bound(None))).collect();
         Self {
             // Always start locked: the game gets every click until the user
@@ -187,7 +219,9 @@ impl Default for CompanionRust {
             // Started with the desktop (--hidden): out of sight until a game
             // starts or the user shows it.
             shown: !std::env::args().any(|a| a == "--hidden"),
-            autostart: autostart_file().is_some_and(|f| f.exists()),
+            autostart_mode: QString::from(autostart_mode()),
+            show_on_game,
+            tray,
             alpha,
             text_level,
             accent_level,
@@ -202,6 +236,8 @@ impl Default for CompanionRust {
             layouts: QString::from(&layouts),
             layout_revision: 0,
             shortcut_state,
+            tray_handle: None,
+            tray_generation: 0,
         }
     }
 }
@@ -218,16 +254,51 @@ fn pins_json(pins: &std::collections::BTreeSet<String>) -> String {
     serde_json::to_string(pins).unwrap_or_else(|_| "[]".into())
 }
 
-/// The desktop's autostart entry: starts the companion hidden.
-const AUTOSTART_ENTRY: &str = "[Desktop Entry]
+/// The desktop's autostart entry: hidden (only the tray icon until a game
+/// starts) or with the hub shown.
+fn autostart_entry(hidden: bool) -> String {
+    let (comment, exec) = if hidden {
+        ("Starts hidden in the tray; shows when a game starts", "game-companion --hidden")
+    } else {
+        ("Starts with the hub shown", "game-companion")
+    };
+    format!(
+        "[Desktop Entry]
 Type=Application
 Name=Game Companion
-Comment=Starts hidden; shows when a game starts
-Exec=game-companion --hidden
+Comment={comment}
+Exec={exec}
 Icon=input-gaming
 Terminal=false
 X-KDE-autostart-phase=2
-";
+"
+    )
+}
+
+/// The start mode an autostart entry stands for: "hidden" when its Exec
+/// line passes `--hidden` (every entry before 0.6.0 did), else "visible".
+fn mode_of_entry(text: &str) -> &'static str {
+    let hidden = text
+        .lines()
+        .filter_map(|l| l.trim().strip_prefix("Exec="))
+        .any(|exec| exec.split_whitespace().any(|a| a == "--hidden"));
+    if hidden {
+        "hidden"
+    } else {
+        "visible"
+    }
+}
+
+/// How the companion starts with the desktop now: "off", "hidden" or
+/// "visible".
+fn autostart_mode() -> &'static str {
+    match autostart_file().map(std::fs::read_to_string) {
+        Some(Ok(text)) => mode_of_entry(&text),
+        // There but unreadable: it still starts the companion.
+        Some(Err(e)) if e.kind() != std::io::ErrorKind::NotFound => "hidden",
+        _ => "off",
+    }
+}
 
 /// `$XDG_CONFIG_HOME/autostart/io.github.xzero3007.GameCompanion.desktop`.
 fn autostart_file() -> Option<std::path::PathBuf> {
@@ -272,7 +343,23 @@ fn shortcuts_json(state: &[(&'static str, shortcuts::Status)]) -> String {
 }
 
 impl cxx_qt::Initialize for qobject::Companion {
-    fn initialize(self: Pin<&mut Self>) {
+    fn initialize(mut self: Pin<&mut Self>) {
+        // A second start asks for the hub.
+        let show_thread = self.qt_thread();
+        crate::instance::serve(move || {
+            let _ = show_thread.queue(|obj: Pin<&mut qobject::Companion>| {
+                if !*obj.shown() {
+                    obj.set_shown(true);
+                }
+            });
+        });
+        // The tray's menu follows the hub and the lock.
+        self.as_mut().on_shown_changed(|obj| obj.sync_tray()).release();
+        self.as_mut().on_locked_changed(|obj| obj.sync_tray()).release();
+        if *self.tray() && std::env::var_os("GC_NO_TRAY").is_none() {
+            self.as_mut().start_tray();
+        }
+
         if std::env::var_os("GC_NO_SHORTCUTS").is_some() {
             return;
         }
@@ -324,18 +411,105 @@ impl qobject::Companion {
         QString::from(&settings::read(|s| s.screen.clone()))
     }
 
-    fn set_autostart_on(mut self: Pin<&mut Self>, on: bool) {
+    fn set_autostart_to(mut self: Pin<&mut Self>, mode: &QString) {
+        let mode = mode.to_string();
         let Some(file) = autostart_file() else { return };
-        let done = if on {
-            file.parent().map(std::fs::create_dir_all).transpose().and_then(|_| std::fs::write(&file, AUTOSTART_ENTRY))
-        } else {
-            match std::fs::remove_file(&file) {
+        let done = match mode.as_str() {
+            "hidden" | "visible" => file
+                .parent()
+                .map(std::fs::create_dir_all)
+                .transpose()
+                .and_then(|_| std::fs::write(&file, autostart_entry(mode == "hidden"))),
+            "off" => match std::fs::remove_file(&file) {
                 Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
                 _ => Ok(()),
-            }
+            },
+            _ => return,
         };
         if done.is_ok() {
-            self.as_mut().set_autostart(on);
+            self.as_mut().set_autostart_mode(QString::from(&mode));
+        }
+    }
+
+    fn set_show_on_game_on(self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.show_on_game = on);
+        self.set_show_on_game(on);
+    }
+
+    fn set_tray_on(mut self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.tray = on);
+        self.as_mut().set_tray(on);
+        if on {
+            self.as_mut().start_tray();
+        } else {
+            let mut rust = self.as_mut().rust_mut();
+            rust.tray_generation += 1;
+            if let Some(handle) = rust.tray_handle.take() {
+                // Ends on ksni's thread; nothing to wait for here.
+                drop(handle.shutdown());
+            }
+        }
+    }
+
+    /// Puts the icon into the panel, on a thread of its own (it talks to
+    /// the session bus first).
+    fn start_tray(mut self: Pin<&mut Self>) {
+        if self.rust().tray_handle.is_some() {
+            return;
+        }
+        let generation = {
+            let mut rust = self.as_mut().rust_mut();
+            rust.tray_generation += 1;
+            rust.tray_generation
+        };
+        let icons = crate::native::tray_icons();
+        let (shown, locked) = (*self.shown(), *self.locked());
+        let act_thread = std::sync::Mutex::new(self.qt_thread());
+        let done_thread = self.qt_thread();
+        let _ = std::thread::Builder::new().name("tray".into()).spawn(move || {
+            let tray = tray::GcTray::new(shown, locked, icons, move |action| {
+                if let Ok(thread) = act_thread.lock() {
+                    let _ = thread.queue(move |obj: Pin<&mut qobject::Companion>| obj.tray_action(action));
+                }
+            });
+            let started = tray::spawn(tray);
+            let _ = done_thread.queue(move |mut obj: Pin<&mut qobject::Companion>| match started {
+                Ok(handle) if obj.rust().tray_generation == generation && *obj.tray() => {
+                    obj.as_mut().rust_mut().tray_handle = Some(handle);
+                    // The hub or the lock may have changed meanwhile.
+                    obj.sync_tray();
+                }
+                Ok(handle) => drop(handle.shutdown()),
+                Err(e) => eprintln!("game-companion: no tray icon: {e}"),
+            });
+        });
+    }
+
+    /// Brings the tray's menu and tooltip up to the hub and the lock.
+    fn sync_tray(&self) {
+        let Some(handle) = self.rust().tray_handle.as_ref() else { return };
+        let (shown, locked) = (*self.shown(), *self.locked());
+        handle.update(|t| {
+            t.shown = shown;
+            t.locked = locked;
+        });
+    }
+
+    fn tray_action(mut self: Pin<&mut Self>, action: tray::Action) {
+        match action {
+            tray::Action::ToggleShown => self.toggle_shown(),
+            tray::Action::ToggleLocked => self.toggle_locked(),
+            tray::Action::Settings => {
+                self.as_mut().set_shown(true);
+                self.settings_requested();
+            }
+            tray::Action::CheckUpdates => {
+                self.as_mut().set_shown(true);
+                self.updates_requested();
+            }
+            // As Settings' "Turn off": mpv and the capture helper end with
+            // the app.
+            tray::Action::Quit => crate::native::quit(),
         }
     }
 
@@ -560,6 +734,16 @@ mod tests {
         assert_eq!(v[0]["state"], "suggested");
         assert_eq!(v[1]["key"], "");
         assert_eq!(v[1]["state"], "nokey");
+    }
+
+    #[test]
+    fn autostart_entries_say_how_to_start() {
+        assert_eq!(mode_of_entry(&autostart_entry(true)), "hidden");
+        assert_eq!(mode_of_entry(&autostart_entry(false)), "visible");
+        // The entry written before 0.6.0 starts hidden.
+        let old = "[Desktop Entry]\nType=Application\nName=Game Companion\nComment=Starts hidden; shows when a game starts\nExec=game-companion --hidden\n";
+        assert_eq!(mode_of_entry(old), "hidden");
+        assert_eq!(mode_of_entry("[Desktop Entry]\nComment=--hidden\nExec=/usr/bin/game-companion\n"), "visible");
     }
 
     #[test]
