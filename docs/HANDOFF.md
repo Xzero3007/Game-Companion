@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- Video windows without the gold edge (branch `video-edges`, 2026-11-13, MN: "diese goldenen ränder bei geöffnetem schloss bitte entfernen das stört wenn ich in vollbild gucke"). The 2 px gold line along a video's top while unlocked is gone (also in full screen); the gold size corner shows only with the bars, while the pointer is on the video (or while it is dragged), never in full screen.
 - 0.8.8 QA collection (2026-11-13): #19 Twitch All live through the directory query, #20 Boss cheat sheet preview (entries below).
 - 0.8.7 QA collection (2026-11-13): #17 game row input (entry below).
 - 0.8.6 QA collection (2026-11-13, MN: "dann beheb den engpass"): QA
