@@ -413,7 +413,7 @@ and emotes. The person tests these.
   and injected clicks: /mnt/project-files/game-companion/kwin-test/
   (README: layer-shell-qt 6.0 patched for Qt 6.4). The DPS click bug did
   not show there after a growing live fight (0.7.3 and 0.7.4, locked and
-  unlocked).
+  unlocked). MN plays in borderless fullscreen (always; do not ask again).
 - Sandbox: Ubuntu, Qt 6.4, offscreen/xvfb (see CLAUDE.md).
 - Real KWin: a separate thread on the environment "internet" (Arch
   mirrors allowed) builds an Arch chroot with KWin 6 and tests there; its
