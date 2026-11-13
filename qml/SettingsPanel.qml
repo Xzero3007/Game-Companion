@@ -49,6 +49,16 @@ Panel {
                 : "Not on KDE's overlay layer (no Wayland, or built without it): above other windows where the desktop allows it." }
 
             Item { width: 1; height: 6 }
+            Label { text: "Start" }
+            OnOff {
+                width: parent.width
+                text: "Start with the desktop"
+                on: Companion.autostart
+                onToggled: Companion.setAutostartOn(!Companion.autostart)
+            }
+            Hint { text: "Starts hidden when you log in and shows when a game starts (Games: each game's start options)." }
+
+            Item { width: 1; height: 6 }
             Label { text: "Updates" }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 width: parent.width

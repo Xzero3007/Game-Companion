@@ -11,6 +11,10 @@ Item {
     property bool settingsOpen: false
     property bool radioOpen: false
     signal radioClicked
+    property bool gamesOpen: false
+    signal gamesClicked
+    /// The running game has a module (purple); else it just shows its name.
+    property bool gameHasModule: false
     property bool streamsOpen: false
     signal streamsClicked
     property string gameName: ""
@@ -76,8 +80,10 @@ Item {
                     font.letterSpacing: 2
                 }
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                    text: bar.gameName.length > 0 ? "MODULE · " + bar.gameName.toUpperCase() : "NO GAME RUNNING"
-                    color: bar.gameName.length > 0 ? Theme.purpleText : Theme.dim(true)
+                    text: bar.gameName.length === 0 ? "NO GAME RUNNING"
+                        : (bar.gameHasModule ? "MODULE · " : "PLAYING · ") + bar.gameName.toUpperCase()
+                    color: bar.gameName.length > 0 && bar.gameHasModule ? Theme.purpleText
+                        : bar.gameName.length > 0 ? Theme.textSoft(true) : Theme.dim(true)
                     font.family: Theme.display
                     font.pixelSize: 11
                     font.weight: Font.DemiBold
@@ -99,6 +105,21 @@ Item {
             }
         }
 
+        Item { width: 6; height: 1 }
+
+        HudButton {
+            icon: "games"
+            label: "Games"
+            active: bar.gamesOpen
+            tip: "Games: your library and what runs"
+            onClicked: bar.gamesClicked()
+        }
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            width: 1
+            height: parent.height - 24
+            color: Qt.rgba(1, 1, 1, 0.1)
+        }
         Item { width: 6; height: 1 }
 
         HudButton {

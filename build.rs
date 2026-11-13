@@ -14,6 +14,7 @@ fn main() {
         QmlFile::from("qml/IconButton.qml"),
         QmlFile::from("qml/VolumeBar.qml"),
         QmlFile::from("qml/Dropdown.qml"),
+        QmlFile::from("qml/GamesPanel.qml"),
         QmlFile::from("qml/RadioPanel.qml"),
         QmlFile::from("qml/PlayerRow.qml"),
         QmlFile::from("qml/HubHint.qml"),

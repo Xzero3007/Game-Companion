@@ -15,6 +15,7 @@ Overlay {
     property bool settingsOpen: false
     property bool radioOpen: false
     property bool streamsOpen: false
+    property bool gamesOpen: false
     readonly property var keys: JSON.parse(Companion.shortcuts)
     readonly property var pins: JSON.parse(Companion.pins)
 
@@ -29,11 +30,13 @@ Overlay {
     // Layouts: which panels are open (Settings itself is not part of one).
     function openPanels() {
         const ids = []
+        if (gamesOpen) ids.push("games")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
     }
     function openFrom(ids) {
+        gamesOpen = ids.indexOf("games") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
@@ -43,6 +46,7 @@ Overlay {
         if (demo.indexOf("unlocked") >= 0 && Companion.locked) Companion.toggleLocked()
         if (demo.indexOf("settings") >= 0) settingsOpen = true
         if (demo.indexOf("radio") >= 0) radioOpen = true
+        if (demo.indexOf("games") >= 0) gamesOpen = true
         if (demo.indexOf("streams") >= 0) streamsOpen = true
         if (demo.indexOf("video") >= 0) twitchVideo.item = { kind: "twitch", id: "streamer_one", name: "streamer_one", game: "AION 2", title: "" }
         if (demo.indexOf("jellyvideo") >= 0) jellyfinVideo.demo()
@@ -54,6 +58,24 @@ Overlay {
     Connections {
         target: Companion
         function onShownChanged() { if (!Companion.shown) hubHint.flash() }
+    }
+
+    // A game started: its preset search in Streams, and what the user
+    // picked for its start (show the hub, start the radio).
+    Connections {
+        target: Games
+        function onStarted(id) {
+            const g = JSON.parse(Games.library).find((x) => x.id === id)
+            if (!g) return
+            if (g.twitch.length > 0 || g.youtube.length > 0) Streams.changeGame(g.name, g.twitch, g.youtube)
+            if (g.showOnStart && !Companion.shown) Companion.toggleShown()
+            if (g.radioOnStart) {
+                // The last station, unless something plays already.
+                const recent = JSON.parse(Radio.recent)
+                if (Radio.status === "paused") Radio.togglePause()
+                else if (Radio.status === "idle" && recent.length > 0) Radio.play(recent[0])
+            }
+        }
     }
 
 
@@ -114,6 +136,10 @@ Overlay {
             y: 0
             settingsOpen: root.settingsOpen
             radioOpen: root.radioOpen
+            gamesOpen: root.gamesOpen
+            onGamesClicked: root.gamesOpen = !root.gamesOpen
+            gameName: Games.runningName
+            gameHasModule: Games.runningKnown.length > 0
             streamsOpen: root.streamsOpen
             onStreamsClicked: root.streamsOpen = !root.streamsOpen
             onSettingsClicked: root.settingsOpen = !root.settingsOpen
@@ -179,6 +205,17 @@ Overlay {
             id: welcome
             defaultX: 24
             defaultY: 120
+        }
+    }
+
+    Surface {
+        wanted: root.gamesOpen && root.onScreen("games")
+        stack: 3
+        part: GamesPanel {
+            id: games
+            defaultX: Math.max(24, (root.width - width) / 2)
+            defaultY: 120
+            onCloseClicked: root.gamesOpen = false
         }
     }
 

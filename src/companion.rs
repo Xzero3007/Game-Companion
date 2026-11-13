@@ -27,6 +27,9 @@ pub mod qobject {
         /// Whether the hub shows (the bar, the player row, the panels).
         /// Hidden, only what is pinned stays on screen.
         #[qproperty(bool, shown)]
+        /// Whether the companion starts with the desktop (KDE's autostart
+        /// folder holds its entry), hidden until a game starts.
+        #[qproperty(bool, autostart)]
         /// How solid the panels are, 0.05 to 1. QML may set it while a
         /// slider moves; `save_alpha` keeps it.
         #[qproperty(f64, alpha)]
@@ -67,6 +70,10 @@ pub mod qobject {
 
         #[qinvokable]
         fn toggle_shown(self: Pin<&mut Companion>);
+
+        /// Starts with the desktop or not (writes or removes the entry).
+        #[qinvokable]
+        fn set_autostart_on(self: Pin<&mut Companion>, on: bool);
 
         /// Sets and keeps how solid the panels are.
         #[qinvokable]
@@ -139,6 +146,7 @@ pub mod qobject {
 pub struct CompanionRust {
     locked: bool,
     shown: bool,
+    autostart: bool,
     alpha: f64,
     text_level: f64,
     accent_level: f64,
@@ -168,7 +176,10 @@ impl Default for CompanionRust {
             // Always start locked: the game gets every click until the user
             // unlocks the overlay.
             locked: true,
-            shown: true,
+            // Started with the desktop (--hidden): out of sight until a game
+            // starts or the user shows it.
+            shown: !std::env::args().any(|a| a == "--hidden"),
+            autostart: autostart_file().is_some_and(|f| f.exists()),
             alpha,
             text_level,
             accent_level,
@@ -197,6 +208,26 @@ fn numbers_json(values: &[f64]) -> String {
 
 fn pins_json(pins: &std::collections::BTreeSet<String>) -> String {
     serde_json::to_string(pins).unwrap_or_else(|_| "[]".into())
+}
+
+/// The desktop's autostart entry: starts the companion hidden.
+const AUTOSTART_ENTRY: &str = "[Desktop Entry]
+Type=Application
+Name=Game Companion
+Comment=Starts hidden; shows when a game starts
+Exec=game-companion --hidden
+Icon=input-gaming
+Terminal=false
+X-KDE-autostart-phase=2
+";
+
+/// `$XDG_CONFIG_HOME/autostart/io.github.xzero3007.GameCompanion.desktop`.
+fn autostart_file() -> Option<std::path::PathBuf> {
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config")))?;
+    Some(base.join("autostart").join("io.github.xzero3007.GameCompanion.desktop"))
 }
 
 /// "0.1.0", or "0.1.0 (build 12)" for a release built on GitHub, "0.1.0
@@ -274,6 +305,21 @@ impl qobject::Companion {
     fn toggle_locked(self: Pin<&mut Self>) {
         let locked = !*self.locked();
         self.set_locked(locked);
+    }
+
+    fn set_autostart_on(mut self: Pin<&mut Self>, on: bool) {
+        let Some(file) = autostart_file() else { return };
+        let done = if on {
+            file.parent().map(std::fs::create_dir_all).transpose().and_then(|_| std::fs::write(&file, AUTOSTART_ENTRY))
+        } else {
+            match std::fs::remove_file(&file) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+                _ => Ok(()),
+            }
+        };
+        if done.is_ok() {
+            self.as_mut().set_autostart(on);
+        }
     }
 
     fn toggle_shown(self: Pin<&mut Self>) {
