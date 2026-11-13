@@ -5,3 +5,4 @@
 /packaging/arch/*.log
 /packaging/arch/target
 /.qmlls.ini
+/.cargo-home
