@@ -8,10 +8,13 @@ Item {
     id: button
     property string text
     property bool danger: false
+    /// Smaller for a slim header (the DPS meter's RESET).
+    property real pixelSize: 13
+    property int pad: 14
     signal clicked
     readonly property color tint: danger ? Theme.red : Theme.accent
 
-    implicitWidth: label.implicitWidth + 28
+    implicitWidth: label.implicitWidth + 2 * pad
     implicitHeight: 34
 
     Rectangle {
@@ -26,7 +29,7 @@ Item {
         text: button.text.toUpperCase()
         color: button.tint
         font.family: Theme.display
-        font.pixelSize: 13
+        font.pixelSize: button.pixelSize
         font.weight: Font.Bold
         font.letterSpacing: 1.5
     }

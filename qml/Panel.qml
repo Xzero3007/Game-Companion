@@ -42,13 +42,18 @@ Item {
     property real ownWidth: 0
     /// How solid its ground is (the opacity setting; the chat goes clearer).
     property real ground: Companion.alpha
+    /// Slim (the DPS meter, like the old meter): a 30 px header with smaller
+    /// buttons, and the body edge to edge with 8 px sides.
+    property bool compact: false
+    /// Shown in the header after the title (a slim panel's tabs).
+    property Component headerTools: null
     default property alias content: body.data
     signal closeClicked
     /// Emitted when it moves, resizes, shows or hides: the input region changes.
     signal areaChanged
 
     width: 400
-    height: 2 + header.height + 12 + body.height + 14
+    height: 2 + header.height + (compact ? 0 : 12) + body.height + (compact ? 0 : 14)
 
     // Placed once the screen's size is known: where it was left, else at
     // its default place, always on the screen.
@@ -116,7 +121,7 @@ Item {
         id: header
         y: 2
         width: parent.width
-        height: 40
+        height: panel.compact ? 30 : 40
         color: Theme.headerTint
 
         MoveArea {
@@ -139,21 +144,22 @@ Item {
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: titleText
             anchors.left: panel.icon.length > 0 ? titleIcon.right : parent.left
-            anchors.leftMargin: panel.icon.length > 0 ? 10 : 14
+            anchors.leftMargin: panel.icon.length > 0 ? 10 : (panel.compact ? 10 : 14)
             anchors.verticalCenter: parent.verticalCenter
             text: panel.title.toUpperCase()
             color: Theme.text()
             font.family: Theme.display
-            font.pixelSize: 15
+            font.pixelSize: panel.compact ? 13 : 15
             font.weight: Font.Bold
             font.letterSpacing: 2
         }
         Rectangle {
+            id: tagBox
             visible: panel.tag.length > 0
             anchors.left: titleText.right
-            anchors.leftMargin: 10
+            anchors.leftMargin: panel.compact ? 8 : 10
             anchors.verticalCenter: parent.verticalCenter
-            width: tagText.implicitWidth + 14
+            width: visible ? tagText.implicitWidth + (panel.compact ? 10 : 14) : 0
             height: tagText.implicitHeight + 2
             color: Qt.rgba(0.608, 0.42, 0.91, 0.4)
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
@@ -162,22 +168,32 @@ Item {
                 text: panel.tag.toUpperCase()
                 color: Theme.purpleText
                 font.family: Theme.display
-                font.pixelSize: 11
+                font.pixelSize: panel.compact ? 10 : 11
                 font.weight: Font.Bold
                 font.letterSpacing: 1.5
             }
+        }
+        Loader {
+            active: panel.headerTools !== null
+            sourceComponent: panel.headerTools
+            anchors.left: tagBox.visible ? tagBox.right : titleText.right
+            anchors.leftMargin: 14
+            anchors.right: badgeText.visible ? badgeText.left : actionButton.left
+            anchors.rightMargin: 8
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
         }
         Item {
             id: pinButton
             visible: panel.pinnable
             anchors.right: closeButton.left
             anchors.verticalCenter: parent.verticalCenter
-            width: visible ? 32 : 0
-            height: 32
+            width: visible ? (panel.compact ? 24 : 32) : 0
+            height: panel.compact ? 24 : 32
             HudIcon {
                 anchors.centerIn: parent
                 name: "pin"
-                size: 15
+                size: panel.compact ? 12 : 15
                 filled: panel.pinned
                 color: panel.pinned ? Theme.accent : (pinMouse.containsMouse ? Theme.text() : Theme.dim())
             }
@@ -198,11 +214,14 @@ Item {
             anchors.rightMargin: visible ? 6 : 0
             anchors.verticalCenter: parent.verticalCenter
             width: visible ? implicitWidth : 0
-            implicitHeight: 28
+            implicitHeight: panel.compact ? 20 : 28
+            pixelSize: panel.compact ? 11 : 13
+            pad: panel.compact ? 7 : 14
             text: panel.actionText
             onClicked: if (!Companion.locked) panel.actionClicked()
         }
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+            id: badgeText
             anchors.right: actionButton.left
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
@@ -217,14 +236,14 @@ Item {
         Item {
             id: closeButton
             anchors.right: parent.right
-            anchors.rightMargin: 6
+            anchors.rightMargin: panel.compact ? 3 : 6
             anchors.verticalCenter: parent.verticalCenter
-            width: 32
-            height: 32
+            width: panel.compact ? 24 : 32
+            height: panel.compact ? 24 : 32
             HudIcon {
                 anchors.centerIn: parent
                 name: "close"
-                size: 14
+                size: panel.compact ? 11 : 14
                 lineWidth: 2
                 color: closeMouse.containsMouse ? Theme.text() : Theme.dim()
             }
@@ -245,8 +264,8 @@ Item {
         anchors.top: header.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.margins: 14
-        anchors.topMargin: 12
+        anchors.margins: panel.compact ? 8 : 14
+        anchors.topMargin: panel.compact ? 0 : 12
         height: childrenRect.height
     }
 
