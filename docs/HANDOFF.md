@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.9 QA collection (2026-11-13): #22 game row opens panels while the hub is hidden (entry below).
 - 0.8.8 QA collection (2026-11-13): #19 Twitch All live through the directory query, #20 Boss cheat sheet preview (entries below).
 - 0.8.7 QA collection (2026-11-13): #17 game row input (entry below).
 - 0.8.6 QA collection (2026-11-13, MN: "dann beheb den engpass"): QA
