@@ -33,6 +33,11 @@
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QSGRendererInterface>
 
+extern "C" {
+// src/native.rs: what the Rust side tidies when the app ends.
+void gc_about_to_quit();
+}
+
 #ifdef GC_LAYER_SHELL
 #include <LayerShellQt/window.h>
 #endif
@@ -453,6 +458,8 @@ int32_t gc_run()
             QGuiApplication::quit();
         });
     }
+    // The single-instance socket file goes when the app quits normally.
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, []() { gc_about_to_quit(); });
     return app.exec();
 }
 

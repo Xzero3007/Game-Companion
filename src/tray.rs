@@ -129,6 +129,67 @@ pub fn spawn(tray: GcTray) -> Result<Handle, String> {
     tray.assume_sni_available(true).spawn().map_err(|e| e.to_string())
 }
 
+/// What the Qt thread tells the tray's worker.
+enum Note {
+    State { shown: bool, locked: bool },
+    Shutdown,
+}
+
+/// The tray as the Qt thread holds it: changes go to a worker thread that
+/// owns ksni's handle, since `Handle::update` blocks until ksni's own
+/// thread has taken the change (it must never hold up the Qt thread). The
+/// worker sleeps on its channel; only the newest state waiting is sent.
+pub struct Worker {
+    notes: std::sync::mpsc::Sender<Note>,
+}
+
+impl Worker {
+    pub fn new(handle: Handle) -> Worker {
+        Worker::with(move |note| match note {
+            Some((shown, locked)) => {
+                handle.update(|t| {
+                    t.shown = shown;
+                    t.locked = locked;
+                });
+            }
+            None => drop(handle.shutdown()),
+        })
+    }
+
+    /// `apply` gets each newest state, and None once to shut down.
+    fn with(apply: impl Fn(Option<(bool, bool)>) + Send + 'static) -> Worker {
+        let (notes, rx) = std::sync::mpsc::channel::<Note>();
+        let _ = std::thread::Builder::new().name("tray-update".into()).spawn(move || {
+            while let Ok(mut note) = rx.recv() {
+                // Skip to the newest state; a shutdown wins.
+                while let Ok(next) = rx.try_recv() {
+                    if !matches!(note, Note::Shutdown) {
+                        note = next;
+                    }
+                }
+                match note {
+                    Note::State { shown, locked } => apply(Some((shown, locked))),
+                    Note::Shutdown => {
+                        apply(None);
+                        return;
+                    }
+                }
+            }
+        });
+        Worker { notes }
+    }
+
+    /// Hands the hub's and the lock's state on; returns at once.
+    pub fn set(&self, shown: bool, locked: bool) {
+        let _ = self.notes.send(Note::State { shown, locked });
+    }
+
+    /// Takes the icon out of the panel (on the worker); returns at once.
+    pub fn shutdown(self) {
+        let _ = self.notes.send(Note::Shutdown);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -137,6 +198,32 @@ mod tests {
 
     fn labels(shown: bool, locked: bool) -> Vec<&'static str> {
         entries(shown, locked).into_iter().map(|e| e.map_or("-", |(l, _)| l)).collect()
+    }
+
+    #[test]
+    fn the_worker_sends_the_newest_state_off_the_caller() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+        let (tx, rx) = mpsc::channel();
+        let slow = Mutex::new(tx);
+        let worker = Worker::with(move |note| {
+            // As slow as a busy ksni thread: the caller must not wait.
+            std::thread::sleep(Duration::from_millis(100));
+            let _ = slow.lock().unwrap().send(note);
+        });
+        let start = std::time::Instant::now();
+        worker.set(true, true);
+        worker.set(false, true);
+        worker.set(false, false);
+        assert!(start.elapsed() < Duration::from_millis(50));
+        // Waiting ones become one: the newest arrives, at most one before.
+        let mut got = Vec::new();
+        while got.last() != Some(&Some((false, false))) {
+            got.push(rx.recv_timeout(Duration::from_secs(2)).unwrap());
+        }
+        assert!(got.len() <= 2, "{got:?}");
+        worker.shutdown();
+        assert_eq!(rx.recv_timeout(Duration::from_secs(2)).unwrap(), None);
     }
 
     #[test]
