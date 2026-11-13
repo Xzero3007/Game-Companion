@@ -251,6 +251,36 @@ pub fn summary(data: &DpsData) -> serde_json::Value {
     })
 }
 
+/// One player's skills in the fight, most damage first (the SKILLS tab).
+pub fn skills(data: &DpsData, actor: i32) -> serde_json::Value {
+    let Some(p) = data.map.get(&actor) else { return serde_json::json!([]) };
+    let total: f64 = p.analyzed_data.values().map(|s| (s.damage_amount as f64) + (s.dot_damage_amount as f64)).sum();
+    let mut list: Vec<_> = p
+        .analyzed_data
+        .values()
+        .filter(|s| s.times > 0 || s.damage_amount > 0 || s.dot_damage_amount > 0)
+        .map(|s| {
+            let damage = s.damage_amount as i64 + s.dot_damage_amount as i64;
+            let hits = s.times.max(1) as f64;
+            let rate = |n: i32| ((n as f64) / hits * 1000.0).round() / 10.0;
+            serde_json::json!({
+                "code": s.skill_code,
+                "name": if s.skill_name.is_empty() { format!("#{}", s.skill_code) } else { s.skill_name.clone() },
+                "casts": s.times,
+                "damage": damage,
+                "share": if total > 0.0 { ((damage as f64) / total * 1000.0).round() / 10.0 } else { 0.0 },
+                "crit": rate(s.crit_times),
+                "back": rate(s.back_times),
+                "perfect": rate(s.perfect_times),
+                "double": rate(s.double_times),
+                "parry": rate(s.parry_times),
+            })
+        })
+        .collect();
+    list.sort_by(|a, b| b["damage"].as_i64().cmp(&a["damage"].as_i64()));
+    serde_json::Value::Array(list)
+}
+
 /// Skills whose damage comes over time (language-independent).
 fn dot_skill_ids(data_dir: &Path) -> HashSet<i32> {
     std::fs::read_to_string(data_dir.join("dot_skill_ids.json"))
@@ -299,5 +329,31 @@ mod tests {
         assert_eq!((rows[1]["name"].as_str(), rows[1]["dps"].as_i64()), (Some("[Gladiator]"), Some(10)));
         assert_eq!(rows[1]["share"].as_f64(), Some(33.3));
         assert_eq!(s["hpNow"].as_i64(), Some(700));
+    }
+
+    #[test]
+    fn skills_come_by_damage_with_their_rates() {
+        use crate::entity::analyzed_skill::AnalyzedSkill;
+        use crate::entity::personal_data::PersonalData;
+        let mut data = DpsData::new();
+        let mut p = PersonalData::new("Me".into());
+        let mut a = AnalyzedSkill::new(11, "Strike".into());
+        a.times = 4;
+        a.damage_amount = 100;
+        a.crit_times = 1;
+        let mut b = AnalyzedSkill::new(12, String::new());
+        b.times = 1;
+        b.damage_amount = 250;
+        b.dot_damage_amount = 50;
+        p.analyzed_data.insert(11, a);
+        p.analyzed_data.insert(12, b);
+        data.map.insert(7, p);
+        let list = skills(&data, 7);
+        let list = list.as_array().unwrap();
+        assert_eq!(list[0]["name"].as_str(), Some("#12"));
+        assert_eq!(list[0]["damage"].as_i64(), Some(300));
+        assert_eq!(list[1]["crit"].as_f64(), Some(25.0));
+        assert_eq!(list[0]["share"].as_f64(), Some(75.0));
+        assert!(skills(&data, 8).as_array().unwrap().is_empty());
     }
 }

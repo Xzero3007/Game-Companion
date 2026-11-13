@@ -16,8 +16,16 @@ Panel {
     badge: clock(fight.time)
 
     readonly property var fight: JSON.parse(Aion2.fight)
-    /// damage, healing
-    property string tab: "damage"
+    /// damage, healing, skills
+    property string tab: nativeWindow.demo.indexOf("skills") >= 0 ? "skills" : "damage"
+    readonly property bool skillsShown: tab === "skills"
+    readonly property var skills: JSON.parse(Aion2.skills)
+    readonly property real mostSkill: skills.length > 0 ? skills[0].damage : 1
+    /// The player whose skills show: picked, else the one playing.
+    readonly property var pickedRow: {
+        for (const r of fight.rows) if (Aion2.picked !== 0 ? r.id === Aion2.picked : r.me) return r
+        return null
+    }
     readonly property bool healing: tab === "healing"
     readonly property var rows: {
         const list = fight.rows.filter((r) => healing ? r.heal > 0 : r.amount > 0)
@@ -47,16 +55,17 @@ Panel {
                 spacing: 18
                 DpsTab { name: "damage"; label: "Damage" }
                 DpsTab { name: "healing"; label: "Healing" }
+                DpsTab { name: "skills"; label: "Skills" }
             }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.right: resetButton.left
                 anchors.rightMargin: 10
                 anchors.left: parent.left
-                anchors.leftMargin: 170
+                anchors.leftMargin: 250
                 anchors.verticalCenter: parent.verticalCenter
                 horizontalAlignment: Text.AlignRight
                 elide: Text.ElideRight
-                text: panel.fight.target
+                text: panel.skillsShown ? (panel.pickedRow ? panel.pickedRow.name : "") : panel.fight.target
                 color: Theme.muted()
                 font.family: Theme.body
                 font.pixelSize: 12
@@ -93,7 +102,111 @@ Panel {
 
         Item { width: 1; height: 10 }
 
+        // SKILLS: the picked player's skills (a click on a row picks).
         Column {
+            visible: panel.skillsShown
+            width: parent.width
+            spacing: 4
+            Item {
+                width: parent.width
+                height: 18
+                Repeater {
+                    model: [["Skill", 10, false], ["Casts", 186, true], ["Damage", 106, true], ["Crit", 52, true], ["%", 10, true]]
+                    delegate: Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        required property var modelData
+                        x: modelData[2] ? parent.width - modelData[1] - implicitWidth : modelData[1]
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData[0].toUpperCase()
+                        color: Theme.dim()
+                        font.family: Theme.display
+                        font.pixelSize: 11
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.5
+                    }
+                }
+            }
+            Repeater {
+                model: panel.skillsShown ? panel.skills : []
+                delegate: Item {
+                    required property var modelData
+                    width: parent.width
+                    height: 32
+                    Rectangle { anchors.fill: parent; color: "#1b1a20" }
+                    Rectangle {
+                        height: parent.height
+                        width: parent.width * Math.max(0, Math.min(1, modelData.damage / Math.max(1, panel.mostSkill)))
+                        color: Qt.rgba(1, 1, 1, 0.08)
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        anchors.left: parent.left
+                        anchors.leftMargin: 10
+                        anchors.right: casts.left
+                        anchors.rightMargin: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        elide: Text.ElideRight
+                        text: modelData.name
+                        color: Theme.text()
+                        font.family: Theme.body
+                        font.pixelSize: 13
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        id: casts
+                        anchors.right: parent.right
+                        anchors.rightMargin: 186
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.casts
+                        color: Theme.muted()
+                        font.family: Theme.body
+                        font.pixelSize: 12
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        anchors.right: parent.right
+                        anchors.rightMargin: 106
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: panel.number(modelData.damage)
+                        color: Theme.text()
+                        font.family: Theme.display
+                        font.pixelSize: 14
+                        font.weight: Font.Bold
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        anchors.right: parent.right
+                        anchors.rightMargin: 52
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: Math.round(modelData.crit) + "%"
+                        color: Theme.muted()
+                        font.family: Theme.body
+                        font.pixelSize: 12
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        anchors.right: parent.right
+                        anchors.rightMargin: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: Math.round(modelData.share) + "%"
+                        color: Theme.muted()
+                        font.family: Theme.body
+                        font.pixelSize: 12
+                    }
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: modelData.name + ", " + modelData.casts + " casts, " + panel.number(modelData.damage) + " damage"
+                }
+            }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                visible: panel.skills.length === 0
+                width: parent.width
+                topPadding: 18
+                bottomPadding: 18
+                horizontalAlignment: Text.AlignHCenter
+                text: "No skills counted yet. A click on a player in Damage shows theirs."
+                wrapMode: Text.Wrap
+                color: Theme.muted()
+                font.family: Theme.body
+                font.pixelSize: 13
+            }
+        }
+
+        Column {
+            visible: !panel.skillsShown
             width: parent.width
             spacing: 4
             Repeater {
@@ -159,6 +272,12 @@ Panel {
                         color: Theme.muted()
                         font.family: Theme.body
                         font.pixelSize: 12
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: !Companion.locked
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { Aion2.pick(modelData.me ? 0 : modelData.id); panel.tab = "skills" }
                     }
                     Accessible.role: Accessible.ListItem
                     Accessible.name: modelData.name + ", " + perSecond.text + (panel.healing ? " healing" : " damage") + " per second, " + share.text
