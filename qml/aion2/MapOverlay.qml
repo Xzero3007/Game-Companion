@@ -31,8 +31,11 @@ Item {
     readonly property real side: dragSide > 0 ? dragSide : !o ? 240 : o.w > 0 ? o.w : (sides[o.size] || 240)
     readonly property int strip: 24
 
+    /// The pet being farmed (Pet Finder), as a line under the map.
+    readonly property var farm: source && o && o.farm !== false ? source.farming : null
+    readonly property int farmHeight: farm ? 22 : 0
     width: side
-    height: strip + side
+    height: strip + side + farmHeight
 
     // ---- where you are, and whether it hides there ----
     readonly property string key: {
@@ -61,7 +64,7 @@ Item {
     function update() {
         if (!shown || !source) return
         const s = source.settings
-        built = key.length === 0 ? null : MK.M.build({ key: key, world: source.world, tracked: source.tracked, needed: null, heading: source.heading,
+        built = key.length === 0 ? null : MK.M.build({ key: key, world: source.world, tracked: source.tracked, needed: source.needed, heading: source.heading,
             layers: o.own ? o.layers : s.layers, gatherKinds: s.gatherKinds, petsMode: s.petsMode, focus: s.focus, nextFor: s.nextFor })
         map.marks = built ? built.marks : []
         const me = source.world ? source.world.me : null
@@ -241,6 +244,55 @@ Item {
                 return "<font color='" + Theme.accent + "'>Next</font> " + n.name + " · " + way
             }
             color: Theme.text()
+            font.family: Theme.body
+            font.pixelSize: 10
+        }
+    }
+
+    // The pet being farmed: its souls toward the next level, and how far
+    // its nearest monster is (the old farming pop-up, as a line).
+    Rectangle {
+        visible: ov.farm !== null
+        y: map.y + map.height
+        width: map.width
+        height: ov.farmHeight
+        color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, Math.max(0.7, ov.o ? ov.o.opacity : 0.75))
+        Rectangle { width: parent.width; height: 1; color: Theme.accent; opacity: 0.6 }
+        readonly property string far: {
+            if (!ov.farm || !ov.source || !ov.source.world || !ov.source.world.me || ov.key.length === 0) return ""
+            const d = MK.M.nearestByPet(ov.key, ov.source.world.me, new Set([ov.farm.id]))[ov.farm.id]
+            return d != null ? d + " m" : ""
+        }
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow
+            id: farmName
+            x: 6
+            anchors.verticalCenter: parent.verticalCenter
+            text: ov.farm ? ov.farm.name.toUpperCase() : ""
+            width: Math.min(implicitWidth, parent.width * 0.4)
+            elide: Text.ElideRight
+            color: Theme.accent
+            font.family: Theme.display
+            font.pixelSize: 11
+            font.weight: Font.Bold
+            font.letterSpacing: 1.2
+        }
+        Rectangle {
+            anchors.left: farmName.right
+            anchors.leftMargin: 8
+            anchors.right: farmText.left
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            height: 4
+            color: "#2a2930"
+            Rectangle { height: 4; width: ov.farm && ov.farm.goal > 0 ? parent.width * Math.min(1, ov.farm.souls / ov.farm.goal) : 0; color: Theme.accent }
+        }
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow
+            id: farmText
+            anchors.right: parent.right
+            anchors.rightMargin: 6
+            anchors.verticalCenter: parent.verticalCenter
+            text: ov.farm ? ov.farm.souls + " / " + ov.farm.goal + (parent.far ? " · " + parent.far : "") : ""
+            color: Theme.textSoft()
             font.family: Theme.body
             font.pixelSize: 10
         }

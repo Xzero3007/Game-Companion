@@ -40,6 +40,7 @@ fn main() {
         QmlFile::from("qml/Tag.qml"),
         QmlFile::from("qml/aion2/MapView.qml"),
         QmlFile::from("qml/aion2/MapOverlay.qml"),
+        QmlFile::from("qml/aion2/PetsTab.qml"),
         QmlFile::from("qml/aion2/MapPanel.qml"),
         QmlFile::from("qml/aion2/MarketPanel.qml"),
         QmlFile::from("qml/aion2/CharacterStore.qml"),

@@ -19,6 +19,7 @@ pub mod entity;
 pub mod i18n;
 pub mod history;
 pub mod link;
+pub mod pets;
 pub mod supporters;
 pub mod world;
 #[cfg(feature = "live")]

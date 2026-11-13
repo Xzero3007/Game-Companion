@@ -1,0 +1,10 @@
+pets.json's catalogue (the pet ids the game's pet frames may carry) and the
+portraits in portraits/ come from PetTracker by 0Fox2Give
+(https://github.com/0Fox2Give/PetTracker, GPLv3), as the Clicktrough plugin
+Pet Finder takes them (dev/make_data.py, dev/make_portraits.py).
+
+The pet portraits are game artwork, included as PetTracker includes them.
+AION 2 names, portraits and game material belong to their respective owners.
+Where each pet's souls drop (names, levels, chances, chests) is the Pet Soul
+Tracker's table (see NOTICE-PetSoulTracker.txt), generated from the game
+client's own data.
