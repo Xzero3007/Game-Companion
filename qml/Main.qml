@@ -259,7 +259,8 @@ Overlay {
         wanted: root.dpsOpen && root.onScreen("dps")
         stack: 3
         part: DpsPanel {
-            defaultX: 24
+            // At the right edge: the welcome and the radio start at the left.
+            defaultX: Math.max(24, root.width - width - 24)
             defaultY: 120
             onCloseClicked: { root.dpsOpen = false; root.dpsClosed = true }
         }
