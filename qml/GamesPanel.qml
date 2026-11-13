@@ -31,7 +31,10 @@ Panel {
     /// Why the form could not save, shown in it.
     property string formError: ""
     readonly property var visibleGames: library.filter((g) => !g.hidden)
-    badge: visibleGames.length + (visibleGames.length === 1 ? " GAME" : " GAMES")
+    readonly property int installedCount: visibleGames.filter((g) => g.installed).length
+    badge: installedCount === visibleGames.length
+        ? visibleGames.length + (visibleGames.length === 1 ? " GAME" : " GAMES")
+        : installedCount + " OF " + visibleGames.length + " INSTALLED"
 
     /// recent, favorites, module, steam, lutris, heroic, own
     property string tab: "recent"
@@ -53,19 +56,26 @@ Panel {
     property var launchTab: null
     onEditingChanged: { formPage = "general"; suggesting = false }
 
-    function count(launcher) { return visibleGames.filter((g) => g.launcher === launcher).length }
+    /// "installed/all" for a launcher's tab ("n" when all are installed).
+    function count(launcher) {
+        const all = visibleGames.filter((g) => g.launcher === launcher)
+        const installed = all.filter((g) => g.installed).length
+        return installed === all.length ? String(all.length) : installed + "/" + all.length
+    }
     function fold(s) { return String(s || "").toLocaleLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") }
 
     readonly property var shown: {
         let list = visibleGames.slice()
+        if (Games.installedOnly) list = list.filter((g) => g.installed)
         if (tab === "favorites") list = list.filter((g) => g.fav)
         else if (tab === "module") list = list.filter((g) => g.known.length > 0)
         else if (tab !== "recent") list = list.filter((g) => g.launcher === tab)
         const q = fold(query).trim()
         if (q.length > 0) list = list.filter((g) => fold(g.name).indexOf(q) >= 0)
         if (tab === "recent") {
-            // Played ones first, newest first; the rest by name.
-            list.sort((a, b) => (b.lastPlayed - a.lastPlayed) || a.name.localeCompare(b.name))
+            // Played ones first, newest first; then installed ones, the rest
+            // by name.
+            list.sort((a, b) => (b.lastPlayed - a.lastPlayed) || (b.installed - a.installed) || a.name.localeCompare(b.name))
         } else {
             list.sort((a, b) => a.name.localeCompare(b.name))
         }
@@ -112,6 +122,8 @@ Panel {
         } else if (has("proton")) {
             protonView = true
         }
+        // ,tabsteam / ,tabheroic / ,tablutris open that launcher's tab.
+        for (const l of ["steam", "heroic", "lutris"]) if (has("tab" + l)) tab = l
     }
 
     // Choices (the Proton lists) open over the whole panel.
@@ -135,7 +147,7 @@ Panel {
             Rectangle {
                 id: searchBox
                 anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(300, parent.width - addButton.width - refreshButton.width - protonButton.width - 50)
+                width: Math.min(300, parent.width - addButton.width - refreshButton.width - protonButton.width - installedSwitch.width - 66)
                 height: 32
                 color: "#1b1a20"
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: search.activeFocus ? Theme.accent : "#3a3842" }
@@ -171,6 +183,54 @@ Panel {
                     }
                     Accessible.name: "Search games"
                 }
+            }
+            // INSTALLED ONLY: hides games that are owned but not installed.
+            Item {
+                id: installedSwitch
+                anchors.left: searchBox.right
+                anchors.leftMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                width: switchRow.implicitWidth
+                height: 32
+                Row {
+                    id: switchRow
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 14
+                        height: 14
+                        color: Games.installedOnly ? Theme.accent : "transparent"
+                        border.color: Games.installedOnly ? Theme.accent : (switchMouse.containsMouse ? Theme.textSoft() : Theme.track)
+                        HudIcon {
+                            anchors.centerIn: parent
+                            visible: Games.installedOnly
+                            name: "check"
+                            size: 11
+                            lineWidth: 2.4
+                            color: "#121116"
+                        }
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "INSTALLED ONLY"
+                        color: Games.installedOnly ? Theme.accent : (switchMouse.containsMouse ? Theme.text() : Theme.muted())
+                        font.family: Theme.display
+                        font.pixelSize: 12
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.5
+                    }
+                }
+                MouseArea {
+                    id: switchMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Games.saveInstalledOnly(!Games.installedOnly)
+                }
+                Accessible.role: Accessible.CheckBox
+                Accessible.name: "Installed only"
+                Accessible.checked: Games.installedOnly
             }
             IconButton {
                 id: refreshButton
@@ -281,6 +341,8 @@ Panel {
                 wrapMode: Text.WordWrap
                 text: Games.scanning ? "Reading Steam, Lutris and Heroic…"
                     : panel.query.length > 0 ? "No game matches."
+                    : Games.installedOnly && panel.tab !== "own" && panel.tab !== "favorites" && panel.tab !== "module"
+                        ? "No installed game here. INSTALLED ONLY hides the others."
                     : panel.tab === "favorites" ? "No favorites yet: the star on a game adds it."
                     : panel.tab === "module" ? "No game with a module here yet: AION 2 and Path of Exile 2 have one."
                     : panel.tab === "own" ? "No own games yet: + ADD GAME adds one."
@@ -304,7 +366,7 @@ Panel {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
-                text: "Read from Steam, Lutris and Heroic on this PC. PLAY starts the game through its launcher, the companion follows."
+                text: "Read from Steam, Lutris and Heroic on this PC. PLAY starts the game through its launcher, the companion follows; INSTALL opens the launcher's install."
                 color: Theme.dim()
                 font.family: Theme.body
                 font.pixelSize: 11
@@ -406,6 +468,7 @@ Panel {
         readonly property var g: modelData
         readonly property bool running: Games.running === g.id
         readonly property bool module: g.known.length > 0
+        readonly property bool installed: g.installed !== false
         width: GridView.view.cellWidth
         height: GridView.view.cellHeight
 
@@ -446,9 +509,12 @@ Panel {
                     cache: true
                     sourceSize.width: 320
                     visible: status === Image.Ready
+                    // Not installed: the cover greyed.
+                    opacity: card.installed ? 1 : 0.32
                 }
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     visible: picture.status !== Image.Ready
+                    opacity: card.installed ? 1 : 0.6
                     anchors.centerIn: parent
                     width: parent.width - 20
                     horizontalAlignment: Text.AlignHCenter
@@ -508,7 +574,7 @@ Panel {
                         width: parent.width
                         elide: Text.ElideRight
                         text: card.g.name
-                        color: Theme.text()
+                        color: card.installed ? Theme.text() : Theme.muted()
                         font.family: Theme.body
                         font.pixelSize: 13
                         font.weight: Font.DemiBold
@@ -517,6 +583,8 @@ Panel {
                         width: parent.width
                         elide: Text.ElideRight
                         text: card.running ? panel.launcherName(card.g.launcher) + " · running"
+                            : !card.installed && faceHover.hovered && card.g.note ? card.g.note
+                            : !card.installed ? "Not installed"
                             : panel.launcherName(card.g.launcher) + " · " + panel.ago(card.g.lastPlayed)
                         color: card.running ? Theme.accent : Theme.dim()
                         font.family: Theme.body
@@ -543,13 +611,15 @@ Panel {
                     anchors.verticalCenter: parent.verticalCenter
                     width: playText.implicitWidth + 20
                     height: 28
+                    // INSTALL is grey until pointed at, like the card.
+                    readonly property color tint: card.installed || playMouse.containsMouse ? Theme.accent : Theme.muted()
                     color: card.running ? Theme.accent : playMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.12) : "transparent"
-                    border.color: Theme.accent
+                    border.color: tint
                     Text {
                         id: playText
                         anchors.centerIn: parent
-                        text: card.running ? "RUNNING" : "PLAY"
-                        color: card.running ? "#121116" : Theme.accent
+                        text: card.running ? "RUNNING" : card.installed ? "PLAY" : "INSTALL"
+                        color: card.running ? "#121116" : play.tint
                         style: card.running ? Text.Normal : Theme.textStyle()
                         styleColor: Theme.shadow
                         font.family: Theme.display
@@ -566,7 +636,7 @@ Panel {
                         onClicked: Games.launch(card.g.id)
                     }
                     Accessible.role: Accessible.Button
-                    Accessible.name: "Play " + card.g.name
+                    Accessible.name: (card.installed ? "Play " : "Install ") + card.g.name
                 }
             }
         }

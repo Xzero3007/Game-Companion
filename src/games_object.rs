@@ -50,8 +50,14 @@ pub mod qobject {
         #[qproperty(QString, youtube_preset)]
         /// JSON `[{"id","name","launcher","picture","known","own","hidden",
         /// "fav","lastPlayed","processes","command","twitch","youtube",
-        /// "showOnStart","radioOnStart"}]`, sorted by name.
+        /// "showOnStart","radioOnStart","layout","installed","note"}]`,
+        /// sorted by name. `installed` false: owned but not installed
+        /// (`launch` opens the launcher's install for it), `note` where it
+        /// was found ("Known to Steam on this PC", ...).
         #[qproperty(QString, library)]
+        /// The tab lists only installed games (settings
+        /// `games.installed_only`).
+        #[qproperty(bool, installed_only)]
         /// Whether the libraries are being read.
         #[qproperty(bool, scanning)]
         type Games = super::GamesRust;
@@ -68,8 +74,9 @@ pub mod qobject {
         #[qinvokable]
         fn refresh(self: Pin<&mut Games>);
 
-        /// Starts a game through its launcher (or an own entry's command);
-        /// false if it could not be started.
+        /// Starts a game through its launcher (or an own entry's command),
+        /// or for a game that is not installed opens the launcher's install
+        /// for it; false if it could not be started.
         #[qinvokable]
         fn launch(self: Pin<&mut Games>, id: &QString) -> bool;
 
@@ -118,6 +125,10 @@ pub mod qobject {
 
         #[qinvokable]
         fn favorite(self: Pin<&mut Games>, id: &QString, favorite: bool);
+
+        /// Switches INSTALLED ONLY and keeps the choice.
+        #[qinvokable]
+        fn save_installed_only(self: Pin<&mut Games>, on: bool);
 
         /// The saved layout a game loads when it starts ("" = none).
         #[qinvokable]
@@ -242,7 +253,11 @@ pub struct GamesRust {
     twitch_preset: QString,
     youtube_preset: QString,
     library: QString,
+    installed_only: bool,
     scanning: bool,
+    /// The library as last put together (own entries, the launchers'
+    /// games, installed or not).
+    composed: Vec<Game>,
     /// The launchers' games, as last read.
     scanned: Vec<Game>,
     /// What detection looks for (the library and the built-in games).
@@ -258,7 +273,9 @@ impl Default for GamesRust {
             twitch_preset: QString::default(),
             youtube_preset: QString::default(),
             library: QString::from("[]"),
+            installed_only: settings::read(|s| s.games.installed_only),
             scanning: false,
+            composed: Vec::new(),
             scanned: Vec::new(),
             watch: Arc::new(Matcher::default()),
         }
@@ -430,6 +447,8 @@ fn library_json(library: &[Game], settings: &GamesSettings) -> String {
                 "showOnStart": g.show_on_start,
                 "radioOnStart": g.radio_on_start,
                 "layout": settings.layouts.get(&g.id).cloned().unwrap_or_default(),
+                "installed": g.installed,
+                "note": g.note,
             })
         })
         .collect();
@@ -502,14 +521,34 @@ impl qobject::Games {
     /// Screenshots (GC_DEMO=games): a made-up library, AION 2 running;
     /// nothing read from disk.
     fn demo(mut self: Pin<&mut Self>) {
-        let scanned = vec![
+        let not_installed = |id: &str, name: &str, launcher: &str, note: &str| {
+            let mut game = Game::new(id, name, launcher, "");
+            game.installed = false;
+            game.note = note.into();
+            game
+        };
+        let mut scanned = vec![
             Game::new("steam:2694490", "Path of Exile 2", "steam", ""),
             Game::new("steam:1000001", "Space Game", "steam", ""),
             Game::new(launch_demo::RACER, "Forza Horizon 6", "steam", ""),
             Game::new("lutris:3", "Dungeon Crawler", "lutris", ""),
             Game::new("heroic:legendary:demo", "Racing Game", "heroic", ""),
             Game::new("heroic:gog:1207", "Old Adventure", "heroic", ""),
+            not_installed("steam:1000002", "Castle Builder", "steam", "Known to Steam on this PC"),
+            not_installed("steam:1000003", "Night Racer", "steam", "Known to Steam on this PC"),
+            not_installed("heroic:legendary:free1", "Free Weekly Puzzle", "heroic", ""),
+            not_installed("heroic:gog:1208", "Pixel Knights", "heroic", ""),
+            not_installed("heroic:nile:amz1", "Harbor Tales", "heroic", ""),
+            not_installed("lutris:gog:42", "Starfield Drifter", "lutris", "In Lutris's GOG library"),
         ];
+        // Made-up covers for screenshots: GC_DEMO_PICTURES=<folder> with
+        // "<id, ':' as '_'>.png" files.
+        if let Some(dir) = std::env::var_os("GC_DEMO_PICTURES").map(PathBuf::from) {
+            for game in &mut scanned {
+                let file = dir.join(format!("{}.png", game.id.replace(':', "_")));
+                game.picture = file.is_file().then_some(file);
+            }
+        }
         let mut settings = GamesSettings {
             own: vec![OwnGame { id: 1, name: "AION 2".into(), command: "wine ~/Games/aion2/AION2.exe".into(), ..Default::default() }],
             ..Default::default()
@@ -522,6 +561,10 @@ impl qobject::Games {
         let list = games::compose(&scanned, &settings);
         self.as_mut().set_library(q(&library_json(&list, &settings)));
         self.as_mut().rust_mut().watch = Arc::new(Matcher::new(games::watch_list(&list, &settings)));
+        self.as_mut().rust_mut().composed = list;
+        if std::env::var("GC_DEMO").is_ok_and(|d| d.contains("installedonly")) {
+            self.as_mut().set_installed_only(true);
+        }
         self.show_running("own:1");
     }
 
@@ -568,6 +611,7 @@ impl qobject::Games {
         *watched().lock().unwrap_or_else(|p| p.into_inner()) = matcher.clone();
         self.as_mut().set_library(q(&library_json(&list, &settings)));
         self.as_mut().rust_mut().watch = matcher;
+        self.as_mut().rust_mut().composed = list;
         // Its presets or name may have changed.
         let running = self.running().to_string();
         if !running.is_empty() {
@@ -594,7 +638,15 @@ impl qobject::Games {
     fn launch(mut self: Pin<&mut Self>, id: &QString) -> bool {
         let id = id.to_string();
         let watch = self.rust().watch.clone();
-        let Some(game) = watch.games.iter().find(|g| g.id == id) else { return false };
+        let game = match watch.games.iter().find(|g| g.id == id) {
+            Some(game) => game.clone(),
+            // Not watched: a game that is not installed (its address opens
+            // the launcher's install).
+            None => match self.rust().composed.iter().find(|g| g.id == id && !g.installed) {
+                Some(game) => game.clone(),
+                None => return false,
+            },
+        };
         let started = if game.launcher == "own" {
             let home = home();
             let Some(words) = games::split_command(&game.launch, home.as_deref()) else { return false };
@@ -607,7 +659,7 @@ impl qobject::Games {
             // The launcher's own address (steam://, lutris:, heroic://).
             spawn_detached("xdg-open", std::slice::from_ref(&game.launch), &[])
         };
-        if started && !demo_mode() {
+        if started && game.installed && !demo_mode() {
             settings::change(|s| s.games.last_played.insert(id, now_seconds()));
             self.as_mut().rebuild();
         }
@@ -941,6 +993,13 @@ impl qobject::Games {
         self.work(|| Answer { json: system().to_json().to_string(), rebuild: false, stale: false })
     }
 
+    fn save_installed_only(self: Pin<&mut Self>, on: bool) {
+        if !demo_mode() {
+            settings::change(|s| s.games.installed_only = on);
+        }
+        self.set_installed_only(on);
+    }
+
     /// Puts an id in one of the settings' sets, or takes it out.
     fn mark(self: Pin<&mut Self>, id: &QString, on: bool, set: fn(&mut GamesSettings) -> &mut BTreeSet<String>) {
         let id = id.to_string();
@@ -1024,5 +1083,6 @@ mod tests {
         assert_eq!(v[1]["twitch"], "Beta TV");
         assert_eq!(v[1]["youtube"], "");
         assert_eq!(v[1]["showOnStart"], false);
+        assert_eq!((v[1]["installed"].as_bool(), v[1]["note"].as_str()), (Some(true), Some("")));
     }
 }
