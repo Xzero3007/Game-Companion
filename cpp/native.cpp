@@ -372,10 +372,11 @@ public:
 
     static bool allowed(const QUrl &url)
     {
-        // Chat emotes: Twitch's own (static-cdn), 7TV's and BTTV's.
+        // Chat emotes: Twitch's own (static-cdn), 7TV's and BTTV's; NC's
+        // character portraits (the Armory).
         static const QStringList hosts = {QStringLiteral("static-cdn.jtvnw.net"), QStringLiteral("i.ytimg.com"),
                                           QStringLiteral("yt3.ggpht.com"), QStringLiteral("cdn.7tv.app"),
-                                          QStringLiteral("cdn.betterttv.net")};
+                                          QStringLiteral("cdn.betterttv.net"), QStringLiteral("profileimg.plaync.com")};
         return url.scheme() == QLatin1String("https") && url.userInfo().isEmpty() && url.port(443) == 443
             && hosts.contains(url.host().toLower());
     }

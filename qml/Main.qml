@@ -25,6 +25,7 @@ Overlay {
     property bool scheduleOpen: false
     property bool bossOpen: false
     property bool lootOpen: false
+    property bool armoryOpen: false
     /// The person closed the DPS panel: it stays closed when AION 2 starts.
     property bool dpsClosed: false
     /// The game id AION 2 runs under (its module stops when that one ends).
@@ -33,7 +34,7 @@ Overlay {
         aionId = id
         // The package and its meter can be switched off (Settings → Plugins).
         if (!Plugins.loads(plugins, "aion2")) return
-        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters", "aion2.timers", "aion2.boss", "aion2.inventory", "aion2.closet", "aion2.shugo"].some((id) => Plugins.choice(plugins, id).on)) return
+        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters", "aion2.timers", "aion2.boss", "aion2.inventory", "aion2.closet", "aion2.shugo", "aion2.armory"].some((id) => Plugins.choice(plugins, id).on)) return
         Aion2.start()
         if (!dpsClosed && Plugins.inBar(plugins, "aion2.dps")) dpsOpen = true
     }
@@ -62,6 +63,7 @@ Overlay {
         if (scheduleOpen) ids.push("schedule")
         if (bossOpen) ids.push("boss")
         if (lootOpen) ids.push("loot")
+        if (armoryOpen) ids.push("armory")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
@@ -75,6 +77,7 @@ Overlay {
         scheduleOpen = ids.indexOf("schedule") >= 0
         bossOpen = ids.indexOf("boss") >= 0
         lootOpen = ids.indexOf("loot") >= 0
+        armoryOpen = ids.indexOf("armory") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
@@ -92,6 +95,7 @@ Overlay {
         if (demo.indexOf("schedule") >= 0) scheduleOpen = true
         if (demo.indexOf("alert") >= 0) alertBanner.show("Bodyguard Teegant", "Verteron", Date.now() + 5 * 60000 + 30000)
         if (demo.indexOf("boss") >= 0) bossOpen = true
+        if (demo.indexOf("armory") >= 0) armoryOpen = true
         if (demo.indexOf("loot") >= 0) lootOpen = demo.indexOf("shop") < 0 || demo.indexOf("panel") >= 0
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
@@ -267,6 +271,9 @@ Overlay {
             lootShown: (Aion2.active && root.lootInBar) || root.lootOpen || lootStore.demo
             lootOpen: root.lootOpen
             onLootClicked: root.lootOpen = !root.lootOpen
+            armoryShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.armory")) || root.armoryOpen || armoryStore.demo
+            armoryOpen: root.armoryOpen
+            onArmoryClicked: root.armoryOpen = !root.armoryOpen
         }
     }
 
@@ -405,6 +412,7 @@ Overlay {
         stack: 3
         part: CharactersPanel {
             store: characterStore
+            armory: armoryStore
             defaultX: Math.max(24, (root.width - width) / 2 - 40)
             defaultY: 150
             onCloseClicked: root.charactersOpen = false
@@ -479,13 +487,29 @@ Overlay {
     PriceBook {
         id: priceBook
         demo: lootStore.demo
-        wanted: root.lootOpen || lootStore.windowWanted
+        wanted: root.lootOpen || lootStore.windowWanted || root.armoryOpen
         gameServer: {
             try { const e = JSON.parse(Aion2.fight).extras; if (e && e.server) return e.server } catch (x) { }
             return lootStore.character && lootStore.character.serverId ? lootStore.character.serverId : 0
         }
     }
     LootStore { id: lootStore; book: priceBook }
+
+    // The Armory: characters from NC's official pages and the builds they
+    // aim at; it notes the game's own numbers while the app runs.
+    ArmoryStore { id: armoryStore; book: priceBook; on: root.lootOn("aion2.armory") }
+
+    Surface {
+        wanted: root.armoryOpen && root.onScreen("armory")
+        stack: 3
+        part: ArmoryPanel {
+            store: armoryStore
+            characters: characterStore
+            defaultX: Math.max(24, (root.width - width) / 2)
+            defaultY: 140
+            onCloseClicked: root.armoryOpen = false
+        }
+    }
 
     Surface {
         wanted: root.lootOpen && root.onScreen("loot")

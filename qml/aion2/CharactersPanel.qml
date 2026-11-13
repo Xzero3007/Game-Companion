@@ -23,6 +23,8 @@ Panel {
 
     /// The characters store (Main.qml's CharacterStore).
     property var store
+    /// The Armory's store: each character's active build and its progress.
+    property var armory: null
     readonly property var st: store ? store.state : CK.empty()
 
     property var prefs: ({ tab: "roster", sort: "full", display: "all", limitsOf: "", hidden: [] })
@@ -459,15 +461,29 @@ Panel {
                     text: r.ch.cp ? CK.grouped(r.ch.cp) : "?"
                     font.pixelSize: 14
                 }
-                Figure {
+                Column {
                     x: parent.width * (w[0] + w[1])
                     width: parent.width * w[2]
                     anchors.verticalCenter: parent.verticalCenter
-                    horizontalAlignment: Text.AlignRight
-                    rightPadding: 8
-                    text: r.ch.gs ? CK.grouped(r.ch.gs) : "?"
-                    color: Theme.textSoft()
-                    font.pixelSize: 14
+                    readonly property var build: panel.armory ? (panel.armory.revision, panel.armory.progressOf(r.key)) : null
+                    Figure {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignRight
+                        rightPadding: 8
+                        text: r.ch.gs ? CK.grouped(r.ch.gs) : "?"
+                        color: Theme.textSoft()
+                        font.pixelSize: 14
+                    }
+                    // The Armory's active build: how far this character is.
+                    Line {
+                        visible: !!parent.build
+                        width: parent.width
+                        horizontalAlignment: Text.AlignRight
+                        rightPadding: 8
+                        font.pixelSize: 10
+                        color: Theme.accent
+                        text: parent.build ? (parent.build.p != null ? Math.round(parent.build.p * 100) + " % " : "") + parent.build.name : ""
+                    }
                 }
                 Line {
                     x: parent.width * (w[0] + w[1] + w[2])

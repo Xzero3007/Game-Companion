@@ -34,10 +34,10 @@ pub fn allowed(url: &str) -> bool {
         && rest.chars().all(|c| c.is_ascii_alphanumeric() || "/._-?=&".contains(c))
 }
 
-/// One answer as text: https, no redirect followed, no `~/.curlrc`, at most
+/// One answer as text (the Market's addresses or the Armory's): https, no redirect followed, no `~/.curlrc`, at most
 /// 16 MB and 45 s.
 pub fn get(url: &str) -> Result<String, String> {
-    if !allowed(url) {
+    if !allowed(url) && !crate::armory::allowed(url) {
         return Err("not an allowed address".into());
     }
     let config = format!(

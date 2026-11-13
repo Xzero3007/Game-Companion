@@ -38,7 +38,11 @@ Item {
     property bool lootOpen: false
     signal lootClicked
 
-    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || scheduleShown || bossShown || lootShown
+    property bool armoryShown: false
+    property bool armoryOpen: false
+    signal armoryClicked
+
+    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || scheduleShown || bossShown || lootShown || armoryShown
     readonly property bool pinned: Companion.pins.indexOf('"game-row"') >= 0
 
     implicitWidth: row.implicitWidth + 36
@@ -149,6 +153,14 @@ Item {
             active: strip.lootOpen
             tip: strip.gameName + ": items, drops, Closet and Shugo Cards (listens only)"
             onClicked: strip.lootClicked()
+        }
+        GameButton {
+            visible: strip.armoryShown
+            icon: "armory"
+            label: "Armory"
+            active: strip.armoryOpen
+            tip: strip.gameName + ": your characters from NC's character pages, the builds they aim at and how far they are"
+            onClicked: strip.armoryClicked()
         }
 
         Rectangle { width: 1; height: 18; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }
