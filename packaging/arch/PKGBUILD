@@ -6,12 +6,13 @@ pkgdesc="One overlay for every game on Linux (KDE Plasma, Wayland)"
 arch=(x86_64)
 url="https://github.com/Xzero3007/Game-Companion"
 license=(GPL-3.0-or-later)
-depends=(qt6-base qt6-declarative qt6-svg qt6-wayland layer-shell-qt xdg-desktop-portal polkit curl)
+depends=(qt6-base qt6-declarative qt6-svg qt6-wayland layer-shell-qt xdg-desktop-portal polkit curl libpcap libcap)
 optdepends=('mpv: the radio and videos (libmpv)'
             'yt-dlp: YouTube, and Twitch without Streamlink'
             'streamlink: Twitch without the ad breaks')
 makedepends=(rust clang mpv)
 options=(!lto !debug)
+install=game-companion.install
 
 _root() { cd "$startdir/../.."; }
 
@@ -24,12 +25,15 @@ build() {
     _root
     export CARGO_TARGET_DIR="$startdir/target"
     cargo build --release --locked
+    # The capture helper of the AION 2 module (see game-companion.install).
+    cargo build --release --locked -p aion2 --features live --bin game-companion-capture
 }
 
 check() {
     _root
     export CARGO_TARGET_DIR="$startdir/target"
     cargo test --release --locked
+    cargo test --release --locked -p aion2 --features live
 }
 
 package() {
@@ -37,6 +41,13 @@ package() {
     install -Dm755 "$startdir/target/release/game-companion" "$pkgdir/usr/bin/game-companion"
     install -Dm644 packaging/io.github.xzero3007.GameCompanion.desktop \
         "$pkgdir/usr/share/applications/io.github.xzero3007.GameCompanion.desktop"
+    install -Dm755 "$startdir/target/release/game-companion-capture" \
+        "$pkgdir/usr/lib/game-companion/game-companion-capture"
+    # The game's tables for the AION 2 module (from the A2Tools DPS Meter).
+    install -d "$pkgdir/usr/share/game-companion/aion2"
+    cp -r crates/aion2/data/. "$pkgdir/usr/share/game-companion/aion2/"
+    find "$pkgdir/usr/share/game-companion/aion2" -type d -exec chmod 755 {} +
+    find "$pkgdir/usr/share/game-companion/aion2" -type f -exec chmod 644 {} +
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
     # The update button installs without a password: this script, run as root
     # through pkexec, installs nothing but the latest release (see it).

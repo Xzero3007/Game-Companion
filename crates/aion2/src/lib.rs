@@ -17,7 +17,10 @@ pub mod clock;
 pub mod combat;
 pub mod entity;
 pub mod i18n;
+pub mod link;
 pub mod supporters;
+#[cfg(feature = "live")]
+pub mod engine;
 #[cfg(feature = "live")]
 pub mod platform;
 

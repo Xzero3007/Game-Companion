@@ -1,0 +1,20 @@
+# The AION 2 module reads the game's traffic through a small helper, the
+# only part allowed to listen (CAP_NET_RAW, and nothing else); the app
+# itself needs no rights. Every new helper (each upgrade) needs it again.
+
+_grant_capture() {
+  if setcap cap_net_raw=ep /usr/lib/game-companion/game-companion-capture; then
+    echo "==> Game Companion's AION 2 module may now read the game's traffic."
+  else
+    echo "==> Could not grant the capture permission. Run:"
+    echo "    sudo setcap cap_net_raw=ep /usr/lib/game-companion/game-companion-capture"
+  fi
+}
+
+post_install() {
+  _grant_capture
+}
+
+post_upgrade() {
+  _grant_capture
+}

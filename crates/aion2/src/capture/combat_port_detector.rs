@@ -210,6 +210,21 @@ impl CombatPortDetector {
         }
     }
 
+    /// Game Companion's capture helper: take the app's detector state
+    /// (the dispatcher runs in the app), so the capture filter follows it.
+    pub fn mirror(&self, port: Option<u16>, last_parsed_ms: i64, last_from_port_ms: i64) {
+        let mut inner = self.inner.lock();
+        inner.locked_port = port;
+        self.locked_port_now.store(port.unwrap_or(0) as u32, Ordering::Relaxed);
+        self.last_parsed_at_ms.store(last_parsed_ms, Ordering::Relaxed);
+        self.last_from_port_ms.store(last_from_port_ms, Ordering::Relaxed);
+    }
+
+    /// When the locked port last sent (0: never), for the helper's mirror.
+    pub fn last_from_port_ms(&self) -> i64 {
+        self.last_from_port_ms.load(Ordering::Relaxed)
+    }
+
     pub fn mark_packet_parsed(&self) {
         self.last_parsed_at_ms.store(now_ms(), Ordering::Relaxed);
     }

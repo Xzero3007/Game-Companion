@@ -9,7 +9,7 @@ publish = false
 [features]
 default = []
 # The capture (libpcap at run time) and the dispatcher feeding the parser.
-live = ["dep:libloading", "dep:tokio"]
+live = ["dep:libloading", "dep:tokio", "dep:libc"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -22,6 +22,12 @@ parking_lot = "0.12"
 sha2 = "0.11.0"
 libloading = { version = "0.8", optional = true }
 tokio = { version = "1", features = ["sync", "rt", "macros", "time"], optional = true }
+libc = { version = "0.2", optional = true }
+
+[[bin]]
+name = "game-companion-capture"
+path = "src/bin/game-companion-capture.rs"
+required-features = ["live"]
 
 [dev-dependencies]
 flate2 = "1"

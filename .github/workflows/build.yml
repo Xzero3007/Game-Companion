@@ -23,10 +23,12 @@ jobs:
       - name: Install build tools and Qt
         run: |
           pacman -Syu --noconfirm --needed base-devel git rust clang \
-            qt6-base qt6-declarative qt6-svg qt6-wayland layer-shell-qt xdg-desktop-portal polkit curl mpv
+            qt6-base qt6-declarative qt6-svg qt6-wayland layer-shell-qt xdg-desktop-portal polkit curl mpv libpcap libcap
       - uses: actions/checkout@v4
       - name: Tests
-        run: cargo test --locked
+        run: |
+          cargo test --locked
+          cargo test --locked -p aion2 --features live
       - name: Lint
         run: cargo clippy --locked --all-targets -- -D warnings
       - name: Package
