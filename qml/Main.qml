@@ -22,6 +22,7 @@ Overlay {
     property bool mapOpen: false
     property bool marketOpen: false
     property bool charactersOpen: false
+    property bool bossOpen: false
     /// The person closed the DPS panel: it stays closed when AION 2 starts.
     property bool dpsClosed: false
     /// The game id AION 2 runs under (its module stops when that one ends).
@@ -30,7 +31,7 @@ Overlay {
         aionId = id
         // The package and its meter can be switched off (Settings → Plugins).
         if (!Plugins.loads(plugins, "aion2")) return
-        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters"].some((id) => Plugins.choice(plugins, id).on)) return
+        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters", "aion2.boss"].some((id) => Plugins.choice(plugins, id).on)) return
         Aion2.start()
         if (!dpsClosed && Plugins.inBar(plugins, "aion2.dps")) dpsOpen = true
     }
@@ -56,6 +57,7 @@ Overlay {
         if (mapOpen) ids.push("map")
         if (marketOpen) ids.push("market")
         if (charactersOpen) ids.push("characters")
+        if (bossOpen) ids.push("boss")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
@@ -66,6 +68,7 @@ Overlay {
         mapOpen = ids.indexOf("map") >= 0
         marketOpen = ids.indexOf("market") >= 0
         charactersOpen = ids.indexOf("characters") >= 0
+        bossOpen = ids.indexOf("boss") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
@@ -80,6 +83,7 @@ Overlay {
         if (demo.indexOf("map") >= 0) mapOpen = true
         if (demo.indexOf("market") >= 0) marketOpen = true
         if (demo.indexOf("chars") >= 0) charactersOpen = true
+        if (demo.indexOf("boss") >= 0) bossOpen = true
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("games") >= 0) games.demo(demo)
@@ -245,6 +249,9 @@ Overlay {
             charactersShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.characters")) || root.charactersOpen || characterStore.demo
             charactersOpen: root.charactersOpen
             onCharactersClicked: root.charactersOpen = !root.charactersOpen
+            bossShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.boss")) || root.bossOpen
+            bossOpen: root.bossOpen
+            onBossClicked: root.bossOpen = !root.bossOpen
         }
     }
 
@@ -387,6 +394,35 @@ Overlay {
             defaultY: 150
             onCloseClicked: root.charactersOpen = false
         }
+    }
+
+    // The Boss area: its rules run while the app runs (they only work
+    // while AION 2 runs and something is heard).
+    BossBrain { id: bossBrain }
+    readonly property bool bossUsable: Plugins.loads(plugins, "aion2") && Plugins.choice(plugins, "aion2.boss").on
+
+    Surface {
+        wanted: root.bossOpen && root.onScreen("boss")
+        stack: 3
+        part: BossPanel {
+            brain: bossBrain
+            defaultX: Math.max(24, (root.width - width) / 2 + 20)
+            defaultY: 150
+            onCloseClicked: root.bossOpen = false
+        }
+    }
+    // Your sheet over the game in a boss fight, the cheat sheet in its
+    // dungeon: with the hub or without.
+    Surface {
+        wanted: bossOverlay.wanted && root.bossUsable && (Aion2.active || bossBrain.demo.indexOf("bossfight") >= 0 || bossBrain.demo.indexOf("ludra") >= 0)
+        stack: 2
+        part: BossOverlay { id: bossOverlay; brain: bossBrain }
+    }
+    // The big call: only while a call runs.
+    Surface {
+        wanted: bossCall.wanted && root.bossUsable
+        stack: 6
+        part: BossCall { id: bossCall; brain: bossBrain }
     }
 
     Surface {

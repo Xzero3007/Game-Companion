@@ -397,6 +397,24 @@ learnt, so nothing has to be asked or worked out again.
   /bin/bash to a folder as `game-companion` and run the helper from it
   (`libpcap0.8` installed), loopback traffic on a port other than 80/443.
 
+- Boss area (AION 2 "Kampf", the person 2026-11-13; canvas page "boss",
+  boards K1 to K5): Boss Notes and Boss Callouts (A2Tools' Enhanced Boss
+  Telegraph, GPL-3.0) in one panel `qml/aion2/BossPanel.qml` (NOW, SHEETS,
+  FIGHTS, VOICE), the big call `BossCall.qml` (own surface, only while a
+  call runs) and the sheet over the game `BossOverlay.qml`; the logic is
+  the plugins' logic.js ported as `.pragma library` files (`callouts.js`,
+  `bossnotes.js`), driven by `BossBrain.qml` (a ticker only while calls or
+  a fight run). Frames: `aion2::boss::Feed` reads cast/use/wave/buff
+  frames of the skills in `data/boss/watch.json` from bound casters and
+  hands them to QML as `Aion2.bossHeard`; `Aion2.combat` lists the fought
+  NPCs and the dungeon. Data: `tools/aion2-boss-import.py <A2Tools-Plugins
+  dir>` writes `qml/aion2/bossdata.js`, `watch.json` and the Kokoro voice
+  clips (`data/boss/voice`, played by mpv; own words by `spd-say`,
+  `src/voice.rs`). Cheat sheets per dungeon (Ludra first) in
+  `bossstarters.js`: starters from public guides, roles fade other roles'
+  rows. Stores "boss", "boss-sheets", "boss-fights". Not done yet: overlay
+  slots and resizing. `GC_DEMO=boss[,bossfight|,ludra][,sheets|,fights|,voice]`.
+
 ## Checking a change
 
 ```bash

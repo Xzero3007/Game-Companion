@@ -44,6 +44,10 @@ fn main() {
         QmlFile::from("qml/aion2/MarketPanel.qml"),
         QmlFile::from("qml/aion2/CharacterStore.qml"),
         QmlFile::from("qml/aion2/CharactersPanel.qml"),
+        QmlFile::from("qml/aion2/BossBrain.qml"),
+        QmlFile::from("qml/aion2/BossPanel.qml"),
+        QmlFile::from("qml/aion2/BossOverlay.qml"),
+        QmlFile::from("qml/aion2/BossCall.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();
@@ -90,6 +94,10 @@ fn main() {
             "qml/aion2/marketkit.js",
             "qml/aion2/charkit.js",
             "qml/aion2/chartickets.js",
+            "qml/aion2/bossdata.js",
+            "qml/aion2/bossnotes.js",
+            "qml/aion2/callouts.js",
+            "qml/aion2/bossstarters.js",
         ]);
     // SAFETY: only adds include paths and a define to the C++ build.
     let builder = unsafe {

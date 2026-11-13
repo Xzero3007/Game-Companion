@@ -519,6 +519,16 @@ Untested online (the sandbox reaches neither YouTube nor Twitch): Trending
 searches, Twitch GQL fields for categories/VODs/clips/filters, chat login
 and emotes. The person tests these.
 
+## Branch `claude/project-thread-pv2u8z` (from beta): Boss panel (A5)
+
+Boss Notes and Boss Callouts as one Boss window (canvas page "boss", MN's
+yes 2026-11-13), plus the Ludra cheat sheet (MN: "what to do in each
+phase"): the big call with countdown and voice, the sheet over the game
+with MY ROLE, sheets per boss (own entries, the game's calls on/off, own
+words), fight summaries, voice settings. Version set by QA. Open: overlay
+slots 1-3 and resizing; the Ludra starter words are from public guides and
+unchecked (MN corrects them after a run); not tested against a live fight.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots

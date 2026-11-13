@@ -30,6 +30,7 @@ mod system_info;
 mod updater;
 mod updates_object;
 mod vdf_edit;
+mod voice;
 
 fn main() {
     if std::env::args().any(|a| a == "--version") {

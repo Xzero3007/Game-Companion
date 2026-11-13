@@ -26,8 +26,11 @@ Item {
     property bool charactersShown: false
     property bool charactersOpen: false
     signal charactersClicked
+    property bool bossShown: false
+    property bool bossOpen: false
+    signal bossClicked
 
-    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown
+    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || bossShown
     readonly property bool pinned: Companion.pins.indexOf('"game-row"') >= 0
 
     implicitWidth: row.implicitWidth + 36
@@ -114,6 +117,14 @@ Item {
             active: strip.charactersOpen
             tip: strip.gameName + ": your characters, their content and limits (listens only)"
             onClicked: strip.charactersClicked()
+        }
+        GameButton {
+            visible: strip.bossShown
+            icon: "swords"
+            label: "Boss"
+            active: strip.bossOpen
+            tip: strip.gameName + ": boss calls and your cheat sheets (listens only)"
+            onClicked: strip.bossClicked()
         }
 
         Rectangle { width: 1; height: 18; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }
