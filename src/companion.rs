@@ -511,6 +511,12 @@ impl qobject::Companion {
                 return None;
             }
             let layout = s.layouts.remove(&name)?;
+            // Games that load it keep loading it under its new name.
+            for game_layout in s.games.layouts.values_mut() {
+                if *game_layout == name {
+                    *game_layout = new_name.clone();
+                }
+            }
             s.layouts.insert(new_name, layout);
             Some(layouts_json(&s.layouts))
         });
@@ -527,6 +533,7 @@ impl qobject::Companion {
         let name = name.to_string();
         let json = settings::change(|s| {
             s.layouts.remove(&name);
+            s.games.layouts.retain(|_, l| *l != name);
             layouts_json(&s.layouts)
         });
         self.set_layouts(QString::from(&json));

@@ -639,6 +639,10 @@ pub fn compose(scanned: &[Game], settings: &GamesSettings) -> Vec<Game> {
             game.youtube = o.youtube.clone();
             game.show_on_start = o.show_on_start;
             game.radio_on_start = o.radio_on_start;
+        } else {
+            // Not chosen yet: only games with a module bring the hub up by
+            // themselves (with autostart, not over every Steam game).
+            game.show_on_start = match_known(&game.name, game.steam_appid).is_some();
         }
         game
     }));
@@ -717,6 +721,14 @@ fn plain_arg(arg: &[u8]) -> String {
     }
 }
 
+/// How a process was matched to a game, surest first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Sure {
+    Certain,
+    Name,
+    Folder,
+}
+
 /// The detection table, built once per library (not per look at `/proc`).
 #[derive(Debug, Default)]
 pub struct Matcher {
@@ -745,16 +757,22 @@ impl Matcher {
             }
             m.dirs.extend(game.dirs.iter().map(|d| (d.clone(), i)));
         }
+        // A folder that holds another game's folder (a shared ~/Games or a
+        // Wine prefix of several games) says nothing about which one runs.
+        let all: Vec<(String, usize)> = m.dirs.clone();
+        m.dirs.retain(|(d, i)| !all.iter().any(|(other, j)| j != i && other != d && other.starts_with(d.as_str())));
         m.games = games;
         m
     }
 
-    /// The game a process belongs to, and whether that is certain (Steam's
-    /// `reaper` app id, an install folder) or by a name games can share.
-    fn process(&self, dir: &Path, comm: &str) -> Option<(usize, bool)> {
+    /// The game a process belongs to, and how sure: Steam's `reaper` app id
+    /// or a Steam install folder (Certain), a process name games can share
+    /// (Name), another launcher's install folder (Folder: a file manager
+    /// opened there counts too, so a name wins over it).
+    fn process(&self, dir: &Path, comm: &str) -> Option<(usize, Sure)> {
         let comm = comm.to_lowercase();
         if let Some(&i) = self.names.get(&comm) {
-            return Some((i, false));
+            return Some((i, Sure::Name));
         }
         let reaper = comm == "reaper" && !self.appids.is_empty();
         // A name cut to 15 bytes: argv[0] says which one it is.
@@ -775,7 +793,7 @@ impl Matcher {
                 .take_while(|a| *a != b"--")
                 .find_map(|a| std::str::from_utf8(a).ok()?.strip_prefix("AppId=")?.parse::<u32>().ok());
             if let Some(&i) = appid.and_then(|id| self.appids.get(&id)) {
-                return Some((i, true));
+                return Some((i, Sure::Certain));
             }
         }
         let argv0 = args.next().map(plain_arg);
@@ -784,11 +802,11 @@ impl Matcher {
             // further along.
             let file = argv0.rsplit('/').next().unwrap_or("").trim();
             if let Some(&i) = self.names.get(file) {
-                return Some((i, false));
+                return Some((i, Sure::Name));
             }
         } else if let Some(i) = truncated {
             // No command line to read (a zombie): the cut name alone.
-            return Some((i, false));
+            return Some((i, Sure::Name));
         }
         if self.dirs.is_empty() {
             return None;
@@ -796,7 +814,9 @@ impl Matcher {
         // An install folder anywhere in the command line (a Proton game's
         // wrappers too: they run as long as it does).
         argv0.into_iter().chain(args.map(plain_arg)).find_map(|arg| {
-            self.dirs.iter().find(|(needle, _)| arg.contains(needle.as_str())).map(|(_, i)| (*i, true))
+            self.dirs.iter().find(|(needle, _)| arg.contains(needle.as_str())).map(|(needle, i)| {
+                (*i, if needle.starts_with("/steamapps/common/") { Sure::Certain } else { Sure::Folder })
+            })
         })
     }
 
@@ -812,6 +832,7 @@ impl Matcher {
         let own_pid = std::process::id().to_string();
         let mut by_name: Option<usize> = None;
         let mut certain: Option<usize> = None;
+        let mut by_folder: Option<usize> = None;
         for entry in entries.flatten() {
             let file_name = entry.file_name();
             let Some(pid) = file_name.to_str() else { continue };
@@ -821,12 +842,13 @@ impl Matcher {
             let dir = entry.path();
             let Ok(comm) = std::fs::read_to_string(dir.join("comm")) else { continue };
             match self.process(&dir, comm.trim_end_matches('\n')) {
-                Some((i, true)) => certain = Some(certain.map_or(i, |b| b.min(i))),
-                Some((i, false)) => by_name = Some(by_name.map_or(i, |b| b.min(i))),
+                Some((i, Sure::Certain)) => certain = Some(certain.map_or(i, |b| b.min(i))),
+                Some((i, Sure::Name)) => by_name = Some(by_name.map_or(i, |b| b.min(i))),
+                Some((i, Sure::Folder)) => by_folder = Some(by_folder.map_or(i, |b| b.min(i))),
                 None => {}
             }
         }
-        certain.or(by_name).map(|i| &self.games[i])
+        certain.or(by_name).or(by_folder).map(|i| &self.games[i])
     }
 }
 
@@ -1241,6 +1263,26 @@ mod tests {
         assert_eq!(dir_needle("relative/a/b"), None);
         assert_eq!(dir_needle("C:\\a\\b"), None);
         assert_eq!(dir_needle("/a/b/C").as_deref(), Some("/a/b/c/"));
+    }
+
+    #[test]
+    fn broad_folders_and_names() {
+        // A Lutris game in ~/Games itself, another one inside it.
+        let mut broad = Game::new("lutris:1", "Broad", "lutris", "");
+        broad.dirs = dir_needle("/home/p/Games").into_iter().collect();
+        let mut inner = Game::new("lutris:2", "Inner", "lutris", "");
+        inner.dirs = dir_needle("/home/p/Games/inner").into_iter().collect();
+        let mut named = Game::new("own:1", "Named", "own", "");
+        named.processes = vec!["Named.exe".into()];
+        let games = [broad, inner, named];
+        let root = temp("broad");
+        // In ~/Games but neither game's own: the shared parent does not count.
+        process(&root, 1, "dolphin", b"/usr/bin/dolphin /home/p/Games/else/ ");
+        assert_eq!(scan_running(&root, &games), None);
+        // A name beats a folder (a file manager opened in the inner folder).
+        process(&root, 2, "dolphin", b"/usr/bin/dolphin /home/p/Games/inner/ ");
+        process(&root, 3, "Named.exe", b"Z:\\home\\p\\Games\\inner\\Named.exe ");
+        assert_eq!(scan_running(&root, &games).as_deref(), Some("own:1"));
     }
 
     #[test]

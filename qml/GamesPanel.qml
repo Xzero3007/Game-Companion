@@ -17,7 +17,19 @@ Panel {
     maxWidth: 1200
     stretchy: true
 
-    readonly property var library: JSON.parse(Games.library)
+    // Taken over by hand, so the list keeps its scroll place when a star,
+    // an option or a game start changes the library.
+    property var library: JSON.parse(Games.library)
+    Connections {
+        target: Games
+        function onLibraryChanged() {
+            const y = grid.contentY
+            panel.library = JSON.parse(Games.library)
+            Qt.callLater(() => grid.contentY = Math.max(0, Math.min(y, grid.contentHeight - grid.height)))
+        }
+    }
+    /// Why the form could not save, shown in it.
+    property string formError: ""
     readonly property var visibleGames: library.filter((g) => !g.hidden)
     badge: visibleGames.length + (visibleGames.length === 1 ? " GAME" : " GAMES")
 
@@ -219,6 +231,7 @@ Panel {
         active: panel.editing !== null
         visible: active
         sourceComponent: GameForm {}
+        onActiveChanged: panel.formError = ""
     }
 
     component Tab: Item {
@@ -334,6 +347,7 @@ Panel {
                     height: moduleText.implicitHeight + 2
                     color: Qt.rgba(155 / 255, 107 / 255, 232 / 255, 0.55)
                     Text {
+                        style: Theme.textStyle(); styleColor: Theme.shadow
                         id: moduleText
                         anchors.centerIn: parent
                         text: "MODULE"
@@ -582,6 +596,15 @@ Panel {
             font.pixelSize: 11
         }
 
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+            visible: panel.formError.length > 0
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: panel.formError
+            color: Theme.red
+            font.family: Theme.body
+            font.pixelSize: 12
+        }
         Item {
             width: parent.width
             height: 40
@@ -606,6 +629,7 @@ Panel {
                     color: ready ? (saveMouse.containsMouse ? Theme.accentLight : Theme.accent) : "transparent"
                     border.color: ready ? Theme.accent : Theme.track
                     Text {
+                        style: Theme.textStyle(); styleColor: Theme.shadow
                         id: saveText
                         anchors.centerIn: parent
                         text: "SAVE"
@@ -632,14 +656,20 @@ Panel {
         function save() {
             const processes = processField.text.split(",").map((s) => s.trim()).filter((s) => s.length > 0).join(", ")
             let newId = ""
+            let ok = true
             if (isNew) {
                 newId = Games.addOwn(nameField.text.trim(), commandField.text.trim(), processes,
                              twitchField.text.trim(), youtubeField.text.trim(), showBox.checked, radioBox.checked)
+                ok = newId.length > 0
             } else if (own) {
-                Games.updateOwn(g.id, nameField.text.trim(), commandField.text.trim(), processes,
+                ok = Games.updateOwn(g.id, nameField.text.trim(), commandField.text.trim(), processes,
                                 twitchField.text.trim(), youtubeField.text.trim(), showBox.checked, radioBox.checked)
             } else {
                 Games.setOptions(g.id, twitchField.text.trim(), youtubeField.text.trim(), showBox.checked, radioBox.checked)
+            }
+            if (!ok) {
+                panel.formError = "Couldn't save: check \"Start with\" (a quote left open?)."
+                return
             }
             const id = isNew ? newId : g.id
             if (id && id.length > 0) Games.setLayout(id, layoutChoice.picked)

@@ -63,14 +63,24 @@ Overlay {
 
     // A game started: its preset search in Streams, and what the user
     // picked for its start (show the hub, start the radio).
+    // Shown because a game started: hidden again when it ends.
+    property bool shownForGame: false
+    Connections {
+        target: Companion
+        function onShownChanged() { if (!Companion.shown) root.shownForGame = false }
+    }
     Connections {
         target: Games
+        function onStopped(id) {
+            if (root.shownForGame && Companion.shown) Companion.toggleShown()
+            root.shownForGame = false
+        }
         function onStarted(id) {
             // Built-in games no launcher lists (known:…) are not in the library.
             const g = JSON.parse(Games.library).find((x) => x.id === id)
                 || { name: Games.runningName, twitch: Games.twitchPreset, youtube: Games.youtubePreset, showOnStart: true, radioOnStart: false }
             if (g.twitch.length > 0 || g.youtube.length > 0) Streams.changeGame(g.name, g.twitch, g.youtube)
-            if (g.showOnStart && !Companion.shown) Companion.toggleShown()
+            if (g.showOnStart && !Companion.shown) { Companion.toggleShown(); root.shownForGame = true }
             if (g.layout && g.layout.length > 0) {
                 const open = Companion.loadLayout(g.layout)
                 if (open.length > 0) root.openFrom(JSON.parse(open))
