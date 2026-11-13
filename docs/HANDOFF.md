@@ -24,7 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
-- Pet Finder in the Map (branch `claude/project-thread-xbwq5u`, 2026-11-13;
+- 0.8.3 Pet Finder in the Map (branch `claude/project-thread-xbwq5u`, 2026-11-13;
   MN chose "Ja, so bauen" on canvas page "Pet Finder in der Map", backlog
   A6). `aion2::pets` reads the pet frames (00 90 list at login, 0D 90 souls,
   14 90 level) with Pet Finder's checks, fed from the engine's frame tap
