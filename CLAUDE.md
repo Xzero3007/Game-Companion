@@ -292,7 +292,9 @@ learnt, so nothing has to be asked or worked out again.
   YouTube's own trending page is gone. Twitch: categories, a channel's
   past broadcasts and clips (played through yt-dlp), filters (language,
   reruns, order; `liveMore` falls back to plain `live` if Twitch refuses
-  its fields), quality per channel, live notes (a thread every 120 s while
+  its fields; live lists, categories, past broadcasts and clips page by
+  Twitch's cursors, `fetch_twitch`, `load_more_twitch` at the list's end
+  or by "Load more", `GC_DEMO=…,more`), quality per channel, live notes (a thread every 120 s while
   on, generation `ALERTS_RUN`; red count, no pop-up). Videos: chapters
   (mpv `chapter-list`), speed, queue (playlists played through, shuffle,
   loop). `GC_DEMO=streams,yt-<view>` / `tw-<view>`, `news`, `groups`,

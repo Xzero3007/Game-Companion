@@ -975,7 +975,8 @@ Panel {
                 visible: !panel.channelsView && !panel.tiles
                 model: visible ? panel.listModel : []
                 delegate: ({ jelly: jellyRow, twitch: twitchRow, categories: categoryRow, recordings: recordingRow, playlists: playlistRow, video: videoRow })[panel.listKind] || videoRow
-                onAtYEndChanged: if (atYEnd && panel.onJelly && Jellyfin.hasMore) Jellyfin.more()
+                onAtYEndChanged: if (atYEnd) panel.moreAtEnd()
+                footer: moreFooter
             }
             GridView {
                 id: grid
@@ -990,7 +991,8 @@ Panel {
                     : Math.round((cellWidth - 12) * 9 / 16) + (panel.onJelly || panel.listKind === "playlists" ? 58 : 78)
                 model: visible ? panel.listModel : []
                 delegate: ({ jelly: jellyTile, twitch: twitchTile, categories: categoryTile, recordings: recordingTile, playlists: playlistTile, video: videoTile })[panel.listKind] || videoTile
-                onAtYEndChanged: if (atYEnd && panel.onJelly && Jellyfin.hasMore) Jellyfin.more()
+                onAtYEndChanged: if (atYEnd) panel.moreAtEnd()
+                footer: moreFooter
             }
             ListView {
                 id: channelList
@@ -1081,6 +1083,35 @@ Panel {
                 color: Theme.dim()
                 tip: "Load again"
                 onClicked: { if (!panel.onJelly) Streams.forget(); panel.reload() }
+            }
+        }
+    }
+
+    // Screenshots (GC_DEMO=…,more): the list's end with its button.
+    Timer {
+        running: nativeWindow.demo.indexOf("more") >= 0
+        interval: 300
+        onTriggered: listArea.shown.positionViewAtEnd()
+    }
+    // Scrolled to the end of a list: its next page, where there is one.
+    function moreAtEnd() {
+        if (onJelly && Jellyfin.hasMore) Jellyfin.more()
+        else if (onTwitch && Streams.twitchHasMore) Streams.loadMoreTwitch()
+    }
+    // Under a Twitch list with more: a button (it also comes on its own
+    // when scrolled to the end).
+    Component {
+        id: moreFooter
+        Item {
+            readonly property bool shown: panel.onTwitch && Streams.twitchHasMore
+            width: ListView.view ? ListView.view.width : GridView.view ? GridView.view.width : 0
+            height: shown ? 52 : 0
+            visible: shown
+            TextButton {
+                anchors.centerIn: parent
+                implicitHeight: 30
+                text: Streams.twitchLoadingMore ? "Loading…" : "Load more"
+                onClicked: if (!Streams.twitchLoadingMore) Streams.loadMoreTwitch()
             }
         }
     }
