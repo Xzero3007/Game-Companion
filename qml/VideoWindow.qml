@@ -422,6 +422,14 @@ Item {
         y = Math.max(0, Math.min(y, parent.height - 40))
         placed = true
     }
+    // Another screen (Settings → Display "Show on"): stay on it.
+    function keepOnScreen() {
+        if (!placed || fullScreen || !parent || parent.width <= 0) return
+        width = Math.min(width, parent.width)
+        height = Math.min(height, parent.height)
+        x = Math.max(0, Math.min(x, parent.width - width))
+        y = Math.max(0, Math.min(y, parent.height - 40))
+    }
     Component.onCompleted: {
         place()
         // Screenshots: GC_DEMO=video,quality or video,opacity opens that list.
@@ -437,8 +445,8 @@ Item {
     onParentChanged: place()
     Connections {
         target: win.parent
-        function onWidthChanged() { win.place(); if (win.fullScreen) win.fitScreen() }
-        function onHeightChanged() { win.place(); if (win.fullScreen) win.fitScreen() }
+        function onWidthChanged() { win.place(); win.keepOnScreen(); if (win.fullScreen) win.fitScreen() }
+        function onHeightChanged() { win.place(); win.keepOnScreen(); if (win.fullScreen) win.fitScreen() }
     }
     Connections {
         target: Companion

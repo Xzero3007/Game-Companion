@@ -125,6 +125,24 @@ pub struct Player {
     writer: Mutex<UnixStream>,
 }
 
+/// Removes sockets left by copies that were killed (SIGKILL leaves no
+/// time to clean up): those whose process no longer runs.
+fn remove_orphans(dir: &std::path::Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(pid) = orphan_pid(&name.to_string_lossy()) else { continue };
+        if pid != std::process::id() && !std::path::Path::new(&format!("/proc/{pid}")).exists() {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
+/// The pid in a radio socket's name.
+fn orphan_pid(name: &str) -> Option<u32> {
+    name.strip_prefix("game-companion-radio-")?.strip_suffix(".sock")?.parse().ok()
+}
+
 impl Player {
     /// Starts mpv. `on_event` runs on the reader thread.
     pub fn start(volume: u8, on_event: impl Fn(Event) + Send + 'static) -> Result<Player, String> {
@@ -135,6 +153,9 @@ impl Player {
             .filter(|p| p.as_os_str().len() < 100)
             .unwrap_or_else(|| std::env::temp_dir().join(&name));
         let _ = std::fs::remove_file(&socket);
+        if let Some(dir) = socket.parent() {
+            remove_orphans(dir);
+        }
         let mut command = Command::new("mpv");
         command
             .arg("--idle=yes")
@@ -299,6 +320,25 @@ pub fn remember(recent: &mut Vec<String>, id: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn orphaned_sockets_go_and_live_ones_stay() {
+        assert_eq!(orphan_pid("game-companion-radio-123.sock"), Some(123));
+        assert_eq!(orphan_pid("game-companion.lock"), None);
+        assert_eq!(orphan_pid("game-companion-radio-x.sock"), None);
+        let dir = std::env::temp_dir().join(format!("gc-orphans-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let dead = dir.join("game-companion-radio-4000000000.sock");
+        let live = dir.join(format!("game-companion-radio-{}.sock", std::process::id()));
+        let other = dir.join("other.sock");
+        for f in [&dead, &live, &other] {
+            std::fs::write(f, b"").unwrap();
+        }
+        remove_orphans(&dir);
+        assert!(!dead.exists());
+        assert!(live.exists() && other.exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn the_list_has_every_station_and_best_fm_first() {

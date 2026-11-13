@@ -252,19 +252,33 @@ void NativeWindow::place(QQuickWindow *window, const QRectF &area)
     // screen sits there (the person's second monitor).
     QScreen *s = screen();
     const QPoint origin = s ? s->geometry().topLeft() : QPoint();
-    if (s && window->screen() != s) {
-        window->setScreen(s);
-    }
+    const bool moved = s && window->screen() != s;
 #ifdef GC_LAYER_SHELL
     if (m_layerShell) {
         if (auto *layer = LayerShellQt::Window::get(window)) {
+            // A layer surface's output is fixed when it is made: to change
+            // screens the window is hidden (its surface goes) and shown
+            // again on the new screen (found on Sway by the Arch test).
+            const bool remake = moved && window->isVisible();
+            if (remake) {
+                window->hide();
+            }
+            if (moved) {
+                window->setScreen(s);
+            }
             layer->setMargins(QMargins(r.x(), r.y(), 0, 0));
             window->setGeometry(QRect(origin + r.topLeft(), size));
+            if (remake) {
+                window->show();
+            }
             window->requestUpdate();
             return;
         }
     }
 #endif
+    if (moved) {
+        window->setScreen(s);
+    }
     window->setGeometry(QRect(origin + r.topLeft(), size));
 }
 

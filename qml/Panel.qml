@@ -68,7 +68,9 @@ Item {
     onParentChanged: place()
     Connections {
         target: panel.parent
-        function onWidthChanged() { panel.place() }
+        // Another screen (Settings → Display "Show on"): stay on it.
+        function onWidthChanged() { if (panel.placed) panel.keepOnScreen(); else panel.place() }
+        function onHeightChanged() { if (panel.placed) panel.keepOnScreen() }
     }
     // A layout was loaded: take its place and size.
     Connections {
