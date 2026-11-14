@@ -16,6 +16,9 @@ Panel {
     readonly property var cat: JSON.parse(Radio.catalog())
     readonly property var favs: JSON.parse(Radio.favourites)
     readonly property var recents: JSON.parse(Radio.recent)
+    // Stations that played on none of their addresses here last time:
+    // greyed and listed last, or left out with the switch (MN, 2026-11-14).
+    readonly property var deadIds: JSON.parse(Radio.dead)
     property string query: ""
     badge: cat.stations.length + " STATIONS"
 
@@ -51,12 +54,17 @@ Panel {
         else if (Radio.tab === "recent") list = recents.map(byId).filter((s) => s)
         else list = cat.stations
         const q = fold(query).trim()
-        return list.filter((s) => {
-            if (Radio.country.length > 0 && s.country !== Radio.country) return false
-            if (Radio.genre.length > 0 && s.genres.indexOf(Radio.genre) < 0) return false
-            if (q.length > 0 && fold(s.name + " " + s.info + " " + s.genres.map(genreName).join(" ")).indexOf(q) < 0) return false
-            return true
-        })
+        const dead = deadIds
+        const live = [], gone = []
+        for (const s of list) {
+            if (Radio.country.length > 0 && s.country !== Radio.country) continue
+            if (Radio.genre.length > 0 && s.genres.indexOf(Radio.genre) < 0) continue
+            if (q.length > 0 && fold(s.name + " " + s.info + " " + s.genres.map(genreName).join(" ")).indexOf(q) < 0) continue
+            if (dead.indexOf(s.id) < 0) live.push(s)
+            // The chosen station stays in view, so its state can be read.
+            else if (!Radio.hideDead || s.id === Radio.station) gone.push(s)
+        }
+        return live.concat(gone)
     }
     function view(tab, country, genre) { Radio.setView(tab, country, genre) }
 
@@ -135,6 +143,50 @@ Panel {
                 Tab { name: "favourites"; label: "Favorites · " + panel.favs.length }
                 Tab { name: "all"; label: "All stations" }
                 Tab { name: "recent"; label: "Recent" }
+            }
+            Row {
+                id: hideDead
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+                visible: panel.deadIds.length > 0 || Radio.hideDead
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                    anchors.verticalCenter: parent.verticalCenter
+                    // Short when the panel is narrow, so it stays clear of the tabs.
+                    text: (panel.width < 440 ? "HIDE · " : "HIDE NOT PLAYING · ") + panel.deadIds.length
+                    color: hideMouse.containsMouse ? Theme.text() : Theme.muted()
+                    font.family: Theme.display
+                    font.pixelSize: 11
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1.2
+                }
+                Rectangle {
+                    id: hideSwitch
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 28
+                    height: 15
+                    color: Radio.hideDead ? Theme.accent : "transparent"
+                    border.color: Radio.hideDead ? Theme.accent : Theme.track
+                    Rectangle {
+                        width: 9
+                        height: 9
+                        y: 3
+                        x: Radio.hideDead ? hideSwitch.width - width - 3 : 3
+                        color: Radio.hideDead ? "#121116" : Theme.muted()
+                    }
+                }
+                Accessible.role: Accessible.CheckBox
+                Accessible.name: "Hide stations that don't play"
+                Accessible.checked: Radio.hideDead
+            }
+            MouseArea {
+                id: hideMouse
+                visible: hideDead.visible
+                anchors.fill: hideDead
+                anchors.margins: -6
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: Radio.setHideDeadTo(!Radio.hideDead)
             }
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
         }
@@ -271,6 +323,7 @@ Panel {
         height: 46
         readonly property bool current: modelData.id === Radio.station && Radio.status !== "idle"
         readonly property bool fav: panel.favs.indexOf(modelData.id) >= 0
+        readonly property bool dead: panel.deadIds.indexOf(modelData.id) >= 0
 
         Rectangle {
             anchors.fill: parent
@@ -289,6 +342,7 @@ Panel {
 
         Rectangle {
             id: square
+            opacity: row.dead && !row.current ? 0.45 : 1
             x: 14
             anchors.verticalCenter: parent.verticalCenter
             width: 30
@@ -304,6 +358,7 @@ Panel {
             }
         }
         Column {
+            opacity: row.dead && !row.current ? 0.45 : 1
             anchors.left: square.right
             anchors.leftMargin: 10
             anchors.right: star.left
@@ -323,6 +378,7 @@ Panel {
                 text: {
                     const parts = []
                     if (row.current) parts.push(Radio.status === "playing" ? "Playing" : Radio.status === "failed" ? "Doesn't play" : Radio.status === "paused" ? "Paused" : "Connecting")
+                    else if (row.dead) parts.push("Didn't play last time")
                     if (row.modelData.genres.length > 0) parts.push(panel.genreName(row.modelData.genres[0]))
                     parts.push(row.modelData.country)
                     if (row.modelData.info.length > 0) parts.push(row.modelData.info)
