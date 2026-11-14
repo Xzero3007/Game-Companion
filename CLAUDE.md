@@ -411,7 +411,9 @@ learnt, so nothing has to be asked or worked out again.
   default, N2 to N5 are choices): `legcord/game-companion-voice/` is a
   Legcord plugin (Legcord 1.3's own plugin system, folder
   `~/.config/legcord/plugins/game-companion-voice`, switched on by the
-  person in Legcord). Its renderer part reads Discord's stores by name
+  person in Legcord: in 1.3.1 its Plugins page shows only after Settings →
+  Advanced → "Show experimental plugin menu"; "Extended plugin abilities"
+  is not needed). Its renderer part reads Discord's stores by name
   through Legcord's built-in Shelter (`shelter.flux.storesFlat`:
   SelectedChannelStore, VoiceStateStore, SpeakingStore, UserStore,
   ChannelStore, GuildMemberStore; reports what it misses as `check`), and
