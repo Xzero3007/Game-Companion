@@ -9,7 +9,7 @@ Panel {
     id: settings
     panelId: "settings"
     title: "Settings"
-    width: 500
+    width: 540
 
     property string tab: nativeWindow.demo.indexOf("display") >= 0 ? "display"
         : nativeWindow.demo.indexOf("timers") >= 0 ? "plugins"
@@ -34,19 +34,23 @@ Panel {
     Component.onCompleted: {
         for (const t of ["display", "layouts", "streams-settings", "shortcuts", "about", "plugins"]) if (nativeWindow.demo.indexOf(t) >= 0) tab = t.replace("-settings", "")
         if (nativeWindow.demo.indexOf("startmenu") >= 0) startChoice.open = true
+        if (nativeWindow.demo.indexOf("appsettings") >= 0) tab = "apps"
     }
 
     Column {
         width: parent.width
         spacing: 12
 
-        Row {
-            spacing: 12
+        // Eight tabs: closer together, and onto a second line if still too wide.
+        Flow {
+            width: parent.width
+            spacing: 8
             Tab { name: "general"; label: "General" }
             Tab { name: "plugins"; label: "Plugins" }
             Tab { name: "display"; label: "Display" }
             Tab { name: "layouts"; label: "Layouts" }
             Tab { name: "streams"; label: "Streams" }
+            Tab { name: "apps"; label: "Apps" }
             Tab { name: "shortcuts"; label: "Shortcuts" }
             Tab { name: "about"; label: "About" }
         }
@@ -253,6 +257,91 @@ Panel {
             Hint { text: pluginsPage.pack.game
                 ? "Global plugins sit in their own group and are never mixed with a game's. A plugin marked COMING is still being moved over from the AION 2 meter; your choice is kept for when it arrives."
                 : "Radio and Streams are part of Game Companion and always there." }
+        }
+
+        // Apps: Brave and Legcord over the game (their real windows, moved
+        // by KWin: Apps).
+        Column {
+            id: appsPage
+            visible: settings.tab === "apps"
+            width: parent.width
+            spacing: 10
+            readonly property var state: JSON.parse(Apps.state)
+            Hint { text: "Brave and Legcord stay your own programs, with all their extensions and settings. Their button in the bar (or the shortcut) puts the real window over the game, with the focus, where you left it last time; pressing again minimises it and gives the focus back to the game. Move and resize it by its own edges while it is shown: Game Companion keeps the place. When the game ends, it goes back where and how it was." }
+            Hint {
+                text: appsPage.state.available
+                    ? "A game in real full screen covers every window while it has the focus: clicking into such a game minimises the app. A borderless game window does not, and the app stays over it."
+                    : "Needs KDE Plasma (KWin) on Wayland: here the buttons only start the programs."
+                color: appsPage.state.available ? Theme.dim() : Theme.red
+            }
+            Repeater {
+                model: ["brave", "legcord"]
+                delegate: Column {
+                    id: appBox
+                    required property string modelData
+                    readonly property var info: appsPage.state.apps ? appsPage.state.apps[modelData] : ({})
+                    width: appsPage.width
+                    spacing: 8
+                    Item { width: 1; height: 6 }
+                    Label { text: appBox.info.name || appBox.modelData }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        text: "Program"
+                        color: Theme.textSoft()
+                        font.family: Theme.body
+                        font.pixelSize: 13
+                    }
+                    NameField {
+                        id: commandField
+                        width: parent.width
+                        maxLength: 300
+                        text: appBox.info.command || ""
+                        placeholder: (appBox.info.program || "").length > 0 ? "Found: " + appBox.info.program : "Not found: type the command that starts it"
+                        onAccepted: Apps.setCommand(appBox.modelData, text)
+                        onActiveFocusChanged: if (!activeFocus) Apps.setCommand(appBox.modelData, text)
+                    }
+                    Hint { text: "Empty: Game Companion looks for it itself" + ((appBox.info.program || "").length > 0 ? " (now " + appBox.info.program + ")." : ", and found nothing.")
+                        + " Enter keeps a command of your own." }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        text: "Opacity over the game"
+                        color: Theme.textSoft()
+                        font.family: Theme.body
+                        font.pixelSize: 13
+                    }
+                    Level {
+                        from: 0.2
+                        value: (appBox.info.opacity || 90) / 100
+                        onMoved: (v) => Apps.setOpacity(appBox.modelData, Math.round(v * 100))
+                    }
+                    OnOff {
+                        width: parent.width
+                        text: "Start when a game starts (not shown)"
+                        on: appBox.info.withGame === true
+                        onToggled: Apps.setWithGame(appBox.modelData, !appBox.info.withGame)
+                    }
+                    OnOff {
+                        width: parent.width
+                        text: "Close it when Game Companion quits"
+                        on: appBox.info.closeOnQuit === true
+                        onToggled: Apps.setCloseOnQuit(appBox.modelData, !appBox.info.closeOnQuit)
+                    }
+                    Hint { text: "Only if Game Companion started it. One you started yourself is never closed." }
+                    Row {
+                        spacing: 10
+                        TextButton {
+                            visible: appBox.info.placed === true
+                            text: "Forget its place"
+                            onClicked: Apps.forgetPlace(appBox.modelData)
+                        }
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Shortcut " + (settings.keyOf(appBox.modelData).length > 0 ? settings.keyOf(appBox.modelData).toUpperCase() : "—") + " (Shortcuts tab)"
+                            color: Theme.dim()
+                            font.family: Theme.body
+                            font.pixelSize: 12
+                        }
+                    }
+                }
+            }
         }
 
         // General

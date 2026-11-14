@@ -77,6 +77,9 @@ pub struct Settings {
     /// Whether a game's package loads when the game runs, by the
     /// package's id; one not listed loads.
     pub packages: BTreeMap<String, bool>,
+    /// Brave and Legcord over the game (Settings → Apps), by the app's id
+    /// (`apps::APPS`); one not listed takes the defaults.
+    pub apps: BTreeMap<String, crate::apps::AppChoice>,
 }
 
 /// One plugin's choice: on or off, and where its button sits.
@@ -405,6 +408,7 @@ impl Default for Settings {
             games: Default::default(),
             plugins: BTreeMap::new(),
             packages: BTreeMap::new(),
+            apps: BTreeMap::new(),
         }
     }
 }
