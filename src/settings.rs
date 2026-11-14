@@ -56,6 +56,12 @@ pub struct Settings {
     /// What stays on screen while the hub is hidden, by id (panels, the
     /// player row).
     pub pins: BTreeSet<String>,
+    /// The panels open when the app last ran (None: never kept), so an
+    /// update or a restart brings back what was open, and nothing else.
+    pub open_panels: Option<Vec<String>>,
+    /// The DPS panel was closed by hand: it stays closed when AION 2
+    /// starts (also after an update; MN, 2026-11-14).
+    pub dps_closed: bool,
     pub radio: RadioSettings,
     /// Saved arrangements, by the name the user gave them.
     pub layouts: BTreeMap<String, Layout>,
@@ -390,6 +396,8 @@ impl Default for Settings {
             show_on_game: true,
             screen: String::new(),
             pins: BTreeSet::new(),
+            open_panels: None,
+            dps_closed: false,
             radio: RadioSettings::default(),
             layouts: BTreeMap::new(),
             streams: StreamsSettings::default(),
@@ -516,6 +524,17 @@ mod tests {
         let s = Settings::load_from(&path);
         assert!(s.tray && s.show_on_game);
         assert_eq!(s.alpha, 0.5);
+    }
+
+    #[test]
+    fn open_panels_are_kept_and_old_files_have_none() {
+        let old: Settings = serde_json::from_str(r#"{"alpha": 0.5}"#).unwrap();
+        assert_eq!(old.open_panels, None);
+        assert!(!old.dps_closed);
+        let s = Settings { open_panels: Some(vec!["radio".into(), "loot".into()]), dps_closed: true, ..Default::default() };
+        let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+        assert_eq!(back.open_panels, Some(vec!["radio".to_string(), "loot".to_string()]));
+        assert!(back.dps_closed);
     }
 
     #[test]

@@ -815,6 +815,16 @@ overlay's strip and the boss sheet stay without the line, and the re-place
 is taken back (Surface.qml as in 0.8.16): on the headless KWin the farm
 window reached the top edge without it.
 
+## Branch `dps-stays-closed` (from beta): open panels survive updates
+
+MN (2026-11-14): "why is the DPS meter there after every update?" Main
+only remembered "DPS closed by hand" while the app ran, so after an update
+(a restart) the DPS panel opened again when AION 2 started. Settings now
+keep `open_panels` (ids, None until first kept) and `dps_closed`
+(`Companion.openPanels` / `saveOpenPanels`, saved 500 ms after a change);
+Main restores them at start (not in demo mode). An update or restart
+brings back exactly the panels that were open.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots
