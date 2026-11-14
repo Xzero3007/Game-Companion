@@ -8,6 +8,7 @@
 #include <climits>
 
 #include <QtCore/QDir>
+#include <QtCore/QEvent>
 #include <QtCore/QFile>
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
@@ -224,6 +225,11 @@ void NativeWindow::attach(QQuickWindow *window)
     if (QScreen *s = screen()) {
         window->setScreen(s);
     }
+    // Never asks to be activated when shown (layer-shell-qt asks KWin on
+    // every show otherwise, whenever the surface accepts keys).
+    window->setProperty("_q_showWithoutActivating", true);
+    // Keys only after a click into the part (see setKeyboard).
+    window->installEventFilter(this);
 #ifdef GC_LAYER_SHELL
     if (m_layerShell) {
         // Must happen before the window is shown.
@@ -331,17 +337,65 @@ void NativeWindow::setInput(QQuickWindow *window, bool all, const QVariantList &
 
 void NativeWindow::setKeyboard(QQuickWindow *window, bool wanted)
 {
+    if (!window) {
+        return;
+    }
+    window->setProperty("gcKeysAllowed", wanted);
+    // Locked: no keys at once. Unlocked: none yet, until clicked into
+    // (eventFilter). KWin activates an overlay surface as soon as it
+    // accepts keys, which took the game's focus and mouse when a part
+    // opened by itself or when the overlay was unlocked.
+    if (!wanted && window->property("gcKeysOn").toBool()) {
+        applyKeyboard(window, false);
+    }
+}
+
+void NativeWindow::applyKeyboard(QQuickWindow *window, bool on)
+{
+    window->setProperty("gcKeysOn", on);
 #ifdef GC_LAYER_SHELL
-    if (m_layerShell && window) {
+    if (m_layerShell) {
         if (auto *layer = LayerShellQt::Window::get(window)) {
-            layer->setKeyboardInteractivity(wanted ? LayerShellQt::Window::KeyboardInteractivityOnDemand
-                                                   : LayerShellQt::Window::KeyboardInteractivityNone);
+            layer->setKeyboardInteractivity(on ? LayerShellQt::Window::KeyboardInteractivityOnDemand
+                                               : LayerShellQt::Window::KeyboardInteractivityNone);
+            // Taken by the compositor with the next frame (as the input
+            // region, see setInput).
+            window->update();
         }
     }
-#else
-    Q_UNUSED(window);
-    Q_UNUSED(wanted);
 #endif
+    static const bool debug = qEnvironmentVariableIsSet("GC_DEBUG_INPUT");
+    if (debug) {
+        qInfo().noquote() << "keys" << window->objectName() << (on ? "on demand" : "none");
+    }
+}
+
+bool NativeWindow::eventFilter(QObject *watched, QEvent *event)
+{
+    auto *window = qobject_cast<QQuickWindow *>(watched);
+    if (window) {
+        switch (event->type()) {
+        case QEvent::MouseButtonPress:
+        case QEvent::TouchBegin:
+        case QEvent::TabletPress:
+            // Clicked into while unlocked: keys from now on (KWin gives
+            // them at once), so fields, Esc and Alt+Left work.
+            if (window->property("gcKeysAllowed").toBool() && !window->property("gcKeysOn").toBool()) {
+                applyKeyboard(window, true);
+            }
+            break;
+        case QEvent::Hide:
+            // Shown again later (a part that opens by itself), it must not
+            // come back accepting keys.
+            if (window->property("gcKeysOn").toBool()) {
+                applyKeyboard(window, false);
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    return QObject::eventFilter(watched, event);
 }
 
 bool NativeWindow::screenshot(const QString &file) const
