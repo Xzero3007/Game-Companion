@@ -415,6 +415,12 @@ Panel {
         const now = Date.now()
         const why = store.windowWanted ? (store.hereBy === "hand" ? "open (by hand)" : store.hereBy === "market" ? "open (at the Shop or Market)" : "open (at the merchant or the closet)") : store.dismissed ? "closed with its × until you leave" : st.shopWindow === false ? "off at the merchant: switch on Open at the merchant" : "opens at the Black Cloud merchant and the closet" + (st.marketWindow === true ? ", and at the Shop and Market" : "")
         out.rows.push(text("Shop window: " + why + (store.lastStock ? " · last shop list " + clock(store.lastStock.at) + (store.lastStock.owner ? " (" + store.lastStock.owner + ")" : "") : "")))
+        if (store.shopLog === null) store.logShop("log started")
+        const log = (store.shopLog || []).slice(-12).reverse()
+        if (log.length) {
+            out.rows.push(group("Shop window log"))
+            out.rows.push(text(log.join("\n") + "\nAll of it: ~/.local/share/game-companion/aion2/loot/shop-log.json", Theme.textSoft()))
+        }
         const w = [0.1, 0.16]
         let any = false
         for (const key in store.closetChars) {
