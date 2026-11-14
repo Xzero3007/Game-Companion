@@ -216,7 +216,7 @@ Panel {
         out.rows.push(text("A right-click on Loot in the game row opens or closes it at any time, in every mode."))
         if (mode === "popup") out.rows.push(text("Now: " + store.farmWaits, Theme.textSoft()))
         out.rows.push(group("The rows"))
-        out.rows.push(text("Kinah today counts toward the daily 1,000,000. Worth per hour: Kinah and the loot's Market worth per hour of farming in the open world today. Gold items: gold gear (weapons, armour, accessories) of today; valuables (Egos, Minds, wings, Radiant Odyle) beside them, Special items not counted. Dungeon run: what this run brought. Keys and tickets: those you have left. Odyle energy and the ping come from the game as the DPS meter shows them; the DPS panel need not be open. Width: drag the window's corner (double-click it for the size it had); the height follows the rows and the text size. Unlocked, drag it anywhere to move it."))
+        out.rows.push(text("Kinah today counts toward the daily 1,000,000. Worth per hour: Kinah and the loot's Market worth per hour of farming in the open world today. Gold items: gold gear (weapons, armour, accessories) of today, Special items not counted. Valuables: Egos, Minds, wings, Radiant Odyle, switched on and off by themselves. Dungeon run: what this run brought. Keys and tickets: those you have left. Odyle energy and the ping (green up to 100 ms, red above) come from the game as the DPS meter shows them; the DPS panel need not be open. Width: drag the window's corner (double-click it for the size it had); the height follows the rows and the text size. Unlocked, drag it anywhere to move it."))
     }
     function buildSession(out) {
         const ds = store.dropSession()
