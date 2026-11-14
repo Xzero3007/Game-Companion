@@ -266,7 +266,10 @@ QtObject {
     property real zoneSince: 0
     property bool farmShown: false
     property bool farmDismissed: false
-    readonly property bool farmWanted: !farmDismissed && (settings.farmMode === "always" || (settings.farmMode == null && settings.farmWindow !== false) || (settings.farmMode === "popup" && farmShown))
+    /// Opened with a right-click on Loot in the game row (MN, 0.8.21): stays
+    /// in every mode, even Off, until its × or another right-click.
+    property bool farmByHand: false
+    readonly property bool farmWanted: !farmDismissed && (farmByHand || settings.farmMode === "always" || (settings.farmMode == null && settings.farmWindow !== false) || (settings.farmMode === "popup" && farmShown))
     property Timer farmIdle: Timer { interval: 600000; onTriggered: store.farmGone() }
     // Farming means gains coming in a row: the first 30 s in a place (a
     // login's or a teleport's items) don't count, then two gains open it
@@ -298,7 +301,13 @@ QtObject {
         farmDismissed = false
         farmGone()
     }
-    function dismissFarm() { farmDismissed = true; changed() }
+    function dismissFarm() { farmDismissed = true; farmByHand = false; changed() }
+    function toggleFarm() {
+        if (farmWanted) return dismissFarm()
+        farmDismissed = false
+        farmByHand = true
+        changed()
+    }
     /// Back after its × (MN, 0.8.14: "jetzt taucht es nicht auf").
     function showFarm() {
         farmDismissed = false
