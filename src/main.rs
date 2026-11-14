@@ -38,6 +38,8 @@ mod updater;
 mod updates_object;
 mod vdf_edit;
 mod voice;
+mod voice_object;
+mod voice_overlay;
 
 fn main() {
     if std::env::args().any(|a| a == "--version") {
@@ -68,6 +70,7 @@ fn main() {
     // Brave and Legcord back as they were; what Game Companion started for
     // them closes (unless the person chose otherwise).
     apps::quit();
+    voice_overlay::quit();
     std::process::exit(code);
 }
 
