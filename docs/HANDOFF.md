@@ -901,6 +901,15 @@ switch hides them.
 - Checked under xvfb: a click on WBLS (the sandbox reaches no stream)
   marked it and moved it last.
 
+## Branch `radio-intl-us` (from beta): US hip-hop that plays worldwide
+
+MN chose (2026-11-14, card "Internationale Sender dazu") more US stations
+that play outside the US, instead of a proxy. Added four 181.FM stations
+(internet radio from Virginia, `listen.181fm.com`, https first, http as
+second address): The Beat, The Box, Jammin 181, Old School HipHop/RnB.
+Their host was confirmed in public station lists; the sandbox can't play
+them. A proxy only for the radio was offered and not chosen.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots

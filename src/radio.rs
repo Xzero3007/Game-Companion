@@ -365,7 +365,7 @@ mod tests {
     #[test]
     fn the_list_has_every_station_and_best_fm_first() {
         let c = catalog();
-        assert_eq!(c.stations.len(), 111);
+        assert_eq!(c.stations.len(), 115);
         assert_eq!(c.stations[0].id, "best-fm");
         let ids: HashSet<_> = c.stations.iter().map(|s| &s.id).collect();
         assert_eq!(ids.len(), c.stations.len(), "station ids are unique");

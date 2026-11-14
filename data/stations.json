@@ -795,6 +795,61 @@
    ]
   },
   {
+   "id": "181-the-beat",
+   "name": "181.FM The Beat",
+   "country": "US",
+   "info": "Internet radio, plays worldwide",
+   "genres": [
+    "rap",
+    "rnb"
+   ],
+   "streams": [
+    "https://listen.181fm.com/181-beat_128k.mp3",
+    "http://listen.181fm.com/181-beat_128k.mp3"
+   ]
+  },
+  {
+   "id": "181-the-box",
+   "name": "181.FM The Box",
+   "country": "US",
+   "info": "Internet radio, plays worldwide",
+   "genres": [
+    "rap"
+   ],
+   "streams": [
+    "https://listen.181fm.com/181-thebox_128k.mp3",
+    "http://listen.181fm.com/181-thebox_128k.mp3"
+   ]
+  },
+  {
+   "id": "181-jammin",
+   "name": "181.FM Jammin 181",
+   "country": "US",
+   "info": "Internet radio, plays worldwide",
+   "genres": [
+    "rnb"
+   ],
+   "streams": [
+    "https://listen.181fm.com/181-jammin_128k.mp3",
+    "http://listen.181fm.com/181-jammin_128k.mp3"
+   ]
+  },
+  {
+   "id": "181-old-school",
+   "name": "181.FM Old School HipHop/RnB",
+   "country": "US",
+   "info": "Internet radio, plays worldwide",
+   "genres": [
+    "oldschool",
+    "rap",
+    "rnb"
+   ],
+   "streams": [
+    "https://listen.181fm.com/181-oldschool_128k.mp3",
+    "http://listen.181fm.com/181-oldschool_128k.mp3"
+   ]
+  },
+  {
    "id": "1live",
    "name": "1LIVE",
    "country": "DE",
