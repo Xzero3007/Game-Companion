@@ -119,7 +119,6 @@ Item {
         width: parent.width
         height: ov.strip
         color: Theme.panel(Companion.alpha)
-        Rectangle { width: parent.width; height: 2; color: Theme.accent }
         MoveArea {
             anchors.fill: parent
             target: ov

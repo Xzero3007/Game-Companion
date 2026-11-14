@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.17 beta (2026-11-14): #44 gold line on top of windows removed, a window left screen-sized after a drag is placed again (entry below).
 - 0.8.16 QA collection (2026-11-14, MN's test of 0.8.14): #42 LOOT shop window stays open while browsing, farm window opacity/text/height and Show now, card rounds parsed (UTF-8 decoder) (entry below).
 - 0.8.15 QA collection (2026-11-14, MN's urgent report): #40 parts never take the game's focus or mouse on their own (keys only after a click into a part; input region set before the first show) (entry below).
 - 0.8.14 QA collection (2026-11-14): #36 GAMES tab WITH GAME (programs that start and close with a game, the old meter's watcher taken over), #37 LOOT after MN's test of 0.8.13 (farm window settings, Odyle energy and ping, shop window closing by the merchant, pets on every tab, icon retry, wider card limits), #38 videos louder (Video loudness +3/+6/+9 dB, Even out loudness) (entries below).
@@ -786,6 +787,17 @@ until the game is clicked again. Note: on KWin 5.27 a click on any overlay
 surface takes focus (6.x checks first); the sandbox's patched
 layer-shell-qt crashes Game Companion now and then at start ("free():
 invalid size"), with and without this change.
+
+## Branch `no-gold-line` (from beta): no gold top line, windows move to the top
+
+MN (2026-11-14): the gold line on top of the windows goes everywhere
+(Panel.qml, the map overlay's strip, the boss sheet over the game); tabs
+keep their gold underline. MN could not push the farm window further up.
+On the headless KWin the window reached y = 0, but after letting go of a
+drag the window sometimes stayed as big as the screen (a late configure
+from the compositor) while the part was small again, so presses missed
+it. `Surface.sizeWrong` now places it again (up to 4 tries per change,
+250 ms apart). Open: MN's check on KWin 6.
 
 ## Testing
 
