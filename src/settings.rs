@@ -163,6 +163,11 @@ pub struct StreamsSettings {
     pub quality: String,
     /// 0 to 100, as the bars show it.
     pub volume: u8,
+    /// Videos made louder by this many dB (0, 3, 6 or 9): streams are mixed
+    /// quieter than radio stations (MN, 2026-11-14).
+    pub video_boost: u8,
+    /// Quiet and loud passages of videos evened out (mpv's dynaudnorm).
+    pub even_loudness: bool,
     /// The lists as tiles side by side (true) or as rows.
     pub grid: bool,
     /// How much of each video window shows, in percent (50 to 100), by slot.
@@ -244,6 +249,8 @@ impl Default for StreamsSettings {
             youtube_view: "game".into(),
             quality: "1080".into(),
             volume: 70,
+            video_boost: 0,
+            even_loudness: false,
             grid: true,
             video_opacity: BTreeMap::new(),
             sponsorblock: Default::default(),
@@ -423,6 +430,7 @@ impl Settings {
         settings.bar = settings.bar.tidy();
         settings.radio.volume = settings.radio.volume.min(100);
         settings.streams.volume = settings.streams.volume.min(100);
+        settings.streams.video_boost = clamp_video_boost(i32::from(settings.streams.video_boost));
         settings
     }
 
@@ -454,11 +462,22 @@ pub fn clamp_alpha(alpha: f64) -> f64 {
     if alpha.is_finite() { alpha.clamp(MIN_ALPHA, 1.0) } else { DEFAULT_ALPHA }
 }
 
-/// Keeps the text brightness where text can still be read.
+/// A video boost as offered: 0, 3, 6 or 9 dB (the nearest below).
+pub fn clamp_video_boost(db: i32) -> u8 {
+    match db {
+        i32::MIN..=2 => 0,
+        3..=5 => 3,
+        6..=8 => 6,
+        _ => 9,
+    }
+}
+
+/// Keeps the scroll speed between half and five times a notch.
 pub fn clamp_wheel_speed(percent: i32) -> u32 {
     percent.clamp(50, 500) as u32
 }
 
+/// Keeps the text brightness where text can still be read.
 pub fn clamp_text_level(level: f64) -> f64 {
     if level.is_finite() { level.clamp(MIN_TEXT_LEVEL, 1.0) } else { 1.0 }
 }
@@ -598,5 +617,9 @@ mod tests {
         s.games.options.insert("steam:10".into(), crate::games::GameOptions { radio_on_start: true, ..Default::default() });
         s.save_to(&path).unwrap();
         assert_eq!(Settings::load_from(&path), s);
+    }
+    #[test]
+    fn video_boost_steps() {
+        assert_eq!([-5, 0, 2, 3, 5, 6, 8, 9, 40].map(clamp_video_boost), [0, 0, 0, 3, 3, 6, 6, 9, 9]);
     }
 }

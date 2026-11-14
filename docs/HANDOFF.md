@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.14 QA collection (2026-11-14): #36 GAMES tab WITH GAME (programs that start and close with a game, the old meter's watcher taken over), #37 LOOT after MN's test of 0.8.13 (farm window settings, Odyle energy and ping, shop window closing by the merchant, pets on every tab, icon retry, wider card limits), #38 videos louder (Video loudness +3/+6/+9 dB, Even out loudness) (entries below).
 - 0.8.13 QA collection (2026-11-14, MN's test of 0.8.12): #31 boss voice beeps and says when speech-dispatcher is missing, #32 Armory several gear slots open and the old Armory's data, #33 Twitch All live more streams from the top categories, #34 LOOT farm window, shop pets, cards with icons (entries below).
 - 0.8.12 QA collection (2026-11-13): #29 AION 2 Armory with builds tied to characters (entry below).
 - 0.8.11 QA collection (2026-11-13): #27 no gold frames left on video windows (entry below).
@@ -110,6 +111,22 @@ new session (or the same one after a usage limit) carries on from here.
   colour with the count on it. The two unread rounds can only be read
   once one is looked at (private notes repo): they stay kept and are read
   again at every start (`LK.S.adopt`). `GC_DEMO=loot,shop,petsfirst`.
+  MN's test of 0.8.13: the farm window never opened. It now has settings
+  (DROPS → Farm window): `farmMode` "always" (default while AION 2 runs),
+  "popup" (two gains after the first 30 s in a place; `farmWaits` says
+  what it waits for) or "off"; `farmRows` switches rows off (Kinah today,
+  worth per hour, gold items, dungeon run, keys and tickets, Odyle energy,
+  ping; Odyle and ping from `Aion2.fight` extras). The shop window closed
+  only after 3 minutes: it now notes the merchant (the NPC nearest when the
+  stock came, within 15 m) and closes when that NPC is out of sight for two
+  world updates or you are 8 m from where it stood; else 60 s after the
+  last shop page. Pets on any tab (Special too) count; pet tiles show souls
+  held / needed for the next level and where the pet comes from. Failed
+  icon downloads are tried again after 10 minutes; a tile without a picture
+  shows its slot. CARDS: the reader allowed 8 pickers and 10 picks per
+  card, too few for a Dimensional Invasion (16 cards, 64 pickers, 100 picks
+  now; patched in `tools/aion2-loot-import.py`). Check that the 4 kept
+  rounds are read after the update. `GC_DEMO=loot,drops,farmwin`.
 - Event Timers / Schedule (branch `claude/project-thread-xz7nqt`, PR against
   beta, version from QA; 2026-11-13; MN chose "Ja, Aion 2 Timers gleich mit"
   on the canvas page "Zeitplan (Event Timers)", boards T1–T3). TIMERS in the
@@ -713,6 +730,29 @@ only) → `Aion2.meterArmoryGot` → `ArmoryStore.takeMeter`; histories merged
 by time (`BK.mergeHistory`, 600 kept), a newer old reading kept, the old
 references as builds, a character's old targets as a build on it when it
 has none (`settings.meterBuilds` notes what was taken, no copies).
+
+## Branch `games-launch` (from beta): programs that start with a game
+
+MN (2026-11-14): in GAMES, choose per game which programs start with it,
+and remove them again (the old meter started with AION 2). Option A, plus
+MN: "show me the watcher, what it does and what is in it; from now on this
+program is the watcher". Game Companion is now the watcher
+(`src/start_with.rs`): on a game's start (the 3 s detection in
+`games_object::detected`) it starts each switched-on entry once, unless a
+program of that name already runs (comm or argv0); after the game ends it
+closes only what it started, each after its own wait (default 10 s, 0 to
+600), SIGTERM to the program's session, SIGKILL after 10 s; a quick
+restart keeps them. Entries in `settings.games.start_with[game id]`
+(name, command, on, close, delay); removing an own game removes its
+entries. Tab WITH GAME in the game's form (`qml/StartWithTab.qml`): the
+old meter's watcher (`~/.config/autostart/a2tools-game-watch.desktop`,
+patch 0037) shown with what it does and its file, Take over (adds "A2Tools
+DPS Meter" and turns the old watcher off), Turn off (moved to
+`~/.config/game-companion/autostart-off`), Remove; a red mark when both
+would start the meter. Entries: switch, edit, remove, remove all; add from
+the menu (desktop files) or by hand. Needs Game Companion running (warning
+when its autostart is off). `GC_DEMO=games,startwith[,starterfile|,addprogram]`.
+Open: MN's test with the real old watcher file.
 
 ## Testing
 

@@ -1821,14 +1821,14 @@ G.CLOSET_DATA = { "gear": { "1": [10001102, 10001103, 10001105, 10001107, 100061
       u16();
       const a = u32(), c = u32(), event = u32();
       const n = u8();
-      if (n < 1 || n > 10) return null;
+      if (n < 1 || n > 16) return null;
       const cards = [];
       for (let i = 0; i < n; i++) {
         const tag = varint();
         const bonus = list();
         const main = list();
         const np = u8();
-        if (np > 8) return null;
+        if (np > 64) return null;
         const pickers = [];
         for (let k = 0; k < np; k++) {
           need(11);
@@ -1842,7 +1842,7 @@ G.CLOSET_DATA = { "gear": { "1": [10001102, 10001103, 10001105, 10001107, 100061
           const times = u32();
           varint();
           u32();
-          if (times < 1 || times > 10) return null;
+          if (times < 1 || times > 100) return null;
           pickers.push({ name: nm, times });
         }
         cards.push({ place: i, tag, main, bonus, pickers });

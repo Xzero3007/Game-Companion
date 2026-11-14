@@ -976,6 +976,23 @@ Panel {
                 onToggled: Streams.saveHwdec(!Streams.hwdec)
             }
             Hint { text: "On: the graphics card unpacks the videos. The processor has less to do, and the video takes some video memory (a few hundred MB for a stream). Off: the processor does it, which leaves the video memory to the game but costs processor time. Changes take hold at once." }
+            Item { width: 1; height: 4 }
+            Dropdown {
+                width: parent.width
+                z: 29
+                label: "Video loudness"
+                options: [{ id: "0", name: "Normal" }, { id: "3", name: "+3 dB" }, { id: "6", name: "+6 dB" }, { id: "9", name: "+9 dB" }]
+                current: String(Streams.videoBoost)
+                onChosen: (id) => Streams.saveVideoBoost(parseInt(id))
+            }
+            Hint { text: "Streams and videos are mixed quieter than radio stations: this makes Twitch, YouTube and Jellyfin louder, the radio stays as it is. +6 dB sounds about twice as loud as Normal; very loud videos can distort at +9 dB. Changes take hold at once." }
+            OnOff {
+                width: parent.width
+                text: "Even out loudness"
+                on: Streams.evenLoudness
+                onToggled: Streams.saveEvenLoudness(!Streams.evenLoudness)
+            }
+            Hint { text: "Quiet videos and quiet passages get louder, loud ones softer, as they play: one stream sounds much like the next. Costs mpv a little processor time. Changes take hold at once." }
             }
         }
 

@@ -186,8 +186,12 @@ Item {
         video.volume = mpvVolume(volume)
         Streams.saveVolume(volume)
     }
-    // mpv's volume is cubic: the bar works like a browser's.
-    function mpvVolume(v) { return 100 * Math.cbrt(v / 100) }
+    // mpv's volume is cubic: the bar works like a browser's. Settings →
+    // Streams "Video loudness" adds its dB on top (mpv's volume is the cube
+    // root of the gain: +6 dB is 100 × 10^(6/60) ≈ 126).
+    function mpvVolume(v) { return 100 * Math.cbrt(v / 100) * Math.pow(10, Streams.videoBoost / 60) }
+    readonly property int boost: Streams.videoBoost
+    onBoostChanged: if (video) video.volume = mpvVolume(volume)
     // Stuck: the time stands still for 4 seconds while it should play (20
     // while it loads): a fresh address from yt-dlp (or Streamlink), at the
     // same spot. Three tries in a row, then it says so.
@@ -528,6 +532,7 @@ Item {
                 opacity: win.videoOpacity
                 visible: drawable
                 hwdec: Streams.hwdec
+                levelling: Streams.evenLoudness
                 // Jellyfin: the home network's server, nothing else.
                 local: win.jelly
             }
