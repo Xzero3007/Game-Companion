@@ -45,11 +45,11 @@ TextDecoder.prototype.decode = function (bytes) {
   while (i < b.length) {
     var c = b[i++], n = 0, cp = 0;
     if (c < 0x80) { out += String.fromCharCode(c); continue; }
-    if (c >= 0xf0 && c < 0xf8) { n = 3; cp = c & 7; } else if (c >= 0xe0) { n = 2; cp = c & 15; } else if (c >= 0xc0) { n = 1; cp = c & 31; } else { out += "\ufffd"; continue; }
+    if (c >= 0xf5) { out += "\ufffd"; continue; } else if (c >= 0xf0) { n = 3; cp = c & 7; } else if (c >= 0xe0) { n = 2; cp = c & 15; } else if (c >= 0xc0) { n = 1; cp = c & 31; } else { out += "\ufffd"; continue; }
     if (i + n > b.length) { out += "\ufffd"; break; }
     var ok = true;
     for (var k = 0; k < n; k++) { var x = b[i + k]; if ((x & 0xc0) !== 0x80) { ok = false; break; } cp = cp * 64 + (x & 63); }
-    if (!ok) { out += "\ufffd"; continue; }
+    if (!ok || cp > 0x10ffff) { out += "\ufffd"; continue; }
     i += n;
     out += String.fromCodePoint(cp);
   }
