@@ -376,6 +376,13 @@ learnt, so nothing has to be asked or worked out again.
   scales every step. `GC_DEMO=settings,display`.
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
+- Video loudness (MN, 2026-11-14: videos quieter than the radio, which is
+  mixed louder): Settings → Streams → Videos "Video loudness"
+  (`Streams.videoBoost`, settings `streams.video_boost`, 0/3/6/9 dB;
+  `VideoWindow.mpvVolume` multiplies by 10^(dB/60), mpv's `volume-max`
+  150) and "Even out loudness" (`Streams.evenLoudness`, `MpvVideo.levelling`:
+  mpv `af` = `lavfi=[dynaudnorm=f=250:g=15]`). The radio's own mpv is not
+  touched.
 - `HudIcon` is a picture from the icon provider (`cpp/icons.cpp`,
   `image://icon/<path>|<colour>|<line width>|<filled>`, QSvgRenderer at
   twice the size): one small texture per look, shared and cached. It was a
