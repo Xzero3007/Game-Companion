@@ -18,7 +18,12 @@ Panel {
     tag: "AION 2"
     width: 320
     minWidth: 280
-    maxWidth: 520
+    maxWidth: 900
+    // Its own opacity, text size and height (MN, 0.8.14): LOOT → DROPS → Farm window.
+    stretchy: true
+    maxGrow: 600
+    ground: Companion.alpha * (store ? store.farmOpacity() : 100) / 100
+    readonly property real fs: store ? store.farmText() : 1
     pinnable: false
 
     property var store: null
@@ -43,7 +48,7 @@ Panel {
     component Label: Text {
         color: Theme.muted()
         font.family: Theme.display
-        font.pixelSize: 10
+        font.pixelSize: Math.round((10) * win.fs)
         font.weight: Font.Bold
         font.letterSpacing: 1.3
         style: Theme.textStyle(); styleColor: Theme.shadow
@@ -51,7 +56,7 @@ Panel {
     component Value: Text {
         color: Theme.text()
         font.family: Theme.display
-        font.pixelSize: 20
+        font.pixelSize: Math.round((20) * win.fs)
         font.weight: Font.Bold
         style: Theme.textStyle(); styleColor: Theme.shadow
     }
@@ -74,7 +79,7 @@ Panel {
             text: !win.f ? "" : win.dungeon ? win.f.place + (win.f.run.from ? " · since " + win.clock(win.f.run.from) : "") : win.f.place
             color: Theme.textSoft()
             font.family: Theme.body
-            font.pixelSize: 12
+            font.pixelSize: Math.round((12) * win.fs)
             style: Theme.textStyle(); styleColor: Theme.shadow
         }
 
@@ -103,7 +108,7 @@ Panel {
                     text: win.f ? win.kina(win.f.kinah) + "  / " + win.shortN(win.f.cap) : ""
                     color: win.f && win.f.capAt ? Theme.accent : Theme.text()
                     font.family: Theme.display
-                    font.pixelSize: win.dungeon ? 14 : 20
+                    font.pixelSize: Math.round((win.dungeon ? 14 : 20) * win.fs)
                     font.weight: Font.Bold
                     style: Theme.textStyle(); styleColor: Theme.shadow
                 }
@@ -119,7 +124,7 @@ Panel {
                 text: win.f && win.f.capAt ? "Cap reached at " + win.clock(win.f.capAt) : ""
                 color: Theme.accent
                 font.family: Theme.body
-                font.pixelSize: 11
+                font.pixelSize: Math.round((11) * win.fs)
                 style: Theme.textStyle(); styleColor: Theme.shadow
             }
         }
@@ -164,7 +169,7 @@ Panel {
                 delegate: Rectangle {
                     required property var modelData
                     width: keyText.implicitWidth + 14
-                    height: 22
+                    height: Math.round(22 * win.fs)
                     color: "#1b1a20"
                     border.color: "#2f2d36"
                     Text {
@@ -173,7 +178,7 @@ Panel {
                         text: modelData.name + "  " + modelData.left + (modelData.max ? " / " + modelData.max : "")
                         color: Theme.textSoft()
                         font.family: Theme.body
-                        font.pixelSize: 11
+                        font.pixelSize: Math.round((11) * win.fs)
                         style: Theme.textStyle(); styleColor: Theme.shadow
                     }
                 }
@@ -187,8 +192,9 @@ Panel {
             text: win.dungeon ? "Worth: the Market's prices less its fee. Kinah today counts the open world's Kinah." : "Worth per hour: Kinah and the loot's Market worth, per hour of farming in the open world today."
             color: Theme.dim()
             font.family: Theme.body
-            font.pixelSize: 10
+            font.pixelSize: Math.round((10) * win.fs)
             style: Theme.textStyle(); styleColor: Theme.shadow
         }
+        Item { width: 1; height: win.grow }
     }
 }
