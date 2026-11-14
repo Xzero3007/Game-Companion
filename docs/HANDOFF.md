@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.18 beta (2026-11-14): #48 the 2 px where the gold line was stay as clear room (panel sizes as in 0.8.16), Surface as in 0.8.16 (entry below).
 - 0.8.17 beta (2026-11-14): #44 gold line on top of windows removed, a window left screen-sized after a drag is placed again (entry below).
 - 0.8.16 QA collection (2026-11-14, MN's test of 0.8.14): #42 LOOT shop window stays open while browsing, farm window opacity/text/height and Show now, card rounds parsed (UTF-8 decoder) (entry below).
 - 0.8.15 QA collection (2026-11-14, MN's urgent report): #40 parts never take the game's focus or mouse on their own (keys only after a click into a part; input region set before the first show) (entry below).
@@ -788,16 +789,16 @@ surface takes focus (6.x checks first); the sandbox's patched
 layer-shell-qt crashes Game Companion now and then at start ("free():
 invalid size"), with and without this change.
 
-## Branch `no-gold-line` (from beta): no gold top line, windows move to the top
+## Gold top line: colour only (branch `keep-line-space`, from beta)
 
-MN (2026-11-14): the gold line on top of the windows goes everywhere
-(Panel.qml, the map overlay's strip, the boss sheet over the game); tabs
-keep their gold underline. MN could not push the farm window further up.
-On the headless KWin the window reached y = 0, but after letting go of a
-drag the window sometimes stayed as big as the screen (a late configure
-from the compositor) while the part was small again, so presses missed
-it. `Surface.sizeWrong` now places it again (up to 4 tries per change,
-250 ms apart). Open: MN's check on KWin 6.
+MN (2026-11-14): only the gold line's colour on top of the windows was to
+go. #44 removed the line with its 2 px (every panel 2 px shorter, which
+the Arch bench's fixed sizes took for broken drag/resize/turn-off on
+Sway) and added a re-place of windows left at a stale size after a drag.
+Now: the 2 px stay as clear room (`Panel.qml` header at y 2), the map
+overlay's strip and the boss sheet stay without the line, and the re-place
+is taken back (Surface.qml as in 0.8.16): on the headless KWin the farm
+window reached the top edge without it.
 
 ## Testing
 
