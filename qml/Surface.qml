@@ -101,12 +101,18 @@ Window {
         if (part) { part.parent = home; part.z = stack; surface.objectName = part.panelId !== undefined ? part.panelId : String(part).split("(")[0] }
         nativeWindow.attach(surface)
         nativeWindow.place(surface, area)
+        // The input region before the window is first shown: a part that
+        // shows at once never takes the mouse from the game for a moment
+        // (Qt gives the stored region to every new surface).
+        applyInput()
         attached = true
         input()
     }
 
     // Where it takes clicks: everywhere while unlocked, else only the
-    // lock (or nowhere: clicks go through to the game).
+    // lock (or nowhere: clicks go through to the game). Keys: allowed only
+    // while unlocked, and taken only after a click into the part (native
+    // side), never when it opens by itself or on unlocking.
     function input() { Qt.callLater(applyInput) }
     function applyInput() {
         const open = !Companion.locked && clickable
