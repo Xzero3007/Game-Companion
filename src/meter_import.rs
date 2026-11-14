@@ -1,5 +1,6 @@
 //! The old Clicktrough meter's LOOT data, read once to take it over (MN,
-//! 2026-11-13: "kannst du bitte von der anderen app die daten übernehmen").
+//! 2026-11-13: "kannst du bitte von der anderen app die daten übernehmen"),
+//! and its Armory history for the Armory (MN, 2026-11-14).
 //! Only reads local files: the meter kept each plugin's storage as one JSON
 //! file per key in `$XDG_DATA_HOME/com.a2tools.dps-meter/plugin-data/<plugin>/`.
 //! Nothing is written there and nothing leaves the computer.
@@ -9,6 +10,8 @@ use std::path::{Path, PathBuf};
 
 /// The meter's plugins whose data LOOT takes over.
 const PLUGINS: [&str; 3] = ["inventory", "closet", "shugo-cards"];
+/// The meter's Armory plugin, whose readings and history the Armory takes over.
+const ARMORY: [&str; 1] = ["armory"];
 /// A plugin's storage file is at most 1 MB in the meter; a bit of room.
 const LARGEST: u64 = 2 << 20;
 /// At most this many files a plugin (the Inventory keeps one per farm day).
@@ -32,8 +35,13 @@ fn good_key(key: &str) -> bool {
 /// "closet": {...}, "shugo-cards": {...}}`; a plugin without files is left
 /// out, so `{}` means nothing was found.
 pub fn read_from(dir: &Path) -> String {
+    read_plugins(dir, &PLUGINS)
+}
+
+/// The given plugins' files under `dir`, as `read_from`.
+fn read_plugins(dir: &Path, plugins: &[&str]) -> String {
     let mut out = Map::new();
-    for plugin in PLUGINS {
+    for &plugin in plugins {
         let Ok(entries) = std::fs::read_dir(dir.join(plugin)) else { continue };
         let mut docs = Map::new();
         for entry in entries.flatten().take(MOST) {
@@ -64,6 +72,13 @@ pub fn read() -> String {
     meter_dir().map(|d| read_from(&d)).unwrap_or_else(|| "{}".into())
 }
 
+/// The meter's Armory data on this computer as `{"armory": {key: value}}`
+/// (settings, references, one reading `c-…` and one history `hc-…` per
+/// character), `{}` if none.
+pub fn read_armory() -> String {
+    meter_dir().map(|d| read_plugins(&d, &ARMORY)).unwrap_or_else(|| "{}".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,5 +107,20 @@ mod tests {
         assert!(v.get("shugo-cards").is_none());
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(read_from(&dir), "{}");
+    }
+
+    #[test]
+    fn reads_the_armory_alone() {
+        let dir = std::env::temp_dir().join(format!("gc-meter-armory-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for p in ["armory", "closet"] {
+            std::fs::create_dir_all(dir.join(p)).unwrap();
+        }
+        std::fs::write(dir.join("armory/hc-2004-Diabolia.json"), r#"[{"at":1,"cp":5}]"#).unwrap();
+        std::fs::write(dir.join("closet/closet.json"), "{}").unwrap();
+        let v: Value = serde_json::from_str(&read_plugins(&dir, &ARMORY)).unwrap();
+        assert_eq!(v["armory"]["hc-2004-Diabolia"][0]["cp"], 5);
+        assert!(v.get("closet").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -18,7 +18,7 @@ Rectangle {
             readonly property var pick: { tab.ui.rev; return (tab.targets.pick || {})[slot] || null }
             property var found: []
             color: "#24222a"
-            height: dcol.implicitHeight + 20
+            implicitHeight: dcol.implicitHeight + 20
 
             function nextLine(it) {
                 if (!it || it.arcana) return ""

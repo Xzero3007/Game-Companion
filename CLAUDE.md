@@ -476,7 +476,10 @@ learnt, so nothing has to be asked or worked out again.
   `short` is a reserved word in QML's JS: name helpers otherwise.
 
 - Armory (MN 2026-11-13, canvas page "Armory mit Builds", boards AR1–AR4):
-  the Clicktrough Armory plugin with builds tied to characters.
+  the Clicktrough Armory plugin with builds tied to characters. The old
+  meter's Armory files (history, readings, references, targets) are taken
+  over once (`meter_import::read_armory`, `ArmoryStore.takeMeter`; MN,
+  2026-11-14).
   `qml/aion2/armorykit.js` is the plugin's calc.js and nc.js unchanged
   (made by `tools/aion2-armory-import.py <A2Tools-Clicktrough-Plugins
   plugins dir>`, which also writes `crates/aion2/data/armory/data.json`,

@@ -687,6 +687,15 @@ MN (0.8.12): the Ludra preview showed its calls without a sound. Sheet
 entries are own words (no Kokoro clip), read by spd-say, which MN likely
 lacks. Now a beep plays instead, SHEETS says so with the pacman line, and
 the package lists speech-dispatcher and espeak-ng as optdepends.
+0.8.12 test (MN, 2026-11-14): reading a real character works. Fixed after:
+GEAR keeps several slots open at once (`opened`), and a closed slot leaves
+no gap (the details Loader's height follows `implicitHeight`, 0 when
+closed). The old Clicktrough Armory's data is taken over once by itself
+(HISTORY has a button for again): `meter_import::read_armory` (local, read
+only) → `Aion2.meterArmoryGot` → `ArmoryStore.takeMeter`; histories merged
+by time (`BK.mergeHistory`, 600 kept), a newer old reading kept, the old
+references as builds, a character's old targets as a build on it when it
+has none (`settings.meterBuilds` notes what was taken, no copies).
 
 ## Testing
 

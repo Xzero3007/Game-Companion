@@ -469,3 +469,66 @@ function fightsOf(list, name, history, buildId) {
     });
     return out.sort(function (a, b) { return b.at - a.at; });
 }
+
+// ---- the old Clicktrough Armory's data (MN, 2026-11-14) -----------------
+
+var OLD_KEY = /^[ht]?(c-\d+-[A-Za-z0-9_-]{0,40})$/;
+
+/** The old Armory's storage files ({ key: value }, as the meter kept them:
+ *  "settings", "references", a reading "c-<server>-<name>", its history
+ *  "hc-…" and targets "tc-…") as { chars: [{ key, info, snap, history,
+ *  targets }], refs: [references], active, goalGs }. `keyOf(name, server)`
+ *  makes this Armory's key. */
+function readOld(files, keyOf) {
+    files = files || {};
+    var settings = files.settings && typeof files.settings === "object" ? files.settings : {};
+    var known = settings.chars && typeof settings.chars === "object" ? settings.chars : {};
+    var bases = {};
+    Object.keys(files).concat(Object.keys(known)).forEach(function (k) { var m = OLD_KEY.exec(k); if (m) bases[m[1]] = true; });
+    var chars = [];
+    Object.keys(bases).forEach(function (base) {
+        var s = files[base];
+        var snap = s && typeof s === "object" && s.profile && Array.isArray(s.items) ? s : null;
+        var info = known[base] || {};
+        var p = snap ? snap.profile : {};
+        var name = info.name || p.name, server = Number(info.serverId || p.serverId) || 0;
+        if (!name || !server) return;
+        var h = Array.isArray(files["h" + base]) ? files["h" + base].filter(function (e) { return e && isFinite(e.at) && e.at > 0; }) : [];
+        var t = files["t" + base] && typeof files["t" + base] === "object" ? files["t" + base] : null;
+        chars.push({
+            key: keyOf(name, server),
+            info: { name: name, serverId: server, characterId: info.characterId, className: info.className || p.className,
+                level: info.level || p.level, serverName: info.serverName || p.serverName },
+            snap: snap, history: h, targets: t
+        });
+    });
+    var refs = files.references && Array.isArray(files.references.list) ? files.references.list
+        : files.reference && typeof files.reference === "object" ? [files.reference] : [];
+    refs = refs.filter(function (r) { return r && typeof r === "object"; });
+    var active = files.references ? Math.max(0, Math.min(Number(files.references.active) || 0, refs.length - 1)) : 0;
+    return { chars: chars, refs: refs, active: active, goalGs: isFinite(settings.goalGs) && settings.goalGs > 0 ? Number(settings.goalGs) : null };
+}
+
+/** Two histories as one, by time; an entry of `ours` wins at the same time. */
+function mergeHistory(ours, old, max) {
+    var byAt = {};
+    (old || []).forEach(function (e) { if (e && e.at) byAt[e.at] = e; });
+    (ours || []).forEach(function (e) { if (e && e.at) byAt[e.at] = e; });
+    var out = Object.keys(byAt).map(function (k) { return byAt[k]; }).sort(function (a, b) { return a.at - b.at; });
+    return max ? out.slice(-max) : out;
+}
+
+/** The old Armory's targets of a character as a build's targets (its
+ *  "mineAt" belongs to the character). */
+function targetsFromOld(t, goalGs) {
+    var out = emptyTargets();
+    if (t) ["soul", "skills", "compare", "levels", "pick", "skip"].forEach(function (k) { if (t[k] && typeof t[k] === "object") out[k] = t[k]; });
+    out.goalGs = goalGs || null;
+    return out;
+}
+
+/** Whether old targets hold anything worth a build. */
+function hasTargets(t) {
+    if (!t) return false;
+    return ["soul", "skills", "compare", "levels", "pick"].some(function (k) { return t[k] && Object.keys(t[k]).length > 0; });
+}

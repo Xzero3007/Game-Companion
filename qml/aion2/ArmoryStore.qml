@@ -18,6 +18,9 @@ QtObject {
     readonly property var demoList: nativeWindow.demo.split(",")
     readonly property bool demo: demoList.indexOf("armory") >= 0
     readonly property int autoEvery: 6 * 3600 * 1000
+    /// History entries kept per character (the old Armory kept 300; its
+    /// history taken over comes on top of this one's).
+    readonly property int keep: 600
 
     /// The plugin's calc (AK.C) once the data is loaded.
     property bool ready: false
@@ -172,7 +175,7 @@ QtObject {
         const b = BK.activeBuild(state, key)
         if (b && old) BK.markDone(ch, b.id, BK.steps(old, b, ch, prices), BK.steps(s, b, ch, prices), Date.now())
         let h = key === current ? history : loadHistory(key)
-        h = AK.C.addHistory(h, BK.historyEntry(s, b, ch, prices), 300)
+        h = AK.C.addHistory(h, BK.historyEntry(s, b, ch, prices), store.keep)
         keepSnap(key, s)
         keepHistory(key, h)
         if (key === current || !current) { current = key; state.settings.current = key; snap = s; history = h }
@@ -258,8 +261,86 @@ QtObject {
         if (!snap || !current) return
         const b = BK.activeBuild(state, current)
         const e = BK.historyEntry(Object.assign({}, snap, { at: Date.now() }), b, state.chars[current], prices)
-        history = AK.C.addHistory(history, e, 300)
+        history = AK.C.addHistory(history, e, store.keep)
         keepHistory(current, history)
+    }
+
+    // ---- the old Clicktrough Armory's data (MN, 2026-11-14) ----
+    /// What the last take-over brought, for HISTORY ("" before one).
+    property string meterNote: ""
+    property bool meterBusy: false
+    /// Reads the meter's Armory files (local, read only): once by itself,
+    /// again with HISTORY's button. Readings and history are added where
+    /// this Armory lacks them; the old references become builds, and a
+    /// character's old targets a build on that character if it has none.
+    /// Taken parts are noted, so a second take makes no copies.
+    function readMeter() {
+        if (demo || meterBusy || typeof Aion2.meterReadArmory !== "function") return
+        meterBusy = true
+        revision++
+        Aion2.meterReadArmory()
+    }
+    property Connections meterAnswer: Connections {
+        target: Aion2
+        ignoreUnknownSignals: true
+        function onMeterArmoryGot(json) { store.takeMeter(json) }
+    }
+    function takeMeter(json) {
+        meterBusy = false
+        if (!ensure()) return
+        let files = {}
+        try { files = (JSON.parse(json) || {}).armory || {} } catch (e) { files = {} }
+        const old = BK.readOld(files, keyOf)
+        const taken = Object.assign({}, state.settings.meterBuilds || {})
+        const n = { chars: 0, entries: 0, readings: 0, builds: 0 }
+        const copy = (o) => JSON.parse(JSON.stringify(o))
+        for (const c of old.chars) {
+            const have = state.chars[c.key]
+            const info = {}
+            for (const k in c.info) if (!have || have[k] == null || have[k] === "") info[k] = c.info[k]
+            const ch = BK.ensureChar(state, c.key, info)
+            const ours = c.key === current ? history : loadHistory(c.key)
+            const merged = BK.mergeHistory(ours, c.history, keep)
+            const added = Math.max(0, merged.length - ours.length)
+            if (added > 0) { keepHistory(c.key, merged); if (c.key === current) history = merged; n.entries += added }
+            let s = c.key === current ? snap : loadSnap(c.key)
+            const newer = c.snap && (!s || (s.at || 0) < (c.snap.at || 0))
+            if (newer) { keepSnap(c.key, c.snap); if (c.key === current) snap = c.snap; s = c.snap; n.readings++ }
+            if (added > 0 || newer || !have) n.chars++
+            if (BK.hasTargets(c.targets) && !ch.active && !taken["t:" + c.key]) {
+                const ref = old.refs[old.active] || null
+                const b = BK.newBuild((ref && ref.name ? ref.name : "Old Armory") + " · " + c.info.name, "PvE", c.info.className || "",
+                    ref ? copy(ref) : null, "the old Armory", Date.now())
+                b.targets = BK.targetsFromOld(c.targets, old.goalGs)
+                BK.addBuild(state, b)
+                BK.assign(state, c.key, b.id, BK.gsOf(s))
+                if (c.targets.mineAt && typeof c.targets.mineAt === "object") for (const slot in c.targets.mineAt) if (!ch.mineAt[slot]) ch.mineAt[slot] = c.targets.mineAt[slot]
+                taken["t:" + c.key] = b.id
+                if (ref) taken["r:" + (ref.id || ref.qid || ref.name || old.active)] = b.id
+                n.builds++
+            }
+        }
+        old.refs.forEach((r, i) => {
+            const id = "r:" + (r.id || r.qid || r.name || i)
+            if (taken[id]) return
+            const b = BK.newBuild(r.name || "Old reference " + (i + 1), "PvE", r.className || "", copy(r), "the old Armory", Date.now())
+            if (old.goalGs) b.targets.goalGs = old.goalGs
+            BK.addBuild(state, b)
+            taken[id] = b.id
+            n.builds++
+        })
+        state.settings.meterBuilds = taken
+        state.settings.meterTaken = true
+        const parts = []
+        if (n.entries) parts.push(n.entries + " history " + (n.entries === 1 ? "entry" : "entries"))
+        if (n.readings) parts.push(n.readings + (n.readings === 1 ? " reading" : " readings"))
+        if (n.builds) parts.push(n.builds + (n.builds === 1 ? " build" : " builds"))
+        meterNote = !old.chars.length && !old.refs.length ? "No data of the old Armory found on this computer."
+            : parts.length ? "Taken over from the old Armory: " + parts.join(", ") + (n.chars ? " for " + n.chars + (n.chars === 1 ? " character" : " characters") : "") + "."
+            : "The old Armory's data was already taken over."
+        if (current && !snap) { snap = loadSnap(current); history = loadHistory(current) }
+        else if (!current && old.chars.length) open(old.chars[0].key)
+        changed()
     }
 
     // ---- the game's own numbers, between readings ----
@@ -272,7 +353,7 @@ QtObject {
             let last = null
             for (let i = h.length - 1; i >= 0; i--) if (h[i] && isFinite(h[i].cp)) { last = h[i]; break }
             if (last && last.cp === p.cp && last.gs === p.gs) return
-            const next = AK.C.addHistory(h, { at: Date.now(), cp: p.cp, gs: p.gs, live: true }, 300)
+            const next = AK.C.addHistory(h, { at: Date.now(), cp: p.cp, gs: p.gs, live: true }, store.keep)
             if (p.key === store.current) store.history = next
             store.keepHistory(p.key, next)
         }
@@ -308,6 +389,7 @@ QtObject {
             history = loadHistory(current)
         }
         revision++
+        if (!state.settings.meterTaken) readMeter()
     }
 
     // ---- GC_DEMO=armory: a made-up character and build for screenshots ----
