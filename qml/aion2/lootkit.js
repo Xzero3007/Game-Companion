@@ -607,7 +607,7 @@ G.INVENTORY_DUNGEON_RATES = { "gameVersion": "2026.10.28", "dungeons": { "Abyssa
   const dayOf = (at) => Math.floor((at - RESET_MS) / DAY_MS) * DAY_MS + RESET_MS;
   const dayName = (day) => new Date(day).toISOString().slice(0, 10).replace(/-/g, "");
   const zoneName = (zone) => zone ? ZONES[String(zone)] || `Zone ${zone}` : "Zone not known yet";
-  const isGold = (item) => !C2.currency(item) && C2.grade(item) >= GOLD;
+  const isGold = (item) => !C2.currency(item) && C2.grade(item) >= GOLD && C2.grade(item) < 7;
   function zoneSource(zone) {
     const z = Number(zone);
     if (!Number.isFinite(z) || z <= 0) return "other";
@@ -688,9 +688,15 @@ G.INVENTORY_DUNGEON_RATES = { "gameVersion": "2026.10.28", "dungeons": { "Abyssa
   const opener = (id) => /^Key:|\b(Chest|Box|Pouch|Bundle|Crate|Coffer|Casket)\b/i.test(C2.name(id));
   function gains(it, keep = () => true) {
     const frames = /* @__PURE__ */ new Map();
-    for (const ch of Array.isArray(it == null ? void 0 : it.changes) ? it.changes : []) {
+    const all = Array.isArray(it == null ? void 0 : it.changes) ? it.changes : [];
+    const left = /* @__PURE__ */ new Map();
+    for (const [, at, container, item, delta] of all) {
+      if (String(container) !== C2.INVENTORY && Number.isFinite(delta) && delta < 0) left.set(at + ":" + item, (left.get(at + ":" + item) || 0) - delta);
+    }
+    for (const ch of all) {
       const [, at, container, item, delta] = ch;
       if (String(container) !== C2.INVENTORY || !Number.isFinite(delta) || delta === 0 || !Number.isFinite(at) || !keep(at)) continue;
+      if (delta > 0 && left.get(at + ":" + item) >= delta) continue;
       if (!frames.has(at)) frames.set(at, []);
       frames.get(at).push({ item, delta });
     }

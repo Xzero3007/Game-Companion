@@ -97,6 +97,21 @@ for a, b in [("if (n < 1 || n > 10) return null;", "if (n < 1 || n > 16) return 
     if a not in text:
         sys.exit("shugo-cards/calc.js changed: " + a)
     text = text.replace(a, b)
+# Special (grade 7: tickets, Soul Codex, Odyle Energy) is no gold item (MN,
+# 0.8.16: "du schreibst selber special"). Gold gear and valuables are told
+# apart in LootStore (gear: ids 1xx to 3xx).
+for a, b in [('const isGold = (item) => !C2.currency(item) && C2.grade(item) >= GOLD;', 'const isGold = (item) => !C2.currency(item) && C2.grade(item) >= GOLD && C2.grade(item) < 7;')]:
+    if a not in text:
+        sys.exit("inventory/days.js changed: " + a)
+    text = text.replace(a, b)
+# Gear taken off (worn gear, containers 11 and 17, to the inventory) came in
+# as a gain and counted as a gold drop (MN, 0.8.16: "43 gold items", none
+# dropped): what another container lost in the same frame was moved, not won.
+GAINS_A = '    const frames = /* @__PURE__ */ new Map();\n    for (const ch of Array.isArray(it == null ? void 0 : it.changes) ? it.changes : []) {\n      const [, at, container, item, delta] = ch;\n      if (String(container) !== C2.INVENTORY || !Number.isFinite(delta) || delta === 0 || !Number.isFinite(at) || !keep(at)) continue;\n      if (!frames.has(at)) frames.set(at, []);\n      frames.get(at).push({ item, delta });\n    }\n    const out = [];'
+GAINS_B = '    const frames = /* @__PURE__ */ new Map();\n    const all = Array.isArray(it == null ? void 0 : it.changes) ? it.changes : [];\n    const left = /* @__PURE__ */ new Map();\n    for (const [, at, container, item, delta] of all) {\n      if (String(container) !== C2.INVENTORY && Number.isFinite(delta) && delta < 0) left.set(at + ":" + item, (left.get(at + ":" + item) || 0) - delta);\n    }\n    for (const ch of all) {\n      const [, at, container, item, delta] = ch;\n      if (String(container) !== C2.INVENTORY || !Number.isFinite(delta) || delta === 0 || !Number.isFinite(at) || !keep(at)) continue;\n      if (delta > 0 && left.get(at + ":" + item) >= delta) continue;\n      if (!frames.has(at)) frames.set(at, []);\n      frames.get(at).push({ item, delta });\n    }\n    const out = [];'
+if GAINS_A not in text:
+    sys.exit("inventory/days.js changed: gains()")
+text = text.replace(GAINS_A, GAINS_B)
 left = [line[:120] for line in text.split("\n") if re.search(r"toLocaleString\(|BigInt", line)]
 if left:
     sys.exit("not readable by Qt 6.4's JavaScript:\n" + "\n".join(left[:10]))
