@@ -80,6 +80,9 @@ pub struct Settings {
     /// Brave and Legcord over the game (Settings → Apps), by the app's id
     /// (`apps::APPS`); one not listed takes the defaults.
     pub apps: BTreeMap<String, crate::apps::AppChoice>,
+    /// The voice overlay's choices (Settings → Apps → Legcord), as QML
+    /// keeps them (`qml/VoiceOverlay.qml`); empty takes the defaults.
+    pub voice: serde_json::Map<String, serde_json::Value>,
 }
 
 /// One plugin's choice: on or off, and where its button sits.
@@ -409,6 +412,7 @@ impl Default for Settings {
             plugins: BTreeMap::new(),
             packages: BTreeMap::new(),
             apps: BTreeMap::new(),
+            voice: serde_json::Map::new(),
         }
     }
 }
