@@ -1,0 +1,6 @@
+The enhance tables (Enchant, Amplify), what each level adds, the list of
+enhanceable items and the stats' descriptions in data.js are AION 2's game
+data, read from the game's files by Aion2Data (aion2data.com, an unofficial
+fan reference, not affiliated with NCSOFT), which serves them for its enhance
+calculator and its stats page.
+AION is a trademark of NCSOFT Corporation; game data and art belong to it.

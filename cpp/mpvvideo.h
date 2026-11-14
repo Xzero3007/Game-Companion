@@ -36,6 +36,8 @@ class MpvVideo : public QQuickFramebufferObject
     Q_PROPERTY(bool drawable READ drawable NOTIFY drawableChanged)
     /// Videos decoded by the graphics card (Settings → Streams).
     Q_PROPERTY(bool hwdec READ hwdec WRITE setHwdec NOTIFY hwdecChanged)
+    /// Quiet and loud passages evened out (mpv's dynaudnorm filter).
+    Q_PROPERTY(bool levelling READ levelling WRITE setLevelling NOTIFY levellingChanged)
     /// For the home network's server (Jellyfin): set before the first video.
     /// No yt-dlp, no mpv scripts, no proxy: mpv goes straight to the address.
     Q_PROPERTY(bool local READ local WRITE setLocal NOTIFY localChanged)
@@ -60,11 +62,13 @@ public:
     double duration() const { return m_duration; }
     bool drawable() const;
     bool hwdec() const { return m_hwdec; }
+    bool levelling() const { return m_levelling; }
     bool local() const { return m_local; }
     QVariantList chapters() const { return m_chapters; }
     double speed() const { return m_speed; }
     void setSpeed(double speed);
     void setHwdec(bool on);
+    void setLevelling(bool on);
     void setLocal(bool on);
 
     void setPaused(bool paused);
@@ -98,6 +102,7 @@ signals:
     void frameReady();
     void drawableChanged();
     void hwdecChanged();
+    void levellingChanged();
     void localChanged();
     void chaptersChanged();
     void speedChanged();
@@ -139,7 +144,9 @@ private:
     double m_volume = 70;
     double m_position = 0;
     double m_duration = 0;
+    static const char *levellingFilter(bool on);
     bool m_hwdec = true;
+    bool m_levelling = false;
     bool m_local = false;
     QVariantList m_chapters;
     double m_speed = 1.0;

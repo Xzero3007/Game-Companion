@@ -18,11 +18,39 @@ to the game.
 - **Global shortcuts through KDE**, suggested as:
   - `Alt+Q`: lock or unlock the overlay
   - `Alt+Y`: hide or show the hub (pinned things stay)
+  - `Alt+M`: show or hide the AION 2 overlay map
 
   Plasma asks once to confirm them. Change them in System Settings →
   Keyboard → Shortcuts → Game Companion.
-- **The bar** at the top centre (the "Edge HUD" design): the name, the game
-  module (none yet), lock, settings, hide.
+- **The bar** at the top centre (the "Edge HUD" design): the name, Games,
+  Radio, TV, lock, settings, hide. Under it, a smaller **game row** with the
+  running game's buttons (AION 2: DPS, Map, Market, Chars, Timers), shown only while
+  it has any; its pin keeps it on screen while the hub is hidden.
+- **Timers** (AION 2, the Event Timers plugin reworked): the field bosses
+  with when they come back, as the game tells it when you open a map, and
+  the fixed events (Shugo Festival, Dimensional Invasion, Spacetime Rift,
+  Artifact Siege, the Abyss's scheduled bosses, resets, Odyle energy) in
+  your server's time. A bell on a row sets an alert: a banner over the game,
+  a sound made in the app, and the desktop's voice if wanted. Settings →
+  Plugins → AION 2 → Event Timers → SETTINGS: the sources (Aion 2 Timers is
+  off until switched on), the server time, how long before, the sound.
+- **Overlay map** (AION 2): a small map that follows you over the game, as
+  the old meter's. Right-click MAP in the game row or press `Alt+M`.
+  Unlocked, its title strip picks S, M, L or XL and closes it, it moves by
+  the strip, the corner sizes it and the wheel zooms; locked, only the map
+  shows and clicks go to the game. Settings → Plugins → AION 2 → Map →
+  OVERLAY: opacity (the marks stay solid), mark size, the Map's layers or
+  its own, hidden in dungeons, arenas or the Abyss, and three kept places
+  (a right-click keeps where it is now).
+- **Pet Finder** (AION 2): the Map's PETS tab. Every pet's level (0 to 3)
+  and the souls it still needs, as the game says at login and with every
+  soul (kept per server; start the app before logging in), its portrait and
+  genus, how far its nearest spawn point is, and a click shows where its
+  souls drop (monster, level, chance, region, chests). ★ makes a pet a
+  favourite the map follows (with the pet you are farming); "Show on map"
+  shows that monster's spawn points and the way there (Kibelisk or
+  walking). The overlay map has a line for the pet you farm (souls and how
+  far), off in Settings → Plugins → AION 2 → Map → OVERLAY.
 - **Panels remember where they were left and their size**: unlocked, the
   gold corner at a panel's bottom right makes it wider or narrower (the
   radio's list also taller); a double-click on it gives back its own size.
@@ -221,7 +249,8 @@ GC_DEMO=backdrop,unlocked,settings GC_SCREENSHOT=shot.png cargo run --no-default
 `GC_DEMO` takes `backdrop`, `unlocked`, `settings`, `shortcuts`, `about`,
 `radio`, `radio-playing`, `hidden`, `streams` (with `yt-playlists`,
 `yt-history`, `yt-trending`, `tw-categories`, `news`, `groups`), `video`,
-`chat`, `ytsettings`, `startmenu` (the start choice open).
+`chat`, `ytsettings`, `startmenu` (the start choice open), `dps`, `boss`
+(with `bossfight`, `ludra`, `sheets`, `fights`, `voice`, `preview`).
 `GC_NO_TRAY=1` starts without the tray icon.
 
 ## How it is built
@@ -249,6 +278,26 @@ Qt 6 / QML for the interface, Rust for the logic, joined by
 
 GPL-3.0-or-later (see `LICENSE`). Parts are adapted from the Clicktrough
 meter (`Xzero3007/A2Tools-DPS-Meter_Clicktrough`, GPL-3.0).
+
+AION 2 pictures: the class symbols and the Odyle symbol (`assets/aion2/`)
+come from the A2Tools DPS Meter (`taengu/A2Tools-DPS-Meter`, GPL-3.0) and
+show the game's own symbols (AION 2 by NCSOFT); skill pictures are loaded
+from the game's icon server and kept on this computer.
+
+AION 2 Timers: the fixed event times and the field bosses' names
+(`qml/aion2/schedule.js`) come from A2 Tools' Event Timers plugin
+(`taengu/A2Tools-Plugins`, GPL-3.0), made there from the game's own tables;
+rebuilt by `tools/aion2-schedule-import.py`. Boss times from Aion 2 Timers
+(aion2timers.com, by HomelessGuyNABox), when switched on, are read from its
+public feed, rarely and kept.
+
+Armory: the gear, enhance and Amplify tables, soul binding pools and stat
+descriptions (`crates/aion2/data/armory/data.json`) come from the
+Clicktrough Armory plugin, which took them from Aion2Data and questlog.gg's
+item database, and counted the strongest players' picks from Shugo.GG's
+leaderboard (see `crates/aion2/data/armory/NOTICE-*.txt`);
+characters are read from NC's official character pages, builds from
+questlog.gg through a bookmark that saves a file (nothing is sent).
 
 Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project
 Authors, both under the SIL Open Font License 1.1 (`assets/fonts/OFL-*.txt`).

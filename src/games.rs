@@ -177,6 +177,8 @@ pub struct GamesSettings {
     /// Missing covers are downloaded from Steam's, Epic's and GOG's image
     /// servers (the person agreed, 2026-11-13; `covers`).
     pub download_covers: bool,
+    /// The programs that start with each game, by id (`start_with`).
+    pub start_with: BTreeMap<String, Vec<crate::start_with::StartWith>>,
 }
 
 impl Default for GamesSettings {
@@ -190,6 +192,7 @@ impl Default for GamesSettings {
             layouts: BTreeMap::new(),
             installed_only: false,
             download_covers: true,
+            start_with: BTreeMap::new(),
         }
     }
 }

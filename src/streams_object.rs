@@ -45,6 +45,9 @@ pub mod qobject {
         #[qproperty(QString, favourites)]
         /// YouTube channels: added by hand and FreeTube's (JSON `[{"id","name","freetube"}]`).
         #[qproperty(QString, channels)]
+        /// YouTube channels' pictures: JSON `{channel id: address}` ("" =
+        /// the channel has none).
+        #[qproperty(QString, channel_pictures)]
         /// Whether Streamlink is installed, who is signed in: JSON `{"streamlink","user"}`.
         #[qproperty(QString, account)]
         #[qproperty(QString, quality)]
@@ -55,6 +58,10 @@ pub mod qobject {
         #[qproperty(QString, sponsorblock)]
         /// Videos decoded by the graphics card.
         #[qproperty(bool, hwdec)]
+        /// Videos made louder by this many dB (0, 3, 6, 9).
+        #[qproperty(i32, video_boost)]
+        /// Videos' quiet and loud passages evened out.
+        #[qproperty(bool, even_loudness)]
         /// YouTube lists: what is left out. JSON `{"shorts", "watched",
         /// "channels": [{id, name}], "words": [..]}`.
         #[qproperty(QString, filters)]
@@ -84,6 +91,12 @@ pub mod qobject {
         /// The Twitch list has another page, and it is being loaded.
         #[qproperty(bool, twitch_has_more)]
         #[qproperty(bool, twitch_loading_more)]
+        /// Why the last "Load more" brought nothing ("" it did).
+        #[qproperty(QString, twitch_more_note)]
+        /// The same for the YouTube list.
+        #[qproperty(bool, youtube_has_more)]
+        #[qproperty(bool, youtube_loading_more)]
+        #[qproperty(QString, youtube_more_note)]
         /// Twitch chat beside the Twitch video, and writing in it.
         #[qproperty(bool, chat_open)]
         #[qproperty(bool, chat_write)]
@@ -102,6 +115,10 @@ pub mod qobject {
         /// end, or "Load more").
         #[qinvokable]
         fn load_more_twitch(self: Pin<&mut Streams>);
+        /// The YouTube list's next page (searches, Trending, the game's,
+        /// a channel's older videos, more subscriptions).
+        #[qinvokable]
+        fn load_more_youtube(self: Pin<&mut Streams>);
 
         #[qinvokable]
         fn choose_tab(self: Pin<&mut Streams>, tab: &QString);
@@ -116,6 +133,11 @@ pub mod qobject {
         /// Adds or removes a YouTube channel of one's own.
         #[qinvokable]
         fn toggle_channel(self: Pin<&mut Streams>, id: &QString, name: &QString);
+
+        /// Asks the pictures of channels that have none yet (once each,
+        /// FreeTube's first, then yt-dlp, a few at a time, in the background).
+        #[qinvokable]
+        fn fetch_channel_pictures(self: Pin<&mut Streams>);
 
         /// Signs in with twitch.tv's auth-token (checked with Twitch first).
         #[qinvokable]
@@ -139,6 +161,14 @@ pub mod qobject {
 
         #[qinvokable]
         fn save_hwdec(self: Pin<&mut Streams>, on: bool);
+
+        /// Settings → Streams → Videos "Video loudness".
+        #[qinvokable]
+        fn save_video_boost(self: Pin<&mut Streams>, db: i32);
+
+        /// Settings → Streams → Videos "Even out loudness".
+        #[qinvokable]
+        fn save_even_loudness(self: Pin<&mut Streams>, on: bool);
 
         /// How much of a video window shows, in percent (50 to 100).
         #[qinvokable]
@@ -180,6 +210,9 @@ pub mod qobject {
         fn set_hide_shorts(self: Pin<&mut Streams>, on: bool);
         #[qinvokable]
         fn set_hide_watched(self: Pin<&mut Streams>, on: bool);
+        /// Leaves videos in Indian scripts out, or not.
+        #[qinvokable]
+        fn set_hide_indian(self: Pin<&mut Streams>, on: bool);
         /// A channel's videos never show (switched).
         #[qinvokable]
         fn toggle_hidden_channel(self: Pin<&mut Streams>, id: &QString, name: &QString);
@@ -285,12 +318,15 @@ pub struct StreamsRust {
     youtube_message: QString,
     favourites: QString,
     channels: QString,
+    channel_pictures: QString,
     account: QString,
     quality: QString,
     volume: i32,
     grid: bool,
     sponsorblock: QString,
     hwdec: bool,
+    video_boost: i32,
+    even_loudness: bool,
     filters: QString,
     groups: QString,
     group: QString,
@@ -313,6 +349,12 @@ pub struct StreamsRust {
     twitch_more: Option<(String, String, Value)>,
     twitch_has_more: bool,
     twitch_loading_more: bool,
+    twitch_more_note: QString,
+    youtube_has_more: bool,
+    youtube_loading_more: bool,
+    youtube_more_note: QString,
+    /// The YouTube list shown and how many pages of it came.
+    youtube_more: Option<(String, String, usize)>,
 }
 
 fn q(s: &str) -> QString {
@@ -336,6 +378,20 @@ fn channels_json(s: &settings::StreamsSettings) -> String {
     Value::Array(all_channels(s).into_iter().map(|(c, ft)| json!({ "id": c.id, "name": c.name, "groups": c.groups, "freetube": ft })).collect()).to_string()
 }
 
+fn pictures_json(s: &settings::StreamsSettings) -> String {
+    serde_json::to_string(&s.channel_pictures).unwrap_or_else(|_| "{}".into())
+}
+
+/// Channels whose picture was asked in this run (a failed one is asked again
+/// at the next start, not over and over).
+fn pictures_asked() -> &'static Mutex<std::collections::HashSet<String>> {
+    static ASKED: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+    ASKED.get_or_init(Default::default)
+}
+
+/// yt-dlp asks for this many channel pictures at once.
+const PICTURES_AT_ONCE: usize = 3;
+
 fn groups_json(s: &settings::StreamsSettings) -> String {
     let mut names: Vec<String> = Vec::new();
     for (c, _) in all_channels(s) {
@@ -350,7 +406,7 @@ fn groups_json(s: &settings::StreamsSettings) -> String {
 }
 
 fn filters_json(s: &settings::StreamsSettings) -> String {
-    json!({ "shorts": s.hide_shorts, "watched": s.hide_watched, "channels": s.hidden_channels, "words": s.hidden_words }).to_string()
+    json!({ "shorts": s.hide_shorts, "watched": s.hide_watched, "channels": s.hidden_channels, "words": s.hidden_words, "indian": s.hide_indian }).to_string()
 }
 
 fn trend_words_json(s: &settings::StreamsSettings) -> String {
@@ -380,6 +436,9 @@ pub fn filter_videos(list: Vec<Value>, s: &settings::StreamsSettings) -> (Vec<Va
             if s.hidden_channels.iter().any(|c| (!cid.is_empty() && c.id == cid) || (cid.is_empty() && !cname.is_empty() && c.name == cname)) {
                 return false;
             }
+            if s.hide_indian && (streams::indian_script(v["title"].as_str().unwrap_or("")) || streams::indian_script(cname)) {
+                return false;
+            }
             let title = v["title"].as_str().unwrap_or("").to_lowercase();
             if words.iter().any(|w| title.contains(w.as_str())) {
                 return false;
@@ -394,13 +453,69 @@ pub fn filter_videos(list: Vec<Value>, s: &settings::StreamsSettings) -> (Vec<Va
     (kept, gone)
 }
 
-/// Twitch's filters applied to live cards, and the order.
+thread_local! {
+    /// How the last Twitch list of this thread was asked (said under the
+    /// list when a page brought nothing new).
+    static TWITCH_WAY: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
+fn say_way(way: String) {
+    TWITCH_WAY.with(|w| *w.borrow_mut() = way);
+}
+
+fn last_way() -> String {
+    TWITCH_WAY.with(|w| w.borrow().clone())
+}
+
+/// All live's page `p` without a cursor: the streams of the most watched
+/// categories `p * SWEEP + 1` on (see `streams::SWEEP`).
+fn sweep_page(p: usize, st: &settings::StreamsSettings) -> Result<(Vec<Value>, Value), String> {
+    let n = (p + 1) * streams::SWEEP;
+    if n > streams::SWEEP_LONGEST {
+        return Ok((Vec::new(), json!({})));
+    }
+    let cats = streams::twitch_categories(&streams::twitch(&streams::twitch_query_page("categories", &Value::Null, None, Some(n))?, None)?);
+    let names: Vec<String> = cats.iter().skip(p * streams::SWEEP).take(streams::SWEEP).filter_map(|c| c["name"].as_str().map(str::to_string)).collect();
+    if names.is_empty() {
+        return Ok((Vec::new(), json!({})));
+    }
+    let filtered = !st.languages.is_empty() || st.hide_reruns;
+    let asked = if filtered {
+        match streams::twitch(&streams::twitch_sweep_query(&names, true)?, None) {
+            Ok(data) if data.get("_errors").is_none() => Ok(data),
+            _ => streams::twitch(&streams::twitch_sweep_query(&names, false)?, None),
+        }
+    } else {
+        streams::twitch(&streams::twitch_sweep_query(&names, false)?, None)
+    };
+    let data = asked?;
+    say_way(format!("categories {} to {}", p * streams::SWEEP + 1, p * streams::SWEEP + names.len()));
+    let next = if names.len() == streams::SWEEP && n < streams::SWEEP_LONGEST { json!({ "sweep": p + 1 }) } else { json!({}) };
+    Ok((filter_cards(streams::sweep_cards(&data), st), next))
+}
+
 /// A Twitch list, from its page cursors on (`more`, as the last page gave
 /// them; None: the first page): its cards (filtered as set) and where the
 /// next page starts (`{}` when there is none; one cursor per part).
 fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: Option<&str>, more: Option<&Value>) -> Result<(Vec<Value>, Value), String> {
+    say_way(String::new());
+    if view == "live" {
+        if let Some(p) = more.and_then(|m| m.get("sweep")).and_then(Value::as_u64) {
+            return sweep_page(p as usize, st);
+        }
+    }
     let cursor = |k: &str| more.and_then(|m| m.get(k)).and_then(Value::as_str).map(str::to_string);
+    // A longer list from the top instead of a cursor (`{"first": n}`), and
+    // the next one's length while there may be more.
+    let first = more.and_then(|m| m.get("first")).and_then(Value::as_u64).map(|n| n as usize);
     let mut next = serde_json::Map::new();
+    let longer = |got: usize, next: &mut serde_json::Map<String, Value>| {
+        if let Some(n) = first {
+            if got >= n.saturating_sub(5) && n < streams::TWITCH_LONGEST {
+                next.insert("first".into(), json!((n + 30).min(streams::TWITCH_LONGEST)));
+            }
+        }
+    };
     let filtered = !st.languages.is_empty() || st.hide_reruns;
     // Live lists: with the stream's kind and language while a filter is on
     // (plain if Twitch refuses those fields).
@@ -408,19 +523,38 @@ fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: O
         let after = cursor("live");
         let page = |data: &Value, next: &mut serde_json::Map<String, Value>| {
             let at = if game.is_null() { "/streams" } else { "/game/streams" };
-            if let Some(c) = streams::next_cursor(data, at) {
+            if first.is_some() {
+                let got = data.pointer(&format!("{at}/edges")).and_then(Value::as_array).map_or(0, Vec::len);
+                longer(got, next);
+            } else if let Some(c) = streams::next_cursor(data, at) {
                 next.insert("live".into(), json!(c));
             }
         };
-        if filtered {
-            if let Ok(data) = streams::twitch(&streams::twitch_query_after("liveMore", &game, after.as_deref())?, None) {
+        // All live: Twitch's own directory query first (the only one it
+        // pages); the written-out query if none of its ids answers.
+        if game.is_null() {
+            match streams::twitch_browse(after.as_deref(), first) {
+                Ok(data) => {
+                    say_way("directory query".into());
+                    page(&data, &mut next);
+                    return Ok(streams::twitch_cards(&data));
+                }
+                Err(why) => say_way(format!("written-out query; directory query: {}", why.chars().take(80).collect::<String>())),
+            }
+        }
+        // Sorted by viewers first; the fields for the filters while one is
+        // on; plain if Twitch refuses either.
+        let kinds: &[&str] = if filtered { &["liveMoreSorted", "liveSorted", "liveMore", "live"] } else { &["liveSorted", "live"] };
+        let (last, tries) = kinds.split_last().unwrap_or((&"live", &[]));
+        for kind in tries {
+            if let Ok(data) = streams::twitch(&streams::twitch_query_page(kind, &game, after.as_deref(), first)?, None) {
                 if data.get("_errors").is_none() {
                     page(&data, &mut next);
                     return Ok(streams::twitch_cards(&data));
                 }
             }
         }
-        let data = streams::twitch(&streams::twitch_query_after("live", &game, after.as_deref())?, None)?;
+        let data = streams::twitch(&streams::twitch_query_page(last, &game, after.as_deref(), first)?, None)?;
         page(&data, &mut next);
         Ok(streams::twitch_cards(&data))
     };
@@ -429,8 +563,10 @@ fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: O
         "category" => live(json!(text))?,
         "live" => live(Value::Null)?,
         "categories" if text.trim().is_empty() => {
-            let data = streams::twitch(&streams::twitch_query_after("categories", &Value::Null, cursor("live").as_deref())?, None)?;
-            if let Some(c) = streams::next_cursor(&data, "/games") {
+            let data = streams::twitch(&streams::twitch_query_page("categories", &Value::Null, cursor("live").as_deref(), first)?, None)?;
+            if first.is_some() {
+                longer(data.pointer("/games/edges").and_then(Value::as_array).map_or(0, Vec::len), &mut next);
+            } else if let Some(c) = streams::next_cursor(&data, "/games") {
                 next.insert("live".into(), json!(c));
             }
             streams::twitch_categories(&data)
@@ -485,6 +621,12 @@ fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: O
     Ok((cards, Value::Object(next)))
 }
 
+/// What tells a Twitch card from another (channels, categories, videos).
+fn card_key(c: &Value) -> String {
+    format!("{}{}{}", c["login"].as_str().unwrap_or(""), c["name"].as_str().unwrap_or(""), c["id"].as_str().unwrap_or(""))
+}
+
+/// Twitch's filters applied to live cards, and the order.
 pub fn filter_cards(mut cards: Vec<Value>, s: &settings::StreamsSettings) -> Vec<Value> {
     let langs: Vec<String> = s.languages.iter().map(|l| l.to_ascii_lowercase()).collect();
     cards.retain(|c| {
@@ -594,6 +736,7 @@ impl Default for StreamsRust {
             youtube_message: QString::default(),
             favourites: q(&serde_json::to_string(&s.favourites).unwrap_or_else(|_| "[]".into())),
             channels: q(&channels_json(&s)),
+            channel_pictures: q(&pictures_json(&s)),
             // Who is signed in is asked of Twitch once the panel opens.
             account: q(&account_json(if streams::twitch_token().is_some() { "…" } else { "" })),
             quality: q(&s.quality),
@@ -601,6 +744,8 @@ impl Default for StreamsRust {
             grid: s.grid,
             sponsorblock: q(&serde_json::to_string(&s.sponsorblock).unwrap_or_default()),
             hwdec: s.hwdec,
+            video_boost: i32::from(s.video_boost),
+            even_loudness: s.even_loudness,
             filters: q(&filters_json(&s)),
             groups: q(&groups_json(&s)),
             group: q(&s.group),
@@ -621,6 +766,11 @@ impl Default for StreamsRust {
             twitch_more: None,
             twitch_has_more: demo.contains("more"),
             twitch_loading_more: false,
+            twitch_more_note: QString::default(),
+            youtube_has_more: false,
+            youtube_loading_more: false,
+            youtube_more_note: QString::default(),
+            youtube_more: None,
             youtube_request: 0,
         };
         if demo.contains("streams") {
@@ -725,6 +875,7 @@ impl qobject::Streams {
         let demo_more = Self::demo_mode() && std::env::var("GC_DEMO").is_ok_and(|d| d.contains("more"));
         self.as_mut().set_twitch_has_more(demo_more);
         self.as_mut().set_twitch_loading_more(false);
+        self.as_mut().set_twitch_more_note(QString::default());
         if !matches!(view.as_str(), "search" | "category" | "recordings") {
             settings::change(|s| s.streams.twitch_view = view.clone());
         }
@@ -804,24 +955,83 @@ impl qobject::Streams {
         }
         let request = self.rust().twitch_request;
         self.as_mut().set_twitch_loading_more(true);
+        self.as_mut().set_twitch_more_note(QString::default());
         let st = settings::read(|s| s.streams.clone());
+        let shown: Vec<Value> = serde_json::from_str(&self.twitch().to_string()).unwrap_or_default();
+        let known: std::collections::HashSet<String> = shown.iter().map(card_key).collect();
         let thread = self.qt_thread();
         std::thread::spawn(move || {
-            let result = fetch_twitch(&view, &text, &st, None, Some(&more));
+            let mut result = fetch_twitch(&view, &text, &st, None, Some(&more));
+            let mut ways = vec![last_way()];
+            let nothing_new = |r: &Result<(Vec<Value>, Value), String>| match r {
+                Ok((cards, _)) => cards.iter().all(|c| known.contains(&card_key(c))),
+                Err(_) => true,
+            };
+            // Twitch may send the first page again for a cursor (MN's
+            // 0.7.7): then ask for a longer list from the top instead.
+            let pages = matches!(view.as_str(), "game" | "category" | "live" | "categories");
+            if pages && more.get("first").is_none() && more.get("sweep").is_none() && result.is_ok() && nothing_new(&result) {
+                let n = (known.len() + 30).min(streams::TWITCH_LONGEST);
+                if n > known.len() {
+                    result = fetch_twitch(&view, &text, &st, None, Some(&json!({ "first": n })));
+                    ways.push(format!("longer list: {}", last_way()));
+                }
+            }
+            // All live still the same (MN's 0.8.12): the streams of the most
+            // watched categories, a few categories a page, until new ones come.
+            if view == "live" {
+                let mut tries = 0;
+                while nothing_new(&result) && tries < 3 {
+                    let p = match &result {
+                        Ok((_, next)) => next.get("sweep").and_then(Value::as_u64),
+                        Err(_) => None,
+                    };
+                    let p = match p {
+                        Some(p) => p,
+                        None if tries == 0 && more.get("sweep").is_none() => 0,
+                        None => break,
+                    };
+                    let swept = fetch_twitch(&view, &text, &st, None, Some(&json!({ "sweep": p })));
+                    ways.push(match &swept {
+                        Ok(_) => last_way(),
+                        Err(e) => format!("categories: {e}"),
+                    });
+                    // A failed sweep keeps what the cursor brought.
+                    if swept.is_ok() || result.is_err() {
+                        result = swept;
+                    }
+                    tries += 1;
+                }
+            }
+            let ways: Vec<String> = ways.into_iter().filter(|w| !w.is_empty()).collect();
             let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
                 // Another list came meanwhile: this page is not its.
                 if obj.rust().twitch_request != request {
                     return;
                 }
                 obj.as_mut().set_twitch_loading_more(false);
-                let Ok((cards, next)) = result else { return };
+                let (cards, next) = match result {
+                    Ok(r) => r,
+                    Err(why) => {
+                        // Said under the list: the button tries again.
+                        obj.set_twitch_more_note(q(&format!("Twitch gave no more: {why}")));
+                        return;
+                    }
+                };
                 let mut all: Vec<Value> = serde_json::from_str(&obj.twitch().to_string()).unwrap_or_default();
-                let key = |c: &Value| format!("{}{}{}", c["login"].as_str().unwrap_or(""), c["name"].as_str().unwrap_or(""), c["id"].as_str().unwrap_or(""));
+                let before = all.len();
                 for c in cards {
-                    if !all.iter().any(|x| key(x) == key(&c)) {
+                    if !all.iter().any(|x| card_key(x) == card_key(&c)) {
                         all.push(c);
                     }
                 }
+                // Twitch answered without anything new: say so, not nothing.
+                let note = match (all.len() == before, ways.is_empty()) {
+                    (false, _) => String::new(),
+                    (true, true) => "Twitch sent nothing new (the filters may leave everything out).".into(),
+                    (true, false) => format!("Twitch sent nothing new ({}). The filters may leave everything out.", ways.join("; ")),
+                };
+                obj.as_mut().set_twitch_more_note(q(&note));
                 let has_more = next.as_object().is_some_and(|m| !m.is_empty());
                 obj.as_mut().rust_mut().twitch_more = has_more.then(|| (view.clone(), text.clone(), next));
                 obj.as_mut().set_twitch_has_more(has_more);
@@ -837,6 +1047,87 @@ impl qobject::Streams {
         });
     }
 
+    fn load_more_youtube(mut self: Pin<&mut Self>) {
+        if *self.youtube_loading_more() || Self::demo_mode() {
+            return;
+        }
+        let Some((view, text, page)) = self.rust().youtube_more.clone() else { return };
+        if view != self.youtube_view().to_string() {
+            return;
+        }
+        let request = self.rust().youtube_request;
+        self.as_mut().set_youtube_loading_more(true);
+        self.as_mut().set_youtube_more_note(QString::default());
+        let st = settings::read(|s| s.streams.clone());
+        let thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let lang = st.video_languages.first().map(String::as_str).unwrap_or("");
+            let mut last_page = false;
+            let result = match view.as_str() {
+                "game" => streams::youtube_search_range(&st.game.youtube, "CAI%3D", page * 20 + 1, (page + 1) * 20, lang),
+                "search" => {
+                    let f = &st.search;
+                    streams::youtube_search_range(&text, &streams::search_param(&f.sort, &f.date, &f.length), page * 30 + 1, (page + 1) * 30, lang)
+                }
+                "trending" => {
+                    let part = if streams::TREND_SECTIONS.contains(&text.as_str()) { text.clone() } else { st.trend_section.clone() };
+                    let words = st.trend_words.get(&part).cloned().unwrap_or_else(|| streams::trend_words(&part));
+                    streams::youtube_trending_page(&part, &words, &st.video_languages, page)
+                }
+                // The feed gave the newest 15; then the videos tab, 30 at a time.
+                "channel" => streams::youtube_channel_range(text.trim(), 16 + (page - 1) * 30, 15 + page * 30),
+                // More of the subscriptions already loaded (60 a page).
+                _ => {
+                    let ids: Vec<String> = all_channels(&st)
+                        .into_iter()
+                        .filter(|(c, _)| st.group.is_empty() || c.groups.contains(&st.group))
+                        .map(|(c, _)| c.id)
+                        .take(MAX_CHANNELS)
+                        .collect();
+                    match kept_subscriptions(&ids) {
+                        Some(all) => {
+                            let (kept, _) = filter_videos(all, &st);
+                            last_page = kept.len() <= (page + 1) * 60;
+                            Ok(kept.into_iter().skip(page * 60).take(60).collect())
+                        }
+                        None => Err("The subscriptions are older than 15 minutes: load them again (↻).".into()),
+                    }
+                }
+            };
+            let result = result.map(|list| if view == "subscriptions" { list } else { filter_videos(list, &st).0 });
+            let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
+                if obj.rust().youtube_request != request {
+                    return;
+                }
+                obj.as_mut().set_youtube_loading_more(false);
+                let list = match result {
+                    Ok(l) => l,
+                    Err(why) => {
+                        obj.set_youtube_more_note(q(&format!("YouTube gave no more: {why}")));
+                        return;
+                    }
+                };
+                let mut all: Vec<Value> = serde_json::from_str(&obj.youtube().to_string()).unwrap_or_default();
+                let before = all.len();
+                for v in list {
+                    if !all.iter().any(|x| x["id"] == v["id"]) {
+                        all.push(v);
+                    }
+                }
+                let added = all.len() - before;
+                let more = added > 0 && !last_page;
+                obj.as_mut().rust_mut().youtube_more = more.then(|| (view.clone(), text.clone(), page + 1));
+                obj.as_mut().set_youtube_has_more(more);
+                if added == 0 {
+                    obj.as_mut().set_youtube_more_note(q("Nothing more came."));
+                }
+                let n = all.len();
+                obj.as_mut().set_youtube(q(&Value::Array(all).to_string()));
+                obj.set_youtube_message(q(&format!("{n} videos")));
+            });
+        });
+    }
+
     fn load_youtube(mut self: Pin<&mut Self>, view: &QString, text: &QString) {
         let view = view.to_string();
         let text = text.to_string();
@@ -844,6 +1135,11 @@ impl qobject::Streams {
             return;
         }
         self.as_mut().set_youtube_view(q(&view));
+        // A new list: no next page until it says so.
+        self.as_mut().rust_mut().youtube_more = None;
+        self.as_mut().set_youtube_has_more(false);
+        self.as_mut().set_youtube_loading_more(false);
+        self.as_mut().set_youtube_more_note(QString::default());
         if matches!(view.as_str(), "game" | "subscriptions" | "channels" | "trending" | "playlists" | "history") {
             settings::change(|s| s.streams.youtube_view = view.clone());
         }
@@ -953,17 +1249,19 @@ impl qobject::Streams {
             })();
             let result = result.map(|list| {
                 let (mut kept, gone) = filter_videos(list, &st);
-                if view == "subscriptions" {
-                    kept.truncate(60);
-                }
-                (kept, gone)
+                let more = if view == "subscriptions" { kept.len() > 60 } else { !kept.is_empty() && matches!(view.as_str(), "game" | "search" | "trending" | "channel") };
+                kept.truncate(if view == "subscriptions" { 60 } else { kept.len() });
+                (kept, gone, more)
             });
             let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
                 if obj.rust().youtube_request != request {
                     return;
                 }
+                let more = matches!(&result, Ok((_, _, true)));
+                obj.as_mut().rust_mut().youtube_more = more.then(|| (view.clone(), text.clone(), 1));
+                obj.as_mut().set_youtube_has_more(more);
                 match result {
-                    Ok((videos, gone)) => {
+                    Ok((videos, gone, _)) => {
                         let n = videos.len();
                         let message = if gone > 0 { format!("{n} videos · {gone} hidden") } else { format!("{n} videos") };
                         obj.as_mut().set_youtube(q(&Value::Array(videos).to_string()));
@@ -1041,6 +1339,89 @@ impl qobject::Streams {
         self.set_groups(q(&groups));
     }
 
+    fn fetch_channel_pictures(self: Pin<&mut Self>) {
+        static RUNNING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if Self::demo_mode() || RUNNING.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let missing: Vec<String> = {
+            let asked = pictures_asked().lock().unwrap_or_else(|p| p.into_inner());
+            settings::read(|s| {
+                all_channels(&s.streams)
+                    .into_iter()
+                    .map(|(c, _)| c.id)
+                    .filter(|id| !s.streams.channel_pictures.contains_key(id) && !asked.contains(id))
+                    .collect()
+            })
+        };
+        if missing.is_empty() {
+            RUNNING.store(false, Ordering::SeqCst);
+            return;
+        }
+        let thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let (tx, rx) = mpsc::channel::<(String, String)>();
+            // FreeTube's file first: no request for those.
+            let freetube = streams::freetube_pictures_here();
+            let mut todo = Vec::new();
+            for id in missing {
+                match freetube.iter().find(|(f, _)| *f == id) {
+                    Some((_, pic)) => {
+                        let _ = tx.send((id, pic.clone()));
+                    }
+                    None => todo.push(id),
+                }
+            }
+            todo.reverse();
+            let todo = Arc::new(Mutex::new(todo));
+            for _ in 0..PICTURES_AT_ONCE {
+                let (todo, tx) = (todo.clone(), tx.clone());
+                std::thread::spawn(move || loop {
+                    let Some(id) = todo.lock().unwrap_or_else(|p| p.into_inner()).pop() else { break };
+                    pictures_asked().lock().unwrap_or_else(|p| p.into_inner()).insert(id.clone());
+                    match streams::channel_picture(&id) {
+                        // "" is kept too: a channel without a picture is not asked again.
+                        Ok(pic) => {
+                            let _ = tx.send((id, pic));
+                        }
+                        // No yt-dlp: the others need not try.
+                        Err(e) if e.contains("No such file") => {
+                            todo.lock().unwrap_or_else(|p| p.into_inner()).clear();
+                            break;
+                        }
+                        Err(_) => {}
+                    }
+                });
+            }
+            drop(tx);
+            // Kept and shown every two seconds, not per picture.
+            let mut found: Vec<(String, String)> = Vec::new();
+            let mut shown = Instant::now();
+            loop {
+                let done = match rx.recv_timeout(Duration::from_millis(500)) {
+                    Ok(p) => {
+                        found.push(p);
+                        false
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => false,
+                    Err(mpsc::RecvTimeoutError::Disconnected) => true,
+                };
+                if !found.is_empty() && (done || shown.elapsed() >= Duration::from_secs(2)) {
+                    let j = settings::change(|s| {
+                        s.streams.channel_pictures.extend(found.drain(..));
+                        pictures_json(&s.streams)
+                    });
+                    let _ = thread.queue(move |obj| obj.set_channel_pictures(q(&j)));
+                    shown = Instant::now();
+                }
+                if done {
+                    break;
+                }
+            }
+            RUNNING.store(false, Ordering::SeqCst);
+        });
+    }
+
     fn sign_in(mut self: Pin<&mut Self>, token: &QString) {
         let Some(token) = streams::twitch_token_of(&token.to_string()) else {
             self.set_account(q(&json!({ "streamlink": streams::streamlink_path().is_some(), "user": "", "error": "That is not a twitch.tv auth-token." }).to_string()));
@@ -1093,6 +1474,17 @@ impl qobject::Streams {
     fn save_grid(self: Pin<&mut Self>, grid: bool) {
         settings::change(|s| s.streams.grid = grid);
         self.set_grid(grid);
+    }
+
+    fn save_video_boost(self: Pin<&mut Self>, db: i32) {
+        let db = settings::clamp_video_boost(db);
+        settings::change(|s| s.streams.video_boost = db);
+        self.set_video_boost(i32::from(db));
+    }
+
+    fn save_even_loudness(self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.streams.even_loudness = on);
+        self.set_even_loudness(on);
     }
 
     fn save_hwdec(self: Pin<&mut Self>, on: bool) {
@@ -1204,6 +1596,14 @@ impl qobject::Streams {
     fn set_hide_shorts(self: Pin<&mut Self>, on: bool) {
         let j = settings::change(|s| {
             s.streams.hide_shorts = on;
+            filters_json(&s.streams)
+        });
+        self.set_filters(q(&j));
+    }
+
+    fn set_hide_indian(self: Pin<&mut Self>, on: bool) {
+        let j = settings::change(|s| {
+            s.streams.hide_indian = on;
             filters_json(&s.streams)
         });
         self.set_filters(q(&j));

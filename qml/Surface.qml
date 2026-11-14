@@ -93,17 +93,26 @@ Window {
     // given again then, so a resized window never keeps a stale one (the
     // DPS panel took no clicks after its first fight grew it, on KWin).
     Timer { id: settleInput; interval: 250; onTriggered: surface.applyInput() }
-    onVisibleChanged: if (visible) input()
+    // Shown for the first time, a layer surface takes its input region only
+    // once the compositor has configured it: given again a moment later
+    // (the game row took no clicks on KWin until it was hidden and shown).
+    onVisibleChanged: if (visible) { input(); settleInput.restart() }
     Component.onCompleted: {
-        if (part) { part.parent = home; part.z = stack }
+        if (part) { part.parent = home; part.z = stack; surface.objectName = part.panelId !== undefined ? part.panelId : String(part).split("(")[0] }
         nativeWindow.attach(surface)
         nativeWindow.place(surface, area)
+        // The input region before the window is first shown: a part that
+        // shows at once never takes the mouse from the game for a moment
+        // (Qt gives the stored region to every new surface).
+        applyInput()
         attached = true
         input()
     }
 
     // Where it takes clicks: everywhere while unlocked, else only the
-    // lock (or nowhere: clicks go through to the game).
+    // lock (or nowhere: clicks go through to the game). Keys: allowed only
+    // while unlocked, and taken only after a click into the part (native
+    // side), never when it opens by itself or on unlocking.
     function input() { Qt.callLater(applyInput) }
     function applyInput() {
         const open = !Companion.locked && clickable
@@ -127,6 +136,11 @@ Window {
         target: surface.lockItem
         ignoreUnknownSignals: true
         function onXChanged() { surface.input() }
+        function onYChanged() { surface.input() }
+        // A part that grows or shrinks (the Closet window's list) takes
+        // the mouse over its new size.
+        function onWidthChanged() { surface.input() }
+        function onHeightChanged() { surface.input() }
         function onVisibleChanged() { surface.input() }
     }
 }

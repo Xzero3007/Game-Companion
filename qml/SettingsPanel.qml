@@ -2,6 +2,7 @@ import QtQuick
 import GameCompanion
 import "theme.js" as Theme
 import "plugins.js" as Plugins
+import "aion2/timekit.js" as TK
 
 // Settings: how solid the panels are, the shortcuts, and what this is.
 Panel {
@@ -10,7 +11,9 @@ Panel {
     title: "Settings"
     width: 500
 
-    property string tab: nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0
+    property string tab: nativeWindow.demo.indexOf("display") >= 0 ? "display"
+        : nativeWindow.demo.indexOf("timers") >= 0 ? "plugins"
+        : nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0
         || nativeWindow.demo.indexOf("ytsettings") >= 0 ? "streams" : "general"
     property var keys: JSON.parse(Companion.shortcuts)
     readonly property var layouts: JSON.parse(Companion.layouts)
@@ -18,6 +21,14 @@ Panel {
     property string renaming: ""
     property string layoutMessage: ""
     minWidth: 400
+    /// The Map panel: the overlay map's settings are kept in its own.
+    property var mapSource: null
+    /// The Schedule's store (its settings fold out under Event Timers).
+    property var timerStore: null
+    function keyOf(id) {
+        for (const k of keys) if (k.id === id) return k.key
+        return ""
+    }
     signal saveLayoutRequested(string name)
     signal loadLayoutRequested(string name)
     Component.onCompleted: {
@@ -121,7 +132,14 @@ Panel {
                     readonly property var c: Plugins.choice(pluginsPage.all, p.id)
                     readonly property bool usable: !pluginsPage.pack.game || Plugins.loads(pluginsPage.all, pluginsPage.pack.id)
                     width: pluginsPage.width
-                    height: Math.max(48, plugText.implicitHeight + 16)
+                    readonly property real headHeight: Math.max(48, plugText.implicitHeight + 16)
+                    // The Map's overlay map: its settings fold out under it.
+                    readonly property bool hasOverlay: p.id === "aion2.map" && !!settings.mapSource
+                    // The Event Timers' sources and alerts fold out the same way.
+                    readonly property bool hasTimers: p.id === "aion2.timers" && !!settings.timerStore
+                    property bool expanded: (hasOverlay && nativeWindow.demo.indexOf("overlay") >= 0)
+                        || (hasTimers && nativeWindow.demo.indexOf("timers") >= 0)
+                    height: headHeight + (expanded ? overlayBox.height + 12 : 0)
                     opacity: (p.fixed || c.on) && usable ? 1 : 0.55
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
                     Rectangle {
@@ -186,14 +204,30 @@ Panel {
                         anchors.right: parent.right
                         y: 10
                         spacing: 8
+                        SmallToggle {
+                            visible: plugRow.hasTimers
+                            width: 92
+                            text: "SETTINGS " + (plugRow.expanded ? "▴" : "▾")
+                            on: plugRow.expanded
+                            tip: "Where the times come from, and the alerts"
+                            onClicked: plugRow.expanded = !plugRow.expanded
+                        }
+                        SmallToggle {
+                            visible: plugRow.hasOverlay
+                            width: 92
+                            text: "OVERLAY " + (plugRow.expanded ? "▴" : "▾")
+                            on: plugRow.expanded
+                            tip: "The overlay map's settings"
+                            onClicked: plugRow.expanded = !plugRow.expanded
+                        }
                         // Where its button sits: the bar, or none.
                         SmallToggle {
                             visible: !plugRow.p.fixed
                             enabled: plugRow.c.on
                             width: 78
-                            text: plugRow.c.place === "bar" ? "IN BAR" : "HIDDEN"
+                            text: plugRow.c.place === "bar" ? "IN ROW" : "HIDDEN"
                             on: plugRow.c.on && plugRow.c.place === "bar"
-                            tip: "Whether its button shows in the bar"
+                            tip: "Whether its button shows in the game's row under the bar"
                             onClicked: Companion.setPlugin(plugRow.p.id, plugRow.c.on, plugRow.c.place === "bar" ? "hidden" : "bar")
                         }
                         SmallToggle {
@@ -204,6 +238,15 @@ Panel {
                             tip: plugRow.p.fixed ? "Part of Game Companion itself" : "Switch the plugin on or off"
                             onClicked: Companion.setPlugin(plugRow.p.id, !plugRow.c.on, plugRow.c.place)
                         }
+                    }
+                    Loader {
+                        id: overlayBox
+                        active: plugRow.expanded
+                        x: 42
+                        y: plugRow.headHeight
+                        width: plugRow.width - 42
+                        height: item ? item.implicitHeight : 0
+                        sourceComponent: plugRow.hasTimers ? timersComponent : overlayComponent
                     }
                 }
             }
@@ -341,6 +384,18 @@ Panel {
                 }
             }
             Hint { text: "Where the bar and the panels show. Now on " + nativeWindow.screenName + "." }
+
+            Item { width: 1; height: 6 }
+            Label { text: "Scrolling" }
+            Dropdown {
+                width: parent.width
+                z: 29
+                label: "Scroll speed"
+                options: [50, 100, 150, 200, 300, 400, 500].map((p) => ({ id: String(p), name: p + " %" }))
+                current: String(Companion.wheelSpeed)
+                onChosen: (id) => Companion.saveWheelSpeed(parseInt(id))
+            }
+            Hint { text: "How far one notch of the mouse wheel moves a list." }
 
             Item { width: 1; height: 6 }
             Label { text: "Panel opacity" }
@@ -687,6 +742,8 @@ Panel {
             Label { text: "In the lists" }
             OnOff { width: parent.width; text: "Leave Shorts out"; on: parent.filters.shorts; onToggled: Streams.setHideShorts(!parent.filters.shorts) }
             OnOff { width: parent.width; text: "Leave watched videos out"; on: parent.filters.watched; onToggled: Streams.setHideWatched(!parent.filters.watched) }
+            OnOff { width: parent.width; text: "Leave Indian content out"; on: parent.filters.indian !== false; onToggled: Streams.setHideIndian(parent.filters.indian === false) }
+            Hint { text: "Videos whose title or channel is written in an Indian script (Hindi, Bengali, Tamil, Telugu and others)." }
             Row {
                 width: parent.width
                 spacing: 8
@@ -919,6 +976,23 @@ Panel {
                 onToggled: Streams.saveHwdec(!Streams.hwdec)
             }
             Hint { text: "On: the graphics card unpacks the videos. The processor has less to do, and the video takes some video memory (a few hundred MB for a stream). Off: the processor does it, which leaves the video memory to the game but costs processor time. Changes take hold at once." }
+            Item { width: 1; height: 4 }
+            Dropdown {
+                width: parent.width
+                z: 29
+                label: "Video loudness"
+                options: [{ id: "0", name: "Normal" }, { id: "3", name: "+3 dB" }, { id: "6", name: "+6 dB" }, { id: "9", name: "+9 dB" }]
+                current: String(Streams.videoBoost)
+                onChosen: (id) => Streams.saveVideoBoost(parseInt(id))
+            }
+            Hint { text: "Streams and videos are mixed quieter than radio stations: this makes Twitch, YouTube and Jellyfin louder, the radio stays as it is. +6 dB sounds about twice as loud as Normal; very loud videos can distort at +9 dB. Changes take hold at once." }
+            OnOff {
+                width: parent.width
+                text: "Even out loudness"
+                on: Streams.evenLoudness
+                onToggled: Streams.saveEvenLoudness(!Streams.evenLoudness)
+            }
+            Hint { text: "Quiet videos and quiet passages get louder, loud ones softer, as they play: one stream sounds much like the next. Costs mpv a little processor time. Changes take hold at once." }
             }
         }
 
@@ -997,6 +1071,297 @@ Panel {
             Hint { text: "One overlay for every game on Linux. Free software under the GNU GPL 3.0." }
             Hint { text: "The overlay works without the internet. It goes online only for the radio you play, Twitch and YouTube in Streams, SponsorBlock when you switch it on, and to look for its own updates on GitHub." }
             Hint { text: "Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project Authors, both under the SIL Open Font License 1.1." }
+        }
+    }
+
+    // A line of the overlay map's settings: its name, then its choices.
+    component OverlayLine: Row {
+        property string label
+        default property alias content: holder.data
+        width: parent ? parent.width : 400
+        spacing: 10
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow
+            width: 92
+            height: 24
+            verticalAlignment: Text.AlignVCenter
+            text: parent.label
+            color: Theme.muted()
+            font.family: Theme.body
+            font.pixelSize: 12
+        }
+        Flow { id: holder; width: parent.width - 102; spacing: 6 }
+    }
+
+    Component { id: overlayComponent; OverlaySettings { map: settings.mapSource } }
+    Component { id: timersComponent; ScheduleSettings { store: settings.timerStore } }
+
+    // The Event Timers' settings (canvas board T3): where the times come
+    // from, and how alerts show.
+    component ScheduleSettings: Column {
+        id: sch
+        property var store
+        readonly property var p: store.prefs
+        spacing: 8
+        OverlayLine {
+            label: "The game"
+            Chip { text: sch.p.game ? "On" : "Off"; on: sch.p.game; onClicked: sch.store.change({ game: !sch.p.game }) }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                width: parent.width - 60; wrapMode: Text.WordWrap; topPadding: 4
+                text: "boss times when you open a map; read only"; color: Theme.dim(); font.family: Theme.body; font.pixelSize: 12 }
+        }
+        OverlayLine {
+            label: "Fixed times"
+            Chip { text: sch.p.fixed ? "On" : "Off"; on: sch.p.fixed; onClicked: sch.store.change({ fixed: !sch.p.fixed }) }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                width: parent.width - 60; wrapMode: Text.WordWrap; topPadding: 4
+                text: "events and scheduled bosses from the game's tables; offline"; color: Theme.dim(); font.family: Theme.body; font.pixelSize: 12 }
+        }
+        OverlayLine {
+            label: "Aion 2 Timers"
+            Chip { text: sch.p.a2t ? "On" : "Off"; on: sch.p.a2t; onClicked: { sch.store.change({ a2t: !sch.p.a2t }); if (sch.store.prefs.a2t) sch.store.refreshFeed(true) } }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                width: parent.width - 60; wrapMode: Text.WordWrap
+                text: "aion2timers.com (by HomelessGuyNABox) fills in the maps you haven't opened: one request every 5 minutes while the Schedule is open, else every 15 while a boss alert waits. Asks with your server's name only."
+                    + (sch.store.serverSlug() ? " (" + sch.store.serverSlug() + ")" : "")
+                color: Theme.dim(); font.family: Theme.body; font.pixelSize: 12 }
+        }
+        OverlayLine {
+            label: "Server time"
+            Chip { text: "From my server"; on: sch.p.region === "auto"; onClicked: sch.store.change({ region: "auto" }) }
+            Repeater {
+                model: [1, 2, 3, 4, 5]
+                delegate: Chip {
+                    required property int modelData
+                    text: TK.REGIONS[modelData].name
+                    on: sch.p.region !== "auto" && Number(sch.p.region) === modelData
+                    onClicked: sch.store.change({ region: modelData })
+                }
+            }
+        }
+        OverlayLine {
+            label: "Alert"
+            Repeater {
+                model: [1, 3, 5, 10, 15]
+                delegate: Chip {
+                    required property int modelData
+                    text: modelData + " min before"
+                    on: sch.p.lead === modelData
+                    onClicked: sch.store.change({ lead: modelData })
+                }
+            }
+            Chip { text: "Also as it starts"; on: sch.p.atStart; onClicked: sch.store.change({ atStart: !sch.p.atStart }) }
+        }
+        OverlayLine {
+            label: "Show"
+            Chip { text: "Banner"; on: sch.p.banner; onClicked: sch.store.change({ banner: !sch.p.banner }) }
+            Chip { text: "Voice"; on: sch.p.voice; visible: Aion2.canSpeak() || sch.p.voice; onClicked: sch.store.change({ voice: !sch.p.voice }) }
+            Chip { text: "Also while AION 2 is closed"; on: sch.p.closed; onClicked: sch.store.change({ closed: !sch.p.closed }) }
+        }
+        OverlayLine {
+            label: "Sound"
+            Chip { text: "None"; on: sch.p.sound === "none"; onClicked: sch.store.change({ sound: "none" }) }
+            Repeater {
+                model: ["chime", "bell", "ping", "gong", "soft"]
+                delegate: Chip {
+                    required property string modelData
+                    text: modelData
+                    on: sch.p.sound === modelData
+                    onClicked: { sch.store.change({ sound: modelData }); Aion2.chime(modelData, sch.p.volume) }
+                }
+            }
+        }
+        OverlayLine {
+            label: "Volume"
+            HudSlider {
+                width: 150
+                from: 0
+                to: 100
+                value: sch.p.volume
+                onMoved: (v) => { sch.store.change({ volume: Math.round(v) }); Aion2.chime(sch.p.sound === "none" ? "chime" : sch.p.sound, Math.round(v)) }
+            }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                height: 24; verticalAlignment: Text.AlignVCenter
+                text: sch.p.volume + " %"; color: Theme.accent; font.family: Theme.body; font.pixelSize: 12 }
+        }
+        OverlayLine {
+            label: ""
+            Chip { text: "Forget this server's boss times"; onClicked: sch.store.forget() }
+        }
+    }
+
+    // The overlay map's settings (canvas board O2Settings): on, size,
+    // opacity, marks, what it shows, where it hides, places 1 to 3.
+    component OverlaySettings: Column {
+        id: ovs
+        property var map
+        readonly property var o: map.settings.overlay
+        spacing: 8
+        OverlayLine {
+            label: "Overlay map"
+            Chip { text: ovs.o.on ? "Shown over the game" : "Off"; on: ovs.o.on; onClicked: ovs.map.toggleOverlay() }
+        }
+        OverlayLine {
+            label: "Size"
+            Repeater {
+                model: ["s", "m", "l", "xl"]
+                delegate: Chip {
+                    required property string modelData
+                    text: modelData
+                    on: ovs.o.w <= 0 && ovs.o.size === modelData
+                    onClicked: ovs.map.changeOverlay({ size: modelData, w: 0, slot: -1 })
+                }
+            }
+        }
+        OverlayLine {
+            label: "Opacity"
+            HudSlider {
+                width: 150
+                from: 0.1
+                to: 1
+                value: ovs.o.opacity
+                onChanging: (v) => ovs.map.changeOverlay({ opacity: v })
+                onMoved: (v) => ovs.map.changeOverlay({ opacity: v })
+            }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                height: 24
+                verticalAlignment: Text.AlignVCenter
+                textFormat: Text.StyledText
+                text: Math.round(ovs.o.opacity * 100) + " % <font color='" + Theme.dim() + "'>(marks stay solid)</font>"
+                color: Theme.accent
+                font.family: Theme.body
+                font.pixelSize: 12
+            }
+        }
+        OverlayLine {
+            label: "Marks"
+            Repeater {
+                model: [1, 1.25, 1.5, 1.75]
+                delegate: Chip {
+                    required property real modelData
+                    text: Math.round(modelData * 100) + " %"
+                    on: Math.abs(ovs.o.markScale - modelData) < 0.01
+                    onClicked: ovs.map.changeOverlay({ markScale: modelData })
+                }
+            }
+        }
+        OverlayLine {
+            label: "Shows"
+            Chip { text: "The Map's layers"; on: !ovs.o.own; onClicked: ovs.map.changeOverlay({ own: false }) }
+            Chip { text: "Own choice"; on: ovs.o.own; onClicked: ovs.map.changeOverlay({ own: true }) }
+        }
+        OverlayLine {
+            visible: ovs.o.own
+            label: ""
+            Repeater {
+                model: [["pets", "Pets"], ["monsters", "Monsters"], ["gather", "Gathering"], ["cubes", "Hidden Cubes"], ["monoliths", "Feathers"],
+                        ["kibelisks", "Kibelisks"], ["places", "Places"], ["services", "Services"], ["quests", "Quests"], ["npcs", "NPCs"]]
+                delegate: Chip {
+                    required property var modelData
+                    text: modelData[1]
+                    on: !!ovs.o.layers[modelData[0]]
+                    onClicked: {
+                        const l = Object.assign({}, ovs.o.layers)
+                        l[modelData[0]] = !l[modelData[0]]
+                        ovs.map.changeOverlay({ layers: l })
+                    }
+                }
+            }
+        }
+        OverlayLine {
+            label: "Pets"
+            Chip { text: "Line for the pet you farm"; on: ovs.o.farm !== false; onClicked: ovs.map.changeOverlay({ farm: ovs.o.farm === false }) }
+        }
+        OverlayLine {
+            label: "Hide in"
+            Repeater {
+                model: [["instance", "Dungeons"], ["arena", "Arena"], ["abyss", "Abyss"]]
+                delegate: Chip {
+                    required property var modelData
+                    text: modelData[1]
+                    on: !!ovs.o.hideIn[modelData[0]]
+                    onClicked: {
+                        const h = Object.assign({}, ovs.o.hideIn)
+                        h[modelData[0]] = !h[modelData[0]]
+                        ovs.map.changeOverlay({ hideIn: h })
+                    }
+                }
+            }
+        }
+        OverlayLine {
+            label: "Places"
+            Repeater {
+                model: 3
+                delegate: Rectangle {
+                    id: slotBox
+                    required property int index
+                    readonly property bool kept: !!ovs.o.slots[index]
+                    readonly property bool current: ovs.o.slot === index
+                    property bool justKept: false
+                    width: 34
+                    height: 24
+                    color: current ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.14) : slotMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : "transparent"
+                    border.color: current || justKept ? Theme.accent : "#3a3842"
+                    opacity: kept || justKept ? 1 : 0.6
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                        anchors.centerIn: parent
+                        text: slotBox.justKept ? "✓" : String(slotBox.index + 1)
+                        color: slotBox.current || slotBox.justKept ? Theme.accent : Theme.muted()
+                        font.family: Theme.display
+                        font.pixelSize: 11
+                        font.weight: Font.Bold
+                    }
+                    Timer { id: slotKeptTimer; interval: 900; onTriggered: slotBox.justKept = false }
+                    MouseArea {
+                        id: slotMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: (mouse) => {
+                            if (mouse.button === Qt.RightButton) { ovs.map.keepSlot(slotBox.index); slotBox.justKept = true; slotKeptTimer.restart() }
+                            else ovs.map.useSlot(slotBox.index)
+                        }
+                    }
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Place " + (index + 1) + " (right-click: keep where it is now)"
+                }
+            }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                height: 24
+                verticalAlignment: Text.AlignVCenter
+                text: "right-click keeps where it is now"
+                color: Theme.dim()
+                font.family: Theme.body
+                font.pixelSize: 11
+            }
+        }
+        OverlayLine {
+            label: "Shortcut"
+            Rectangle {
+                width: keyText.implicitWidth + 16
+                height: 24
+                color: "transparent"
+                border.color: "#3a3842"
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    id: keyText
+                    anchors.centerIn: parent
+                    text: (settings.keyOf("map-overlay") || "Alt+M").toUpperCase()
+                    color: Theme.textSoft()
+                    font.family: Theme.display
+                    font.pixelSize: 11
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1
+                }
+            }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                width: parent.width - keyText.implicitWidth - 24
+                topPadding: 4
+                wrapMode: Text.WordWrap
+                text: "or right-click MAP in the game row. KDE keeps the keys (Shortcuts tab)."
+                color: Theme.dim()
+                font.family: Theme.body
+                font.pixelSize: 11
+            }
         }
     }
 

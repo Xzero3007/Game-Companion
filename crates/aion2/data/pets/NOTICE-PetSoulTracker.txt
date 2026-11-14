@@ -1,0 +1,12 @@
+The Pets tab (list.js, pets.js, sources.js and the #petsView styles in
+style.css) is the Pet Soul Tracker plugin by A2 Tools, from
+https://github.com/taengu/A2Tools-Plugins (plugins/pet-souls, version 0.4.9),
+with the Clicktrough fork's patches (clicktrough/plugins/pet-souls) and the
+changes that make it a tab of Pet Finder (marked "Clicktrough" in list.js).
+
+A2Tools-Plugins is licensed under the GNU General Public License, version 3
+(see LICENSE). Pet Finder's own parts stay under the GPL version 3 or later;
+Pet Finder as a whole, with these parts, is distributed under the GPL
+version 3.
+
+AION 2 names, texts and game data belong to their respective owners.

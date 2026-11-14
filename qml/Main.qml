@@ -20,6 +20,12 @@ Overlay {
     property bool gamesOpen: false
     property bool dpsOpen: false
     property bool mapOpen: false
+    property bool marketOpen: false
+    property bool charactersOpen: false
+    property bool scheduleOpen: false
+    property bool bossOpen: false
+    property bool lootOpen: false
+    property bool armoryOpen: false
     /// The person closed the DPS panel: it stays closed when AION 2 starts.
     property bool dpsClosed: false
     /// The game id AION 2 runs under (its module stops when that one ends).
@@ -28,16 +34,32 @@ Overlay {
         aionId = id
         // The package and its meter can be switched off (Settings → Plugins).
         if (!Plugins.loads(plugins, "aion2")) return
-        if (!Plugins.choice(plugins, "aion2.dps").on && !Plugins.choice(plugins, "aion2.map").on) return
+        if (!["aion2.dps", "aion2.map", "aion2.market", "aion2.characters", "aion2.timers", "aion2.boss", "aion2.inventory", "aion2.closet", "aion2.shugo", "aion2.armory"].some((id) => Plugins.choice(plugins, id).on)) return
         Aion2.start()
         if (!dpsClosed && Plugins.inBar(plugins, "aion2.dps")) dpsOpen = true
     }
     readonly property var plugins: JSON.parse(Companion.plugins)
+    /// The AION 2 package and its Map are switched on (Settings → Plugins).
+    readonly property bool mapUsable: Plugins.loads(plugins, "aion2") && Plugins.choice(plugins, "aion2.map").on
     readonly property var keys: JSON.parse(Companion.shortcuts)
     readonly property var pins: JSON.parse(Companion.pins)
 
     // On screen: with the hub, or pinned while it is hidden.
-    function onScreen(id) { return Companion.shown || pins.indexOf(id) >= 0 }
+    function onScreen(id) { return Companion.shown || pins.indexOf(id) >= 0 || rowShown.indexOf(id) >= 0 }
+
+    // Panels opened from the pinned game row while the hub is hidden: they
+    // show although they are not pinned, until the hub is shown or hidden
+    // again (MN: with the bar hidden, the row's buttons opened nothing).
+    property var rowShown: []
+    function fromRow(id, open) {
+        if (onScreen(id)) return !open
+        rowShown = rowShown.concat([id])
+        return true
+    }
+    Connections {
+        target: Companion
+        function onShownChanged() { root.rowShown = [] }
+    }
 
     function keyOf(id) {
         for (const k of keys) if (k.id === id) return k.key
@@ -50,6 +72,12 @@ Overlay {
         if (gamesOpen) ids.push("games")
         if (dpsOpen) ids.push("dps")
         if (mapOpen) ids.push("map")
+        if (marketOpen) ids.push("market")
+        if (charactersOpen) ids.push("characters")
+        if (scheduleOpen) ids.push("schedule")
+        if (bossOpen) ids.push("boss")
+        if (lootOpen) ids.push("loot")
+        if (armoryOpen) ids.push("armory")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
@@ -58,11 +86,42 @@ Overlay {
         gamesOpen = ids.indexOf("games") >= 0
         dpsOpen = ids.indexOf("dps") >= 0
         mapOpen = ids.indexOf("map") >= 0
+        marketOpen = ids.indexOf("market") >= 0
+        charactersOpen = ids.indexOf("characters") >= 0
+        scheduleOpen = ids.indexOf("schedule") >= 0
+        bossOpen = ids.indexOf("boss") >= 0
+        lootOpen = ids.indexOf("loot") >= 0
+        armoryOpen = ids.indexOf("armory") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
 
+    // The open panels are kept, so an update or a restart brings back what
+    // was open (MN: the DPS panel came back after every update, because
+    // "closed by hand" was only remembered while the app ran).
+    property bool keepsOpen: false
+    readonly property string openState: JSON.stringify(openPanels()) + (dpsClosed ? "1" : "0")
+    onOpenStateChanged: if (keepsOpen) keepOpen.restart()
+    Timer {
+        id: keepOpen
+        interval: 500
+        onTriggered: Companion.saveOpenPanels(JSON.stringify(root.openPanels()), root.dpsClosed)
+    }
+    function restoreOpen() {
+        if (nativeWindow.demo.length > 0) return
+        try {
+            const kept = Companion.openPanels()
+            if (kept.length > 0) {
+                const k = JSON.parse(kept)
+                openFrom(k.open || [])
+                dpsClosed = k.dpsClosed === true
+            }
+        } catch (e) { }
+        keepsOpen = true
+    }
+
     Component.onCompleted: {
+        restoreOpen()
         const demo = nativeWindow.demo.split(",")
         if (demo.indexOf("unlocked") >= 0 && Companion.locked) Companion.toggleLocked()
         if (demo.indexOf("settings") >= 0) settingsOpen = true
@@ -70,6 +129,13 @@ Overlay {
         if (demo.indexOf("games") >= 0) gamesOpen = true
         if (demo.indexOf("dps") >= 0) dpsOpen = true
         if (demo.indexOf("map") >= 0) mapOpen = true
+        if (demo.indexOf("market") >= 0) marketOpen = true
+        if (demo.indexOf("chars") >= 0) charactersOpen = true
+        if (demo.indexOf("schedule") >= 0) scheduleOpen = true
+        if (demo.indexOf("alert") >= 0) alertBanner.show("Bodyguard Teegant", "Verteron", Date.now() + 5 * 60000 + 30000)
+        if (demo.indexOf("boss") >= 0) bossOpen = true
+        if (demo.indexOf("armory") >= 0) armoryOpen = true
+        if (demo.indexOf("loot") >= 0) lootOpen = demo.indexOf("shop") < 0 || demo.indexOf("panel") >= 0
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("games") >= 0) games.demo(demo)
@@ -88,6 +154,8 @@ Overlay {
         function onShownChanged() { if (!Companion.shown) hubHint.flash() }
         // From the tray's menu (the hub is shown already).
         function onSettingsRequested() { root.settingsOpen = true }
+        // Alt+M (KDE's shortcuts): the overlay map, while the Map plugin is on.
+        function onShortcutPressed(id) { if (id === "map-overlay" && root.mapUsable) mapPanel.toggleOverlay() }
         function onUpdatesRequested() {
             root.settingsOpen = true
             settings.tab = "general"
@@ -191,12 +259,6 @@ Overlay {
             radioOpen: root.radioOpen
             gamesOpen: root.gamesOpen
             onGamesClicked: root.gamesOpen = !root.gamesOpen
-            dpsShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.dps")) || root.dpsOpen
-            dpsOpen: root.dpsOpen
-            onDpsClicked: { root.dpsOpen = !root.dpsOpen; root.dpsClosed = !root.dpsOpen }
-            mapShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.map")) || root.mapOpen
-            mapOpen: root.mapOpen
-            onMapClicked: root.mapOpen = !root.mapOpen
             gameName: Games.runningName
             gameHasModule: Games.runningKnown.length > 0
             streamsOpen: root.streamsOpen
@@ -209,6 +271,48 @@ Overlay {
                 Companion.saveBarOffset(x - (root.width - shownWidth) / 2)
                 dragShift = 0
             }
+        }
+    }
+
+    // The running game's row under the bar: its module's buttons. It can be
+    // pinned, and then stays at the top while the hub is hidden.
+    Surface {
+        wanted: gameRow.active && root.onScreen("game-row")
+        stack: 5
+        part: GameRow {
+            id: gameRow
+            transformOrigin: Item.TopLeft
+            scale: Companion.barScale
+            readonly property bool onScreen: active && root.onScreen("game-row")
+            x: Math.max(0, Math.min(root.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
+            y: Companion.shown ? bar.height * bar.scale : 0
+            gameName: Games.runningName.length > 0 ? Games.runningName : "AION 2"
+            dpsShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.dps")) || root.dpsOpen
+            dpsOpen: root.dpsOpen
+            onDpsClicked: { root.dpsOpen = root.fromRow("dps", root.dpsOpen); root.dpsClosed = !root.dpsOpen }
+            mapShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.map")) || root.mapOpen
+            mapOpen: root.mapOpen
+            onMapClicked: root.mapOpen = root.fromRow("map", root.mapOpen)
+            overlayOn: mapPanel.settings.overlay.on
+            onMapOverlayClicked: mapPanel.toggleOverlay()
+            marketShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.market")) || root.marketOpen
+            marketOpen: root.marketOpen
+            onMarketClicked: root.marketOpen = root.fromRow("market", root.marketOpen)
+            charactersShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.characters")) || root.charactersOpen || characterStore.demo
+            charactersOpen: root.charactersOpen
+            onCharactersClicked: root.charactersOpen = root.fromRow("characters", root.charactersOpen)
+            scheduleShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.timers")) || root.scheduleOpen || timerStore.demo
+            scheduleOpen: root.scheduleOpen
+            onScheduleClicked: root.scheduleOpen = root.fromRow("schedule", root.scheduleOpen)
+            bossShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.boss")) || root.bossOpen
+            bossOpen: root.bossOpen
+            onBossClicked: root.bossOpen = root.fromRow("boss", root.bossOpen)
+            lootShown: (Aion2.active && root.lootInBar) || root.lootOpen || lootStore.demo
+            lootOpen: root.lootOpen
+            onLootClicked: root.lootOpen = root.fromRow("loot", root.lootOpen)
+            armoryShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.armory")) || root.armoryOpen || armoryStore.demo
+            armoryOpen: root.armoryOpen
+            onArmoryClicked: root.armoryOpen = root.fromRow("armory", root.armoryOpen)
         }
     }
 
@@ -248,11 +352,11 @@ Overlay {
         part: PlayerRow {
             id: playerRow
             videos: [twitchVideo, youtubeVideo, jellyfinVideo]
-            // Under the bar, as big as it, following it sideways.
+            // Under the bar (and the game's row), as big as it, following it sideways.
             transformOrigin: Item.TopLeft
             scale: Companion.barScale
             x: Math.max(0, Math.min(root.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
-            y: Companion.shown ? bar.height * bar.scale : 0
+            y: (gameRow.onScreen ? gameRow.y + gameRow.height * gameRow.scale : Companion.shown ? bar.height * bar.scale : 0) + (gameRow.onScreen ? 2 : 0)
         }
     }
 
@@ -263,7 +367,8 @@ Overlay {
         part: HubHint {
             id: hubHint
             x: (root.width - width) / 2
-            y: playerRowShown ? playerRow.y + playerRow.height * playerRow.scale + 6 : 6
+            y: playerRowShown ? playerRow.y + playerRow.height * playerRow.scale + 6
+                : gameRow.onScreen ? gameRow.y + gameRow.height * gameRow.scale + 6 : 6
             readonly property bool playerRowShown: playerRow.active && root.onScreen("player-row")
             key: root.keyOf("toggle")
         }
@@ -305,9 +410,187 @@ Overlay {
         wanted: root.mapOpen && root.onScreen("map")
         stack: 3
         part: MapPanel {
+            id: mapPanel
             defaultX: Math.max(24, (root.width - width) / 2)
             defaultY: 140
+            overlayItem: mapOverlay
             onCloseClicked: root.mapOpen = false
+        }
+    }
+
+    // The overlay map: follows you over the game, with the hub or without.
+    Surface {
+        id: overlaySurface
+        wanted: mapOverlay.wanted && root.mapUsable && (Aion2.active || mapOverlay.demo)
+        stack: 2
+        part: MapOverlay {
+            id: mapOverlay
+            source: mapPanel
+            demo: nativeWindow.demo.split(",").indexOf("overlay") >= 0
+            shown: overlaySurface.wanted
+        }
+    }
+
+    Surface {
+        wanted: root.marketOpen && root.onScreen("market")
+        stack: 3
+        part: MarketPanel {
+            onShowOnMap: (name) => { root.mapOpen = true; Qt.callLater(() => mapPanel.focusGather(name)) }
+            defaultX: Math.max(24, (root.width - width) / 2 + 40)
+            defaultY: 160
+            onCloseClicked: root.marketOpen = false
+        }
+    }
+
+    // Every character the game showed, kept while the app runs (the
+    // Characters panel and later areas read it).
+    CharacterStore { id: characterStore }
+
+    Surface {
+        wanted: root.charactersOpen && root.onScreen("characters")
+        stack: 3
+        part: CharactersPanel {
+            store: characterStore
+            armory: armoryStore
+            defaultX: Math.max(24, (root.width - width) / 2 - 40)
+            defaultY: 150
+            onCloseClicked: root.charactersOpen = false
+        }
+    }
+
+    // The Schedule's memory and alerts (bosses the game told, fixed times).
+    TimerStore {
+        id: timerStore
+        characters: characterStore
+        onAlerted: (name, where, start) => alertBanner.show(name, where, start)
+    }
+
+    Surface {
+        wanted: root.scheduleOpen && root.onScreen("schedule")
+        stack: 3
+        part: SchedulePanel {
+            store: timerStore
+            defaultX: Math.max(24, (root.width - width) / 2 + 60)
+            defaultY: 170
+            onCloseClicked: root.scheduleOpen = false
+            onShowOnMap: (id, name) => { if (!root.mapUsable) return; root.mapOpen = true; Qt.callLater(() => mapPanel.focusBoss(id, name)) }
+        }
+    }
+
+    // An alert over the game: with the hub or without, never in the way
+    // for long (20 s, or a click).
+    Surface {
+        wanted: alertBanner.shown
+        stack: 6
+        part: AlertBanner {
+            id: alertBanner
+            store: timerStore
+            x: (root.width - width) / 2
+            y: Companion.shown ? bar.height * bar.scale + 52 : 8
+        }
+    }
+
+    // The Boss area: its rules run while the app runs (they only work
+    // while AION 2 runs and something is heard).
+    BossBrain { id: bossBrain }
+    readonly property bool bossUsable: Plugins.loads(plugins, "aion2") && Plugins.choice(plugins, "aion2.boss").on
+
+    Surface {
+        wanted: root.bossOpen && root.onScreen("boss")
+        stack: 3
+        part: BossPanel {
+            brain: bossBrain
+            defaultX: Math.max(24, (root.width - width) / 2 + 20)
+            defaultY: 150
+            onCloseClicked: root.bossOpen = false
+        }
+    }
+    // Your sheet over the game in a boss fight, the cheat sheet in its
+    // dungeon: with the hub or without.
+    Surface {
+        wanted: bossOverlay.wanted && root.bossUsable && (Aion2.active || bossBrain.previewDungeon !== "" || bossBrain.demo.indexOf("bossfight") >= 0 || bossBrain.demo.indexOf("ludra") >= 0)
+        stack: 2
+        part: BossOverlay { id: bossOverlay; brain: bossBrain }
+    }
+    // The big call: only while a call runs.
+    Surface {
+        wanted: bossCall.wanted && root.bossUsable
+        stack: 6
+        part: BossCall { id: bossCall; brain: bossBrain }
+    }
+
+    // LOOT (Inventory, Closet, Shugo Cards): learns while the app runs;
+    // prices are the Market's, asked only while LOOT or the shop window shows.
+    function lootOn(id) { return Plugins.loads(plugins, "aion2") && Plugins.choice(plugins, id).on }
+    readonly property bool lootInBar: ["aion2.inventory", "aion2.closet", "aion2.shugo"].some((id) => Plugins.inBar(plugins, id))
+    PriceBook {
+        id: priceBook
+        demo: lootStore.demo
+        wanted: root.lootOpen || lootStore.windowWanted || root.armoryOpen
+        gameServer: {
+            try { const e = JSON.parse(Aion2.fight).extras; if (e && e.server) return e.server } catch (x) { }
+            return lootStore.character && lootStore.character.serverId ? lootStore.character.serverId : 0
+        }
+    }
+    LootStore { id: lootStore; book: priceBook }
+
+    // The Armory: characters from NC's official pages and the builds they
+    // aim at; it notes the game's own numbers while the app runs.
+    ArmoryStore { id: armoryStore; book: priceBook; on: root.lootOn("aion2.armory") }
+
+    Surface {
+        wanted: root.armoryOpen && root.onScreen("armory")
+        stack: 3
+        part: ArmoryPanel {
+            store: armoryStore
+            characters: characterStore
+            defaultX: Math.max(24, (root.width - width) / 2)
+            defaultY: 140
+            onCloseClicked: root.armoryOpen = false
+        }
+    }
+
+    Surface {
+        wanted: root.lootOpen && root.onScreen("loot")
+        stack: 3
+        part: LootPanel {
+            store: lootStore
+            book: priceBook
+            itemsOn: root.lootOn("aion2.inventory") || lootStore.demo
+            closetOn: root.lootOn("aion2.closet") || lootStore.demo
+            cardsOn: root.lootOn("aion2.shugo") || lootStore.demo
+            defaultX: Math.max(24, (root.width - width) / 2 + 20)
+            defaultY: 170
+            onCloseClicked: root.lootOpen = false
+        }
+    }
+    // The Closet's window at the Black Cloud shop: takes the mouse while it
+    // shows, also locked (its list scrolls).
+    Surface {
+        id: closetSurface
+        wanted: lootStore.windowWanted && (root.lootOn("aion2.closet") || lootStore.demo) && (Aion2.active || lootStore.demo)
+        stack: 4
+        lockItem: closetWindow
+        part: ClosetWindow {
+            id: closetWindow
+            store: lootStore
+            book: priceBook
+            defaultX: Math.max(24, root.width - width - 60)
+            defaultY: 220
+            onCloseClicked: lootStore.dismiss()
+        }
+    }
+
+    // The farm window: opens by itself while you farm (open world or a
+    // dungeon); click-through while locked.
+    Surface {
+        wanted: lootStore.farmWanted && (root.lootOn("aion2.inventory") || lootStore.demo) && (Aion2.active || lootStore.demo)
+        stack: 4
+        part: FarmWindow {
+            store: lootStore
+            defaultX: Math.max(24, root.width - width - 60)
+            defaultY: 120
+            onCloseClicked: lootStore.dismissFarm()
         }
     }
 
@@ -343,6 +626,8 @@ Overlay {
         part: SettingsPanel {
             id: settings
             pinnable: false
+            mapSource: mapPanel
+            timerStore: timerStore
             defaultX: root.width - width - 24
             defaultY: 120
             onCloseClicked: root.settingsOpen = false

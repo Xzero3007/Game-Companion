@@ -16,6 +16,8 @@ Item {
     property string slot
     readonly property string panelId: "video-" + slot
     readonly property bool jelly: slot === "jellyfin"
+    /// A Jellyfin music track: its album's cover shows, and the album plays on.
+    readonly property bool music: jelly && !!item && !!item.item && item.item.type === "Audio"
     readonly property string label: slot === "twitch" ? "Twitch" : jelly ? "Jellyfin" : "YouTube"
     /// What plays: { kind, id, name, title } (Jellyfin: and `item`, the
     /// panel's item, and `start`, where to begin).
@@ -184,8 +186,12 @@ Item {
         video.volume = mpvVolume(volume)
         Streams.saveVolume(volume)
     }
-    // mpv's volume is cubic: the bar works like a browser's.
-    function mpvVolume(v) { return 100 * Math.cbrt(v / 100) }
+    // mpv's volume is cubic: the bar works like a browser's. Settings →
+    // Streams "Video loudness" adds its dB on top (mpv's volume is the cube
+    // root of the gain: +6 dB is 100 × 10^(6/60) ≈ 126).
+    function mpvVolume(v) { return 100 * Math.cbrt(v / 100) * Math.pow(10, Streams.videoBoost / 60) }
+    readonly property int boost: Streams.videoBoost
+    onBoostChanged: if (video) video.volume = mpvVolume(volume)
     // Stuck: the time stands still for 4 seconds while it should play (20
     // while it loads): a fresh address from yt-dlp (or Streamlink), at the
     // same spot. Three tries in a row, then it says so.
@@ -262,6 +268,11 @@ Item {
         function onNextFound(slot, after, next) {
             if (slot !== win.slot || !win.item || win.item.id !== after || next.length === 0) return
             const it = JSON.parse(next)
+            // The album's next (or previous) track: at once.
+            if (it.type === "Audio") {
+                win.play({ kind: "jellyfin", id: it.id, title: it.name, name: it.sub, item: it, start: 0 })
+                return
+            }
             win.nextItem = it
             win.nextNote = "NEXT: " + (it.code ? it.code + " · " : "") + it.name
             nextTimer.restart()
@@ -356,6 +367,7 @@ Item {
                 win.jfStopped()
                 const it = win.item.item
                 if (Jellyfin.autoNext && it && it.type === "Episode" && it.seriesId) Jellyfin.findNext(win.slot, it.seriesId, win.item.id)
+                else if (it && it.type === "Audio" && it.albumId) Jellyfin.findTrack(win.slot, it.albumId, win.item.id, 1)
             }
         }
         function onPausedChanged() { if (win.jf.started) win.jfReport("progress") }
@@ -520,9 +532,24 @@ Item {
                 opacity: win.videoOpacity
                 visible: drawable
                 hwdec: Streams.hwdec
+                levelling: Streams.evenLoudness
                 // Jellyfin: the home network's server, nothing else.
                 local: win.jelly
             }
+        }
+    }
+    // A music track: its album's cover over the (empty or tiny) picture.
+    Rectangle {
+        anchors.fill: parent
+        visible: win.music
+        color: "#0e0d11"
+        opacity: win.videoOpacity
+        Image {
+            anchors.fill: parent
+            anchors.margins: 12
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true
+            source: win.music ? (win.item.item.picture || "") : ""
         }
     }
     readonly property var video: videoLoader.item || idleVideo
@@ -562,13 +589,6 @@ Item {
         font.pixelSize: 13
         font.weight: Font.Bold
         font.letterSpacing: 3
-    }
-    Rectangle {
-        visible: !Companion.locked
-        anchors.top: parent.top
-        width: parent.width
-        height: 2
-        color: Theme.accent
     }
 
     // The pointer anywhere on the window, its buttons too, keeps the bars;
@@ -790,8 +810,26 @@ Item {
                 onStepped: (d) => win.setVolume(win.volume + d)
                 onPicked: (v) => win.setVolume(v)
             }
-            SeekButton { back: true }
-            SeekButton { back: false }
+            IconButton {
+                visible: win.music && !!win.item.item.albumId
+                anchors.verticalCenter: parent.verticalCenter
+                icon: "prev"
+                iconSize: 13
+                color: Theme.text()
+                tip: "Previous track"
+                onClicked: Jellyfin.findTrack(win.slot, win.item.item.albumId, win.item.id, -1)
+            }
+            IconButton {
+                visible: win.music && !!win.item.item.albumId
+                anchors.verticalCenter: parent.verticalCenter
+                icon: "next"
+                iconSize: 13
+                color: Theme.text()
+                tip: "Next track"
+                onClicked: Jellyfin.findTrack(win.slot, win.item.item.albumId, win.item.id, 1)
+            }
+            SeekButton { back: true; visible: !win.music && video.duration > 0 }
+            SeekButton { back: false; visible: !win.music && video.duration > 0 }
             IconButton {
                 visible: !!win.nextInQueue
                 anchors.verticalCenter: parent.verticalCenter
@@ -1144,8 +1182,8 @@ Item {
         anchors.bottomMargin: win.showBars ? 64 : 14
         width: skipText.implicitWidth + 28
         height: 34
+        // No gold frame on a video (MN): the gold label is enough.
         color: skipMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.25) : Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.85)
-        border.color: Theme.accent
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: skipText
             anchors.centerIn: parent
@@ -1172,7 +1210,6 @@ Item {
         width: Math.min(parent.width - 40, nextColumn.implicitWidth + 32)
         height: nextColumn.implicitHeight + 24
         color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.9)
-        Rectangle { width: parent.width; height: 2; color: Theme.accent }
         Column {
             id: nextColumn
             anchors.centerIn: parent
@@ -1218,9 +1255,11 @@ Item {
         return h > 0 ? h + ":" + two(m) + ":" + two(sec) : m + ":" + two(sec)
     }
 
-    // The size corner (unlocked): 16:9 kept.
+    // The size corner (unlocked, with the bars while the pointer is on the
+    // video): 16:9 kept. No gold edge otherwise (MN: it was in the way
+    // while watching).
     Item {
-        visible: !Companion.locked && !win.fullScreen
+        visible: !Companion.locked && !win.fullScreen && (win.showBars || sizeMouse.pressed)
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         width: 18
@@ -1237,6 +1276,7 @@ Item {
             }
         }
         MouseArea {
+            id: sizeMouse
             anchors.fill: parent
             anchors.margins: -4
             cursorShape: Qt.SizeFDiagCursor

@@ -1,0 +1,15 @@
+The soul binding lists in data.js (which stats, in which range and by which
+weight, and which skill effects each item's soul binding can give, and how
+many), the Arcana cards, the grades of Manastones and Theostones and the
+names of stats and skills by their ids are AION 2's game data, read from
+the game's files; they are taken from questlog.gg's item database (an unofficial fan site, not affiliated with
+NCSOFT), which its character builder uses. The share of the stats against
+the skill effects (80 to 20) is NCSOFT's probability notice as Aion2Data
+reads it.
+
+What the strongest players keep (data.js "top") is counted from the
+characters on Shugo.GG's combat power leaderboard (an unofficial fan site,
+not affiliated with NCSOFT), as NC's AION 2 character pages show them. Only
+the counts are kept: no names, servers or ids.
+
+AION is a trademark of NCSOFT Corporation; game data and art belong to it.

@@ -57,9 +57,14 @@ public:
     /// Where a part's window takes clicks (its own coordinates): `all` for
     /// everywhere, else only `rects` (none: clicks go through to the game).
     Q_INVOKABLE void setInput(QQuickWindow *window, bool all, const QVariantList &rects);
-    /// Whether a part may take the keyboard (only while unlocked, and only
-    /// when clicked into: the game keeps it otherwise).
+    /// Whether a part may take the keyboard (only while unlocked). It takes
+    /// it only once it is clicked into: KWin hands the keyboard (and with
+    /// it the game's mouse) to an overlay surface the moment that surface
+    /// accepts keys, so a part that opens by itself, or the unlock, must
+    /// never make it accept them.
     Q_INVOKABLE void setKeyboard(QQuickWindow *window, bool wanted);
+
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
     /// For screenshots: every part shown, as on the screen.
     bool screenshot(const QString &file) const;
@@ -73,6 +78,8 @@ signals:
 
 private:
     QScreen *screen() const;
+    /// Gives the layer surface keyboard on demand, or none.
+    void applyKeyboard(QQuickWindow *window, bool on);
     /// KDE's primary screen, by its connector name, from KWin's own output
     /// settings ("" when unknown).
     QString kdePrimary() const;

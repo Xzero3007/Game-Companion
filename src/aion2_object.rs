@@ -49,6 +49,22 @@ pub mod qobject {
         /// The world around the player for the map: JSON {"zone", "me"
         /// {x,y,z}, "mobs", "objects", ...} ("{}" until something is known).
         #[qproperty(QString, world)]
+        /// Who plays and what the game said of them (the meter's
+        /// `character` event, `Engine::character`): JSON, "null" before
+        /// anyone is known.
+        #[qproperty(QString, character)]
+        /// Pet Finder: the pet collection of the server last played on
+        /// (`aion2::pets`): JSON {"server", "synced" ms (0: never), "levels",
+        /// "souls", "farmed"}, kept on disk between runs.
+        #[qproperty(QString, pets)]
+        /// The field bosses of the maps the player opened in the game, as
+        /// it told them: JSON [{"map", "seen" ms, "bosses": [{"id", "up",
+        /// "time" ms}]}] ("[]" until a map is opened). The Schedule keeps them.
+        #[qproperty(QString, boss_maps)]
+        /// The monsters fought now and the dungeon you are in, for the Boss
+        /// panel: JSON {"fought": [{entity, npc, name, boss, hp, maxHp,
+        /// since, dungeon}], "dungeon": id (0 none)}.
+        #[qproperty(QString, combat)]
         type Aion2 = super::Aion2Rust;
 
         /// Starts reading (AION 2 started).
@@ -83,9 +99,154 @@ pub mod qobject {
         #[qinvokable]
         fn map_settings(self: &Aion2) -> QString;
 
+        /// Pet Finder's tables (pets.json in the module's data: names,
+        /// genus, where each pet's souls drop), "{}" when missing.
+        #[qinvokable]
+        fn pet_data(self: &Aion2) -> QString;
+
+        /// The Armory's tables (armory/data.json in the module's data: the
+        /// game's enhance tables, items, soul bindings, stats' words, the
+        /// strongest players' counts), "{}" when missing.
+        #[qinvokable]
+        fn armory_data(self: &Aion2) -> QString;
+
+        /// The Armory bookmark's files in the Downloads folder
+        /// (armory-*.json, the newest first): JSON [{name, at, size}].
+        #[qinvokable]
+        fn armory_files(self: &Aion2) -> QString;
+
+        /// One of those files' text (by its name, at most 8 MB), "" if not.
+        #[qinvokable]
+        fn armory_file(self: &Aion2, name: &QString) -> QString;
+
         /// Keeps the Map's choices (JSON, at most 64 KB).
         #[qinvokable]
         fn save_map_settings(self: &Aion2, json: &QString);
+
+        /// Asks the Market's price sources for `url` (Clicktrough's copy or
+        /// aion2.exchange only) or the Armory's (NC's character pages and
+        /// search, `armory::allowed`); the answer comes as `web_got(id, ...)`.
+        #[qinvokable]
+        fn web_get(self: Pin<&mut Aion2>, id: i32, url: &QString);
+
+        /// An answer of `web_get`: ok and the text, or not and why.
+        #[qsignal]
+        fn web_got(self: Pin<&mut Aion2>, id: i32, ok: bool, body: QString);
+
+        /// A game icon as a file URL when it is kept, else "" and it is
+        /// downloaded once (`icon_ready` then).
+        #[qinvokable]
+        fn icon(self: Pin<&mut Aion2>, name: &QString) -> QString;
+
+        /// An icon is kept now.
+        #[qsignal]
+        fn icon_ready(self: Pin<&mut Aion2>, name: QString);
+
+        /// A module's own file (aion2-<key>.json), "" for none.
+        #[qinvokable]
+        fn load_store(self: &Aion2, key: &QString) -> QString;
+
+        /// Keeps a module's own file (JSON, at most 4 MB), in the background.
+        #[qinvokable]
+        fn keep_store(self: &Aion2, key: &QString, json: &QString);
+
+        /// What bosses did (casts, skills, buffs on and off), at once: JSON
+        /// list of {t: cast|use|wave|added|removed, caster|entity, skill|
+        /// abnormal, instance, length, at}.
+        #[qsignal]
+        fn boss_heard(self: Pin<&mut Aion2>, events: QString);
+
+        /// Says a line with the module's voice: the built-in clip for it,
+        /// else (or with `own`) the computer's voice. `high` cuts off a low
+        /// line still being read. Volume 0 to 100, rate 0.5 to 2.
+        #[qinvokable]
+        fn say(self: &Aion2, text: &QString, high: bool, own: bool, volume: i32, rate: f64);
+
+        /// A short beep (Vakron's jump waves).
+        #[qinvokable]
+        fn beep(self: &Aion2, volume: i32);
+
+        /// Stops what the voice reads.
+        #[qinvokable]
+        fn hush(self: &Aion2);
+
+        /// Whether there is a built-in clip for these words.
+        #[qinvokable]
+        fn has_clip(self: &Aion2, text: &QString) -> bool;
+
+        /// Whether the computer's voice (spd-say) is installed.
+        #[qinvokable]
+        fn system_voice(self: &Aion2) -> bool;
+
+        /// The player's items as the old meter's `items` event had them
+        /// (`aion2::capture::items`): the containers, the changes and the
+        /// pickups since the last one. Each change of them, in order.
+        #[qsignal]
+        fn items_event(self: Pin<&mut Aion2>, json: QString);
+
+        /// The items now, without changes (an area starting).
+        #[qinvokable]
+        fn items_now(self: &Aion2) -> QString;
+
+        /// Frames the areas' decoders read (`aion2::decoders`), in order:
+        /// JSON [{"name", "at", "data"}].
+        #[qsignal]
+        fn decoded(self: Pin<&mut Aion2>, json: QString);
+
+        /// LOOT's own files (loot-<key>.json in the module's data folder),
+        /// "" for none.
+        #[qinvokable]
+        fn load_loot(self: &Aion2, key: &QString) -> QString;
+
+        /// Keeps one of LOOT's files (JSON, at most 4 MB), in the background.
+        #[qinvokable]
+        fn keep_loot(self: &Aion2, key: &QString, json: &QString);
+
+        /// Reads the old Clicktrough meter's Inventory, Closet and Shugo
+        /// Cards data (local files, read only) in the background; the
+        /// answer comes as `meter_got` (JSON, "{}" when none).
+        #[qinvokable]
+        fn meter_read(self: Pin<&mut Aion2>);
+
+        /// The meter's data that `meter_read` found.
+        #[qsignal]
+        fn meter_got(self: Pin<&mut Aion2>, json: QString);
+
+        /// Reads the old Clicktrough meter's Armory data (local files, read
+        /// only) in the background; the answer comes as `meter_armory_got`.
+        #[qinvokable]
+        fn meter_read_armory(self: Pin<&mut Aion2>);
+
+        /// The meter's Armory data that `meter_read_armory` found.
+        #[qsignal]
+        fn meter_armory_got(self: Pin<&mut Aion2>, json: QString);
+
+        /// The game's servers by number, their English names: JSON
+        /// {"1001": "Siel", ...} (the meter's list, in the package).
+        #[qinvokable]
+        fn server_names(self: &Aion2) -> QString;
+
+        /// Plays the Schedule's alert sound (one of `alert::SOUNDS`), in the
+        /// background, at `volume` (0 to 100).
+        #[qinvokable]
+        fn chime(self: &Aion2, sound: &QString, volume: i32);
+
+        /// Asks Aion 2 Timers for a server's field boss feed ("eu-marchutan");
+        /// the answer comes as `timers_got`.
+        #[qinvokable]
+        fn timers_get(self: Pin<&mut Aion2>, server: &QString);
+
+        /// Aion 2 Timers' answer: ok and the feed (JSON), or not and why.
+        #[qsignal]
+        fn timers_got(self: Pin<&mut Aion2>, ok: bool, body: QString);
+
+        /// Says `text` with the desktop's speech (speech-dispatcher), if any.
+        #[qinvokable]
+        fn speak(self: &Aion2, text: &QString);
+
+        /// Whether the desktop can speak (spd-say is there).
+        #[qinvokable]
+        fn can_speak(self: &Aion2) -> bool;
     }
 
     impl cxx_qt::Threading for Aion2 {}
@@ -101,12 +262,20 @@ pub struct Aion2Rust {
     skills: QString,
     history: QString,
     world: QString,
+    character: QString,
+    pets: QString,
+    boss_maps: QString,
+    combat: QString,
     opened: QString,
     /// The live fight while a saved one is shown.
     live: String,
     /// `picked`, for the watch thread.
     wanted: Arc<AtomicI32>,
     engine: Option<Arc<Engine>>,
+    /// Icons being downloaded (asked once each).
+    /// Icons asked for, with when: a failed download is tried again after
+    /// `ICON_RETRY` (MN, 0.8.13: some pictures never came).
+    icons_asked: Arc<Mutex<std::collections::HashMap<String, std::time::Instant>>>,
     /// Ends the watch thread of the engine that runs now.
     watching: Option<Arc<AtomicBool>>,
 }
@@ -122,10 +291,15 @@ impl Default for Aion2Rust {
             skills: QString::from("[]"),
             history: QString::from("[]"),
             world: QString::from("{}"),
+            character: QString::from("null"),
+            pets: QString::from("{}"),
+            boss_maps: QString::from("[]"),
+            combat: QString::from(r#"{"fought":[],"dungeon":0}"#),
             opened: QString::default(),
             live: EMPTY.to_string(),
             wanted: Arc::new(AtomicI32::new(0)),
             engine: None,
+            icons_asked: Arc::default(),
             watching: None,
         }
     }
@@ -173,10 +347,19 @@ impl cxx_qt::Initialize for qobject::Aion2 {
             self.as_mut().set_active(true);
             self.as_mut().set_world(QString::from(DEMO_WORLD));
         }
+        // GC_DEMO=…,pets: a made-up collection, Fossa being farmed.
+        let demo_pets = std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "pets"));
+        let pets = if demo_pets {
+            demo_pets_json()
+        } else {
+            aion2::pets::load_shown(&aion2::pets::default_file()).to_string()
+        };
+        self.as_mut().set_pets(QString::from(&pets));
         if std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "dps")) {
             self.as_mut().set_active(true);
             self.as_mut().set_state(QString::from("reading"));
-            self.as_mut().set_fight(QString::from(DEMO));
+            let party = std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "party"));
+            self.as_mut().set_fight(QString::from(if party { DEMO_PARTY } else { DEMO }));
             self.as_mut().set_skills(QString::from(DEMO_SKILLS));
             self.as_mut().set_history(QString::from(DEMO_HISTORY));
             return;
@@ -201,11 +384,55 @@ impl qobject::Aion2 {
 
         // Every half second: the fight and the state, to QML only on change.
         let thread = self.qt_thread();
-        let last = Arc::new(Mutex::new((String::new(), Status::Searching, String::new(), 0u64)));
+        let last = Arc::new(Mutex::new((String::new(), Status::Searching, String::new(), 0u64, String::from("null"))));
         let wanted = self.wanted.clone();
+        // What bosses do reaches QML at once (a cast bar lasts a second or two).
+        {
+            let weak = Arc::downgrade(&engine);
+            let thread = self.qt_thread();
+            let stop = stop.clone();
+            engine.on_boss(Some(Arc::new(move || {
+                let weak = weak.clone();
+                let stop = stop.clone();
+                let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| {
+                    let Some(engine) = weak.upgrade() else { return };
+                    let events = engine.boss_events();
+                    if !events.is_empty() && !stop.load(Ordering::Relaxed) {
+                        obj.boss_heard(QString::from(&serde_json::Value::from(events).to_string()));
+                    }
+                });
+            })));
+        }
+        let combat_seen = Arc::new(Mutex::new(String::new()));
+        let mut items_seq = aion2::capture::items::event_since(0).map_or(0, |e| e.0);
+        let mut decoded_seq = aion2::decoders::newest();
         let _ = std::thread::Builder::new().name("aion2".into()).spawn(move || {
+            let mut boss_seq = 0u64;
             while !stop.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_millis(500));
+                // The items and the decoded frames, as they come.
+                let items = aion2::capture::items::event_since(items_seq).map(|(seq, ev)| {
+                    items_seq = seq;
+                    ev.to_string()
+                });
+                let decoded = aion2::decoders::events_since(decoded_seq).map(|(seq, list)| {
+                    decoded_seq = seq;
+                    serde_json::Value::Array(list).to_string()
+                });
+                if items.is_some() || decoded.is_some() {
+                    let stop = stop.clone();
+                    let _ = thread.queue(move |mut obj: Pin<&mut qobject::Aion2>| {
+                        if stop.load(Ordering::Relaxed) {
+                            return;
+                        }
+                        if let Some(items) = &items {
+                            obj.as_mut().items_event(QString::from(items));
+                        }
+                        if let Some(decoded) = &decoded {
+                            obj.as_mut().decoded(QString::from(decoded));
+                        }
+                    });
+                }
                 let snapshot = engine.snapshot();
                 let mut fight = engine::summary(&snapshot);
                 fight["extras"] = engine.extras();
@@ -223,10 +450,34 @@ impl qobject::Aion2 {
                 let saved = engine.saved();
                 let history_changed = seen.3 != saved;
                 let world = engine.world().map(|w| w.to_string());
-                if !fight_changed && !status_changed && !skills_changed && !history_changed && world.is_none() {
+                let pets = engine.pets().map(|p| p.to_string());
+                let character = engine.character().to_string();
+                let character_changed = seen.4 != character;
+                let combat = engine.combat().to_string();
+                let combat_changed = {
+                    let mut was = combat_seen.lock().unwrap_or_else(|p| p.into_inner());
+                    let changed = *was != combat;
+                    if changed {
+                        was.clone_from(&combat);
+                    }
+                    changed
+                };
+                if combat_changed {
+                    let stop = stop.clone();
+                    let _ = thread.queue(move |mut obj: Pin<&mut qobject::Aion2>| {
+                        if !stop.load(Ordering::Relaxed) {
+                            obj.as_mut().set_combat(QString::from(&combat));
+                        }
+                    });
+                }
+                let bosses = engine.boss_maps(boss_seq).map(|(next, maps)| {
+                    boss_seq = next;
+                    maps.to_string()
+                });
+                if !fight_changed && !status_changed && !skills_changed && !history_changed && world.is_none() && !character_changed && pets.is_none() && bosses.is_none() {
                     continue;
                 }
-                *seen = (fight.clone(), status.clone(), skills.clone(), saved);
+                *seen = (fight.clone(), status.clone(), skills.clone(), saved, character.clone());
                 let list = history_changed.then(|| history::list(&history::default_dir()).to_string());
                 drop(seen);
                 let stop = stop.clone();
@@ -239,6 +490,15 @@ impl qobject::Aion2 {
                     }
                     if let Some(world) = &world {
                         obj.as_mut().set_world(QString::from(world));
+                    }
+                    if let Some(pets) = &pets {
+                        obj.as_mut().set_pets(QString::from(pets));
+                    }
+                    if character_changed {
+                        obj.as_mut().set_character(QString::from(&character));
+                    }
+                    if let Some(bosses) = &bosses {
+                        obj.as_mut().set_boss_maps(QString::from(bosses));
                     }
                     // A saved fight shown: the live one waits.
                     let showing_saved = !obj.opened().is_empty();
@@ -281,6 +541,8 @@ impl qobject::Aion2 {
         }
         self.as_mut().set_active(false);
         self.as_mut().set_state(QString::from("off"));
+        self.as_mut().set_character(QString::from("null"));
+        self.as_mut().set_combat(QString::from(r#"{"fought":[],"dungeon":0}"#));
     }
 
     fn reset(mut self: Pin<&mut Self>) {
@@ -350,6 +612,24 @@ impl qobject::Aion2 {
         QString::from(if ok { text.as_str() } else { "{}" })
     }
 
+    fn pet_data(&self) -> QString {
+        let text = std::fs::read_to_string(aion2::data_dir().join("pets").join("pets.json")).unwrap_or_default();
+        QString::from(if text.trim_start().starts_with('{') { text.as_str() } else { "{}" })
+    }
+
+    fn armory_data(&self) -> QString {
+        let text = std::fs::read_to_string(aion2::data_dir().join("armory").join("data.json")).unwrap_or_default();
+        QString::from(if text.trim_start().starts_with('{') { text.as_str() } else { "{}" })
+    }
+
+    fn armory_files(&self) -> QString {
+        QString::from(&crate::armory::bookmark_files().to_string())
+    }
+
+    fn armory_file(&self, name: &QString) -> QString {
+        QString::from(&crate::armory::bookmark_file(&name.to_string()).unwrap_or_default())
+    }
+
     fn save_map_settings(&self, json: &QString) {
         let text = json.to_string();
         if text.len() > 64 * 1024 || !serde_json::from_str::<serde_json::Value>(&text).is_ok_and(|v| v.is_object()) {
@@ -363,6 +643,149 @@ impl qobject::Aion2 {
         }
     }
 
+    fn web_get(self: Pin<&mut Self>, id: i32, url: &QString) {
+        let url = url.to_string();
+        let thread = self.qt_thread();
+        let _ = std::thread::Builder::new().name("aion2-market".into()).spawn(move || {
+            let (ok, body) = match crate::market::get(&url) {
+                Ok(text) => (true, text),
+                Err(why) => (false, why),
+            };
+            let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| obj.web_got(id, ok, QString::from(&body)));
+        });
+    }
+
+    fn icon(self: Pin<&mut Self>, name: &QString) -> QString {
+        let name = name.to_string();
+        if let Some(path) = crate::market::icon_file(&name) {
+            return QString::from(&format!("file://{}", path.display()));
+        }
+        if !crate::market::icon_name_ok(&name) || std::env::var("GC_NO_ICON_DOWNLOADS").is_ok_and(|v| !v.is_empty() && v != "0") {
+            return QString::default();
+        }
+        let asked = self.icons_asked.clone();
+        {
+            let mut map = asked.lock().unwrap_or_else(|p| p.into_inner());
+            let now = std::time::Instant::now();
+            if map.get(&name).is_some_and(|at| now.saturating_duration_since(*at) < ICON_RETRY) {
+                return QString::default();
+            }
+            map.insert(name.clone(), now);
+        }
+        let thread = self.qt_thread();
+        let _ = std::thread::Builder::new().name("aion2-icon".into()).spawn(move || {
+            // One at a time across the app: the icon server is asked gently.
+            static TURN: Mutex<()> = Mutex::new(());
+            let _turn = TURN.lock().unwrap_or_else(|p| p.into_inner());
+            if crate::market::fetch_icon(&name).is_ok() {
+                let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| obj.icon_ready(QString::from(&name)));
+            }
+        });
+        QString::default()
+    }
+
+    fn load_store(&self, key: &QString) -> QString {
+        QString::from(&crate::market::load(&key.to_string()))
+    }
+
+    fn keep_store(&self, key: &QString, json: &QString) {
+        // The newest of a key is written, whichever thread comes first: a
+        // thread finding its key taken by a later one's write does nothing.
+        static PENDING: Mutex<Option<std::collections::HashMap<String, String>>> = Mutex::new(None);
+        let key = key.to_string();
+        PENDING.lock().unwrap_or_else(|p| p.into_inner()).get_or_insert_with(Default::default).insert(key.clone(), json.to_string());
+        let _ = std::thread::Builder::new().name("aion2-store".into()).spawn(move || {
+            static TURN: Mutex<()> = Mutex::new(());
+            let _turn = TURN.lock().unwrap_or_else(|p| p.into_inner());
+            let json = PENDING.lock().unwrap_or_else(|p| p.into_inner()).as_mut().and_then(|m| m.remove(&key));
+            if let Some(json) = json {
+                crate::market::keep(&key, &json);
+            }
+        });
+    }
+
+    fn say(&self, text: &QString, high: bool, own: bool, volume: i32, rate: f64) {
+        crate::voice::say(crate::voice::Line {
+            text: text.to_string(),
+            high,
+            own,
+            volume: volume.clamp(0, 100) as u8,
+            rate: rate.clamp(0.5, 2.0) as f32,
+        });
+    }
+
+    fn beep(&self, volume: i32) {
+        crate::voice::beep(volume.clamp(0, 100) as u8);
+    }
+
+    fn hush(&self) {
+        crate::voice::hush();
+    }
+
+    fn has_clip(&self, text: &QString) -> bool {
+        crate::voice::clip_for(&text.to_string()).is_some()
+    }
+
+    fn system_voice(&self) -> bool {
+        crate::voice::system_voice()
+    }
+
+    fn items_now(&self) -> QString {
+        QString::from(&aion2::capture::items::event_now().to_string())
+    }
+
+    fn load_loot(&self, key: &QString) -> QString {
+        QString::from(&crate::market::load(&format!("loot-{key}")))
+    }
+
+    fn keep_loot(&self, key: &QString, json: &QString) {
+        self.keep_store(&QString::from(&format!("loot-{key}")), json);
+    }
+
+    fn meter_read(self: Pin<&mut Self>) {
+        let thread = self.qt_thread();
+        let _ = std::thread::Builder::new().name("meter-import".into()).spawn(move || {
+            let json = crate::meter_import::read();
+            let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| obj.meter_got(QString::from(&json)));
+        });
+    }
+
+    fn meter_read_armory(self: Pin<&mut Self>) {
+        let thread = self.qt_thread();
+        let _ = std::thread::Builder::new().name("meter-armory".into()).spawn(move || {
+            let json = crate::meter_import::read_armory();
+            let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| obj.meter_armory_got(QString::from(&json)));
+        });
+    }
+
+    fn server_names(&self) -> QString {
+        QString::from(&server_names_of(&aion2::data_dir().join("servers.json")))
+    }
+
+    fn chime(&self, sound: &QString, volume: i32) {
+        crate::alert::chime(&sound.to_string(), volume);
+    }
+
+    fn timers_get(self: Pin<&mut Self>, server: &QString) {
+        let server = server.to_string();
+        let thread = self.qt_thread();
+        let _ = std::thread::Builder::new().name("aion2-timers".into()).spawn(move || {
+            let (ok, body) = match crate::aion2timers::feed(&server) {
+                Ok(text) => (true, text),
+                Err(why) => (false, why),
+            };
+            let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| obj.timers_got(ok, QString::from(&body)));
+        });
+    }
+
+    fn speak(&self, text: &QString) {
+        crate::alert::speak(&text.to_string());
+    }
+
+    fn can_speak(&self) -> bool {
+        crate::alert::can_speak()
+    }
+
     fn pick(mut self: Pin<&mut Self>, actor: i32) {
         self.wanted.store(actor, Ordering::Relaxed);
         self.as_mut().set_picked(actor);
@@ -374,23 +797,73 @@ impl qobject::Aion2 {
     }
 }
 
+/// The servers' English names from the meter's list ({"servers": {"1001":
+/// {"en": "Siel", ...}}}), "{}" when it can't be read.
+fn server_names_of(path: &std::path::Path) -> String {
+    let Ok(text) = std::fs::read_to_string(path) else { return "{}".into() };
+    let Ok(doc) = serde_json::from_str::<serde_json::Value>(&text) else { return "{}".into() };
+    let names: serde_json::Map<String, serde_json::Value> = doc["servers"]
+        .as_object()
+        .map(|all| {
+            all.iter()
+                .filter_map(|(id, n)| n["en"].as_str().map(|en| (id.clone(), serde_json::Value::from(en))))
+                .collect()
+        })
+        .unwrap_or_default();
+    serde_json::Value::Object(names).to_string()
+}
+
 /// The Map's choices, beside settings.json.
 fn map_settings_file() -> Option<PathBuf> {
     crate::settings::Settings::path().map(|p| p.with_file_name("aion2-map.json"))
 }
+
+/// A made-up collection for screenshots (GC_DEMO=…,pets): every pet of the
+/// tables at some level, Fossa (1004) farmed a minute ago.
+fn demo_pets_json() -> String {
+    let text = std::fs::read_to_string(aion2::data_dir().join("pets").join("pets.json")).unwrap_or_default();
+    let data: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
+    let mut levels = serde_json::Map::new();
+    let mut souls = serde_json::Map::new();
+    if let Some(pets) = data["pets"].as_object() {
+        for (i, id) in pets.keys().enumerate() {
+            let level = [3, 1, 0, 2, 3, 3, 1][i % 7];
+            if level > 0 {
+                levels.insert(id.clone(), level.into());
+            }
+            if level < 3 {
+                souls.insert(id.clone(), ((i * 7) % [5, 25, 75][level as usize]).into());
+            }
+        }
+    }
+    levels.insert("1004".into(), 2.into());
+    souls.insert("1004".into(), 61.into());
+    let now = aion2::clock::now_ms();
+    serde_json::json!({ "server": 2001, "synced": now - 3_600_000, "levels": levels, "souls": souls, "farmed": { "1004": now - 60_000 } }).to_string()
+}
+
+/// A failed icon download is tried again after this long.
+const ICON_RETRY: std::time::Duration = std::time::Duration::from_secs(600);
 
 /// A made-up world for screenshots (GC_DEMO=map): Verteron.
 const DEMO_WORLD: &str = r#"{"at":0,"zone":902,"me":{"x":-108000,"y":-56000,"exact":true},"moving":false,
 "npcs":[[11,2100002,-110660,-58525],[12,2100006,-74581,-53904],[13,2100015,-74634,-51920],[14,2100009,-111486,-24906]],"objects":[]}"#;
 
 /// A made-up fight for screenshots (GC_DEMO=dps).
-const DEMO: &str = r#"{"time":134000,"target":"Training Scarecrow","boss":false,"hpMax":0,"hpNow":0,"rows":[
-{"id":1,"name":"Lumen","job":"Sorcerer","dps":41200,"amount":5520800,"share":26.0,"hps":0,"heal":0,"me":true,"others":false},
-{"id":2,"name":"Party 2","job":"Gladiator","dps":35400,"amount":4743600,"share":22.3,"hps":0,"heal":0,"me":false,"others":false},
-{"id":3,"name":"Party 3","job":"Ranger","dps":29300,"amount":3926200,"share":18.4,"hps":0,"heal":0,"me":false,"others":false},
-{"id":4,"name":"Party 4","job":"Assassin","dps":23900,"amount":3202600,"share":15.0,"hps":0,"heal":0,"me":false,"others":false},
-{"id":5,"name":"Party 5","job":"Templar","dps":16500,"amount":2211000,"share":10.4,"hps":1200,"heal":160800,"me":false,"others":false},
-{"id":6,"name":"Party 6","job":"Cleric","dps":9100,"amount":1219400,"share":7.7,"hps":14800,"heal":1983200,"me":false,"others":false}],"extras":{"ping":15,"odyle":[75,1850]}}"#;
+const DEMO: &str = r#"{"time":242000,"target":"Brigade General Vasharti","boss":true,"hpMax":161000000,"hpNow":61200000,"rows":[
+{"id":1,"name":"Lumen","job":"Ranger","dps":168400,"amount":40752800,"share":40.8,"hps":0,"heal":0,"me":true,"others":false,"cp":210400,"gs":3072},
+{"id":2,"name":"Party 2","job":"Spiritmaster","dps":121300,"amount":29354600,"share":29.4,"hps":0,"heal":0,"me":false,"others":false,"cp":205100,"gs":3050},
+{"id":3,"name":"Party 3","job":"Chanter","dps":64200,"amount":15536400,"share":15.6,"hps":3100,"heal":750200,"me":false,"others":false,"cp":197300,"gs":3013},
+{"id":4,"name":"Party 4","job":"Templar","dps":36900,"amount":8929800,"share":8.9,"hps":1200,"heal":290400,"me":false,"others":false,"cp":210000,"gs":3032},
+{"id":5,"name":"Party 5","job":"Cleric","dps":21800,"amount":5275600,"share":5.3,"hps":14800,"heal":3581600,"me":false,"others":false,"cp":208200,"gs":2965}],"extras":{"ping":14,"odyle":[90,1850]}}"#;
+
+/// A party that just formed (GC_DEMO=dps,party): only the player has hit.
+const DEMO_PARTY: &str = r#"{"time":20000,"target":"Melee Training Scarecrow","boss":false,"hpMax":119700,"hpNow":119700,"rows":[
+{"id":1,"name":"Lumen","job":"Ranger","dps":168000,"amount":3360000,"share":100.0,"hps":0,"heal":0,"me":true,"others":false,"cp":210400,"gs":3072},
+{"id":90000002,"name":"Party 2","job":"Spiritmaster","dps":0,"amount":0,"share":0.0,"hps":0,"heal":0,"me":false,"others":false,"cp":205100,"gs":3050},
+{"id":90000003,"name":"Party 3","job":"Chanter","dps":0,"amount":0,"share":0.0,"hps":0,"heal":0,"me":false,"others":false,"cp":197300,"gs":3013},
+{"id":90000004,"name":"Party 4","job":"Cleric","dps":0,"amount":0,"share":0.0,"hps":0,"heal":0,"me":false,"others":false,"cp":208200,"gs":2965},
+{"id":90000005,"name":"Party 5","job":"Templar","dps":0,"amount":0,"share":0.0,"hps":0,"heal":0,"me":false,"others":false,"cp":210000,"gs":3032}],"extras":{"ping":14,"odyle":[90,1850]}}"#;
 
 /// Made-up history for screenshots (GC_DEMO=dps,history).
 const DEMO_HISTORY: &str = r#"[
@@ -400,23 +873,33 @@ const DEMO_HISTORY: &str = r#"[
 
 /// Made-up skills for screenshots (GC_DEMO=dps,skills).
 const DEMO_SKILLS: &str = r#"[
-{"code":1,"name":"Flame Cascade","casts":38,"damage":1876500,"share":34.0,"crit":42.1,"back":0.0,"perfect":10.5,"double":13.2,"parry":0.0},
-{"code":2,"name":"Frost Lance","casts":61,"damage":1214600,"share":22.0,"crit":36.0,"back":0.0,"perfect":8.2,"double":9.8,"parry":1.6},
-{"code":3,"name":"Burning Mark","casts":12,"damage":993700,"share":18.0,"crit":25.0,"back":0.0,"perfect":0.0,"double":0.0,"parry":0.0},
-{"code":4,"name":"Arcane Bolt","casts":94,"damage":828100,"share":15.0,"crit":30.9,"back":0.0,"perfect":5.3,"double":7.4,"parry":2.1},
-{"code":5,"name":"Meteor","casts":4,"damage":607900,"share":11.0,"crit":50.0,"back":0.0,"perfect":25.0,"double":0.0,"parry":0.0}]"#;
+{"code":14010100,"icon":"ICON_RA_SKILL_001","name":"Spiral Arrow","casts":14,"damage":1104000,"share":32.9,"crit":46.0,"back":0.0,"perfect":10.5,"double":13.2,"parry":0.0},
+{"code":14020100,"icon":"ICON_RA_SKILL_002","name":"Snipe","casts":9,"damage":742500,"share":22.1,"crit":51.0,"back":0.0,"perfect":8.2,"double":9.8,"parry":1.6},
+{"code":14030100,"icon":"ICON_RA_SKILL_003","name":"Rapid Fire","casts":31,"damage":538800,"share":16.0,"crit":38.0,"back":0.0,"perfect":0.0,"double":0.0,"parry":0.0},
+{"code":14040100,"icon":"ICON_RA_SKILL_004","name":"Arrow Storm","casts":4,"damage":401200,"share":11.9,"crit":44.0,"back":0.0,"perfect":5.3,"double":7.4,"parry":2.1},
+{"code":14000001,"icon":"basic","name":"Basic attack","casts":88,"damage":264000,"share":7.9,"crit":29.0,"back":0.0,"perfect":0.0,"double":0.0,"parry":0.0},
+{"code":14050100,"icon":"ICON_RA_SKILL_005","name":"Gale Arrow","casts":7,"damage":152600,"share":4.5,"crit":40.0,"back":0.0,"perfect":0.0,"double":0.0,"parry":0.0},
+{"code":99999999,"icon":"","name":"Unknown skill","casts":6,"damage":58600,"share":1.7,"crit":0.0,"back":0.0,"perfect":0.0,"double":0.0,"parry":0.0}]"#;
 
 #[cfg(test)]
 mod tests {
     #[test]
+    fn server_names_in_english() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("crates/aion2/data/servers.json");
+        let names: serde_json::Value = serde_json::from_str(&super::server_names_of(&path)).unwrap();
+        assert_eq!(names["1001"], "Siel");
+        assert_eq!(super::server_names_of(std::path::Path::new("/nonexistent")), "{}");
+    }
+
+    #[test]
     fn the_demo_and_the_empty_fight_read() {
-        for text in [super::DEMO, super::EMPTY] {
+        for text in [super::DEMO, super::DEMO_PARTY, super::EMPTY] {
             let v: serde_json::Value = serde_json::from_str(text).unwrap();
             assert!(v["rows"].is_array());
         }
         let history: serde_json::Value = serde_json::from_str(super::DEMO_HISTORY).unwrap();
         assert_eq!(history.as_array().map(|a| a.len()), Some(3));
         let skills: serde_json::Value = serde_json::from_str(super::DEMO_SKILLS).unwrap();
-        assert_eq!(skills.as_array().map(|a| a.len()), Some(5));
+        assert_eq!(skills.as_array().map(|a| a.len()), Some(7));
     }
 }

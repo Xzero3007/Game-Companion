@@ -26,6 +26,9 @@ pub struct Settings {
     pub text_level: f64,
     /// How bright the gold of the bar and the player row is, 0.4 to 1.
     pub accent_level: f64,
+    /// How far a mouse-wheel notch scrolls the lists, in percent of a
+    /// list's own step (50 to 500; MN, 2026-11-13).
+    pub wheel_speed: u32,
     /// The three opacity values the buttons P1 to P3 jump to.
     pub alpha_presets: Vec<f64>,
     /// The three text brightness values the buttons P1 to P3 jump to.
@@ -53,6 +56,12 @@ pub struct Settings {
     /// What stays on screen while the hub is hidden, by id (panels, the
     /// player row).
     pub pins: BTreeSet<String>,
+    /// The panels open when the app last ran (None: never kept), so an
+    /// update or a restart brings back what was open, and nothing else.
+    pub open_panels: Option<Vec<String>>,
+    /// The DPS panel was closed by hand: it stays closed when AION 2
+    /// starts (also after an update; MN, 2026-11-14).
+    pub dps_closed: bool,
     pub radio: RadioSettings,
     /// Saved arrangements, by the name the user gave them.
     pub layouts: BTreeMap<String, Layout>,
@@ -160,6 +169,11 @@ pub struct StreamsSettings {
     pub quality: String,
     /// 0 to 100, as the bars show it.
     pub volume: u8,
+    /// Videos made louder by this many dB (0, 3, 6 or 9): streams are mixed
+    /// quieter than radio stations (MN, 2026-11-14).
+    pub video_boost: u8,
+    /// Quiet and loud passages of videos evened out (mpv's dynaudnorm).
+    pub even_loudness: bool,
     /// The lists as tiles side by side (true) or as rows.
     pub grid: bool,
     /// How much of each video window shows, in percent (50 to 100), by slot.
@@ -175,6 +189,9 @@ pub struct StreamsSettings {
     pub hide_watched: bool,
     pub hidden_channels: Vec<crate::streams::Channel>,
     pub hidden_words: Vec<String>,
+    /// Videos whose title or channel is written in an Indian script left
+    /// out (the person, 2026-11-13).
+    pub hide_indian: bool,
     /// FreeTube's subscriptions are read from its file as they are (until
     /// they are taken over: then only `channels` count).
     pub freetube_live: bool,
@@ -189,6 +206,8 @@ pub struct StreamsSettings {
     /// (by part).
     pub trend_section: String,
     pub trend_words: BTreeMap<String, Vec<String>>,
+    /// YouTube channels' pictures by channel id, asked once each.
+    pub channel_pictures: BTreeMap<String, String>,
     /// Twitch: a note when followed or favourite channels go live (asked
     /// every two minutes while on), and the channels left out of it.
     pub alerts: bool,
@@ -236,6 +255,8 @@ impl Default for StreamsSettings {
             youtube_view: "game".into(),
             quality: "1080".into(),
             volume: 70,
+            video_boost: 0,
+            even_loudness: false,
             grid: true,
             video_opacity: BTreeMap::new(),
             sponsorblock: Default::default(),
@@ -244,12 +265,14 @@ impl Default for StreamsSettings {
             hide_watched: false,
             hidden_channels: Vec::new(),
             hidden_words: Vec::new(),
+            hide_indian: true,
             freetube_live: true,
             group: String::new(),
             search: SearchFilter::default(),
             video_languages: crate::streams::system_languages(),
             trend_section: "gaming".into(),
             trend_words: BTreeMap::new(),
+            channel_pictures: BTreeMap::new(),
             alerts: false,
             alerts_off: BTreeSet::new(),
             channel_quality: BTreeMap::new(),
@@ -361,6 +384,7 @@ impl Default for Settings {
             alpha: DEFAULT_ALPHA,
             text_level: 1.0,
             accent_level: 1.0,
+            wheel_speed: 100,
             accent_presets: DEFAULT_TEXT_PRESETS.to_vec(),
             alpha_presets: DEFAULT_ALPHA_PRESETS.to_vec(),
             text_presets: DEFAULT_TEXT_PRESETS.to_vec(),
@@ -372,6 +396,8 @@ impl Default for Settings {
             show_on_game: true,
             screen: String::new(),
             pins: BTreeSet::new(),
+            open_panels: None,
+            dps_closed: false,
             radio: RadioSettings::default(),
             layouts: BTreeMap::new(),
             streams: StreamsSettings::default(),
@@ -412,6 +438,7 @@ impl Settings {
         settings.bar = settings.bar.tidy();
         settings.radio.volume = settings.radio.volume.min(100);
         settings.streams.volume = settings.streams.volume.min(100);
+        settings.streams.video_boost = clamp_video_boost(i32::from(settings.streams.video_boost));
         settings
     }
 
@@ -441,6 +468,21 @@ pub const DEFAULT_TEXT_PRESETS: [f64; 3] = [1.0, 0.8, 0.6];
 /// Keeps the see-through value between almost see-through and solid.
 pub fn clamp_alpha(alpha: f64) -> f64 {
     if alpha.is_finite() { alpha.clamp(MIN_ALPHA, 1.0) } else { DEFAULT_ALPHA }
+}
+
+/// A video boost as offered: 0, 3, 6 or 9 dB (the nearest below).
+pub fn clamp_video_boost(db: i32) -> u8 {
+    match db {
+        i32::MIN..=2 => 0,
+        3..=5 => 3,
+        6..=8 => 6,
+        _ => 9,
+    }
+}
+
+/// Keeps the scroll speed between half and five times a notch.
+pub fn clamp_wheel_speed(percent: i32) -> u32 {
+    percent.clamp(50, 500) as u32
 }
 
 /// Keeps the text brightness where text can still be read.
@@ -482,6 +524,17 @@ mod tests {
         let s = Settings::load_from(&path);
         assert!(s.tray && s.show_on_game);
         assert_eq!(s.alpha, 0.5);
+    }
+
+    #[test]
+    fn open_panels_are_kept_and_old_files_have_none() {
+        let old: Settings = serde_json::from_str(r#"{"alpha": 0.5}"#).unwrap();
+        assert_eq!(old.open_panels, None);
+        assert!(!old.dps_closed);
+        let s = Settings { open_panels: Some(vec!["radio".into(), "loot".into()]), dps_closed: true, ..Default::default() };
+        let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+        assert_eq!(back.open_panels, Some(vec!["radio".to_string(), "loot".to_string()]));
+        assert!(back.dps_closed);
     }
 
     #[test]
@@ -583,5 +636,9 @@ mod tests {
         s.games.options.insert("steam:10".into(), crate::games::GameOptions { radio_on_start: true, ..Default::default() });
         s.save_to(&path).unwrap();
         assert_eq!(Settings::load_from(&path), s);
+    }
+    #[test]
+    fn video_boost_steps() {
+        assert_eq!([-5, 0, 2, 3, 5, 6, 8, 9, 40].map(clamp_video_boost), [0, 0, 0, 3, 3, 6, 6, 9, 9]);
     }
 }

@@ -21,6 +21,7 @@ use crate::combat::ping_tracker::PingTracker;
 use crate::entity::dps_data::DpsData;
 use crate::i18n::lookup::{self, NpcLookup, SkillLookup};
 use crate::history;
+use crate::pets::Pets;
 use crate::world::World;
 use crate::link::{self, State};
 use crate::platform::window_detector;
@@ -51,7 +52,15 @@ pub struct Engine {
     history: PathBuf,
     /// The world around the player (zone, place, monsters, objects).
     world: Arc<Mutex<World>>,
+    /// Pet Finder: the pet collection per server.
+    pets: Arc<Mutex<Pets>>,
+    /// What bosses do, for the Boss panel, and who to tell at once.
+    boss: Arc<Mutex<crate::boss::Feed>>,
+    boss_notify: Arc<Mutex<Option<Notify>>>,
 }
+
+/// Told (on the parser's thread) when bosses did something.
+pub type Notify = Arc<dyn Fn() + Send + Sync>;
 
 /// How often fights still on the meter are written to the history.
 const SAVE_EVERY: Duration = Duration::from_secs(30);
@@ -70,6 +79,11 @@ impl Engine {
             saved: Arc::new(AtomicU64::new(0)),
             history: history.to_path_buf(),
             world: Arc::new(Mutex::new(World::default())),
+            pets: Arc::new(Mutex::new(Pets::open(crate::pets::catalog(data_dir), Some(crate::pets::default_file())))),
+            boss: Arc::new(Mutex::new(crate::boss::Feed::new(
+                &std::fs::read_to_string(data_dir.join("boss/watch.json")).unwrap_or_default(),
+            ))),
+            boss_notify: Arc::new(Mutex::new(None)),
         };
         window_detector::set_running(true);
         let runner = Runner {
@@ -84,6 +98,9 @@ impl Engine {
             saved: engine.saved.clone(),
             history: engine.history.clone(),
             world: engine.world.clone(),
+            pets: engine.pets.clone(),
+            boss: engine.boss.clone(),
+            boss_notify: engine.boss_notify.clone(),
         };
         // The helper dies with the thread that started it (PR_SET_PDEATHSIG):
         // the runner starts it and lives as long as the engine runs.
@@ -110,15 +127,42 @@ impl Engine {
         detail_skills(&entries, actor)
     }
 
-    /// Ping (ms) and Odyle energy, as the meter's bar showed them:
-    /// {"ping": ms|null, "odyle": [basic, charged]|null}.
+    /// Ping (ms) and Odyle energy, as the meter's bar showed them, and the
+    /// player's server: {"ping": ms|null, "odyle": [basic, charged]|null,
+    /// "server": the game's number|null}.
     pub fn extras(&self) -> serde_json::Value {
         let calc = self.calculator.lock();
-        let Some(calc) = calc.as_ref() else { return serde_json::json!({ "ping": null, "odyle": null }) };
+        let Some(calc) = calc.as_ref() else { return serde_json::json!({ "ping": null, "odyle": null, "server": null }) };
+        let server = calc.server_id();
         serde_json::json!({
             "ping": calc.ping_ms(),
+            "server": (server != 0).then_some(server),
             "odyle": calc.odyle_energy().map(|(basic, charged)| [basic, charged]),
         })
+    }
+
+    /// Who plays and what the game said of them, as the meter's
+    /// `character` event gave it to plugins (Roster): name, server, class,
+    /// level, combat power, gear score, and from the entry list (only once
+    /// it is known to be theirs) Odyle energy, content counts, shop limits,
+    /// crafts, Kinah today, Abyss Points, the Abyss passages' times and when
+    /// the game last said each. With it the Abyss artifacts' holders as the
+    /// game last told them (`abyss`, null before). Null before anyone is
+    /// known.
+    pub fn character(&self) -> serde_json::Value {
+        let calc = self.calculator.lock();
+        let Some(calc) = calc.as_ref() else { return serde_json::Value::Null };
+        character_of(calc.data_storage())
+    }
+
+    /// The field bosses of the maps the player opened, when one was opened
+    /// since `seq` (`capture::boss_map`): the new count and JSON
+    /// [{"map", "seen" ms, "bosses": [{"id", "up", "time" ms}]}], only the
+    /// player's own side's maps (header 0). The Schedule's bosses.
+    pub fn boss_maps(&self, seq: u64) -> Option<(u64, serde_json::Value)> {
+        let calc = self.calculator.lock();
+        let (next, maps) = calc.as_ref()?.data_storage().boss_maps_since(seq)?;
+        Some((next, boss_maps_json(&maps)))
     }
 
     /// The fight now, as the meter's page asked for it every 200 ms.
@@ -152,6 +196,40 @@ impl Engine {
         world.due(now).then(|| world.snapshot(now, crate::clock::now_ms()))
     }
 
+    /// The pet collection shown, when it changed (written to disk then).
+    pub fn pets(&self) -> Option<serde_json::Value> {
+        self.pets.lock().take()
+    }
+
+    /// Who to tell at once when bosses did something (none: nobody).
+    pub fn on_boss(&self, notify: Option<Notify>) {
+        *self.boss_notify.lock() = notify;
+    }
+
+    /// What bosses did since the last call (casts, skills, buffs on and off).
+    pub fn boss_events(&self) -> Vec<serde_json::Value> {
+        self.boss.lock().take()
+    }
+
+    /// The monsters fought now (bosses first, at most 6) and the dungeon
+    /// you are in (0: none), as Boss Notes heard them (`events:combat`).
+    pub fn combat(&self) -> serde_json::Value {
+        let calc = self.calculator.lock();
+        let Some(calc) = calc.as_ref() else { return serde_json::json!({ "fought": [], "dungeon": 0 }) };
+        let (fought, dungeon) = calc.fought_now(crate::clock::now_ms());
+        self.boss.lock().set_fought(fought.iter().filter(|f| f.0.boss).map(|f| f.0.entity));
+        let fought: Vec<_> = fought
+            .iter()
+            .map(|(f, name, dungeon)| {
+                serde_json::json!({
+                    "entity": f.entity, "npc": f.npc, "name": name, "boss": f.boss,
+                    "hp": f.hp, "maxHp": f.max_hp, "since": f.first_hit, "dungeon": dungeon,
+                })
+            })
+            .collect();
+        serde_json::json!({ "fought": fought, "dungeon": dungeon })
+    }
+
     /// How many times fights were saved (to notice new ones).
     pub fn saved(&self) -> u64 {
         self.saved.load(Ordering::Relaxed)
@@ -172,6 +250,7 @@ impl Engine {
         window_detector::set_running(false);
         crate::capture::frame_tap::set(None);
         crate::platform::on_client_sent(None);
+        *self.boss_notify.lock() = None;
         if let Some(c) = self.calculator.lock().as_mut() {
             save_fights(c.snapshot_boss_fights_force(), &self.history, &self.saved);
         }
@@ -212,6 +291,9 @@ struct Runner {
     saved: Arc<AtomicU64>,
     history: PathBuf,
     world: Arc<Mutex<World>>,
+    pets: Arc<Mutex<Pets>>,
+    boss: Arc<Mutex<crate::boss::Feed>>,
+    boss_notify: Arc<Mutex<Option<Notify>>>,
 }
 
 impl Runner {
@@ -238,7 +320,10 @@ impl Runner {
         // hooks alone (they are global).
         if self.running.load(Ordering::SeqCst) {
             let world = self.world.clone();
+            let pets = self.pets.clone();
             let storage = storage.clone();
+            let boss = self.boss.clone();
+            let boss_notify = self.boss_notify.clone();
             crate::capture::frame_tap::set(Some(Arc::new(move |packet: &[u8]| {
                 let len = crate::capture::stream_processor::read_varint(packet, 0).length;
                 if len <= 0 {
@@ -248,6 +333,19 @@ impl Runner {
                 let Some(opcode) = packet.get(at..at + 2) else { return };
                 let me = storage.local_player_id();
                 world.lock().feed([opcode[0], opcode[1]], &packet[at + 2..], me, std::time::Instant::now());
+                // Pet Finder's frames (`xx 90`): whose server it is only then.
+                if opcode[1] == 0x90 {
+                    let server = u32::from(storage.local_profile().server_id);
+                    pets.lock().feed([opcode[0], opcode[1]], &packet[at + 2..], server, crate::clock::now_ms());
+                }
+                if boss.lock().feed([opcode[0], opcode[1]], &packet[at + 2..], crate::clock::now_ms()) {
+                    let notify = boss_notify.lock().clone();
+                    if let Some(notify) = notify {
+                        notify();
+                    }
+                }
+                // The areas' decoders (Closet, Shugo Cards, gathering).
+                crate::decoders::feed([opcode[0], opcode[1]], &packet[at + 2..], crate::clock::now_ms());
             })));
             let world = self.world.clone();
             crate::platform::on_client_sent(Some(Arc::new(move |len| world.lock().client_sent(len, std::time::Instant::now()))));
@@ -393,13 +491,90 @@ enum Ended {
     Failed,
 }
 
+/// `Engine::boss_maps`' JSON.
+pub fn boss_maps_json(maps: &[crate::capture::boss_map::BossMap]) -> serde_json::Value {
+    let maps: Vec<_> = maps
+        .iter()
+        .filter(|m| m.header == 0)
+        .map(|m| {
+            let bosses: Vec<_> = m
+                .bosses
+                .iter()
+                .map(|b| serde_json::json!({ "id": b.id, "up": b.up, "time": b.time_ms }))
+                .collect();
+            serde_json::json!({ "map": m.map_id, "seen": m.seen_ms, "bosses": bosses })
+        })
+        .collect();
+    serde_json::Value::Array(maps)
+}
+
+/// `Engine::character` from what the parser keeps (the meter's
+/// `plugins::character`, with the class in English).
+pub fn character_of(storage: &DataStorage) -> serde_json::Value {
+    let p = storage.local_profile();
+    if p.name.is_none() {
+        return serde_json::Value::Null;
+    }
+    // Owner, energy, counts, times, shop limits, crafts, Kinah and Abyss
+    // Points from one moment: a login's list replaces them all at once.
+    let list = storage.entry_list();
+    let theirs = matches!((list.owner.as_deref(), p.name.as_deref()), (Some(o), Some(n)) if o.trim() == n.trim());
+    let odyle = list
+        .odyle_energy
+        .filter(|_| theirs)
+        .map(|(basic, charged)| serde_json::json!({ "basic": basic, "charged": charged }));
+    let content = (theirs && !list.counts.is_empty()).then(|| serde_json::json!(list.counts));
+    let shop = (theirs && !list.shop_limits.is_empty()).then(|| serde_json::json!(list.shop_limits));
+    let crafts = (theirs && !list.crafts.is_empty()).then(|| serde_json::json!(list.crafts));
+    let abyss = storage.abyss_artifacts_since(0).map(|(_, state, seen_ms)| {
+        let secs = |ms: i64| (ms > 0).then_some(ms / 1000);
+        let wars: Vec<_> = state
+            .wars
+            .iter()
+            .map(|w| serde_json::json!({ "event": w.event_id, "since": secs(w.since_ms), "until": secs(w.until_ms) }))
+            .collect();
+        let artifacts: Vec<_> = state
+            .artifacts
+            .iter()
+            .map(|a| serde_json::json!({ "id": a.id, "event": a.event_id(), "owner": a.owner.name() }))
+            .collect();
+        serde_json::json!({ "observedAt": seen_ms / 1000, "wars": wars, "artifacts": artifacts })
+    });
+    serde_json::json!({
+        "name": p.name,
+        "serverId": (p.server_id != 0).then_some(p.server_id),
+        "level": p.level,
+        "class": p.class.map(|c| crate::job_name(c.class_name())),
+        "combatPower": p.combat_power,
+        "gearScore": p.gear_score,
+        "odyleEnergy": odyle,
+        "contentCounts": content,
+        "shopLimits": shop,
+        "crafts": crafts,
+        "kinahToday": list.kinah_today.filter(|_| theirs),
+        "abyssPoints": list.abyss_points.filter(|_| theirs).map(|(p, l)| [p, l]),
+        "contentTimes": Some(list.times).filter(|t| theirs && !t.is_empty()),
+        "seenAt": theirs.then(|| serde_json::json!({
+            "odyleEnergy": list.seen.odyle_energy,
+            "contentCounts": list.seen.counts,
+            "shopLimits": list.seen.shop_limits,
+            "crafts": list.seen.crafts,
+            "kinahToday": list.seen.kinah_today,
+            "abyssPoints": list.seen.abyss_points,
+        })),
+        "abyss": abyss,
+    })
+}
+
 /// The fight as the panel shows it: rows by damage, the fight's time (ms)
 /// and its target.
 pub fn summary(data: &DpsData) -> serde_json::Value {
     let mut rows: Vec<_> = data
         .map
         .iter()
-        .filter(|(_, p)| p.amount > 0.0 || p.heal_amount > 0.0)
+        // Party members show as soon as the party forms, damage or not
+        // (`DpsCalculator::add_party_rows` gives them their class).
+        .filter(|(_, p)| p.amount > 0.0 || p.heal_amount > 0.0 || (!p.nickname.is_empty() && !p.job.is_empty()))
         .map(|(id, p)| {
             let me = data.local_player_id == Some(*id as i64);
             let name = if !p.nickname.is_empty() {
@@ -420,10 +595,16 @@ pub fn summary(data: &DpsData) -> serde_json::Value {
                 "heal": p.heal_amount.round() as i64,
                 "me": me,
                 "others": p.is_others,
+                "cp": p.combat_power,
+                "gs": p.gear_score,
             })
         })
         .collect();
-    rows.sort_by(|a, b| b["amount"].as_i64().cmp(&a["amount"].as_i64()));
+    rows.sort_by(|a, b| {
+        b["amount"].as_i64().cmp(&a["amount"].as_i64())
+            .then_with(|| b["heal"].as_i64().cmp(&a["heal"].as_i64()))
+            .then_with(|| a["name"].as_str().cmp(&b["name"].as_str()))
+    });
     serde_json::json!({
         "time": data.battle_time,
         "target": data.target_name,
@@ -452,6 +633,7 @@ pub fn skills(data: &DpsData, actor: i32) -> serde_json::Value {
             let rate = |n: i32| ((n as f64) / hits * 1000.0).round() / 10.0;
             serde_json::json!({
                 "code": s.skill_code,
+                "icon": crate::skill_icon(s.skill_code as i64),
                 "name": if s.skill_name.is_empty() { format!("#{}", s.skill_code) } else { s.skill_name.clone() },
                 "casts": s.times,
                 "damage": damage,
@@ -505,6 +687,7 @@ pub fn detail_skills(entries: &[crate::entity::details_context::DetailSkillEntry
             let rate = |n: i64| ((n as f64) / hits * 1000.0).round() / 10.0;
             serde_json::json!({
                 "code": code,
+                "icon": crate::skill_icon(code as i64),
                 "name": if s.name.is_empty() { format!("#{code}") } else { s.name.clone() },
                 "casts": s.hits,
                 "damage": s.damage,
@@ -533,6 +716,26 @@ fn dot_skill_ids(data_dir: &Path) -> HashSet<i32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_character_as_the_meter_gave_it_to_plugins() {
+        let storage = DataStorage::new();
+        assert!(character_of(&storage).is_null());
+        storage.set_local_character_name(Some("Nully".into()));
+        storage.note_self_profile("Nully", Some(crate::entity::job_class::JobClass::Elementalist), Some(45));
+        storage.note_self_gear_score("Nully", 3100);
+        storage.note_self_combat_power("Nully", 41_210);
+        let c = character_of(&storage);
+        assert_eq!(c["name"], "Nully");
+        assert_eq!(c["class"], "Spiritmaster");
+        assert_eq!(c["level"], 45);
+        assert_eq!(c["gearScore"], 3100);
+        assert_eq!(c["combatPower"], 41_210);
+        // Nothing of the entry list until it is known to be theirs.
+        assert!(c["odyleEnergy"].is_null());
+        assert!(c["seenAt"].is_null());
+        assert!(c["abyss"].is_null());
+    }
 
     #[test]
     fn a_missing_helper_says_so_and_the_tables_load() {
@@ -601,6 +804,28 @@ mod tests {
         assert_eq!((rows[1]["name"].as_str(), rows[1]["dps"].as_i64()), (Some("[Gladiator]"), Some(10)));
         assert_eq!(rows[1]["share"].as_f64(), Some(33.3));
         assert_eq!(s["hpNow"].as_i64(), Some(700));
+    }
+
+    #[test]
+    fn party_members_show_before_they_hit_anything() {
+        use crate::entity::personal_data::PersonalData;
+        let mut data = DpsData::new();
+        let mut me = PersonalData::new("Me".into());
+        me.job = "궁성".into();
+        me.amount = 500.0;
+        let mut b = PersonalData::new("Zed".into());
+        b.job = "치유성".into();
+        b.combat_power = 205_000;
+        b.gear_score = 3050;
+        let mut c = PersonalData::new("Amy".into());
+        c.job = "Unknown".into();
+        data.map.insert(1, me);
+        data.map.insert(90_000_002, b);
+        data.map.insert(90_000_003, c);
+        let rows = summary(&data)["rows"].as_array().unwrap().clone();
+        let names: Vec<_> = rows.iter().map(|r| r["name"].as_str().unwrap().to_string()).collect();
+        assert_eq!(names, ["Me", "Amy", "Zed"]);
+        assert_eq!((rows[2]["job"].as_str(), rows[2]["cp"].as_i64(), rows[2]["gs"].as_i64()), (Some("Cleric"), Some(205_000), Some(3050)));
     }
 
     #[test]

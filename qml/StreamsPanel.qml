@@ -25,6 +25,11 @@ Panel {
     readonly property var youtubeList: JSON.parse(Streams.youtube)
     readonly property var favs: JSON.parse(Streams.favourites)
     readonly property var channels: JSON.parse(Streams.channels)
+    readonly property var channelPictures: JSON.parse(Streams.channelPictures)
+    // Channels without a picture yet: asked once while the Channels list shows.
+    readonly property bool picturesWanted: visible && listKind === "channels" && channels.length > 0
+    onPicturesWantedChanged: if (picturesWanted) Streams.fetchChannelPictures()
+    onChannelsChanged: if (picturesWanted) Streams.fetchChannelPictures()
     readonly property var account: JSON.parse(Streams.account)
     readonly property bool onTwitch: Streams.tab === "twitch"
     readonly property bool onJelly: Streams.tab === "jellyfin"
@@ -977,6 +982,8 @@ Panel {
                 delegate: ({ jelly: jellyRow, twitch: twitchRow, categories: categoryRow, recordings: recordingRow, playlists: playlistRow, video: videoRow })[panel.listKind] || videoRow
                 onAtYEndChanged: if (atYEnd) panel.moreAtEnd()
                 footer: moreFooter
+                // Rows made a little ahead: no hitch while the wheel moves on.
+                cacheBuffer: 600
             }
             GridView {
                 id: grid
@@ -993,6 +1000,8 @@ Panel {
                 delegate: ({ jelly: jellyTile, twitch: twitchTile, categories: categoryTile, recordings: recordingTile, playlists: playlistTile, video: videoTile })[panel.listKind] || videoTile
                 onAtYEndChanged: if (atYEnd) panel.moreAtEnd()
                 footer: moreFooter
+                // Rows made a little ahead: no hitch while the wheel moves on.
+                cacheBuffer: 600
             }
             ListView {
                 id: channelList
@@ -1012,14 +1021,14 @@ Panel {
                 boundsBehavior: Flickable.StopAtBounds
                 visible: panel.channelsView && panel.tiles
                 cellWidth: Math.floor(width / listArea.channelColumns)
-                cellHeight: 62
+                cellHeight: 72
                 model: visible ? panel.channelsShown : []
                 delegate: channelTile
             }
             WheelScroll { flick: list; step: 79 * 2 }
             WheelScroll { flick: grid; step: grid.cellHeight }
-            WheelScroll { flick: channelList; step: 46 * 3 }
-            WheelScroll { flick: channelGrid; step: 62 * 2 }
+            WheelScroll { flick: channelList; step: 58 * 3 }
+            WheelScroll { flick: channelGrid; step: 72 * 2 }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.centerIn: parent
                 width: parent.width - 60
@@ -1097,21 +1106,44 @@ Panel {
     function moreAtEnd() {
         if (onJelly && Jellyfin.hasMore) Jellyfin.more()
         else if (onTwitch && Streams.twitchHasMore) Streams.loadMoreTwitch()
+        else if (!onTwitch && !onJelly && Streams.youtubeHasMore) Streams.loadMoreYoutube()
     }
     // Under a Twitch list with more: a button (it also comes on its own
     // when scrolled to the end).
     Component {
         id: moreFooter
         Item {
-            readonly property bool shown: panel.onTwitch && Streams.twitchHasMore
+            readonly property bool yt: !panel.onTwitch && !panel.onJelly
+            readonly property bool more: panel.onTwitch ? Streams.twitchHasMore : yt && Streams.youtubeHasMore
+            readonly property bool loading: panel.onTwitch ? Streams.twitchLoadingMore : Streams.youtubeLoadingMore
+            readonly property string note: panel.onTwitch ? Streams.twitchMoreNote : yt ? Streams.youtubeMoreNote : ""
+            readonly property bool shown: more || note.length > 0
             width: ListView.view ? ListView.view.width : GridView.view ? GridView.view.width : 0
-            height: shown ? 52 : 0
+            height: shown ? (note.length > 0 ? 76 : 52) : 0
             visible: shown
-            TextButton {
+            Column {
                 anchors.centerIn: parent
-                implicitHeight: 30
-                text: Streams.twitchLoadingMore ? "Loading…" : "Load more"
-                onClicked: if (!Streams.twitchLoadingMore) Streams.loadMoreTwitch()
+                width: parent.width - 40
+                spacing: 6
+                TextButton {
+                    visible: parent.parent.more
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    implicitHeight: 30
+                    text: parent.parent.loading ? "Loading…" : "Load more"
+                    onClicked: if (!parent.parent.loading) panel.moreAtEnd()
+                }
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    visible: parent.parent.note.length > 0
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                    text: parent.parent.note
+                    color: Theme.dim()
+                    font.family: Theme.body
+                    font.pixelSize: 11
+                }
             }
         }
     }
@@ -1357,7 +1389,7 @@ Panel {
             id: row
             required property var modelData
             width: ListView.view.width
-            height: 46
+            height: 58
             Rectangle { anchors.fill: parent; color: rowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.03) : "transparent" }
             Rectangle { anchors.bottom: parent.bottom; x: 14; width: parent.width - 28; height: 1; color: Theme.rowLine }
             MouseArea {
@@ -1367,15 +1399,26 @@ Panel {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: panel.go({ tab: "youtube", view: "channel", text: "", channel: row.modelData })
             }
+            ChannelPicture {
+                id: rowPicture
+                x: 14
+                anchors.verticalCenter: parent.verticalCenter
+                size: 40
+                channel: row.modelData
+            }
             Column {
-                anchors.left: parent.left
-                anchors.leftMargin: 14
+                anchors.left: rowPicture.right
+                anchors.leftMargin: 10
                 anchors.right: star.left
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
+                    // The whole name: two lines before it is shortened.
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 2
                     elide: Text.ElideRight
+                    lineHeight: 0.95
                     text: row.modelData.name
                     color: Theme.text()
                     font.family: Theme.body
@@ -1687,15 +1730,26 @@ Panel {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: panel.go({ tab: "youtube", view: "channel", text: "", channel: tile.modelData })
             }
+            ChannelPicture {
+                id: tilePicture
+                x: 12
+                anchors.verticalCenter: parent.verticalCenter
+                size: 44
+                channel: tile.modelData
+            }
             Column {
-                anchors.left: parent.left
-                anchors.leftMargin: 14
+                anchors.left: tilePicture.right
+                anchors.leftMargin: 9
                 anchors.right: tileStar.left
                 anchors.rightMargin: 2
                 anchors.verticalCenter: parent.verticalCenter
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     width: parent.width
+                    // The whole name: two lines before it is shortened.
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 2
                     elide: Text.ElideRight
+                    lineHeight: 0.95
                     text: tile.modelData.name
                     color: Theme.text()
                     font.family: Theme.body
@@ -2154,6 +2208,37 @@ Panel {
             fillMode: Image.PreserveAspectCrop
             opacity: parent.dimmed ? 0.5 : 1
             sourceSize.width: 320
+        }
+    }
+
+    // A YouTube channel's picture (square, as Twitch's), its first letter
+    // until the picture is there.
+    component ChannelPicture: Rectangle {
+        id: channelPicture
+        property var channel
+        property int size: 40
+        readonly property string source: (channel && panel.channelPictures[channel.id]) || ""
+        width: size
+        height: size
+        color: "#1f1e25"
+        clip: true
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+            anchors.centerIn: parent
+            visible: pictureImage.status !== Image.Ready
+            text: ((channelPicture.channel && channelPicture.channel.name) || "?").charAt(0).toUpperCase()
+            color: Theme.dim()
+            font.family: Theme.body
+            font.pixelSize: Math.round(channelPicture.size * 0.42)
+            font.weight: Font.DemiBold
+        }
+        Image {
+            id: pictureImage
+            anchors.fill: parent
+            asynchronous: true
+            fillMode: Image.PreserveAspectCrop
+            source: channelPicture.source
+            sourceSize.width: 88
+            sourceSize.height: 88
         }
     }
 

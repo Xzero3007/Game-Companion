@@ -44,6 +44,8 @@ pub mod qobject {
         #[qproperty(f64, text_level)]
         /// How bright the bar's and the player row's gold is, 0.4 to 1.
         #[qproperty(f64, accent_level)]
+        /// How far a wheel notch scrolls, in percent (50 to 500).
+        #[qproperty(i32, wheel_speed)]
         /// The gold brightness presets P1 to P3, as a JSON list.
         #[qproperty(QString, accent_presets)]
         /// The opacity presets P1 to P3, as a JSON list of three numbers.
@@ -111,6 +113,10 @@ pub mod qobject {
         #[qsignal]
         fn updates_requested(self: Pin<&mut Companion>);
 
+        /// A shortcut other than lock and toggle was pressed (`map-overlay`).
+        #[qsignal]
+        fn shortcut_pressed(self: Pin<&mut Companion>, id: QString);
+
         /// Keeps the screen the user picked ("" = KDE's primary screen).
         #[qinvokable]
         fn save_screen(self: Pin<&mut Companion>, name: &QString);
@@ -122,6 +128,10 @@ pub mod qobject {
         /// Sets and keeps how solid the panels are.
         #[qinvokable]
         fn save_alpha(self: Pin<&mut Companion>, alpha: f64);
+
+        /// Sets and keeps how far a wheel notch scrolls.
+        #[qinvokable]
+        fn save_wheel_speed(self: Pin<&mut Companion>, percent: i32);
 
         /// Sets and keeps how bright the white and grey text is.
         #[qinvokable]
@@ -147,6 +157,16 @@ pub mod qobject {
         /// Closes the welcome panel for good.
         #[qinvokable]
         fn close_welcome(self: Pin<&mut Companion>);
+
+        /// The panels open when the app last ran, as JSON
+        /// `{"open": [ids], "dpsClosed": bool}`, or "" if never kept.
+        #[qinvokable]
+        fn open_panels(self: &Companion) -> QString;
+
+        /// Keeps which panels are open (`open`: their ids as a JSON list)
+        /// and whether the DPS panel was closed by hand.
+        #[qinvokable]
+        fn save_open_panels(self: Pin<&mut Companion>, open: &QString, dps_closed: bool);
 
         /// Where a panel was left and its size, as JSON
         /// `{"x","y","w","grow"}`, or "" if never moved.
@@ -196,6 +216,7 @@ pub struct CompanionRust {
     alpha: f64,
     text_level: f64,
     accent_level: f64,
+    wheel_speed: i32,
     accent_presets: QString,
     alpha_presets: QString,
     text_presets: QString,
@@ -224,6 +245,7 @@ impl Default for CompanionRust {
         });
         let (accent_level, accent_presets) = settings::read(|s| (s.accent_level, numbers_json(&s.accent_presets)));
         let (show_on_game, tray) = settings::read(|s| (s.show_on_game, s.tray));
+        let wheel_speed = settings::read(|s| settings::clamp_wheel_speed(s.wheel_speed as i32)) as i32;
         let shortcut_state: Vec<_> = shortcuts::ALL.iter().map(|s| (s.id, shortcuts::Status::Bound(None))).collect();
         Self {
             // Always start locked: the game gets every click until the user
@@ -238,6 +260,7 @@ impl Default for CompanionRust {
             alpha,
             text_level,
             accent_level,
+            wheel_speed,
             accent_presets: QString::from(&accent_presets),
             alpha_presets: QString::from(&alpha_presets),
             text_presets: QString::from(&text_presets),
@@ -405,7 +428,7 @@ impl cxx_qt::Initialize for qobject::Companion {
                         let _ = fire_thread.queue(move |obj: Pin<&mut qobject::Companion>| match id.as_str() {
                             "lock" => obj.toggle_locked(),
                             "toggle" => obj.toggle_shown(),
-                            _ => {}
+                            other => obj.shortcut_pressed(QString::from(other)),
                         });
                     },
                 )
@@ -579,6 +602,12 @@ impl qobject::Companion {
         self.set_alpha(alpha);
     }
 
+    fn save_wheel_speed(self: Pin<&mut Self>, percent: i32) {
+        let percent = settings::clamp_wheel_speed(percent);
+        settings::change(|s| s.wheel_speed = percent);
+        self.set_wheel_speed(percent as i32);
+    }
+
     fn save_text_level(self: Pin<&mut Self>, level: f64) {
         let level = settings::clamp_text_level(level);
         settings::change(|s| s.text_level = level);
@@ -644,6 +673,27 @@ impl qobject::Companion {
     fn close_welcome(self: Pin<&mut Self>) {
         settings::change(|s| s.welcome = false);
         self.set_welcome(false);
+    }
+
+    fn open_panels(&self) -> QString {
+        match settings::read(|s| s.open_panels.clone().map(|open| (open, s.dps_closed))) {
+            Some((open, dps_closed)) => {
+                QString::from(&serde_json::json!({ "open": open, "dpsClosed": dps_closed }).to_string())
+            }
+            None => QString::default(),
+        }
+    }
+
+    fn save_open_panels(self: Pin<&mut Self>, open: &QString, dps_closed: bool) {
+        let Ok(open) = serde_json::from_str::<Vec<String>>(&open.to_string()) else { return };
+        let open: Vec<String> = open.into_iter().filter(|id| id.len() <= 40).take(40).collect();
+        if settings::read(|s| s.open_panels.as_ref() == Some(&open) && s.dps_closed == dps_closed) {
+            return;
+        }
+        settings::change(|s| {
+            s.open_panels = Some(open);
+            s.dps_closed = dps_closed;
+        });
     }
 
     fn place_of(&self, id: &QString) -> QString {

@@ -49,7 +49,8 @@ learnt, so nothing has to be asked or worked out again.
   bar buttons with the icon and a capitals label under it (Rajdhani 700),
   active = gold icon and 2 px gold underline; player row as a slanted strip
   under the bar (square status dots, bar-style volume); panels with square
-  corners, 2 px gold top line, capitals headers, underline tabs; panel ground
+  corners, no gold line on top (MN, 2026-11-14: removed everywhere),
+  capitals headers, underline tabs; panel ground
   `rgba(12,12,15,0.9)` (the opacity setting); body text Inter. Purple
   `#9b6be8` / `#c4a8f0` tags the game module.
 - **Nothing is sent without the person's yes.** No account, no pop-ups, no
@@ -67,7 +68,16 @@ learnt, so nothing has to be asked or worked out again.
   chat over IRC (irc.chat.twitch.tv:6697, TLS; anonymous to read, the
   person's twitch.tv token to write; the person, 2026-11-13); chat emotes
   from 7TV (7tv.io, cdn.7tv.app) and BTTV (api.betterttv.net,
-  cdn.betterttv.net), asked with the channel's public Twitch id only. Brave Origin and Legcord are the
+  cdn.betterttv.net), asked with the channel's public Twitch id only. The AION 2 Market's prices (Clicktrough's hourly copy on
+  raw.githubusercontent.com/Xzero3007/A2Tools-DPS-Meter_Clicktrough/market-data/
+  and aion2.exchange's API, read only) and the game's item icons from
+  assets.playnccdn.com, kept on disk (the person, 2026-11-13; src/market.rs); Aion 2 Timers' field boss feed
+  (www.aion2timers.com/api/fieldboss.php?action=feed&server=<region-name>,
+  read only, off until switched on, every 5 min while the Schedule is open
+  or 15 while a boss alert waits; src/aion2timers.rs; the person,
+  2026-11-13); the Armory's NC character pages (aion2.plaync.com,
+  api-search.plaync.com, profileimg.plaync.com; read only, no account;
+  src/armory.rs `allowed`; MN, 2026-11-13). Brave Origin and Legcord are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
 - **Game modules only read** (like the AION 2 meter): never send anything to
@@ -139,7 +149,12 @@ learnt, so nothing has to be asked or worked out again.
   coordinates**: it lives in `Surface.scene` (screen-sized, shifted by the
   surface's place), its parent. `nativeWindow.attach` makes the window a
   layer-shell surface (overlay layer, anchored top and left, exclusive
-  zone -1, keyboard none; on-demand while unlocked), `place` sets the
+  zone -1, keyboard none; on-demand only after a click into the part
+  while unlocked, `setKeyboard` + `eventFilter`, back to none on lock or
+  hide: KWin activates an overlay surface the moment it accepts keys, which
+  took the game's focus and mouse on unlock and when a part opened by
+  itself, MN 2026-11-14; `_q_showWithoutActivating`; the input region is
+  set before the first show), `place` sets the
   margins (x, y) and size, `setInput` the input region (`QWindow::setMask`:
   unlocked everything, locked only the lock button or one pixel). X11:
   frameless on-top windows at that geometry. Dragging (`MoveArea`, the
@@ -286,7 +301,9 @@ learnt, so nothing has to be asked or worked out again.
   (profiles → subscription groups, playlists, history, the quick bookmark
   target from settings.db) once; then FreeTube's subscriptions file is no
   longer read (`freetube_live` false). Streams lists: Shorts left out by
-  default (`hide_shorts`), watched, channels and words left out; search
+  default (`hide_shorts`), watched, channels and words left out, and
+  titles or channel names in an Indian script (`hide_indian`, default on,
+  `streams::indian_script`; MN, 2026-11-13); search
   filters as YouTube's `sp` (protobuf, `search_param`); Trending is yt-dlp
   searches per part (`TREND_SECTIONS`, words changeable in Settings), as
   YouTube's own trending page is gone. Video languages (`video_languages`,
@@ -298,7 +315,32 @@ learnt, so nothing has to be asked or worked out again.
   reruns, order; `liveMore` falls back to plain `live` if Twitch refuses
   its fields; live lists, categories, past broadcasts and clips page by
   Twitch's cursors, `fetch_twitch`, `load_more_twitch` at the list's end
-  or by "Load more", `GC_DEMO=…,more`), quality per channel, live notes (a thread every 120 s while
+  or by "Load more", `GC_DEMO=…,more`; the cursor is written into the
+  query as a string: a typed `$a: Cursor` variable brought nothing on
+  MN's test; on 0.7.7 Twitch sent the first page again for a cursor, so
+  when a page brings nothing new `load_more_twitch` asks for a longer list
+  from the top instead (`{"first": n}`, `twitch_query_page`, 30 more each
+  time, at most `TWITCH_LONGEST` 100; that helped Categories). All live
+  still sent the same 30 for cursor and length (0.8.2), so live lists ask
+  `options: { sort: VIEWER_COUNT }` as Twitch's directory does
+  (`liveSorted`, `liveMoreSorted`), plain if Twitch refuses it. That still
+  sent the same 30 (0.8.6), so All live now asks Twitch's own directory
+  query first, the persisted `BrowsePage_Popular` (`twitch_browse`, the
+  known ids in `BROWSE_POPULAR` tried in turn, the one that answered kept;
+  cursor and `limit` as variables), the written-out query only if no id
+  answers. Still the same 30 on 0.8.12, so when a page of All live brings
+  nothing new, `load_more_twitch` sweeps categories instead: the streams of
+  the next `SWEEP` (6) most watched categories in one aliased request
+  (`twitch_sweep_query`, `sweep_cards`, `sweep_page`, `{"sweep": p}`, up
+  to `SWEEP_LONGEST` 60 categories). "Twitch sent nothing new" names the
+  ways tried (`TWITCH_WAY`, e.g. the directory query's refusal); why a page failed shows under the
+  list, `twitchMoreNote`;
+  YouTube pages too: `load_more_youtube`, yt-dlp `--playlist-items`,
+  subscriptions 60 a page from the kept 200), channel pictures (0.8.4:
+  once per channel, FreeTube's profiles file first, else yt-dlp
+  `--playlist-items 0` on the channel page, `streams::channel_picture`;
+  settings `channel_pictures`, the `channelPictures` property, shown
+  square in the Channels list; yt3.ggpht.com only), quality per channel, live notes (a thread every 120 s while
   on, generation `ALERTS_RUN`; red count, no pop-up). Videos: chapters
   (mpv `chapter-list`), speed, queue (playlists played through, shuffle,
   loop). `GC_DEMO=streams,yt-<view>` / `tw-<view>`, `news`, `groups`,
@@ -319,8 +361,34 @@ learnt, so nothing has to be asked or worked out again.
   (`chat_docked`), moved by hand it stays; "Dock" in its header brings it
   back. Its own ground opacity (`opacityOf("chat")`, 10 to 100). Shown with
   the speech bubble on the Twitch video (`chat_open`). `GC_DEMO=video,chat`.
+- Jellyfin Continue and Next up (`series_first`): an episode shows the
+  series' name, then code and episode, with the series' thumb (else
+  backdrop, else poster); collections (boxsets) are a library.
+- Jellyfin music (0.8.2, MN): a music library opens to its albums (by
+  artist), an album to its tracks (`folder`, kind `MusicAlbum`); a track
+  (`sound_only` source) plays its file as it is (`audio_path`, no
+  segments asked) in the Jellyfin window with the album's cover over it,
+  previous/next track buttons and the album played through
+  (`find_track` → `album_track`). The fake server has a music library
+  (`song.ogg`); without a sound card a `~/.asoundrc` with
+  `pcm.!default { type null }` lets mpv play (and end) sound in the
+  sandbox (remove it after).
+- `WheelScroll`: a `Behavior` with `SmoothedAnimation` on `pos`, so wheel
+  steps add to the goal without restarting the glide (MN: scrolling felt
+  poor); lists keep `cacheBuffer: 600`. A notch is told by its angle (a
+  multiple of 120): on KDE Wayland Qt gives a wheel notch a small pixel
+  delta too, which was taken for a touchpad (MN: scrolled far too little).
+  Settings → Display "Scroll speed" (`Companion.wheelSpeed`, 50 to 500 %)
+  scales every step. `GC_DEMO=settings,display`.
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
+- Video loudness (MN, 2026-11-14: videos quieter than the radio, which is
+  mixed louder): Settings → Streams → Videos "Video loudness"
+  (`Streams.videoBoost`, settings `streams.video_boost`, 0/3/6/9 dB;
+  `VideoWindow.mpvVolume` multiplies by 10^(dB/60), mpv's `volume-max`
+  150) and "Even out loudness" (`Streams.evenLoudness`, `MpvVideo.levelling`:
+  mpv `af` = `lavfi=[dynaudnorm=f=250:g=15]`). The radio's own mpv is not
+  touched.
 - `HudIcon` is a picture from the icon provider (`cpp/icons.cpp`,
   `image://icon/<path>|<colour>|<line width>|<filled>`, QSvgRenderer at
   twice the size): one small texture per look, shared and cached. It was a
@@ -364,6 +432,93 @@ learnt, so nothing has to be asked or worked out again.
   the meter's sharing ring are left out: nothing captured is written down. Check the helper in the sandbox: copy
   /bin/bash to a folder as `game-companion` and run the helper from it
   (`libpcap0.8` installed), loopback traffic on a port other than 80/443.
+- Pet Finder (Map's PETS tab, 2026-11-13): `aion2::pets` (frames 00/0D/14
+  90, Pet Finder's checks, catalogue from `data/pets/pets.json`), kept per
+  server in `~/.local/share/game-companion/aion2/pets.json`; QML gets
+  `Aion2.pets` and `Aion2.petData()`. MapPanel turns it into mapkit's
+  `tracked` (favourites `settings.petFavs` = "pinned", a soul within 30 min
+  = "farming"), `needed` and `soulsLeft`; `qml/aion2/PetsTab.qml` is the
+  list. Data and portraits: `node tools/aion2-pets-import.js`. Other
+  threads read `Aion2.pets` (levels) rather than parse pet frames again.
+
+- Schedule (AION 2 Event Timers, 0.8.x, canvas page "Zeitplan (Event
+  Timers)", boards T1–T3): `qml/aion2/TimerStore.qml` (in Main, lives with
+  the app) keeps per server the bosses of every map the game told about
+  (`Aion2.bossMaps` from `Engine::boss_maps`, the parser's `01 91` boss map
+  sent when a map is opened; only home map and Abyss come) and the alert
+  choices, in aion2-timers.json; one single-shot Timer waits for the next
+  alert (`TK.nextAlert`), the banner (`AlertBanner.qml`, own surface, 20 s)
+  and `Aion2.chime` (`src/alert.rs`: a WAV made in code, played by pw-play,
+  paplay, aplay or mpv) / `Aion2.speak` (spd-say). Alerts only while AION 2
+  runs unless "Also while AION 2 is closed". `qml/aion2/timekit.js`: server
+  time per region (second digit of the server id; US/EU daylight rules in
+  code, Qt's JS has no time zones), next showings, boss rows. Fixed times:
+  `qml/aion2/schedule.js` from taengu's Event Timers (GPL-3.0) by
+  `tools/aion2-schedule-import.py <A2Tools-Plugins checkout>`. Aion 2
+  Timers' slugs (`asmo07`) map to world-map ids by matching the game's
+  return times (`TK.learn`), else by number (A2T? tag). Test:
+  `node tools/timekit-test.js`. `GC_DEMO=schedule[,events][,alert]`,
+  `settings,timers`.
+
+- Boss area (AION 2 "Kampf", the person 2026-11-13; canvas page "boss",
+  boards K1 to K5): Boss Notes and Boss Callouts (A2Tools' Enhanced Boss
+  Telegraph, GPL-3.0) in one panel `qml/aion2/BossPanel.qml` (NOW, SHEETS,
+  FIGHTS, VOICE), the big call `BossCall.qml` (own surface, only while a
+  call runs) and the sheet over the game `BossOverlay.qml`; the logic is
+  the plugins' logic.js ported as `.pragma library` files (`callouts.js`,
+  `bossnotes.js`), driven by `BossBrain.qml` (a ticker only while calls or
+  a fight run). Frames: `aion2::boss::Feed` reads cast/use/wave/buff
+  frames of the skills in `data/boss/watch.json` from bound casters and
+  hands them to QML as `Aion2.bossHeard`; `Aion2.combat` lists the fought
+  NPCs and the dungeon. Data: `tools/aion2-boss-import.py <A2Tools-Plugins
+  dir>` writes `qml/aion2/bossdata.js`, `watch.json` and the Kokoro voice
+  clips (`data/boss/voice`, played by mpv; own words by `spd-say`,
+  `src/voice.rs`). Cheat sheets per dungeon (Ludra first) in
+  `bossstarters.js`: starters from public guides, roles fade other roles'
+  rows. Stores "boss", "boss-sheets", "boss-fights". Not done yet: overlay
+  slots and resizing. Preview outside the dungeon (MN, 0.8.6 test): SHEETS →
+  "Show over game" (`previewDungeon`, `previewKey`, not kept), ▶ on an entry
+  or a click on its row over the game plays it (`playEntry`: big call and
+  voice, `previewPhase` marked current). `GC_DEMO=boss[,bossfight|,ludra][,sheets|,fights|,voice]`,
+  `boss,sheets,preview`.
+
+- LOOT (`qml/aion2/LootPanel.qml`, `LootStore.qml`, `ClosetWindow.qml`,
+  `PriceBook.qml`; logic `lootkit.js` from `tools/aion2-loot-import.py`):
+  the Inventory, Closet and Shugo Cards plugins in one panel; game frames
+  through `crates/aion2/src/decoders.rs` → `Aion2.decoded`; files in
+  `~/.local/share/game-companion/aion2/loot/`. Details: docs/HANDOFF.md.
+  The old meter's Inventory/Closet/Shugo files are read once (local, read
+  only, `src/meter_import.rs`; MN, 2026-11-13). The farm window
+  `FarmWindow.qml` opens itself while farming; the shop window's switches
+  are per place (merchant, Market). Positions in `Aion2.world` are in cm.
+  `short` is a reserved word in QML's JS: name helpers otherwise.
+
+- Armory (MN 2026-11-13, canvas page "Armory mit Builds", boards AR1–AR4):
+  the Clicktrough Armory plugin with builds tied to characters. The old
+  meter's Armory files (history, readings, references, targets) are taken
+  over once (`meter_import::read_armory`, `ArmoryStore.takeMeter`; MN,
+  2026-11-14).
+  `qml/aion2/armorykit.js` is the plugin's calc.js and nc.js unchanged
+  (made by `tools/aion2-armory-import.py <A2Tools-Clicktrough-Plugins
+  plugins dir>`, which also writes `crates/aion2/data/armory/data.json`,
+  loaded by `Aion2.armoryData()` → `AK.load`); its tests
+  `tools/armory-test/calc.test.cjs` (run each file with `node --test`).
+  `buildkit.js` (+ `builds.test.cjs`): builds = reference + targets (soul
+  wishes, skill levels, compared items, levels, picks, slots left out, goal
+  GS), on several characters, one active each, versions within 10 min,
+  progress per area, next steps (gone from the next reading = done).
+  `ArmoryStore.qml` (in Main): state in store "armory", one snapshot and
+  history per character ("armory-s-"/"armory-h-" + hash), reads NC's pages
+  through `Aion2.webGet` (promises, no async on Qt 6.4), a played character
+  by itself every 6 h while the plugin is on, the game's own CP/GS between
+  readings; `progressOf(key)` feeds CHARACTERS' gear column. Panel
+  `ArmoryPanel.qml` with tab files `Armory<Tab>.qml`, parts in `AUi.qml`
+  (no Repeater inside inline components, no inline component made by a
+  nested Repeater: Qt 6.4 crashed; no property named `top`, `scale`, `C`
+  or a signal `set`). questlog.gg builds come from the Armory bookmark's
+  file in Downloads (`armory-*.json`, `src/armory.rs`). Battle History
+  entries carry `players` [[name, damage]] for HISTORY's boss fights.
+  `GC_DEMO=armory[,gear[,compare]|,soul[,pick]|,askills|,daev|,stats|,goals|,builds|,ahistory]`.
 
 ## Checking a change
 

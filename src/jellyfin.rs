@@ -436,12 +436,34 @@ fn user_paths(account: &Account, new: &str, old: &str) -> Vec<String> {
 
 pub fn continue_watching(account: &Account) -> Result<Vec<Value>, String> {
     let q = list_query(account, &[("Limit", "40".into()), ("MediaTypes", "Video".into())]);
-    Ok(items(&get_first(account, &user_paths(account, "/UserItems/Resume", "/Users/{user}/Items/Resume"), &q)?))
+    Ok(series_first(items(&get_first(account, &user_paths(account, "/UserItems/Resume", "/Users/{user}/Items/Resume"), &q)?)))
 }
 
 pub fn next_up(account: &Account) -> Result<Vec<Value>, String> {
     let q = list_query(account, &[("Limit", "40".into())]);
-    Ok(items(&get_first(account, &["/Shows/NextUp".to_string()], &q)?))
+    Ok(series_first(items(&get_first(account, &["/Shows/NextUp".to_string()], &q)?)))
+}
+
+/// Continue and Next up as the person wants them: an episode shows its
+/// series' name on top and the episode below, with the series' picture
+/// (its thumb, else its backdrop, else its poster), not a still from the
+/// episode; a film its own thumb or backdrop (as already).
+pub fn series_first(list: Vec<Value>) -> Vec<Value> {
+    list.into_iter()
+        .map(|mut v| {
+            if v["type"] == "Episode" && !v["series"].as_str().unwrap_or("").is_empty() {
+                let episode = v["name"].as_str().unwrap_or("").to_string();
+                let code = v["code"].as_str().unwrap_or("").to_string();
+                v["name"] = v["series"].clone();
+                v["sub"] = json!([code.as_str(), episode.as_str()].iter().filter(|t| !t.is_empty()).cloned().collect::<Vec<_>>().join(" · "));
+                let series_picture = v["seriesPicture"].as_str().unwrap_or("").to_string();
+                if !series_picture.is_empty() {
+                    v["picture"] = json!(series_picture);
+                }
+            }
+            v
+        })
+        .collect()
 }
 
 pub fn libraries(account: &Account) -> Result<Vec<Value>, String> {
@@ -474,14 +496,18 @@ pub fn folder(account: &Account, f: &Folder, start: usize) -> Result<(Vec<Value>
         "Series" => get_first(account, &[format!("/Shows/{}/Seasons", f.id)], &list_query(account, &[]))?,
         "Season" => get_first(account, &[format!("/Shows/{}/Episodes", f.series_id)], &list_query(account, &[("seasonId", f.id.clone())]))?,
         _ => {
-            let types = match f.collection.as_str() {
-                "movies" => "Movie",
-                "tvshows" => "Series",
-                _ => "",
+            let (types, sort) = match (f.kind.as_str(), f.collection.as_str()) {
+                // An album's tracks in their order (discs, then numbers).
+                ("MusicAlbum", _) => ("Audio", "ParentIndexNumber,IndexNumber,SortName"),
+                (_, "movies") => ("Movie", "SortName"),
+                (_, "tvshows") => ("Series", "SortName"),
+                // A music library: its albums, by artist.
+                (_, "music") => ("MusicAlbum", "AlbumArtist,SortName"),
+                _ => ("", "SortName"),
             };
             let mut extra = vec![
                 ("ParentId", f.id.clone()),
-                ("SortBy", "SortName".to_string()),
+                ("SortBy", sort.to_string()),
                 ("SortOrder", "Ascending".to_string()),
                 ("StartIndex", start.to_string()),
                 ("Limit", PAGE.to_string()),
@@ -502,7 +528,7 @@ pub fn search(account: &Account, text: &str) -> Result<Vec<Value>, String> {
     let text: String = text.trim().chars().filter(|c| !c.is_control()).take(100).collect();
     let q = list_query(account, &[
         ("searchTerm", text),
-        ("IncludeItemTypes", "Movie,Series,Episode".into()),
+        ("IncludeItemTypes", "Movie,Series,Episode,MusicAlbum,Audio".into()),
         ("Recursive", "true".into()),
         ("Limit", "60".into()),
     ]);
@@ -517,6 +543,23 @@ pub fn next_episode(account: &Account, series: &str, item: &str) -> Result<Optio
     let q = list_query(account, &[("startItemId", item.to_string()), ("Limit", "2".into())]);
     let all = items(&get_first(account, &[format!("/Shows/{series}/Episodes")], &q)?);
     Ok(all.into_iter().find(|e| e["id"] != item))
+}
+
+/// The track `step` places from `item` in its album (1 the next, -1 the
+/// one before), if any.
+pub fn album_track(account: &Account, album: &str, item: &str, step: i64) -> Result<Option<Value>, String> {
+    if !item_ok(album) || !item_ok(item) {
+        return Err("not a track".into());
+    }
+    let f = Folder { id: album.to_string(), kind: "MusicAlbum".into(), ..Default::default() };
+    let (tracks, _) = folder(account, &f, 0)?;
+    Ok(neighbour(tracks, item, step))
+}
+
+/// The item `step` places from `item` in a list.
+pub fn neighbour(list: Vec<Value>, item: &str, step: i64) -> Option<Value> {
+    let at = list.iter().position(|t| t["id"] == item)? as i64 + step;
+    usize::try_from(at).ok().and_then(|i| list.into_iter().nth(i))
 }
 
 /// Marks an item watched (`on`) or not.
@@ -557,6 +600,20 @@ pub fn stream_path(item: &str, source: &str, session: &str, quality: &str, audio
         }
         None => format!("/Videos/{item}/stream?static=true&mediaSourceId={src}"),
     }
+}
+
+/// A music track: the server's file as it is.
+pub fn audio_path(item: &str, source: &str) -> String {
+    let src = if source.is_empty() { item } else { source };
+    format!("/Audio/{item}/stream?static=true&mediaSourceId={src}")
+}
+
+/// Whether a media source is sound only (a music track: no video stream;
+/// a cover inside the file counts as a picture, not a video).
+pub fn sound_only(source: &Value) -> bool {
+    source.get("MediaStreams").and_then(Value::as_array).is_some_and(|streams| {
+        !streams.is_empty() && streams.iter().all(|m| m["Type"] != "Video")
+    })
 }
 
 /// The address mpv plays and the header it sends along (the key goes in
@@ -708,8 +765,22 @@ pub fn item(i: &Value) -> Option<Value> {
     };
     let year = i.get("ProductionYear").and_then(Value::as_u64).map(|y| y.to_string()).unwrap_or_default();
     let backdrops = |k: &str| i.get(k).and_then(Value::as_array).is_some_and(|a| !a.is_empty());
+    let music = kind == "MusicAlbum" || kind == "Audio";
+    // A track's (or album's) cover: its own, else its album's.
+    let album_id = s(i, "AlbumId");
+    let cover = |width: u32| {
+        if has("Primary") {
+            picture_url(&id, "Primary", width)
+        } else if item_ok(&album_id) && i.get("AlbumPrimaryImageTag").is_some_and(|t| !t.is_null()) {
+            picture_url(&album_id, "Primary", width)
+        } else {
+            String::new()
+        }
+    };
     // Wide: an episode's own still, a film's thumb or backdrop, else the series'.
-    let wide = if episode && has("Primary") {
+    let wide = if music {
+        cover(400)
+    } else if episode && has("Primary") {
         picture_url(&id, "Primary", 400)
     } else if has("Thumb") {
         picture_url(&id, "Thumb", 400)
@@ -724,21 +795,48 @@ pub fn item(i: &Value) -> Option<Value> {
     } else {
         String::new()
     };
-    let poster = if has("Primary") {
+    let poster = if music {
+        cover(240)
+    } else if has("Primary") {
         picture_url(&id, "Primary", 240)
     } else if episode && i.get("SeriesPrimaryImageTag").is_some_and(|t| !t.is_null()) {
         picture_url(&s(i, "SeriesId"), "Primary", 240)
     } else {
         String::new()
     };
+    // The series' own wide picture (for Continue and Next up).
+    let series_picture = if !episode {
+        String::new()
+    } else if item_ok(&s(i, "ParentThumbItemId")) {
+        picture_url(&s(i, "ParentThumbItemId"), "Thumb", 400)
+    } else if backdrops("ParentBackdropImageTags") {
+        picture_url(&s(i, "ParentBackdropItemId"), "Backdrop", 400)
+    } else if i.get("SeriesPrimaryImageTag").is_some_and(|t| !t.is_null()) {
+        picture_url(&s(i, "SeriesId"), "Primary", 400)
+    } else {
+        String::new()
+    };
     let series = s(i, "SeriesName");
-    let sub = if episode {
+    let artist = {
+        let a = s(i, "AlbumArtist");
+        if a.is_empty() {
+            i.get("Artists").and_then(Value::as_array).and_then(|a| a.first()).and_then(Value::as_str).unwrap_or("").to_string()
+        } else {
+            a
+        }
+    };
+    let track = if kind == "Audio" { number.map(|n| n.to_string()).unwrap_or_default() } else { String::new() };
+    let sub = if music {
+        let first = if kind == "Audio" { track.as_str() } else { artist.as_str() };
+        let second = if kind == "Audio" { artist.as_str() } else { year.as_str() };
+        [first, second].iter().filter(|t| !t.is_empty()).cloned().collect::<Vec<_>>().join(" · ")
+    } else if episode {
         [series.as_str(), code.as_str()].iter().filter(|t| !t.is_empty()).cloned().collect::<Vec<_>>().join(" · ")
     } else {
         [year.as_str(), if kind == "Series" { "Series" } else { "" }].iter().filter(|t| !t.is_empty()).cloned().collect::<Vec<_>>().join(" · ")
     };
-    let openable_types = ["Series", "Season", "BoxSet", "Folder", "CollectionFolder", "Playlist"];
-    let playable_types = ["Movie", "Episode", "Video", "MusicVideo", "Trailer"];
+    let openable_types = ["Series", "Season", "BoxSet", "Folder", "CollectionFolder", "Playlist", "MusicAlbum"];
+    let playable_types = ["Movie", "Episode", "Video", "MusicVideo", "Trailer", "Audio"];
     let openable = openable_types.contains(&kind.as_str()) || i.get("IsFolder").and_then(Value::as_bool).unwrap_or(false);
     let playable = playable_types.contains(&kind.as_str()) || (!openable && s(i, "MediaType") == "Video");
     let position = if position > 0.0 && (runtime == 0.0 || position < runtime) { position } else { 0.0 };
@@ -759,6 +857,8 @@ pub fn item(i: &Value) -> Option<Value> {
         "openable": openable,
         "seriesId": s(i, "SeriesId"),
         "seasonId": s(i, "SeasonId"),
+        "albumId": if item_ok(&album_id) { album_id.clone() } else { String::new() },
+        "artist": artist,
         "collection": s(i, "CollectionType"),
         "runtime": runtime,
         "position": position,
@@ -767,6 +867,7 @@ pub fn item(i: &Value) -> Option<Value> {
         "unplayed": n(&ud, "UnplayedItemCount").max(0.0),
         "picture": wide,
         "poster": poster,
+        "seriesPicture": series_picture,
     }))
 }
 
@@ -776,20 +877,24 @@ pub fn items(answer: &Value) -> Vec<Value> {
     all.map(|a| a.iter().filter_map(item).collect()).unwrap_or_default()
 }
 
-/// The libraries a user has, films' and shows' first (music, books and the
-/// like left out: they don't play here).
+/// The libraries a user has, films' and shows' first, music after them
+/// (books and the like left out: they don't play here).
 pub fn libraries_of(answer: &Value) -> Vec<Value> {
     let rank = |k: &str| match k {
         "movies" => 0,
         "tvshows" => 1,
+        "boxsets" => 2,
         "homevideos" => 2,
         "musicvideos" => 3,
         "mixed" | "" => 4,
+        "music" => 5,
         _ => 9,
     };
     let mut libs: Vec<Value> = items(answer)
         .into_iter()
-        .filter(|v| !["music", "books", "playlists", "livetv", "boxsets", "photos"].contains(&v["collection"].as_str().unwrap_or("")))
+        // Collections (boxsets) stay: each opens to its films and shows;
+        // music opens to its albums (MN, 2026-11-13).
+        .filter(|v| !["books", "playlists", "livetv", "photos"].contains(&v["collection"].as_str().unwrap_or("")))
         .map(|mut v| {
             v["type"] = json!("lib");
             v["openable"] = json!(true);
@@ -900,6 +1005,25 @@ pub fn tracks_of(source: &Value) -> Value {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn music_tracks() {
+        let song = item(&json!({ "Id": "b".repeat(32), "Type": "Audio", "MediaType": "Audio", "Name": "Song", "IndexNumber": 3,
+            "AlbumId": "9".repeat(32), "AlbumPrimaryImageTag": "p", "Artists": ["Band"], "ImageTags": {} })).unwrap();
+        assert_eq!(song["playable"], true);
+        assert_eq!(song["sub"], "3 · Band");
+        assert_eq!(song["albumId"], "9".repeat(32));
+        assert!(song["poster"].as_str().unwrap().contains(&"9".repeat(32)));
+        assert!(sound_only(&json!({ "MediaStreams": [{ "Type": "Audio" }, { "Type": "EmbeddedImage" }] })));
+        assert!(!sound_only(&json!({ "MediaStreams": [{ "Type": "Video" }, { "Type": "Audio" }] })));
+        assert!(!sound_only(&Value::Null), "unknown: played as a video");
+        let list = vec![json!({ "id": "a" }), json!({ "id": "b" }), json!({ "id": "c" })];
+        assert_eq!(neighbour(list.clone(), "b", 1).unwrap()["id"], "c");
+        assert_eq!(neighbour(list.clone(), "b", -1).unwrap()["id"], "a");
+        assert!(neighbour(list.clone(), "a", -1).is_none());
+        assert!(neighbour(list, "c", 1).is_none());
+        assert_eq!(audio_path(&"b".repeat(32), ""), format!("/Audio/{0}/stream?static=true&mediaSourceId={0}", "b".repeat(32)));
+    }
+
     use super::*;
 
     #[test]
@@ -970,6 +1094,21 @@ mod tests {
     }
 
     #[test]
+    fn continue_shows_the_series_first() {
+        let ep = "0123456789abcdef0123456789abcdef";
+        let series = "fedcba9876543210fedcba9876543210";
+        let raw = json!([{ "Id": ep, "Type": "Episode", "Name": "Pilot", "SeriesName": "Show", "SeriesId": series, "ParentIndexNumber": 1, "IndexNumber": 2,
+            "ImageTags": { "Primary": "still" }, "ParentThumbItemId": series, "ParentThumbImageTag": "t" }]);
+        let v = &series_first(items(&raw))[0];
+        assert_eq!(v["name"], "Show");
+        assert_eq!(v["sub"], "S1 E2 · Pilot");
+        assert_eq!(v["picture"], format!("image://jellyfin/{series}/Thumb/400"));
+        // Without a series thumb: its backdrop, else its poster.
+        let raw = json!([{ "Id": ep, "Type": "Episode", "Name": "Pilot", "SeriesName": "Show", "SeriesId": series, "SeriesPrimaryImageTag": "p", "ImageTags": { "Primary": "still" } }]);
+        assert_eq!(series_first(items(&raw))[0]["picture"], format!("image://jellyfin/{series}/Primary/400"));
+    }
+
+    #[test]
     fn a_query_is_encoded() {
         assert_eq!(query(&[("searchTerm", "a&b=c d".into()), ("Limit", "20".into())]), "searchTerm=a%26b%3Dc%20d&Limit=20");
     }
@@ -1004,7 +1143,7 @@ mod tests {
         let lib = |id: char, name: &str, kind: &str| json!({ "Id": id.to_string().repeat(32), "Name": name, "CollectionType": kind, "Type": "CollectionFolder" });
         let libs = libraries_of(&json!({ "Items": [lib('a', "Music", "music"), lib('b', "Shows", "tvshows"), lib('c', "Films", "movies"), lib('d', "Home", "homevideos")] }));
         let names: Vec<&str> = libs.iter().map(|l| l["name"].as_str().unwrap()).collect();
-        assert_eq!(names, ["Films", "Shows", "Home"]);
+        assert_eq!(names, ["Films", "Shows", "Home", "Music"]);
         assert_eq!(libs[0]["type"], "lib");
     }
 
@@ -1065,7 +1204,22 @@ mod tests {
         assert_eq!(resume.len(), 2, "the older path when the newer one is missing");
         assert_eq!(next_up(&a).unwrap().len(), 1);
         let libs = libraries(&a).unwrap();
-        assert_eq!(libs.len(), 2, "music left out");
+        assert_eq!(libs.len(), 3, "music comes along");
+        assert_eq!(libs[2]["collection"], "music", "music after films and shows");
+        let music: Folder = serde_json::from_value(libs[2].clone()).unwrap();
+        let (albums, _) = folder(&a, &music, 0).unwrap();
+        assert_eq!(albums[0]["type"], "MusicAlbum");
+        assert_eq!(albums[0]["sub"], "Made-up band · 2020");
+        let album: Folder = serde_json::from_value(albums[0].clone()).unwrap();
+        let (songs, total) = folder(&a, &album, 0).unwrap();
+        assert_eq!((songs.len(), total), (2, 2));
+        assert_eq!(songs[0]["playable"], true);
+        assert_eq!(songs[0]["picture"], format!("image://jellyfin/{}/Primary/400", "9".repeat(32)), "the album's cover");
+        let next = album_track(&a, &"9".repeat(32), &"b".repeat(32), 1).unwrap().unwrap();
+        assert_eq!(next["name"], "Second song");
+        assert!(album_track(&a, &"9".repeat(32), &"c".repeat(32), 1).unwrap().is_none(), "the album ends");
+        let song_info = playback_info(&a, &"b".repeat(32)).unwrap();
+        assert!(sound_only(&song_info["MediaSources"][0]));
         let shows = Folder { id: libs[1]["id"].as_str().unwrap().into(), kind: "lib".into(), collection: "tvshows".into(), series_id: String::new() };
         let (series, total) = folder(&a, &shows, 0).unwrap();
         assert_eq!((series.len(), total), (1, 1));

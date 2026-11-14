@@ -278,12 +278,15 @@ bool MpvVideo::ensureStarted()
         {"force-seekable", "yes"},
         {"load-unsafe-playlists", "no"},
         {"audio-client-name", "Game Companion"},
+        // Room for Settings → Streams "Video loudness" (+9 dB is 141).
+        {"volume-max", "150"},
         {"title", "Game Companion"},
     };
     for (const auto &o : options) {
         mpv().set_option_string(m_mpv, o[0], o[1]);
     }
     mpv().set_option_string(m_mpv, "hwdec", m_hwdec ? "auto-safe" : "no");
+    mpv().set_option_string(m_mpv, "af", levellingFilter(m_levelling));
     if (m_local) {
         // The home network's server: mpv itself, nothing else. No yt-dlp
         // (it would try an address mpv can't open), no scripts of the
@@ -333,6 +336,13 @@ void MpvVideo::setState(const QString &state, const QString &error)
     m_state = state;
     m_error = error;
     emit stateChanged();
+}
+
+// ffmpeg's dynamic normaliser: quiet passages up, loud ones down, a quarter
+// second at a time (Settings → Streams "Even out loudness").
+const char *MpvVideo::levellingFilter(bool on)
+{
+    return on ? "lavfi=[dynaudnorm=f=250:g=15]" : "";
 }
 
 void MpvVideo::setMpv(const char *name, const QString &value)
@@ -439,6 +449,16 @@ void MpvVideo::seek(double seconds, bool relative)
     mpv().command(m_mpv, args);
 }
 
+void MpvVideo::setLevelling(bool on)
+{
+    if (m_levelling == on) {
+        return;
+    }
+    m_levelling = on;
+    setMpv("af", QString::fromLatin1(levellingFilter(on)));
+    emit levellingChanged();
+}
+
 void MpvVideo::setHwdec(bool on)
 {
     if (m_hwdec == on) {
@@ -505,7 +525,7 @@ void MpvVideo::setMuted(bool muted)
 
 void MpvVideo::setVolume(double volume)
 {
-    volume = qBound(0.0, volume, 125.0);
+    volume = qBound(0.0, volume, 150.0);
     setMpv("volume", QString::number(volume, 'f', 0));
     if (!m_mpv && !qFuzzyCompare(m_volume, volume)) {
         m_volume = volume;

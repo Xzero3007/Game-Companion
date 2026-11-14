@@ -125,6 +125,10 @@ Panel {
             formPage = "launch"
             if (has("suggestions")) suggesting = true
             demoScroll = has("rows") ? 0.3 : has("middle") ? 0.5 : has("others") ? 0.75 : has("end") ? 1 : -1
+        } else if (has("startwith")) {
+            // games,startwith[,starterfile|,addprogram]: AION 2's WITH GAME tab.
+            editing = find("own:1") || null
+            formPage = "withgame"
         } else if (has("launchown")) {
             editing = find("own:1") || null
             formPage = "launch"
@@ -762,6 +766,7 @@ Panel {
                 FormTab { name: "general"; label: "General" }
                 FormTab { name: "presets"; label: "Preset search" }
                 FormTab { name: "launch"; label: "Launch"; visible: !form.isNew }
+                FormTab { name: "withgame"; label: "With game"; visible: !form.isNew }
             }
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
         }
@@ -938,6 +943,50 @@ Panel {
                     width: parent.width
                     height: Math.max(24, parent.height * launchFlick.height / launchFlick.contentHeight)
                     y: (parent.height - height) * (launchFlick.contentY / Math.max(1, launchFlick.contentHeight - launchFlick.height))
+                    color: Theme.track
+                }
+            }
+        }
+
+        // WITH GAME (MN, 2026-11-14): what starts and closes with it; saved
+        // at once. Scrolls when the screen is too short for it.
+        Item {
+            id: withBox
+            visible: form.page === "withgame"
+            width: parent.width
+            readonly property real room: panel.room - 30 - 34 - 46 - 4 * 14 - (panel.formError.length > 0 ? 40 : 0)
+            height: Math.max(160, Math.min(withLoader.height, room))
+            clip: withFlick.contentHeight > height
+            Flickable {
+                id: withFlick
+                anchors.fill: parent
+                contentHeight: withLoader.height
+                boundsBehavior: Flickable.StopAtBounds
+                interactive: contentHeight > height
+                Loader {
+                    id: withLoader
+                    width: withBox.width - (withFlick.interactive ? 12 : 0)
+                    active: form.page === "withgame" && !form.isNew
+                    sourceComponent: StartWithTab { width: withLoader.width; game: form.g }
+                }
+            }
+            // Screenshots (games,startwith,addprogram): scrolled to the end.
+            Timer {
+                running: withBox.visible && nativeWindow.demo.indexOf("addprogram") >= 0
+                interval: 400
+                onTriggered: withFlick.contentY = Math.max(0, withFlick.contentHeight - withFlick.height)
+            }
+            WheelScroll { flick: withFlick; step: 90 }
+            Rectangle {
+                visible: withFlick.interactive
+                anchors.right: parent.right
+                width: 3
+                height: parent.height
+                color: Theme.trackDark
+                Rectangle {
+                    width: parent.width
+                    height: Math.max(24, parent.height * withFlick.height / withFlick.contentHeight)
+                    y: (parent.height - height) * (withFlick.contentY / Math.max(1, withFlick.contentHeight - withFlick.height))
                     color: Theme.track
                 }
             }

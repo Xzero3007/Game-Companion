@@ -176,9 +176,20 @@ impl DpsCalculator {
         self.ping_tracker.current_ping_ms()
     }
 
+    /// Game Companion: the player's server (the game's number, 0 unknown).
+    pub fn server_id(&self) -> u16 {
+        self.data_storage.fight_server_id()
+    }
+
     /// Game Companion: Odyle energy (basic, charged), as the game last sent it.
     pub fn odyle_energy(&self) -> Option<(u32, u32)> {
         self.data_storage.odyle_energy()
+    }
+
+    /// Game Companion: what the parser keeps (who plays, their entry list,
+    /// the Abyss artifacts), for the Characters area.
+    pub fn data_storage(&self) -> &Arc<DataStorage> {
+        &self.data_storage
     }
 
     pub fn get_dps(&mut self) -> DpsData {
@@ -1059,6 +1070,24 @@ impl DpsCalculator {
 
     pub fn snapshot_boss_fights(&mut self) -> Vec<FightRecord> {
         self.snapshot_boss_fights_inner(false)
+    }
+
+    /// Game Companion: the monsters fought in the last 20 s (bosses first,
+    /// at most 6) with their names and the dungeon the table puts them in,
+    /// and the dungeon you are in (0: none), for the Boss panel.
+    pub fn fought_now(&self, now_ms: i64) -> (Vec<(crate::combat::data_storage::Fought, String, i32)>, i32) {
+        let list = self
+            .data_storage
+            .fought_now(now_ms, 20_000, 6)
+            .into_iter()
+            .filter(|f| !self.npc_lookup.is_training_dummy(f.npc))
+            .map(|f| {
+                let name = self.npc_lookup.get_npc_name(f.npc);
+                let dungeon = self.npc_lookup.dungeon_of(f.npc).unwrap_or(0);
+                (f, name, dungeon)
+            })
+            .collect();
+        (list, self.data_storage.current_dungeon_id())
     }
 
     pub fn snapshot_boss_fights_force(&mut self) -> Vec<FightRecord> {

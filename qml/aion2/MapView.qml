@@ -22,6 +22,10 @@ Item {
     property string dir: ""
     /// Whether it can be dragged, zoomed and clicked.
     property bool interactive: true
+    /// How solid the map's pictures are (the overlay map: the marks stay solid).
+    property real tileOpacity: 1
+    /// Whether a drag moves the map (the overlay map follows you: no).
+    property bool draggable: true
 
     // The view: the native pixel in the middle, screen px per native px.
     property real cx: 0
@@ -104,6 +108,7 @@ Item {
         y: view.height / 2 - view.cy * view.zoom
         scale: view.zoom
         transformOrigin: Item.TopLeft
+        opacity: view.tileOpacity
         // The sharp tiles once a tile shows a little bigger than its small copy.
         readonly property bool sharp: view.map ? view.map.tile * view.zoom > view.map.lo * 1.25 : false
         Repeater {
@@ -523,7 +528,7 @@ Item {
         cursorShape: pressed && moved ? Qt.ClosedHandCursor : (view.tipMark && view.tipMark.mark && view.tipMark.mark.focus ? Qt.PointingHandCursor : Qt.OpenHandCursor)
         onPressed: (mouse) => { startX = mouse.x; startY = mouse.y; startCx = view.cx; startCy = view.cy; moved = false }
         onPositionChanged: (mouse) => {
-            if (pressed) {
+            if (pressed && view.draggable) {
                 const dx = mouse.x - startX, dy = mouse.y - startY
                 if (!moved && Math.abs(dx) + Math.abs(dy) > 3) { moved = true; view.dragged() }
                 if (moved) {

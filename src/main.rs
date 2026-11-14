@@ -1,7 +1,10 @@
 //! Game Companion: one overlay for every game on Linux (KDE Plasma, Wayland).
 
 mod aion2_object;
+mod alert;
+mod aion2timers;
 mod appinfo;
+mod armory;
 mod companion;
 mod covers;
 mod emotes;
@@ -15,6 +18,8 @@ mod library_object;
 mod launch_check;
 mod launch_demo;
 mod launch_options;
+mod market;
+mod meter_import;
 mod native;
 mod protondb;
 mod radio;
@@ -22,6 +27,7 @@ mod radio_object;
 mod settings;
 mod shortcuts;
 mod sponsorblock;
+mod start_with;
 mod streams;
 mod streams_object;
 mod tray;
@@ -29,6 +35,7 @@ mod system_info;
 mod updater;
 mod updates_object;
 mod vdf_edit;
+mod voice;
 
 fn main() {
     if std::env::args().any(|a| a == "--version") {

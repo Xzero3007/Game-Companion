@@ -26,6 +26,7 @@ use crate::launch_demo;
 use crate::launch_options::{self, Places};
 use crate::protondb;
 use crate::settings;
+use crate::start_with::{self, StartWith};
 use crate::system_info;
 
 #[cxx_qt::bridge]
@@ -253,6 +254,42 @@ pub mod qobject {
         /// "displayCard"}`.
         #[qinvokable]
         fn system_info(self: &Games) -> i32;
+
+        /// What starts with a game: JSON `{"entries":[{"id","name","command",
+        /// "on","close","running"}],"starters":[{"file","name","about","on",
+        /// "path","content"}]}` (starters: what other programs left in the
+        /// desktop's autostart for this game, `start_with::STARTERS`).
+        #[qinvokable]
+        fn start_with(self: &Games, id: &QString) -> QString;
+
+        /// Adds a program to a game's list; false if its command can't start.
+        #[qinvokable]
+        fn add_start_with(self: &Games, id: &QString, name: &QString, command: &QString, close: bool, delay: i32) -> bool;
+
+        /// Changes a program in a game's list (by its number).
+        #[qinvokable]
+        fn update_start_with(self: &Games, id: &QString, entry: i32, name: &QString, command: &QString, on: bool, close: bool, delay: i32) -> bool;
+
+        /// Removes a program from a game's list.
+        #[qinvokable]
+        fn remove_start_with(self: &Games, id: &QString, entry: i32);
+
+        /// Empties a game's list.
+        #[qinvokable]
+        fn clear_start_with(self: &Games, id: &QString);
+
+        /// Switches another program's starter off (its autostart file put
+        /// aside) or on again; false if that did not work.
+        #[qinvokable]
+        fn set_starter(self: &Games, file: &QString, on: bool) -> bool;
+
+        /// Removes another program's starter for good.
+        #[qinvokable]
+        fn remove_starter(self: &Games, file: &QString) -> bool;
+
+        /// The desktop's programs to pick from: JSON `[{"name","command","icon"}]`.
+        #[qinvokable]
+        fn programs(self: &Games) -> QString;
     }
 
     impl cxx_qt::Threading for Games {}
@@ -474,6 +511,14 @@ fn library_json(library: &[Game], settings: &GamesSettings) -> String {
     Value::Array(list).to_string()
 }
 
+/// A game's programs to start with it (settings `games.start_with`).
+fn start_with_list(id: &str) -> Vec<StartWith> {
+    if demo_mode() {
+        return Vec::new();
+    }
+    settings::read(|s| s.games.start_with.get(id).cloned().unwrap_or_default())
+}
+
 /// Starts a program in its own session, so it outlives the app; a thread
 /// collects it when it ends.
 fn spawn_detached(program: &str, args: &[String], env: &[(String, String)]) -> bool {
@@ -611,9 +656,12 @@ impl qobject::Games {
         }
         self.as_mut().show_running(&now);
         if !before.is_empty() {
+            let game = before.clone();
+            start_with::game_stopped(&before, move || start_with_list(&game));
             self.as_mut().stopped(q(&before));
         }
         if !now.is_empty() {
+            start_with::game_started(&now, &start_with_list(&now), home().as_deref());
             self.started(q(&now));
         }
     }
@@ -775,6 +823,8 @@ impl qobject::Games {
             s.games.hidden.remove(&id);
             s.games.favorites.remove(&id);
             s.games.last_played.remove(&id);
+            // Its programs go with it.
+            s.games.start_with.remove(&id);
         });
         self.rebuild();
     }
@@ -1104,6 +1154,124 @@ impl qobject::Games {
         });
         self.rebuild();
     }
+}
+
+impl qobject::Games {
+    fn start_with(&self, id: &QString) -> QString {
+        let id = id.to_string();
+        let running = start_with::running_entries(&id);
+        let entries: Vec<Value> = if demo_mode() {
+            start_with_demo(&id)
+        } else {
+            start_with_list(&id)
+                .into_iter()
+                .map(|e| {
+                    json!({"id": e.id, "name": e.name, "command": e.command, "on": e.on, "close": e.close,
+                           "delay": e.delay, "running": running.contains(&e.id)})
+                })
+                .collect()
+        };
+        let known = self.rust().composed.iter().find(|g| g.id == id).and_then(|g| g.known).unwrap_or("");
+        let starters = if demo_mode() { start_with_demo_starters(known) } else { start_with::starters_json(known) };
+        q(&json!({ "entries": entries, "starters": starters }).to_string())
+    }
+
+    fn add_start_with(&self, id: &QString, name: &QString, command: &QString, close: bool, delay: i32) -> bool {
+        let (id, name, command) = (id.to_string(), line(name, 80), line(command, 400));
+        if id.is_empty() || !start_with::valid_command(&command) {
+            return false;
+        }
+        settings::change(|s| {
+            let list = s.games.start_with.entry(id).or_default();
+            let next = list.iter().map(|e| e.id).max().unwrap_or(0) + 1;
+            let name = if name.is_empty() { command.clone() } else { name };
+            let delay = clamp_delay(delay);
+            list.push(StartWith { id: next, name, command, on: true, close, delay });
+        });
+        true
+    }
+
+    fn update_start_with(&self, id: &QString, entry: i32, name: &QString, command: &QString, on: bool, close: bool, delay: i32) -> bool {
+        let (id, name, command) = (id.to_string(), line(name, 80), line(command, 400));
+        if !start_with::valid_command(&command) {
+            return false;
+        }
+        let Ok(entry) = u32::try_from(entry) else { return false };
+        settings::change(|s| {
+            let Some(e) = s.games.start_with.get_mut(&id).and_then(|l| l.iter_mut().find(|e| e.id == entry)) else {
+                return false;
+            };
+            e.name = if name.is_empty() { command.clone() } else { name };
+            e.command = command;
+            e.on = on;
+            e.close = close;
+            e.delay = clamp_delay(delay);
+            true
+        })
+    }
+
+    fn remove_start_with(&self, id: &QString, entry: i32) {
+        let id = id.to_string();
+        let Ok(entry) = u32::try_from(entry) else { return };
+        settings::change(|s| {
+            if let Some(list) = s.games.start_with.get_mut(&id) {
+                list.retain(|e| e.id != entry);
+                if list.is_empty() {
+                    s.games.start_with.remove(&id);
+                }
+            }
+        });
+    }
+
+    fn clear_start_with(&self, id: &QString) {
+        let id = id.to_string();
+        settings::change(|s| s.games.start_with.remove(&id));
+    }
+
+    fn set_starter(&self, file: &QString, on: bool) -> bool {
+        !demo_mode() && start_with::set_starter(&file.to_string(), on)
+    }
+
+    fn remove_starter(&self, file: &QString) -> bool {
+        !demo_mode() && start_with::remove_starter(&file.to_string())
+    }
+
+    fn programs(&self) -> QString {
+        if demo_mode() {
+            return q(&json!([
+                {"name": "Discord", "command": "discord", "icon": "discord"},
+                {"name": "OBS Studio", "command": "obs", "icon": "com.obsproject.Studio"},
+                {"name": "TeamSpeak", "command": "teamspeak3", "icon": "teamspeak3"},
+            ])
+            .to_string());
+        }
+        q(&start_with::programs_json().to_string())
+    }
+}
+
+fn clamp_delay(delay: i32) -> u32 {
+    u32::try_from(delay).unwrap_or(start_with::GONE_FOR).min(start_with::LONGEST_DELAY)
+}
+
+/// Screenshots (GC_DEMO=games,startwith): a made-up list for AION 2.
+fn start_with_demo(id: &str) -> Vec<Value> {
+    if id != "own:1" {
+        return Vec::new();
+    }
+    vec![
+        json!({"id": 1, "name": "Discord", "command": "discord --start-minimized", "on": true, "close": false, "delay": 10, "running": true}),
+        json!({"id": 2, "name": "OBS Studio", "command": "obs --minimize-to-tray", "on": false, "close": true, "delay": 30, "running": false}),
+    ]
+}
+
+fn start_with_demo_starters(known: &str) -> Value {
+    let Some(s) = start_with::STARTERS.iter().find(|s| s.game == known) else { return json!([]) };
+    json!([{
+        "file": s.file, "name": s.name, "about": s.about, "on": true,
+        "takeName": s.takes_over.0, "takeCommand": s.takes_over.1,
+        "path": format!("~/.config/autostart/{}", s.file),
+        "content": "[Desktop Entry]\nType=Application\nName=A2Tools DPS Meter: start with AION2\nComment=Starts the meter when AION2 starts. Turn it off in the meter's Settings.\nExec=\"/usr/bin/a2tools-game-watch\"\nIcon=a2tools-dps-meter\nNoDisplay=true\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
+    }])
 }
 
 #[cfg(test)]

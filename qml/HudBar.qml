@@ -5,8 +5,9 @@ import "theme.js" as Theme
 import "drag.js" as Drag
 
 // The bar docked at the top centre of the screen, with slanted ends and a
-// thin gold line under it: the name, the game module (none yet), the
-// modules' buttons (none yet), then lock, settings and hide.
+// thin gold line under it: the name and the running game, the core's
+// buttons (Games, Radio, TV), then lock, settings and hide. The running
+// game's buttons are in the smaller row under it (GameRow).
 Item {
     id: bar
     property bool settingsOpen: false
@@ -14,13 +15,6 @@ Item {
     signal radioClicked
     property bool gamesOpen: false
     signal gamesClicked
-    /// The AION 2 module's DPS meter: its button while AION 2 runs.
-    property bool dpsShown: false
-    property bool dpsOpen: false
-    signal dpsClicked
-    property bool mapShown: false
-    property bool mapOpen: false
-    signal mapClicked
     /// The running game has a module (purple); else it just shows its name.
     property bool gameHasModule: false
     property bool streamsOpen: false
@@ -122,30 +116,6 @@ Item {
             tip: "Games: your library and what runs"
             onClicked: bar.gamesClicked()
         }
-        HudButton {
-            visible: bar.dpsShown
-            icon: "dps"
-            label: "DPS"
-            active: bar.dpsOpen
-            tip: "AION 2: DPS meter (listens only)"
-            onClicked: bar.dpsClicked()
-        }
-        HudButton {
-            visible: bar.mapShown
-            icon: "map"
-            label: "Map"
-            active: bar.mapOpen
-            tip: "AION 2: map with your position (listens only)"
-            onClicked: bar.mapClicked()
-        }
-        Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            width: 1
-            height: parent.height - 24
-            color: Qt.rgba(1, 1, 1, 0.1)
-        }
-        Item { width: 6; height: 1 }
-
         HudButton {
             icon: "radio"
             label: "Radio"
