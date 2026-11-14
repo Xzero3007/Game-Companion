@@ -110,6 +110,22 @@ new session (or the same one after a usage limit) carries on from here.
   colour with the count on it. The two unread rounds can only be read
   once one is looked at (private notes repo): they stay kept and are read
   again at every start (`LK.S.adopt`). `GC_DEMO=loot,shop,petsfirst`.
+  MN's test of 0.8.13: the farm window never opened. It now has settings
+  (DROPS → Farm window): `farmMode` "always" (default while AION 2 runs),
+  "popup" (two gains after the first 30 s in a place; `farmWaits` says
+  what it waits for) or "off"; `farmRows` switches rows off (Kinah today,
+  worth per hour, gold items, dungeon run, keys and tickets, Odyle energy,
+  ping; Odyle and ping from `Aion2.fight` extras). The shop window closed
+  only after 3 minutes: it now notes the merchant (the NPC nearest when the
+  stock came, within 15 m) and closes when that NPC is out of sight for two
+  world updates or you are 8 m from where it stood; else 60 s after the
+  last shop page. Pets on any tab (Special too) count; pet tiles show souls
+  held / needed for the next level and where the pet comes from. Failed
+  icon downloads are tried again after 10 minutes; a tile without a picture
+  shows its slot. CARDS: the reader allowed 8 pickers and 10 picks per
+  card, too few for a Dimensional Invasion (16 cards, 64 pickers, 100 picks
+  now; patched in `tools/aion2-loot-import.py`). Check that the 4 kept
+  rounds are read after the update. `GC_DEMO=loot,drops,farmwin`.
 - Event Timers / Schedule (branch `claude/project-thread-xz7nqt`, PR against
   beta, version from QA; 2026-11-13; MN chose "Ja, Aion 2 Timers gleich mit"
   on the canvas page "Zeitplan (Event Timers)", boards T1–T3). TIMERS in the

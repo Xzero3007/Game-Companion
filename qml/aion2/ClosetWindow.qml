@@ -144,7 +144,7 @@ Panel {
                             required property var modelData
                             readonly property var o: modelData
                             width: (pageColumn.width - 18) / 4
-                            height: 128
+                            height: o.pet && (o.souls || o.from) ? 158 : 128
                             color: "#1b1a20"
                             // Framed in the item's grade colour, thicker when worth buying (MN).
                             readonly property bool hot: (o.status === "new" || o.status === "buy") && !o.soldOut
@@ -169,10 +169,28 @@ Panel {
                                         fillMode: Image.PreserveAspectFit
                                         source: o.portrait ? o.portrait : win.iconUrl(o.icon)
                                     }
+                                    // No picture (NC's server lacks some skins'): the slot as text.
+                                    Text {
+                                        visible: !o.portrait && !win.iconUrl(o.icon)
+                                        anchors.centerIn: parent
+                                        width: parent.width - 8
+                                        horizontalAlignment: Text.AlignHCenter
+                                        elide: Text.ElideRight
+                                        text: String(o.sub || "").split(" · ").pop().toUpperCase()
+                                        color: Theme.dim()
+                                        font.family: Theme.display
+                                        font.pixelSize: 10
+                                        font.weight: Font.Bold
+                                        font.letterSpacing: 1
+                                        style: Theme.textStyle(); styleColor: Theme.shadow
+                                    }
                                     Rectangle { width: 6; height: 6; x: 4; y: 4; color: win.gradeColors[o.grade] || "transparent"; visible: o.grade > 1 }
                                 }
                                 Text { width: parent.width; elide: Text.ElideRight; text: o.name; color: Theme.text(); font.family: Theme.body; font.pixelSize: 11; style: Theme.textStyle(); styleColor: Theme.shadow }
                                 Text { width: parent.width; elide: Text.ElideRight; text: o.sub; color: Theme.dim(); font.family: Theme.body; font.pixelSize: 10; style: Theme.textStyle(); styleColor: Theme.shadow }
+                                // A pet's souls (held / needed for its next level) and where it comes from (MN, 0.8.13).
+                                Text { visible: !!o.souls; width: parent.width; elide: Text.ElideRight; text: o.souls || ""; color: Theme.textSoft(); font.family: Theme.body; font.pixelSize: 10; style: Theme.textStyle(); styleColor: Theme.shadow }
+                                Text { visible: !!o.from; width: parent.width; elide: Text.ElideRight; text: o.from || ""; color: o.status === "buy" ? Theme.accent : Theme.dim(); font.family: Theme.body; font.pixelSize: 10; style: Theme.textStyle(); styleColor: Theme.shadow }
                                 Item {
                                     width: parent.width
                                     height: 16
@@ -198,7 +216,7 @@ Panel {
                     visible: win.view === "shop"
                     width: parent.width
                     topPadding: 4
-                    text: "PETS YOU STILL NEED" + (win.pets.synced ? " · " + win.pets.rows.length : "")
+                    text: "PETS YOU DON'T HAVE YET" + (win.pets.synced ? " · " + win.pets.rows.length : "")
                     color: Theme.accent
                     font.family: Theme.display
                     font.pixelSize: 11
@@ -210,7 +228,7 @@ Panel {
                     visible: win.view === "shop" && (!win.pets.synced || !win.pets.rows.length)
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    text: !win.pets.synced ? "Open the pet collection in the game once while the companion runs: then the pets you lack show here, with the chests and monsters they come from." : "You have every pet."
+                    text: !win.pets.synced ? "Open the pet collection in the game once while the companion runs: then the pets you lack show here, with the chests and monsters they come from." : "You have every pet. The pets on offer above say which still lack levels."
                     color: Theme.muted()
                     font.family: Theme.body
                     font.pixelSize: 11
