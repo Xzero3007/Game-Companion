@@ -148,7 +148,12 @@ learnt, so nothing has to be asked or worked out again.
   coordinates**: it lives in `Surface.scene` (screen-sized, shifted by the
   surface's place), its parent. `nativeWindow.attach` makes the window a
   layer-shell surface (overlay layer, anchored top and left, exclusive
-  zone -1, keyboard none; on-demand while unlocked), `place` sets the
+  zone -1, keyboard none; on-demand only after a click into the part
+  while unlocked, `setKeyboard` + `eventFilter`, back to none on lock or
+  hide: KWin activates an overlay surface the moment it accepts keys, which
+  took the game's focus and mouse on unlock and when a part opened by
+  itself, MN 2026-11-14; `_q_showWithoutActivating`; the input region is
+  set before the first show), `place` sets the
   margins (x, y) and size, `setInput` the input region (`QWindow::setMask`:
   unlocked everything, locked only the lock button or one pixel). X11:
   frameless on-top windows at that geometry. Dragging (`MoveArea`, the
