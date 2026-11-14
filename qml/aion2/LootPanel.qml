@@ -81,6 +81,7 @@ Panel {
         else if (a.view !== undefined) { store.set("view", a.view && a.view !== store.currentKey() ? a.view : null) }
         else if (a.day !== undefined) { dayView = Number(a.day) === LK.F.dayOf(Date.now()) ? null : Number(a.day); refresh() }
         else if (a.step) stepRound(a.step)
+        else if (a.farmRow) store.setFarmRow(a.farmRow, a.v)
         else if (a.kindOf) { const k = Object.assign({}, st.kinds); k[a.kindOf] = a.v; store.set("kinds", k) }
         else if (a.window) store.showWindow(a.window)
         else if (a.meter) store.readMeter()
@@ -185,12 +186,26 @@ Panel {
 
     // ---------- DROPS ----------
     function buildDrops(out) {
-        const sub = ["session", "days", "dungeons"].indexOf(st.drops) >= 0 ? st.drops : "session"
+        const sub = ["session", "days", "dungeons", "window"].indexOf(st.drops) >= 0 ? st.drops : "session"
         out.controls.push([chip("Session", sub === "session", { set: "drops", v: "session" }), chip("Farm days", sub === "days", { set: "drops", v: "days" }), chip("Dungeons", sub === "dungeons", { set: "drops", v: "dungeons" }),
-            chip("Farm window", st.farmWindow !== false, { set: "farmWindow", v: st.farmWindow === false })])
+            chip("Farm window", sub === "window", { set: "drops", v: "window" })])
         if (sub === "session") buildSession(out)
         else if (sub === "days") buildDays(out)
+        else if (sub === "window") buildFarmWindow(out)
         else buildDungeons(out)
+    }
+    /// The farm window's choices (MN, 0.8.13): when it shows and what.
+    function buildFarmWindow(out) {
+        const mode = store.farmMode()
+        out.controls.push([words("Show"), chip("Always while AION 2 runs", mode === "always", { set: "farmMode", v: "always" }), chip("Only while farming", mode === "popup", { set: "farmMode", v: "popup" }), chip("Off", mode === "off", { set: "farmMode", v: "off" })])
+        out.controls.push([words("Rows")].concat(store.farmRowList.map((r) => chip(r[1], store.farmRow(r[0]), { farmRow: r[0], v: !store.farmRow(r[0]) }))))
+        out.rows.push(group("When it shows"))
+        out.rows.push(text(mode === "always" ? "The farm window stays while AION 2 runs; its × hides it until you go to another place."
+            : mode === "popup" ? "It opens when Kinah or loot comes in a row in the open world or a dungeon (the first 30 s in a place don't count, then two gains), and goes in a town or 10 minutes after the last gain in the open world."
+            : "The farm window is off."))
+        if (mode === "popup") out.rows.push(text("Now: " + store.farmWaits, Theme.textSoft()))
+        out.rows.push(group("The rows"))
+        out.rows.push(text("Kinah today counts toward the daily 1,000,000. Worth per hour: Kinah and the loot's Market worth per hour of farming in the open world today. Gold items: today's. Dungeon run: what this run brought. Keys and tickets: those you have left. Odyle energy and the ping come from the game as the DPS meter shows them; the DPS panel need not be open."))
     }
     function buildSession(out) {
         const ds = store.dropSession()

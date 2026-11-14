@@ -4,12 +4,13 @@ import ".."
 import "../theme.js" as Theme
 import "lootkit.js" as LK
 
-// The farm window (MN, 2026-11-13): opens by itself while you farm. In the
-// open world: Kinah today toward the daily 1,000,000, the worth per hour
-// (Kinah and the loot's Market worth per hour of open-world farming) and
-// the gold items of today. In a dungeon: what this run brought (Kinah,
-// gold items, the items' worth). Below, the keys and tickets you have.
-// Nothing moves on its own: it builds again when the LOOT store changes.
+// The farm window (MN, 2026-11-13/14): always while AION 2 runs, or only
+// while you farm (LOOT → DROPS → Farm window). Kinah today toward the daily
+// 1,000,000, the worth per hour (Kinah and the loot's Market worth per hour
+// of open-world farming), the gold items of today, in a dungeon what this
+// run brought, the keys and tickets you have, Odyle energy and the ping;
+// each row can be switched off. Nothing moves on its own: it builds again
+// when the LOOT store or the fight (ping, Odyle) changes.
 Panel {
     id: win
     panelId: "farm-window"
@@ -24,6 +25,8 @@ Panel {
     property var f: null
     function build() { if (store && visible) f = store.farmNow() }
     Connections { target: win.store; function onRevisionChanged() { win.build() } }
+    Connections { target: Aion2; enabled: win.visible && (win.on("ping") || win.on("odyle")); function onFightChanged() { win.build() } }
+    function on(k) { return !!store && store.farmRow(k) }
     onVisibleChanged: build()
     Component.onCompleted: build()
 
@@ -77,7 +80,7 @@ Panel {
 
         // The run (in a dungeon).
         Row {
-            visible: win.dungeon
+            visible: win.dungeon && win.on("run")
             width: parent.width
             spacing: 12
             Stat { width: (parent.width - 24) / 3; label: "KINAH"; value: win.f ? win.shortN(win.f.run.kinah) : "" }
@@ -87,6 +90,7 @@ Panel {
 
         // Kinah today toward the cap.
         Column {
+            visible: win.on("kinah")
             width: parent.width
             spacing: 4
             Item {
@@ -122,16 +126,37 @@ Panel {
 
         // Worth per hour and gold items of today (the open world).
         Row {
-            visible: !win.dungeon
+            visible: !win.dungeon && (win.on("perHour") || win.on("gold"))
             width: parent.width
             spacing: 12
-            Stat { width: (parent.width - 12) / 2; label: "WORTH / HOUR"; value: win.f && win.f.perHour != null ? win.shortN(win.f.perHour) : "–" }
-            Stat { width: (parent.width - 12) / 2; label: "GOLD ITEMS TODAY"; value: win.f ? String(win.f.gold) : ""; tint: win.f && win.f.gold ? "#f2c46b" : Theme.text() }
+            Stat { visible: win.on("perHour"); width: win.on("gold") ? (parent.width - 12) / 2 : parent.width; label: "WORTH / HOUR"; value: win.f && win.f.perHour != null ? win.shortN(win.f.perHour) : "–" }
+            Stat { visible: win.on("gold"); width: win.on("perHour") ? (parent.width - 12) / 2 : parent.width; label: "GOLD ITEMS TODAY"; value: win.f ? String(win.f.gold) : ""; tint: win.f && win.f.gold ? "#f2c46b" : Theme.text() }
+        }
+
+        // Odyle energy and the ping, as the DPS meter's bar shows them (MN, 0.8.13).
+        Row {
+            visible: win.on("odyle") || win.on("ping")
+            width: parent.width
+            spacing: 12
+            Stat {
+                visible: win.on("odyle")
+                width: win.on("ping") ? (parent.width - 12) / 2 : parent.width
+                label: "ODYLE ENERGY"
+                value: win.f && win.f.extras.odyle ? win.f.extras.odyle[0].toLocaleString(Qt.locale("en_US"), "f", 0) + " (+" + win.f.extras.odyle[1].toLocaleString(Qt.locale("en_US"), "f", 0) + ")" : "–"
+                tint: Theme.purpleText
+            }
+            Stat {
+                visible: win.on("ping")
+                width: win.on("odyle") ? (parent.width - 12) / 2 : parent.width
+                label: "PING"
+                value: win.f && win.f.extras.ping != null ? win.f.extras.ping + " ms" : "–"
+                tint: win.f && win.f.extras.ping > 150 ? Theme.red : Theme.text()
+            }
         }
 
         // Keys and tickets you have.
         Flow {
-            visible: !!win.f && win.f.keys.length > 0
+            visible: win.on("keys") && !!win.f && win.f.keys.length > 0
             width: parent.width
             spacing: 6
             Repeater {
@@ -156,6 +181,7 @@ Panel {
         }
 
         Text {
+            visible: win.on("perHour") || (win.dungeon && win.on("run"))
             width: parent.width
             wrapMode: Text.WordWrap
             text: win.dungeon ? "Worth: the Market's prices less its fee. Kinah today counts the open world's Kinah." : "Worth per hour: Kinah and the loot's Market worth, per hour of farming in the open world today."

@@ -273,7 +273,9 @@ pub struct Aion2Rust {
     wanted: Arc<AtomicI32>,
     engine: Option<Arc<Engine>>,
     /// Icons being downloaded (asked once each).
-    icons_asked: Arc<Mutex<std::collections::HashSet<String>>>,
+    /// Icons asked for, with when: a failed download is tried again after
+    /// `ICON_RETRY` (MN, 0.8.13: some pictures never came).
+    icons_asked: Arc<Mutex<std::collections::HashMap<String, std::time::Instant>>>,
     /// Ends the watch thread of the engine that runs now.
     watching: Option<Arc<AtomicBool>>,
 }
@@ -662,8 +664,13 @@ impl qobject::Aion2 {
             return QString::default();
         }
         let asked = self.icons_asked.clone();
-        if !asked.lock().unwrap_or_else(|p| p.into_inner()).insert(name.clone()) {
-            return QString::default();
+        {
+            let mut map = asked.lock().unwrap_or_else(|p| p.into_inner());
+            let now = std::time::Instant::now();
+            if map.get(&name).is_some_and(|at| now.saturating_duration_since(*at) < ICON_RETRY) {
+                return QString::default();
+            }
+            map.insert(name.clone(), now);
         }
         let thread = self.qt_thread();
         let _ = std::thread::Builder::new().name("aion2-icon".into()).spawn(move || {
@@ -834,6 +841,9 @@ fn demo_pets_json() -> String {
     let now = aion2::clock::now_ms();
     serde_json::json!({ "server": 2001, "synced": now - 3_600_000, "levels": levels, "souls": souls, "farmed": { "1004": now - 60_000 } }).to_string()
 }
+
+/// A failed icon download is tried again after this long.
+const ICON_RETRY: std::time::Duration = std::time::Duration::from_secs(600);
 
 /// A made-up world for screenshots (GC_DEMO=map): Verteron.
 const DEMO_WORLD: &str = r#"{"at":0,"zone":902,"me":{"x":-108000,"y":-56000,"exact":true},"moving":false,
