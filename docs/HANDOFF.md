@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.13 QA collection (2026-11-14, MN's test of 0.8.12): #31 boss voice beeps and says when speech-dispatcher is missing, #32 Armory several gear slots open and the old Armory's data, #33 Twitch All live more streams from the top categories, #34 LOOT farm window, shop pets, cards with icons (entries below).
 - 0.8.12 QA collection (2026-11-13): #29 AION 2 Armory with builds tied to characters (entry below).
 - 0.8.11 QA collection (2026-11-13): #27 no gold frames left on video windows (entry below).
 - 0.8.10 QA collection (2026-11-13): #24 LOOT after MN's 0.8.6 test: shop window only at the merchant, farm window, the meter's data taken over (entries below).
