@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.32 beta (2026-11-14): #72 Radio: four 181.FM stations under USA (entry below).
 - 0.8.31 beta (2026-11-14): #73 LOOT farm window: valuables split into MATS, ARTW, ORNG and VALU, each with its own switch (entry below).
 - 0.8.30 beta (2026-11-14): #71 Radio: stations that play on none of their addresses are greyed and listed last, HIDE NOT PLAYING switch (entry below).
 - 0.8.29 beta (2026-11-14): #68 Radio: Techno genre with Techno Bunker FM and Radio Record Minimal Tech, SomaFM under USA (entry below).
@@ -900,6 +901,15 @@ switch hides them.
   tabs (only while some are marked; "HIDE · n" under 440 px).
 - Checked under xvfb: a click on WBLS (the sandbox reaches no stream)
   marked it and moved it last.
+
+## Branch `radio-intl-us` (from beta): US hip-hop that plays worldwide
+
+MN chose (2026-11-14, card "Internationale Sender dazu") more US stations
+that play outside the US, instead of a proxy. Added four 181.FM stations
+(internet radio from Virginia, `listen.181fm.com`, https first, http as
+second address): The Beat, The Box, Jammin 181, Old School HipHop/RnB.
+Their host was confirmed in public station lists; the sandbox can't play
+them. A proxy only for the radio was offered and not chosen.
 
 ## Testing
 
