@@ -880,6 +880,25 @@ chosen country, and USA had no electronic station.
   US connections. What to do about them waits for MN's choice (mark and
   sort last, replace and remove, or both).
 
+## Branch `radio-mark-dead` (from beta): stations that don't play
+
+MN chose (2026-11-14, card "Merken und ans Ende"): remember the stations
+that play on none of their addresses, grey them, list them last, and a
+switch hides them.
+
+- `settings.radio.dead` (ids) and `hide_dead`; `radio::mark_dead`,
+  `radio::station_at_fault` ("No sound device" is not the station's
+  fault). `try_stream` marks a station when its last address failed;
+  `Event::Playing` clears it (written only when it changes: Playing comes
+  again after every cache pause).
+- `Radio.dead` (JSON), `Radio.hideDead`, `Radio.setHideDeadTo`.
+- RadioPanel: `deadIds`; `shown` lists live stations first, dead ones
+  after ("Didn't play last time", 45 % opacity), left out while hidden
+  except the chosen one; "HIDE NOT PLAYING · n" with a switch right of the
+  tabs (only while some are marked; "HIDE · n" under 440 px).
+- Checked under xvfb: a click on WBLS (the sandbox reaches no stream)
+  marked it and moved it last.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots
