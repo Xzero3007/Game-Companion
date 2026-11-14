@@ -754,6 +754,27 @@ the menu (desktop files) or by hand. Needs Game Companion running (warning
 when its autostart is off). `GC_DEMO=games,startwith[,starterfile|,addprogram]`.
 Open: MN's test with the real old watcher file.
 
+## Branch `no-focus-steal` (from beta): the overlay never takes the game's focus
+
+MN (2026-11-14): the farm window and the timer alert took the focus (and
+the mouse) from the game when they appeared. Cause: KWin activates an
+overlay layer surface as soon as its keyboard interactivity changes to
+anything but none (`LayerShellV1Window::handleAcceptsFocusChanged`), and
+layer-shell-qt asks for activation on every show of a surface that
+accepts keys. Our surfaces accepted keys (on demand) whenever the overlay
+was unlocked: unlocking activated them, and a part opening by itself
+while unlocked did too. Now `NativeWindow::setKeyboard` only allows keys;
+a surface takes them on the first press into it (`eventFilter`), and
+drops them on lock or when hidden; `_q_showWithoutActivating` is set; the
+input region is given before the first show. Checked on the headless
+KWin 5.27 with a stand-in game window: before, unlocking took the game's
+focus; after, it stays with the game through unlock and a panel opening
+by itself, and a click into Games' search field takes keys (typing works)
+until the game is clicked again. Note: on KWin 5.27 a click on any overlay
+surface takes focus (6.x checks first); the sandbox's patched
+layer-shell-qt crashes Game Companion now and then at start ("free():
+invalid size"), with and without this change.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots
