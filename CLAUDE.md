@@ -322,7 +322,12 @@ learnt, so nothing has to be asked or worked out again.
   query first, the persisted `BrowsePage_Popular` (`twitch_browse`, the
   known ids in `BROWSE_POPULAR` tried in turn, the one that answered kept;
   cursor and `limit` as variables), the written-out query only if no id
-  answers; why a page failed shows under the
+  answers. Still the same 30 on 0.8.12, so when a page of All live brings
+  nothing new, `load_more_twitch` sweeps categories instead: the streams of
+  the next `SWEEP` (6) most watched categories in one aliased request
+  (`twitch_sweep_query`, `sweep_cards`, `sweep_page`, `{"sweep": p}`, up
+  to `SWEEP_LONGEST` 60 categories). "Twitch sent nothing new" names the
+  ways tried (`TWITCH_WAY`, e.g. the directory query's refusal); why a page failed shows under the
   list, `twitchMoreNote`;
   YouTube pages too: `load_more_youtube`, yt-dlp `--playlist-items`,
   subscriptions 60 a page from the kept 200), channel pictures (0.8.4:
