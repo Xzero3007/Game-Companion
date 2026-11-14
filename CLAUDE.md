@@ -109,10 +109,12 @@ learnt, so nothing has to be asked or worked out again.
    category and YouTube search words; the Streams panel's first tab is the
    running game's (purple tag). Until game detection, AION 2 by default and
    changeable by hand.
-3. Brave Origin and Legcord: **on hold** (the person, 2026-11-12). Options
-   known: steer their real windows by KWin rules (as meter patch 0050), or
-   try a nested Wayland compositor (Qt Wayland Compositor) to show them
-   inside the app; test first.
+3. Brave Origin and Legcord (the person, 2026-11-14; plan and mockups in
+   the project folder `brave-legcord-plan.md`, `mockups/brave-legcord/`):
+   their real windows shown over the game by KWin scripts; bar buttons
+   BRAVE and LEGCORD next to TV (variant A), right-click menu (C1),
+   Alt+B / Alt+N; only over the game (no "screen 2"), they need not behave
+   like the overlay's parts, and Game Companion draws nothing for them.
 4. Game detection with autostart (as meter patch 0037: `/proc` every 3 s, a
    list of process names per game, Proton/Steam, Lutris, Heroic). AION 2 and
    Path of Exile 2 (PoE 2 brings its own helper programs: plan them then).
@@ -380,6 +382,27 @@ learnt, so nothing has to be asked or worked out again.
   delta too, which was taken for a touchpad (MN: scrolled far too little).
   Settings → Display "Scroll speed" (`Companion.wheelSpeed`, 50 to 500 %)
   scales every step. `GC_DEMO=settings,display`.
+- Brave and Legcord (`src/apps.rs`, `src/apps_object.rs`, the `Apps`
+  singleton; HudBar's `AppButton` and menu, Settings → Apps): a watcher
+  KWin script (loaded over `org.kde.KWin /Scripting`, name
+  `game-companion-apps`, only signals, no timer) reports the apps' windows
+  and every focus change by `callDBus` to this process's own unique bus
+  name (object `/io/github/xzero3007/GameCompanion/Apps`; calls from
+  anyone but KWin's owner are ignored); each action is a one-off script
+  (`command_script`: loaded, run, says "Done", unloaded) run on the
+  `apps-kwin` worker thread. Show: unminimise, keepAbove, opacity, place
+  on the overlay's screen (`nativeWindow.screenName`, place relative to it,
+  kept when moved by hand), focus. Hide: minimise, focus back to the last
+  other window. KWin 6.8 (Arch bench, 2026-11-14): a real full-screen game
+  with the focus lies over keep-above windows (ActiveLayer); a borderless
+  game window does not. So a full-screen game taking the focus minimises
+  the apps on its screen. Game ended or app quits: each moved window back
+  as it was (`Before`); `apps::quit` (main, after Qt) also closes what Game
+  Companion started (SIGTERM, SIGKILL after 3 s) unless "Close it when Game
+  Companion quits" is off; one the person started is never closed. Windows
+  match by app id or class prefix (`brave`, `legcord`; Chromium site apps
+  left out). `GC_DEMO=apps[,appmenu][,settings,appsettings]`. Check on the
+  Arch bench: `arch-test/apps/` (stand-in windows, `test.sh`).
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
 - Video loudness (MN, 2026-11-14: videos quieter than the radio, which is

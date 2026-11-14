@@ -27,6 +27,16 @@ new session (or the same one after a usage limit) carries on from here.
 - 0.8.24 beta (2026-11-14): #59 DPS: your own combat power and gear score when playing alone, combat power kept in a narrow window (entry below).
 - 0.8.23 beta (2026-11-14): #58 LOOT: right-click on Loot in the game row opens or closes the farm window in every mode (entry below).
 - 0.8.22 beta (2026-11-14): #54 LOOT: SHU, SHA and INV keys show the golden Shugo key icon (entry below).
+
+- Brave and Legcord over the game (branch `claude/project-thread-6m4xx8`,
+  2026-11-14, MN's choices A + C1, Alt+B / Alt+N): `src/apps.rs`,
+  `src/apps_object.rs`, HudBar `AppButton` + menu, Settings → Apps (tabs
+  now in a Flow, panel 540 px). The app quits tidily on SIGTERM/SIGINT/
+  SIGHUP now (`main.rs` `quit_on_signals`, 10 s fallback). Checked on the
+  Arch bench's KWin 6.8 with stand-in windows (`arch-test/apps/gc.sh`,
+  17 checks). Not checked: the real Brave Origin and Legcord app ids on
+  MN's PC (matching is by prefix `brave` / `legcord`).
+
 - 0.8.21 beta (2026-11-14): #52 LOOT: farm window fits its rows and grows by its corner, game key icons, merchant window stays open until zone change or 60 s (shop log) (entry below).
 - 0.8.20 beta (2026-11-14): #46 the open panels and the DPS panel closed by hand are kept across restarts and updates (entry below).
 - 0.8.19 beta (2026-11-14): #47 LOOT farm window compact (no header, one line), merchant menu keeps the shop window open, keys chosen, gold count gear only (entry below).

@@ -146,6 +146,8 @@ Overlay {
         if (nativeWindow.testVideo.length > 0) Qt.callLater(() => twitchVideo.playFile(nativeWindow.testVideo))
         if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
         Streams.begin()
+        Apps.begin()
+        if (demo.indexOf("appmenu") >= 0) bar.menuFor = "brave"
     }
 
 
@@ -155,7 +157,11 @@ Overlay {
         // From the tray's menu (the hub is shown already).
         function onSettingsRequested() { root.settingsOpen = true }
         // Alt+M (KDE's shortcuts): the overlay map, while the Map plugin is on.
-        function onShortcutPressed(id) { if (id === "map-overlay" && root.mapUsable) mapPanel.toggleOverlay() }
+        // Alt+B and Alt+N: Brave and Legcord over the game.
+        function onShortcutPressed(id) {
+            if (id === "map-overlay" && root.mapUsable) mapPanel.toggleOverlay()
+            else if (id === "brave" || id === "legcord") Apps.toggle(id, nativeWindow.screenName)
+        }
         function onUpdatesRequested() {
             root.settingsOpen = true
             settings.tab = "general"
@@ -174,11 +180,14 @@ Overlay {
     Connections {
         target: Games
         function onStopped(id) {
+            // Brave and Legcord back where and how they were.
+            Apps.gameStopped()
             if (id === root.aionId && Aion2.active) { Aion2.stop(); root.aionId = "" }
             if (root.shownForGame && Companion.shown) Companion.toggleShown()
             root.shownForGame = false
         }
         function onStarted(id) {
+            Apps.gameStarted()
             // AION 2's module reads while the game runs.
             if (Games.runningKnown === "aion2") root.aionStarted(id)
             // Built-in games no launcher lists (known:…) are not in the library.
@@ -246,7 +255,8 @@ Overlay {
         wanted: Companion.shown
         stack: 5
         lockItem: bar.lockButton
-        extra: bar.tipShown ? Qt.rect(0, 0, bar.width, bar.height + 40) : Qt.rect(0, 0, 0, 0)
+        extra: bar.menuShown ? Qt.rect(0, 0, bar.width, bar.menuBottom)
+            : bar.tipShown ? Qt.rect(0, 0, bar.width, bar.height + 40) : Qt.rect(0, 0, 0, 0)
         part: HudBar {
             id: bar
             // Sideways where the user left it, never off the screen.
@@ -267,6 +277,8 @@ Overlay {
             onUpdateClicked: { root.settingsOpen = true; Updates.install() }
             onRadioClicked: root.radioOpen = !root.radioOpen
             onHideClicked: Companion.toggleShown()
+            keys: root.keys
+            onAppSettingsClicked: { root.settingsOpen = true; settings.tab = "apps" }
             onDropped: {
                 Companion.saveBarOffset(x - (root.width - shownWidth) / 2)
                 dragShift = 0
