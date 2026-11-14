@@ -28,7 +28,7 @@ Panel {
     property var store: null
     property var book: null
     readonly property string view: store && store.settings.windowView === "exchange" ? "exchange" : "shop"
-    badge: store && store.closet ? store.closet.size + " / " + store.goal : ""
+    badge: store && store.closet ? store.closet.size + " / " + store.goal + " SKINS" : ""
 
     readonly property var gradeColors: ["#c8ccd2", "#c8ccd2", "#7fdc9a", "#4fa8ff", "#f2c46b", "#ffb066", "#ff7a6b", "#7fe0c8"]
     property int iconsRevision: 0
@@ -121,7 +121,18 @@ Panel {
                     font.pixelSize: 12
                     style: Theme.textStyle(); styleColor: Theme.shadow
                 }
-
+                // Which pets to buy (Pet Finder's merchant list).
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    visible: win.view === "shop" && !!win.shop.advice
+                    text: win.shop.advice || ""
+                    color: /^Buy/.test(win.shop.advice || "") ? Theme.accent : Theme.textSoft()
+                    font.family: Theme.body
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    style: Theme.textStyle(); styleColor: Theme.shadow
+                }
 
                 Flow {
                     visible: win.view === "shop"
@@ -135,7 +146,10 @@ Panel {
                             width: (pageColumn.width - 18) / 4
                             height: 128
                             color: "#1b1a20"
-                            border.color: o.status === "new" ? Theme.accent : "#2f2d36"
+                            // Framed in the item's grade colour, thicker when worth buying (MN).
+                            readonly property bool hot: (o.status === "new" || o.status === "buy") && !o.soldOut
+                            border.color: o.grade > 1 ? win.gradeColors[o.grade] : "#4a4852"
+                            border.width: hot ? 2 : 1
                             opacity: o.status === "owned" || o.soldOut ? 0.55 : 1
                             Column {
                                 x: 4
@@ -152,7 +166,8 @@ Panel {
                                         height: 52
                                         asynchronous: true
                                         sourceSize.width: 104
-                                        source: win.iconUrl(o.icon)
+                                        fillMode: Image.PreserveAspectFit
+                                        source: o.portrait ? o.portrait : win.iconUrl(o.icon)
                                     }
                                     Rectangle { width: 6; height: 6; x: 4; y: 4; color: win.gradeColors[o.grade] || "transparent"; visible: o.grade > 1 }
                                 }
@@ -164,8 +179,8 @@ Panel {
                                     Text { text: LK.C.kina(o.price); color: Theme.textSoft(); font.family: Theme.body; font.pixelSize: 11; style: Theme.textStyle(); styleColor: Theme.shadow }
                                     Text {
                                         anchors.right: parent.right
-                                        text: o.soldOut ? "BOUGHT" : o.status === "new" ? (o.pet ? "NOT YOURS" : "NEW") : o.status === "owned" ? "OWNED" : "?"
-                                        color: o.status === "new" && !o.soldOut ? Theme.accent : Theme.dim()
+                                        text: o.soldOut ? "BOUGHT" : o.status === "new" ? "NEW" : o.status === "buy" ? "BUY" : o.status === "need" ? "NEED" : o.status === "owned" ? (o.pet ? "LV 3" : "OWNED") : "?"
+                                        color: (o.status === "new" || o.status === "buy") && !o.soldOut ? Theme.accent : o.status === "need" && !o.soldOut ? Theme.text() : Theme.dim()
                                         font.family: Theme.display
                                         font.pixelSize: 10
                                         font.weight: Font.Bold

@@ -254,7 +254,13 @@ QtObject {
     property bool farmShown: false
     property bool farmDismissed: false
     readonly property bool farmWanted: farmShown && !farmDismissed && settings.farmWindow !== false
-    property Timer farmIdle: Timer { interval: 600000; onTriggered: store.farmShown = false }
+    property Timer farmIdle: Timer { interval: 600000; onTriggered: store.farmGone() }
+    // Farming means gains coming in a row: the first 30 s in a place (a
+    // login's or a teleport's items) don't count, then three gains in the
+    // open world (one is a quest's reward) or two in a dungeon open it
+    // (MN, 0.8.12: it opened right after logging in).
+    property int farmHits: 0
+    property real farmLastTo: 0
     function farmCheck() {
         if (!farmDay || farmKey !== currentKey()) return
         const k = LK.F.zoneSource(zone)
@@ -262,11 +268,13 @@ QtObject {
         const st = farmDay.stints[farmDay.stints.length - 1]
         if (!st || st.src !== k || st.to < zoneSince - 1000 || Date.now() - st.to > 600000) return
         if (!(st.kinah > 0 || st.n > 0)) return
+        if (st.to !== farmLastTo && st.to - zoneSince > 30000) { farmLastTo = st.to; farmHits++ }
+        if (farmHits < (k === "open" ? 3 : 2)) return
         farmShown = true
         if (k === "open") farmIdle.restart()
         else farmIdle.stop()
     }
-    function farmGone() { farmShown = false; farmIdle.stop() }
+    function farmGone() { farmShown = false; farmIdle.stop(); farmHits = 0 }
     function farmPlace(z) {
         const before = LK.F.zoneSource(zone), now = LK.F.zoneSource(z)
         // From one field to the next it stays; a dungeon is a run of its own.
@@ -300,19 +308,22 @@ QtObject {
             gold: gold, worth: worth, run: run, keys: farmKeys()
         }
     }
-    /// The keys and tickets the character has now (MN: Shugo, Dimensional
-    /// Invasion and the tickets, while there are any): [{ name, left, max }].
+    /// The keys and tickets the character has now, only those with some
+    /// left: Shugo Festival, Nightmare, Dimensional Invasion, Daily Dungeon,
+    /// the entry tickets, Subjugation and Ascension Trial; not the many
+    /// reward counters (MN, 0.8.12: "was ist das?"). [{ name, left, max }].
+    readonly property var keyIds: ["1", "7", "4", "8", "101", "102", "103", "70000001", "80000001"]
     function farmKeys() {
         const counts = character && character.contentCounts || {}
         const out = []
-        for (const id in counts) {
+        for (const id of keyIds) {
             const t = T.TICKETS[id], v = counts[id]
             if (!t || t[4] || !Array.isArray(v)) continue
             const left = (Number(v[0]) || 0) + (Number(v[1]) || 0)
-            if (left > 0) out.push({ id: id, name: t[0], left: left, max: t[1] || 0, server: !!t[3] })
+            if (left > 0) out.push({ id: id, name: t[0].replace(/ Entry Count$/, ""), left: left, max: t[1] || 0, server: !!t[3] })
         }
-        for (const k of out) if (out.some((o) => o !== k && o.name === k.name)) k.name += k.server ? " (server)" : " (character)"
-        return out.sort((a, b) => a.name.localeCompare(b.name))
+        for (const k of out) if (out.some((o) => o !== k && o.name === k.name)) k.name += k.server ? " (account)" : " (character)"
+        return out
     }
 
     // ---------- Drops: dungeon runs ----------
@@ -370,6 +381,7 @@ QtObject {
     property real hereSince: 0
     property var hereZone: null
     property var anchor: null
+    property real walkingSince: 0
     /// Closed with its × until you come back.
     property bool dismissed: false
     /// The shop window shows now.
@@ -389,6 +401,7 @@ QtObject {
         hereSince = Date.now()
         here = true
         anchor = null
+        walkingSince = 0
         hereTimer.interval = Math.max(1, Number(settings.popupMinutes) || 3) * 60000
         hereTimer.restart()
         changed()
@@ -471,6 +484,14 @@ QtObject {
         if (w.zone != null && here && hereZone != null && w.zone !== hereZone) return left()
         if (here && hereZone == null && w.zone != null) hereZone = w.zone
         if (!here) return
+        // Walking means the shop is closed (no frame says so): the client's
+        // steps (world.moving) for 1.5 s, from 3 s after arriving, close it
+        // (MN, 0.8.12: it stayed open after leaving the merchant). Opened by
+        // hand it stays.
+        if (hereBy !== "hand" && w.moving === true && Date.now() - hereSince > 3000) {
+            if (!walkingSince) walkingSince = Date.now()
+            else if (Date.now() - walkingSince >= 1500) { walkingSince = 0; return left() }
+        } else if (w.moving === false) walkingSince = 0
         const me = w.me
         if (!me || !isFinite(me.x) || !isFinite(me.y)) return
         // Positions are in cm. An exact one says 6 m away; the estimated
@@ -495,20 +516,35 @@ QtObject {
         }
         return out
     }
-    /// Pet Finder's pets (when it is there): the level of a pet by its item's name.
-    function petStatus(item) {
-        if (typeof Aion2.petData !== "function" || typeof Aion2.pets !== "string") return ""
+    /// A pet offer as Pet Finder's merchant list judges it (PetTracker's
+    /// tables: the shop item's pet, the pets only chests and merchants
+    /// give): { pet, level (0..3, -1 not read yet), status "buy" (only
+    /// chests and merchants give it, not at level 3), "need" (not at
+    /// level 3, mobs drop it too), "owned" (level 3) or "" (not known),
+    /// portrait }. MN, 0.8.12: the pets first, and which to buy.
+    function petInfo(item) {
+        const out = { pet: null, level: -1, status: "", portrait: "", watch: false }
+        if (typeof Aion2.petData !== "function") return out
         try {
-            const data = JSON.parse(Aion2.petData())
-            const lv = JSON.parse(Aion2.pets || "{}").levels || {}
-            const nm = LK.C.name(item).toLowerCase()
-            for (const id in data.pets || {}) {
-                const p = data.pets[id]
-                if (p && p.name && nm.indexOf(String(p.name).toLowerCase()) >= 0) return lv[id] > 0 ? "owned" : "new"
+            if (!petCatalog) petCatalog = JSON.parse(Aion2.petData())
+            let pet = petCatalog.market ? petCatalog.market[String(item)] : null
+            if (pet == null) {
+                const nm = LK.C.name(item).toLowerCase()
+                for (const id in petCatalog.pets || {}) { const p = petCatalog.pets[id]; if (p && p.name && nm.indexOf(String(p.name).toLowerCase()) >= 0) { pet = Number(id); break } }
             }
+            if (pet == null) return out
+            const info = JSON.parse(Aion2.pets || "{}")
+            const synced = info.synced > 0 || demo
+            const level = synced ? Number((info.levels || {})[pet]) || (demo ? pet % 4 : 0) : -1
+            out.pet = pet
+            out.level = level
+            out.watch = (petCatalog.watch || []).indexOf(pet) >= 0
+            out.portrait = petDir + pet + ".webp"
+            out.status = level < 0 ? "" : level >= 3 ? "owned" : out.watch ? "buy" : "need"
         } catch (e) { }
-        return ""
+        return out
     }
+    readonly property string petDir: typeof Aion2.mapDir === "function" ? Aion2.mapDir().replace(/\/map$/, "") + "/pets/portraits/" : ""
     /// The pets you don't have yet (Pet Finder's levels), each with where it
     /// comes from: chests first (the merchant's and the Battle Pass' boxes),
     /// then the monsters that drop its soul. MN, 2026-11-13.
@@ -553,12 +589,24 @@ QtObject {
             for (const o of s.offers) {
                 const m = LK.L.statusOf(o.item, closet, ix, learned)
                 if (m.skin) offers.push({ item: o.item, name: m.skin.name, sub: (LK.L.GRADES[m.skin.grade] || "") + " · " + m.skin.slot, grade: m.skin.grade, status: m.status, price: o.price, discount: o.discount, tab: s.tabName, soldOut: !!o.soldOut, icon: m.skin.icon ? "Icon_" + m.skin.icon : LK.C.icon(o.item), pet: false })
-                else if (pets) offers.push({ item: o.item, name: LK.C.name(o.item), sub: "Pet", grade: LK.C.grade(o.item), status: petStatus(o.item), price: o.price, discount: o.discount, tab: s.tabName, soldOut: !!o.soldOut, icon: LK.C.icon(o.item), pet: true })
+                else if (pets) {
+                    const pi = petInfo(o.item)
+                    const nm = pi.pet != null && petCatalog.pets[pi.pet] ? petCatalog.pets[pi.pet].name : LK.C.name(o.item).replace(/^Pet:\s*/, "")
+                    offers.push({ item: o.item, name: nm, sub: pi.level < 0 ? "Pet" : pi.level >= 3 ? "Pet · level 3" : "Pet · level " + pi.level + " of 3", grade: LK.C.grade(o.item), status: pi.status, price: o.price, discount: o.discount, tab: s.tabName, soldOut: !!o.soldOut, icon: LK.C.icon(o.item), portrait: pi.portrait, pet: true })
+                }
             }
         }
-        const rank = (o) => (o.status === "new" ? 0 : o.status === "unknown" || o.status === "" ? 1 : 2)
-        offers.sort((x, y) => Number(x.pet) - Number(y.pet) || rank(x) - rank(y) || y.price - x.price)
-        return { offers: offers, owner: best.c.name, refresh: Math.min.apply(null, best.live.map((s) => s.refresh)) }
+        // The tab opened last first: at the Pets tab the pets lead (MN).
+        const last = best.live.reduce((x, y) => ((y.at || 0) > (x.at || 0) ? y : x))
+        const petsFirst = last.tab % 100 === 4
+        const rank = (o) => (o.status === "new" || o.status === "buy" ? 0 : o.status === "need" ? 1 : o.status === "unknown" || o.status === "" ? 2 : 3)
+        offers.sort((x, y) => (petsFirst ? Number(y.pet) - Number(x.pet) : Number(x.pet) - Number(y.pet)) || Number(!!x.soldOut) - Number(!!y.soldOut) || rank(x) - rank(y) || y.price - x.price)
+        const buy = offers.filter((o) => o.pet && o.status === "buy" && !o.soldOut)
+        const need = offers.filter((o) => o.pet && o.status === "need" && !o.soldOut)
+        const advice = !offers.some((o) => o.pet) ? "" : buy.length ? "Buy: " + buy.map((o) => o.name).join(", ") + " (only chests and merchants give them)" + (need.length ? ". Still needed, but monsters drop them too: " + need.map((o) => o.name).join(", ") : "")
+            : need.length ? "None of these pets is merchant-only. Still needed, but monsters drop them too: " + need.map((o) => o.name).join(", ")
+            : offers.some((o) => o.pet && o.status === "") ? "Open the pet collection in the game once: then it says which pets to buy." : "Nothing to buy here: every pet on offer is at level 3."
+        return { offers: offers, owner: best.c.name, refresh: Math.min.apply(null, best.live.map((s) => s.refresh)), advice: advice, petsFirst: petsFirst }
     }
     /// The skins you lack listed on the Exchange, cheapest first.
     function exchangeList(limit) {
@@ -932,7 +980,7 @@ QtObject {
             farmKey = key
             farmDay = day
             farmShown = true
-            character = Object.assign({}, character, { contentCounts: { "1": [9, 0], "8": [4, 0], "4": [2, 0], "102": [0, 0] } })
+            character = Object.assign({}, character, { contentCounts: { "1": [9, 0], "8": [4, 0], "4": [2, 0], "102": [0, 0], "60000003": [14, 0], "60000001": [500, 0] } })
         }
         // Dungeon runs: a dungeon of the rate table.
         const zones = Object.keys(LK.DG.RATES || {})
@@ -953,10 +1001,11 @@ QtObject {
         const skins = Array.from(ix.items.values()).filter((x) => x.look)
         const refresh = Math.ceil(now / h) * h
         const offer = (n, item, price, disc) => ({ offer: n, item: item, price: Math.floor(price * (100 - disc) / 100), original: price, discount: disc, soldOut: n === 3 })
-        const petItems = Object.keys(items).filter((id) => /Pet|Egg/.test(items[id][0])).slice(0, 2).map(Number)
+        let petItems = []
+        try { petCatalog = JSON.parse(Aion2.petData()); petItems = Object.keys(petCatalog.market || {}).filter((it, i) => i % 9 === 0).slice(0, 6).map(Number) } catch (e) { }
         closetChars[key] = { name: "[Character 2]", serverId: 2004, stocks: {
             "103": { tab: 103, tabName: "Skins", at: now - 120000, refresh: refresh, offers: [offer(1, skins[0].item, 480000, 20), offer(2, skins[3].item, 240000, 30), offer(3, skins[7].item, 96000, 10), offer(4, skins[9].item, 960000, 50)] },
-            "104": { tab: 104, tabName: "Pets", at: now - 100000, refresh: refresh, offers: petItems.map((it, i) => offer(10 + i, it, 300000, 20)) } } }
+            "104": { tab: 104, tabName: "Pets", at: now - (nativeWindow.demo.indexOf("petsfirst") >= 0 ? 60000 : 130000), refresh: refresh, offers: petItems.map((it, i) => offer(10 + i, it, 300000, 20)) } } }
         closetChars[LK.C.charKey(2004, "[Character 1]")] = { name: "[Character 1]", serverId: 2004, stocks: {} }
         seen = [{ at: now - 5 * h, "char": key, tab: 103, refresh: now - 4 * h, paid: false, skins: 4, fresh: 1 }, { at: now - 3 * h, "char": key, tab: 103, refresh: now - 2 * h, paid: true, skins: 4, fresh: 2 }]
         bag = [[1, skins[12].item, 1], [2, skins[15].item, 2]]
