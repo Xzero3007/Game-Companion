@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.31 beta (2026-11-14): #73 LOOT farm window: valuables split into MATS, ARTW, ORNG and VALU, each with its own switch (entry below).
 - 0.8.30 beta (2026-11-14): #71 Radio: stations that play on none of their addresses are greyed and listed last, HIDE NOT PLAYING switch (entry below).
 - 0.8.29 beta (2026-11-14): #68 Radio: Techno genre with Techno Bunker FM and Radio Record Minimal Tech, SomaFM under USA (entry below).
 - 0.8.28 beta (2026-11-14): #67 LOOT farm window: four-letter labels (WRTH, VALU, SHUG, INVA, NMAR, DAIL, BALA, FAFN, SUBJ, ASCE, CUBE) (entry below).
@@ -176,7 +177,7 @@ new session (or the same one after a usage limit) carries on from here.
   farm window is compact, design E5a (mockups in
   /mnt/project-files/game-companion/mockups/farm-e5-e2-keys.png): Panel
   `bare` (no header, no gold line), the Kinah bar with Kinah, share and
-  worth per hour in it, one line with GOLD, VALU, ODYLE, PING and the keys (four-letter labels)
+  worth per hour in it, one line with GOLD, MATS, ARTW, ORNG, VALU (valuables split per MN 0.8.27, per drop), ODYLE, PING and the keys (four-letter labels)
   MN ticks (DROPS → Farm window → Keys, settings `farmKeys`; three letters
   `keyAbbr`, game icons `keyIcon`; Key: Hidden Cube from the inventory).
   Gold items are gold gear only (ids 1xx–3xx, grade 4–6); other grade 4–6

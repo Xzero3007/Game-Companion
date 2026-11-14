@@ -135,7 +135,7 @@ Panel {
         // it wraps when it does not fit.
         Item {
             id: values
-            readonly property bool anyValue: (!win.on("kinah") && win.on("perHour")) || win.on("gold") || win.on("valuables") || win.on("odyle") || win.on("ping") || (win.dungeon && win.on("run"))
+            readonly property bool anyValue: (!win.on("kinah") && win.on("perHour")) || win.on("gold") || win.on("mats") || win.on("artwork") || win.on("orange") || win.on("valuables") || win.on("odyle") || win.on("ping") || (win.dungeon && win.on("run"))
             readonly property bool anyKey: win.on("keys") && !!win.f && win.f.keys.length > 0
             visible: anyValue || anyKey
             width: parent.width
@@ -154,12 +154,18 @@ Panel {
                     label: "GOLD"
                     tint: win.f && (win.dungeon ? win.f.run.gold : win.f.gold) ? "#f2c46b" : Theme.text()
                 }
-                Pair {
-                    // Its own switch (MN, 0.8.24: "valuables nicht brauche").
-                    visible: win.on("valuables") && !!win.f && (win.dungeon ? win.f.run.valuables : win.f.valuables) > 0
-                    value: win.f ? String(win.dungeon ? win.f.run.valuables : win.f.valuables) : ""
-                    label: "VALU"
-                    tint: "#f2c46b"
+                // Valuables in the parts MN chose (0.8.27), each on its own
+                // switch, counted per drop; VALU (the rest) only when some came.
+                Repeater {
+                    model: [["mats", "MATS", "#f2c46b"], ["artwork", "ARTW", "#f2c46b"], ["orange", "ORNG", "#ff9a4a"], ["valuables", "VALU", "#f2c46b"]]
+                    delegate: Pair {
+                        required property var modelData
+                        readonly property int n: win.f ? (win.dungeon ? win.f.run.values : win.f.values)[modelData[0]] || 0 : 0
+                        visible: win.on(modelData[0]) && !!win.f && (n > 0 || modelData[0] !== "valuables")
+                        value: String(n)
+                        label: modelData[1]
+                        tint: n ? modelData[2] : Theme.text()
+                    }
                 }
                 Row {
                     visible: win.on("odyle")
