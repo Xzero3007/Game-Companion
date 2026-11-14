@@ -13,7 +13,7 @@ import "lootkit.js" as LK
 // when the LOOT store or the fight (ping, Odyle) changes.
 // Compact (MN, 0.8.16, design E5a): no header; the Kinah bar with Kinah and
 // worth per hour in it, and one line of values and the keys you chose
-// (the game's icon, three letters, the count).
+// (the game's icon, four letters, the count).
 Panel {
     id: win
     panelId: "farm-window"
@@ -131,7 +131,7 @@ Panel {
         }
 
         // One line (design E5a): gold items, valuables, Odyle energy, ping,
-        // then the keys you chose (the game's icon, three letters, count);
+        // then the keys you chose (the game's icon, four letters, count);
         // it wraps when it does not fit.
         Item {
             id: values
@@ -146,7 +146,7 @@ Panel {
                 anchors.right: parent.right; anchors.rightMargin: 6
                 y: 3
                 spacing: 7
-                Pair { visible: win.dungeon && win.on("run"); label: "WTH"; value: win.f ? win.shortN(win.f.run.worth) : "" }
+                Pair { visible: win.dungeon && win.on("run"); label: "WRTH"; value: win.f ? win.shortN(win.f.run.worth) : "" }
                 Pair { visible: !win.on("kinah") && !win.dungeon && win.on("perHour"); label: "K/H"; value: win.f && win.f.perHour != null ? win.shortN(win.f.perHour) : "–" }
                 Pair {
                     visible: win.on("gold") || (win.dungeon && win.on("run"))
@@ -158,7 +158,7 @@ Panel {
                     // Its own switch (MN, 0.8.24: "valuables nicht brauche").
                     visible: win.on("valuables") && !!win.f && (win.dungeon ? win.f.run.valuables : win.f.valuables) > 0
                     value: win.f ? String(win.dungeon ? win.f.run.valuables : win.f.valuables) : ""
-                    label: "VAL"
+                    label: "VALU"
                     tint: "#f2c46b"
                 }
                 Row {
