@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.20 beta (2026-11-14): #46 the open panels and the DPS panel closed by hand are kept across restarts and updates (entry below).
 - 0.8.19 beta (2026-11-14): #47 LOOT farm window compact (no header, one line), merchant menu keeps the shop window open, keys chosen, gold count gear only (entry below).
 - 0.8.18 beta (2026-11-14): #48 the 2 px where the gold line was stay as clear room (panel sizes as in 0.8.16), Surface as in 0.8.16 (entry below).
 - 0.8.17 beta (2026-11-14): #44 gold line on top of windows removed, a window left screen-sized after a drag is placed again (entry below).
@@ -814,6 +815,16 @@ Now: the 2 px stay as clear room (`Panel.qml` header at y 2), the map
 overlay's strip and the boss sheet stay without the line, and the re-place
 is taken back (Surface.qml as in 0.8.16): on the headless KWin the farm
 window reached the top edge without it.
+
+## Branch `dps-stays-closed` (from beta): open panels survive updates
+
+MN (2026-11-14): "why is the DPS meter there after every update?" Main
+only remembered "DPS closed by hand" while the app ran, so after an update
+(a restart) the DPS panel opened again when AION 2 started. Settings now
+keep `open_panels` (ids, None until first kept) and `dps_closed`
+(`Companion.openPanels` / `saveOpenPanels`, saved 500 ms after a change);
+Main restores them at start (not in demo mode). An update or restart
+brings back exactly the panels that were open.
 
 ## Testing
 
