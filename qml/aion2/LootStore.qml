@@ -258,6 +258,9 @@ QtObject {
         if (m === "always" || m === "popup" || m === "off") return m
         return settings.farmWindow === false ? "off" : "always"
     }
+    /// Its own opacity (10 to 100 %) and text size (0.85 to 1.5), MN 0.8.14.
+    function farmOpacity() { const v = Number(settings.farmOpacity); return v >= 10 && v <= 100 ? v : 100 }
+    function farmText() { const v = Number(settings.farmText); return v >= 0.8 && v <= 1.6 ? v : 1 }
     function farmRow(k) { const r = settings.farmRows || {}; return r[k] !== undefined ? !!r[k] : true }
     function setFarmRow(k, on) { const r = Object.assign({}, settings.farmRows || {}); r[k] = !!on; set("farmRows", r) }
     property real zoneSince: 0
@@ -296,6 +299,12 @@ QtObject {
         farmGone()
     }
     function dismissFarm() { farmDismissed = true; changed() }
+    /// Back after its × (MN, 0.8.14: "jetzt taucht es nicht auf").
+    function showFarm() {
+        farmDismissed = false
+        if (settings.farmMode === "popup") { farmShown = true; farmIdle.restart() }
+        changed()
+    }
     /// What the farm window shows.
     function farmNow() {
         const d = farmDay && farmKey === currentKey() ? farmDay : null
@@ -430,8 +439,6 @@ QtObject {
         changed()
     }
     function left() {
-        merchant = null
-        merchantMissing = 0
         here = false
         dismissed = false
         hereTimer.stop()
@@ -473,9 +480,7 @@ QtObject {
         saveCloset()
         if (Date.now() - stock.at < 60000) {
             marketTimer.stop()
-            const wasHere = here && hereBy === "shop"
             arrived("shop")
-            if (!wasHere || !merchant) pickMerchant()
         }
     }
     function decodedCloset(e) {
@@ -510,39 +515,14 @@ QtObject {
             marketTimer.restart()
         }
     }
-    /// The merchant: the NPC nearest to you when its stock came (within
-    /// 15 m). Out of sight (gone from the NPCs around) or 8 m away from it,
-    /// you left (MN, 0.8.13: it closed only minutes after leaving).
-    property var merchant: null
-    property int merchantMissing: 0
-    property var lastWorld: null
-    function pickMerchant() {
-        merchant = null
-        merchantMissing = 0
-        const w = lastWorld
-        const me = w && w.me
-        if (!me || !isFinite(me.x) || !isFinite(me.y) || !Array.isArray(w.npcs)) return
-        let best = null, bestD = 1500
-        for (const n of w.npcs) {
-            const d = Math.hypot(n[2] - me.x, n[3] - me.y)
-            if (d < bestD) { bestD = d; best = n }
-        }
-        if (best) merchant = { e: best[0], x: best[2], y: best[3] }
-    }
+    // The Black Cloud merchant is a menu, not a place you walk to (MN,
+    // 0.8.14), and closing it sends nothing to read: walking, a fight or
+    // loot close the window; else a minute after the last shop page.
     function closetWorld(w) {
-        lastWorld = w
         if (w.zone != null && here && hereZone != null && w.zone !== hereZone) return left()
         if (here && hereZone == null && w.zone != null) hereZone = w.zone
         if (!here) return
         const me = w.me
-        if (hereBy === "shop" && merchant && Array.isArray(w.npcs)) {
-            const m = w.npcs.find((n) => n[0] === merchant.e)
-            if (!m) { if (++merchantMissing >= 2) return left() }
-            else {
-                merchantMissing = 0
-                if (me && me.exact && Math.hypot(me.x - merchant.x, me.y - merchant.y) > 800) return left()
-            }
-        }
         // Walking means the shop is closed (no frame says so): the client's
         // steps (world.moving) for 1.5 s, from 3 s after arriving, close it
         // (MN, 0.8.12: it stayed open after leaving the merchant). Opened by
@@ -760,6 +740,13 @@ QtObject {
             for (const e of list) store.takeDecoded(e)
         }
         function onCharacterChanged() { let c = null; try { c = JSON.parse(Aion2.character) } catch (e) { } store.takeCharacter(c) }
+        // A fight while the merchant's window shows: the menu was closed.
+        function onCombatChanged() {
+            if (!store.here || store.hereBy === "hand" || Date.now() - store.hereSince < 3000) return
+            let c = null
+            try { c = JSON.parse(Aion2.combat) } catch (e) { return }
+            if (c && Array.isArray(c.fought) && c.fought.length) store.left()
+        }
         function onWorldChanged() { let w = null; try { w = JSON.parse(Aion2.world) } catch (e) { } if (w) store.takeWorld(w) }
         function onActiveChanged() { if (Aion2.active) Qt.callLater(() => { let it = null; try { it = JSON.parse(Aion2.itemsNow()) } catch (e) { } if (it) store.takeItems(it) }) }
     }
@@ -803,6 +790,8 @@ QtObject {
         const serverBefore = character ? character.serverId : null
         character = c
         if (currentKey() !== farmKey) keyCounts = ({})
+        // Another character: the farm window's × is forgotten (MN, 0.8.14).
+        if (currentKey() !== keyBefore) farmDismissed = false
         farmCharacter(c)
         if (currentKey() !== keyBefore && zone != null) { const z = zone; runs((l) => LK.DG.enter(l, z, Date.now())) }
         runEnergy(c)

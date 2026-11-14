@@ -127,6 +127,16 @@ new session (or the same one after a usage limit) carries on from here.
   card, too few for a Dimensional Invasion (16 cards, 64 pickers, 100 picks
   now; patched in `tools/aion2-loot-import.py`). Check that the 4 kept
   rounds are read after the update. `GC_DEMO=loot,drops,farmwin`.
+  MN's test of 0.8.14: the Black Cloud merchant is a menu, not an NPC you
+  walk to, so the merchant-NPC rule (it closed the window at once) is gone:
+  walking, a fight (`Aion2.combat`) or 60 s after the last shop page close
+  it. The farm window has its own opacity (`farmOpacity`), text size
+  (`farmText`) and height (stretchy); its × is forgotten on "Show now", a
+  mode chip or another character. CARDS: no round that came live was ever
+  read, as Qt's JavaScript has no TextDecoder (the pickers' names); the
+  import script now adds a small UTF-8 decoder to lootkit.js. The old
+  rounds came from the meter. Checked against MN's kept rounds locally
+  (private notes repo, nothing of them here).
 - Event Timers / Schedule (branch `claude/project-thread-xz7nqt`, PR against
   beta, version from QA; 2026-11-13; MN chose "Ja, Aion 2 Timers gleich mit"
   on the canvas page "Zeitplan (Event Timers)", boards T1–T3). TIMERS in the

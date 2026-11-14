@@ -37,6 +37,24 @@ var __objRest = (source, exclude) => {
 var G = {};
 G.INVENTORY_DATA = { items: MK.G.MARKET_ITEMS.items, tickets: {} };
 G.MarketAnomaly = MK.A;
+// Qt's JavaScript has no TextDecoder: the card rounds' player names are
+// UTF-8 (MN, 0.8.14: every round that came live stayed unread).
+var TextDecoder = function () {};
+TextDecoder.prototype.decode = function (bytes) {
+  var out = "", i = 0, b = bytes || [];
+  while (i < b.length) {
+    var c = b[i++], n = 0, cp = 0;
+    if (c < 0x80) { out += String.fromCharCode(c); continue; }
+    if (c >= 0xf0 && c < 0xf8) { n = 3; cp = c & 7; } else if (c >= 0xe0) { n = 2; cp = c & 15; } else if (c >= 0xc0) { n = 1; cp = c & 31; } else { out += "\ufffd"; continue; }
+    if (i + n > b.length) { out += "\ufffd"; break; }
+    var ok = true;
+    for (var k = 0; k < n; k++) { var x = b[i + k]; if ((x & 0xc0) !== 0x80) { ok = false; break; } cp = cp * 64 + (x & 63); }
+    if (!ok) { out += "\ufffd"; continue; }
+    i += n;
+    out += String.fromCodePoint(cp);
+  }
+  return out;
+};
 if (!DataView.prototype.getBigUint64) DataView.prototype.getBigUint64 = function(o, le) {
   var lo = this.getUint32(o + (le ? 0 : 4), le), hi = this.getUint32(o + (le ? 4 : 0), le);
   return hi * 4294967296 + lo;
