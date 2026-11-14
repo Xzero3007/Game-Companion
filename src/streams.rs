@@ -169,21 +169,67 @@ pub fn browse_answered(data: &Value) -> bool {
 /// All live through Twitch's directory query: the id that answered last
 /// first, then the others. None when none answers (the written-out query
 /// is asked then).
-pub fn twitch_browse(after: Option<&str>, first: Option<usize>) -> Option<Value> {
+pub fn twitch_browse(after: Option<&str>, first: Option<usize>) -> Result<Value, String> {
     static WORKS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let start = WORKS.load(std::sync::atomic::Ordering::Relaxed);
+    let mut why = String::from("no answer");
     for i in 0..BROWSE_POPULAR.len() {
         let at = (start + i) % BROWSE_POPULAR.len();
         match twitch(&twitch_browse_query(BROWSE_POPULAR[at], after, first), None) {
             Ok(data) if browse_answered(&data) => {
                 WORKS.store(at, std::sync::atomic::Ordering::Relaxed);
-                return Some(data);
+                return Ok(data);
             }
             // A refused id ("PersistedQueryNotFound", a missing variable): the next.
-            _ => {}
+            Ok(data) => why = data["_errors"][0].as_str().unwrap_or("no streams in its answer").to_string(),
+            Err(e) => why = e,
         }
     }
-    None
+    Err(why)
+}
+
+/// More of All live without a page cursor (Twitch went on sending the
+/// first 30 for every cursor, MN's 0.8.12): the most watched streams of the
+/// next `SWEEP` most watched categories, asked in one request.
+pub const SWEEP: usize = 6;
+
+/// The categories swept at most, `SWEEP` a page.
+pub const SWEEP_LONGEST: usize = 60;
+
+/// The request for the streams of these categories (by name), each its
+/// own alias `c0`, `c1`…; `more` asks the stream's kind and language too.
+pub fn twitch_sweep_query(names: &[String], more: bool) -> Result<Value, String> {
+    let names: Vec<&str> = names.iter().map(|n| n.trim()).filter(|n| !n.is_empty() && n.len() <= 100).take(SWEEP).collect();
+    if names.is_empty() {
+        return Err("no categories".into());
+    }
+    let fields = if more { STREAM_MORE } else { STREAM };
+    let decl: Vec<String> = (0..names.len()).map(|i| format!("$g{i}: String!")).collect();
+    let body: Vec<String> = (0..names.len())
+        .map(|i| format!("c{i}: game(name: $g{i}) {{ streams(first: 30) {{ edges {{ node {{ {fields} }} }} }} }}"))
+        .collect();
+    let mut variables = serde_json::Map::new();
+    for (i, n) in names.iter().enumerate() {
+        variables.insert(format!("g{i}"), json!(n));
+    }
+    Ok(json!({ "query": format!("query({}) {{ {} }}", decl.join(", "), body.join(" ")), "variables": variables }))
+}
+
+/// The streams of a sweep's answer, each once, most watched first.
+pub fn sweep_cards(data: &Value) -> Vec<Value> {
+    let mut out: Vec<Value> = Vec::new();
+    for (key, game) in data.as_object().into_iter().flatten() {
+        if !key.starts_with('c') || !game.is_object() {
+            continue;
+        }
+        for c in twitch_cards(&json!({ "game": game })) {
+            if !out.iter().any(|o| o["login"] == c["login"]) {
+                out.push(c);
+            }
+        }
+    }
+    out.sort_by(|a, b| b["viewers"].as_u64().cmp(&a["viewers"].as_u64()));
+    out
 }
 
 /// Twitch's query for a list, from a page cursor on (live lists,
@@ -1512,5 +1558,29 @@ mod tests {
         // A refused id: not an answer.
         assert!(!browse_answered(&json!({ "_errors": ["Twitch: PersistedQueryNotFound"] })));
         assert!(!browse_answered(&json!({ "streams": null })));
+    }
+    #[test]
+    fn twitch_sweeps() {
+        let names: Vec<String> = ["Just Chatting", "", "Path of Exile 2"].iter().map(|s| s.to_string()).collect();
+        let q = twitch_sweep_query(&names, false).unwrap();
+        let text = q["query"].as_str().unwrap();
+        assert!(text.starts_with("query($g0: String!, $g1: String!) {"), "{text}");
+        assert!(text.contains("c1: game(name: $g1) { streams(first: 30)"));
+        assert_eq!(q["variables"]["g1"], "Path of Exile 2");
+        assert!(!text.contains("broadcastSettings"));
+        assert!(twitch_sweep_query(&names, true).unwrap()["query"].as_str().unwrap().contains("broadcastSettings"));
+        assert!(twitch_sweep_query(&[], false).is_err());
+        let many: Vec<String> = (0..20).map(|i| format!("Game {i}")).collect();
+        assert_eq!(twitch_sweep_query(&many, false).unwrap()["variables"].as_object().unwrap().len(), SWEEP);
+        let node = |l: &str, v: u64| json!({ "node": { "title": "t", "viewersCount": v, "broadcaster": { "login": l, "displayName": l } } });
+        let data = json!({
+            "c0": { "streams": { "edges": [node("a", 500), node("b", 900)] } },
+            "c1": { "streams": { "edges": [node("b", 900), node("c", 700)] } },
+            "c2": null,
+            "_errors": ["Twitch: something"]
+        });
+        let cards = sweep_cards(&data);
+        let logins: Vec<&str> = cards.iter().map(|c| c["login"].as_str().unwrap()).collect();
+        assert_eq!(logins, ["b", "c", "a"]);
     }
 }

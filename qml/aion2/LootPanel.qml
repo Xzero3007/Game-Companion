@@ -378,9 +378,10 @@ Panel {
     }
     function offerRow(o, w) {
         const tags = [[o.sub, ""]]
-        if (o.status) tags.push([o.status === "new" ? (o.pet ? "Not yours" : "New") : o.status === "owned" ? "Owned" : "?", o.status === "new" ? gold : ""])
+        const hot = o.status === "new" || o.status === "buy"
+        if (o.status) tags.push([o.status === "new" ? "New" : o.status === "buy" ? "Buy" : o.status === "need" ? "Needed (monsters drop it too)" : o.status === "owned" ? (o.pet ? "Level 3" : "Owned") : "?", hot ? gold : ""])
         if (o.soldOut) tags.push(["Bought", ""])
-        return item(o.item, o.name, tags, [o.discount ? "−" + o.discount + " %" : "", [kina(o.price), o.status === "new" ? gold : ""]], w, { icon: o.icon || LK.C.icon(o.item), grade: o.grade })
+        return item(o.item, o.name, tags, [o.discount ? "−" + o.discount + " %" : "", [kina(o.price), hot ? gold : ""]], w, { icon: o.icon || LK.C.icon(o.item), grade: o.grade })
     }
     function buildMerchant(out) {
         const now = Date.now()
@@ -400,11 +401,11 @@ Panel {
                 for (const o of s.offers) {
                     const m = LK.L.statusOf(o.item, store.closet, store.ix, store.learned)
                     if (m.skin) list.push({ item: o.item, name: m.skin.name, sub: (LK.L.GRADES[m.skin.grade] || "") + " · " + m.skin.slot, grade: m.skin.grade, status: m.status, price: o.price, discount: o.discount, soldOut: o.soldOut, icon: m.skin.icon ? "Icon_" + m.skin.icon : "" })
-                    else if (pets) list.push({ item: o.item, name: LK.C.name(o.item), sub: "Pet", grade: LK.C.grade(o.item), status: store.petStatus(o.item), price: o.price, discount: o.discount, soldOut: o.soldOut, pet: true })
+                    else if (pets) { const pi = store.petInfo(o.item); list.push({ item: o.item, name: LK.C.name(o.item), sub: pi.level < 0 ? "Pet" : "Pet · level " + pi.level + " of 3", grade: LK.C.grade(o.item), status: pi.status, price: o.price, discount: o.discount, soldOut: o.soldOut, pet: true }) }
                 }
                 const others = s.offers.length - list.length
                 out.rows.push(text(s.tabName + (others ? " · " + plural(others, "other item") : "")))
-                const rank = (o) => (o.status === "new" ? 0 : o.status === "owned" ? 2 : 1)
+                const rank = (o) => (o.status === "new" || o.status === "buy" ? 0 : o.status === "owned" ? 2 : 1)
                 for (const o of list.sort((x, y) => rank(x) - rank(y) || y.price - x.price)) out.rows.push(offerRow(o, w))
                 if (!list.length) out.rows.push(text("No skins or pets in this tab"))
             }
@@ -526,12 +527,14 @@ Panel {
                 for (const p of pairs) if (!LK.S.currency(p[0])) m.set(p[0], (m.get(p[0]) || 0) + p[1])
                 return Array.from(m).sort((a, b) => LK.S.gold(b[0]) - LK.S.gold(a[0]))
             }
-            const line = (p) => [LK.C.name(p[0]) + (p[1] > 1 ? " ×" + kina(p[1]) : ""), gradeColors[LK.C.grade(p[0])] || "", LK.S.gold(p[0])]
+            // [name, grade colour, gold, item, count]: the card shows each
+            // item as the game does, its picture framed in its grade's colour.
+            const line = (p) => [LK.C.name(p[0]), gradeColors[LK.C.grade(p[0])] || "", LK.S.gold(p[0]), p[0], p[1]]
             out.rows.push({ kind: "cards", cards: r.cards.map((c, n) => {
                 const w = ws[n]
                 const cur = Object.keys(w.cur).map((id) => kina(w.cur[id]) + " " + (curNames[id] || LK.C.name(Number(id))))
                 return { title: "Card " + (c.place + 1), you: c.mine ? (c.mine > 1 ? "YOU ×" + c.mine : "YOU") : c.others ? "OTHER" : "",
-                    bonus: (c.bonus || []).length ? lines(c.bonus).map(line) : [], lines: lines(c.main).map(line).concat(cur.map((t) => [t, "", false])),
+                    bonus: (c.bonus || []).length ? lines(c.bonus).map(line) : [], lines: lines(c.main).map(line).concat(cur.map((t) => [t, "", false, 0, 0])),
                     worth: w.priced ? (w.guess ? "≈ " : "") + shortK(w.kinah) : "—", best: w.kinah === best && best > 0 }
             }) })
             return
@@ -1025,12 +1028,54 @@ Panel {
                             Text { visible: c.bonus.length > 0; text: "BONUS"; color: "#c4a8f0"; font.family: Theme.display; font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1; style: Theme.textStyle(); styleColor: Theme.shadow }
                             Repeater {
                                 model: c.bonus.concat(c.lines)
-                                delegate: Row {
+                                delegate: Item {
                                     required property var modelData
-                                    spacing: 4
+                                    readonly property bool pic: modelData[3] > 0
                                     width: cardCol.width
-                                    Rectangle { visible: !!modelData[1]; y: 4; width: 6; height: 6; color: modelData[1] || "transparent" }
-                                    Text { width: parent.width - 10; wrapMode: Text.WordWrap; text: modelData[0]; color: modelData[2] ? panel.gold : modelData[1] ? Theme.text() : Theme.muted(); font.family: Theme.body; font.pixelSize: 10; style: Theme.textStyle(); styleColor: Theme.shadow }
+                                    height: pic ? Math.max(34, nameText.implicitHeight) : nameText.implicitHeight
+                                    // The item's picture in a frame of its grade's colour, the count on it.
+                                    Rectangle {
+                                        id: frame
+                                        visible: parent.pic
+                                        width: 32
+                                        height: 32
+                                        color: "#2a2930"
+                                        border.color: modelData[1] || "#4a4852"
+                                        border.width: modelData[2] ? 2 : 1
+                                        Image {
+                                            anchors.fill: parent
+                                            anchors.margins: 2
+                                            asynchronous: true
+                                            sourceSize.width: 56
+                                            source: parent.visible ? panel.iconUrl(LK.C.icon(modelData[3])) : ""
+                                        }
+                                        Text {
+                                            visible: modelData[4] > 1
+                                            anchors.right: parent.right
+                                            anchors.bottom: parent.bottom
+                                            anchors.margins: 2
+                                            text: panel.shortK(modelData[4])
+                                            color: "#ffffff"
+                                            font.family: Theme.display
+                                            font.pixelSize: 10
+                                            font.weight: Font.Bold
+                                            style: Text.Outline; styleColor: "#000000"
+                                        }
+                                    }
+                                    Text {
+                                        id: nameText
+                                        x: parent.pic ? 38 : 0
+                                        anchors.verticalCenter: parent.pic ? parent.verticalCenter : undefined
+                                        width: parent.width - x
+                                        wrapMode: Text.WordWrap
+                                        maximumLineCount: 2
+                                        elide: Text.ElideRight
+                                        text: modelData[0]
+                                        color: modelData[2] ? panel.gold : modelData[1] ? modelData[1] : Theme.muted()
+                                        font.family: Theme.body
+                                        font.pixelSize: 10
+                                        style: Theme.textStyle(); styleColor: Theme.shadow
+                                    }
                                 }
                             }
                             Text { text: c.worth; color: c.best ? Theme.accent : Theme.muted(); font.family: Theme.display; font.pixelSize: 14; font.weight: Font.Bold; style: Theme.textStyle(); styleColor: Theme.shadow }

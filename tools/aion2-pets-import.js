@@ -3,7 +3,8 @@
 // its Pets list is A2 Tools' Pet Soul Tracker, GPL-3.0, and its catalogue
 // and portraits come from PetTracker, GPLv3) into crates/aion2/data/pets/:
 // pets.json (English names, genus, where each pet's souls drop, and the ids
-// the game's pet frames may carry) and portraits/ (the 256 px pictures).
+// the game's pet frames may carry, PetTracker's merchant items and its
+// list of pets only chests and merchants give) and portraits/ (256 px).
 //
 //     node tools/aion2-pets-import.js <A2Tools-Clicktrough-Plugins>/plugins/pet-finder
 "use strict";
@@ -59,11 +60,15 @@ for (const id of Object.keys(PET_NAMES).map(Number).sort((a, b) => a - b)) {
 }
 const genus = Object.fromEntries(Object.entries(GENUS_NAMES).map(([k, v]) => [k, v.en]));
 const catalog = [...new Set(PET_DATA.catalog.map(Number))].sort((a, b) => a - b);
+// PetTracker's merchant tables: which shop item is which pet, and the pets
+// only chests and merchants give (its shopping list).
+const market = Object.fromEntries(Object.entries(PET_DATA.market || {}).map(([item, pet]) => [item, Number(pet)]));
+const watch = PET_DATA.pets.filter((p) => p.watch).map((p) => Number(p.id)).sort((a, b) => a - b);
 
 fs.mkdirSync(path.join(out, "portraits"), { recursive: true });
 fs.writeFileSync(path.join(out, "pets.json"), JSON.stringify({
   source: "Clicktrough Pet Finder 0.4.5: A2 Tools' Pet Soul Tracker (GPL-3.0) and PetTracker (GPLv3)",
-  genus, catalog, pets,
+  genus, catalog, market, watch, pets,
 }) + "\n");
 let n = 0;
 for (const f of fs.readdirSync(path.join(src, "portraits"))) {

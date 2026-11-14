@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.13 QA collection (2026-11-14, MN's test of 0.8.12): #31 boss voice beeps and says when speech-dispatcher is missing, #32 Armory several gear slots open and the old Armory's data, #33 Twitch All live more streams from the top categories, #34 LOOT farm window, shop pets, cards with icons (entries below).
 - 0.8.12 QA collection (2026-11-13): #29 AION 2 Armory with builds tied to characters (entry below).
 - 0.8.11 QA collection (2026-11-13): #27 no gold frames left on video windows (entry below).
 - 0.8.10 QA collection (2026-11-13): #24 LOOT after MN's 0.8.6 test: shop window only at the merchant, farm window, the meter's data taken over (entries below).
@@ -93,6 +94,22 @@ new session (or the same one after a usage limit) carries on from here.
   6 m). CARDS: a Dimensional Invasion round did not arrive on MN's 0.8.6;
   `rest` now takes 16 KB (was 4 KB) and CARDS says how many rounds came
   unread (`store.odd`): check on the next test.
+  MN's test of 0.8.12: the farm window opens only after three gains in
+  the open world (two in a dungeon), none in the first 30 s in a place
+  (`farmHits`; it opened at login), and lists only keys and tickets with
+  some left (`keyIds`: Shugo, Nightmare, Dimensional Invasion, Daily
+  Dungeon, entry tickets, Subjugation, Ascension Trial). The shop window
+  closes when the client's steps say you walk (`world.moving` for 1.5 s,
+  from 3 s after arriving; not when opened by hand). Its tiles are framed
+  in their grade colour; pets come from PetTracker's merchant tables
+  (`pets.json` `market` item → pet and `watch`, by the pets import):
+  portrait, level, BUY (merchant-only, below level 3), NEED (monsters drop
+  it too), LV 3; at the Pets tab the pets come first, and a line says
+  which to buy (`offersNow().advice`, Pet Finder's recommendations). CARDS
+  draws each item as the game does: its picture in a frame of its grade's
+  colour with the count on it. The two unread rounds can only be read
+  once one is looked at (private notes repo): they stay kept and are read
+  again at every start (`LK.S.adopt`). `GC_DEMO=loot,shop,petsfirst`.
 - Event Timers / Schedule (branch `claude/project-thread-xz7nqt`, PR against
   beta, version from QA; 2026-11-13; MN chose "Ja, Aion 2 Timers gleich mit"
   on the canvas page "Zeitplan (Event Timers)", boards T1–T3). TIMERS in the
@@ -680,6 +697,22 @@ History (build progress line, version marks, boss fights with DPS).
 CHARACTERS shows "build NN %" under the gear score. Open: tested only with
 made-up data in the sandbox (NC's pages are blocked here); the first real
 reading is MN's test.
+
+## Branch `claude/project-thread-pv2u8z` (from beta): Boss voice without speech-dispatcher
+
+MN (0.8.12): the Ludra preview showed its calls without a sound. Sheet
+entries are own words (no Kokoro clip), read by spd-say, which MN likely
+lacks. Now a beep plays instead, SHEETS says so with the pacman line, and
+the package lists speech-dispatcher and espeak-ng as optdepends.
+0.8.12 test (MN, 2026-11-14): reading a real character works. Fixed after:
+GEAR keeps several slots open at once (`opened`), and a closed slot leaves
+no gap (the details Loader's height follows `implicitHeight`, 0 when
+closed). The old Clicktrough Armory's data is taken over once by itself
+(HISTORY has a button for again): `meter_import::read_armory` (local, read
+only) → `Aion2.meterArmoryGot` → `ArmoryStore.takeMeter`; histories merged
+by time (`BK.mergeHistory`, 600 kept), a newer old reading kept, the old
+references as builds, a character's old targets as a build on it when it
+has none (`settings.meterBuilds` notes what was taken, no copies).
 
 ## Testing
 

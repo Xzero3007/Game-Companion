@@ -44,6 +44,32 @@ Column {
         text: "Every reading of NC's page (Update, or by itself every 6 hours while you play) is kept when something changed; while you play, the game's own combat power and gear score are noted as they change."
     }
 
+    // The old Clicktrough Armory's history (MN, 2026-11-14): taken over once
+    // by itself, again with this button.
+    Item {
+        visible: !!tab.ui
+        width: parent.width
+        height: 26
+        AUi.Line {
+            anchors.left: parent.left
+            anchors.right: oldButton.left
+            anchors.rightMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            elide: Text.ElideRight
+            text: !tab.ui ? "" : tab.ui.store.meterBusy ? "Reading the old Armory's data …"
+                : tab.ui.store.meterNote || "The old Armory's history, readings and references are taken over once by themselves."
+            color: Theme.muted()
+            font.pixelSize: 11
+        }
+        Chip {
+            id: oldButton
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Take over the old Armory's data"
+            onClicked: tab.ui.store.readMeter()
+        }
+    }
+
     AUi.Box {
         visible: tab.h.length > 0
         width: parent.width

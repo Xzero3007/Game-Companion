@@ -212,6 +212,15 @@ pub mod qobject {
         #[qsignal]
         fn meter_got(self: Pin<&mut Aion2>, json: QString);
 
+        /// Reads the old Clicktrough meter's Armory data (local files, read
+        /// only) in the background; the answer comes as `meter_armory_got`.
+        #[qinvokable]
+        fn meter_read_armory(self: Pin<&mut Aion2>);
+
+        /// The meter's Armory data that `meter_read_armory` found.
+        #[qsignal]
+        fn meter_armory_got(self: Pin<&mut Aion2>, json: QString);
+
         /// The game's servers by number, their English names: JSON
         /// {"1001": "Siel", ...} (the meter's list, in the package).
         #[qinvokable]
@@ -731,6 +740,14 @@ impl qobject::Aion2 {
         let _ = std::thread::Builder::new().name("meter-import".into()).spawn(move || {
             let json = crate::meter_import::read();
             let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| obj.meter_got(QString::from(&json)));
+        });
+    }
+
+    fn meter_read_armory(self: Pin<&mut Self>) {
+        let thread = self.qt_thread();
+        let _ = std::thread::Builder::new().name("meter-armory".into()).spawn(move || {
+            let json = crate::meter_import::read_armory();
+            let _ = thread.queue(move |obj: Pin<&mut qobject::Aion2>| obj.meter_armory_got(QString::from(&json)));
         });
     }
 
