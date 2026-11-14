@@ -252,7 +252,7 @@ QtObject {
     // Modes (settings.farmMode): "always" while AION 2 runs (the default),
     // "popup" while farming (goes in a town, 10 minutes after the last gain
     // in the open world, or with its × until the next place), "off".
-    readonly property var farmRowList: [["kinah", "Kinah today"], ["perHour", "Worth per hour"], ["gold", "Gold items and valuables"], ["run", "Dungeon run"], ["keys", "Keys and tickets"], ["odyle", "Odyle energy"], ["ping", "Ping"]]
+    readonly property var farmRowList: [["kinah", "Kinah today"], ["perHour", "Worth per hour"], ["gold", "Gold items"], ["valuables", "Valuables"], ["run", "Dungeon run"], ["keys", "Keys and tickets"], ["odyle", "Odyle energy"], ["ping", "Ping"]]
     function farmMode() {
         const m = settings.farmMode
         if (m === "always" || m === "popup" || m === "off") return m
@@ -371,7 +371,7 @@ QtObject {
     readonly property var keyIds: ["7", "1", "8", "4", "101", "102", "103", "70000001", "80000001"]
     /// Three letters for each, so they read at a glance (MN, 0.8.16), and
     /// the matching ticket item's icon in the game.
-    readonly property var keyAbbr: ({ "7": "SHU", "1": "SHA", "8": "INV", "4": "NMR", "101": "DLY", "102": "BAL", "103": "FAF", "70000001": "SUB", "80000001": "ASC", "cube": "CUB" })
+    readonly property var keyAbbr: ({ "7": "SHU", "1": "SHU", "8": "INV", "4": "NMD", "101": "DLY", "102": "BAL", "103": "FAF", "70000001": "SUB", "80000001": "ASC", "cube": "CUBE" })
     readonly property var keyIcon: ({
         // The golden key the game shows for the Shugo Festival (MN, 0.8.21);
         // the Invasion's keys get it too, as the game has no other found yet.
@@ -396,7 +396,7 @@ QtObject {
         const key = currentKey(), st = key ? stock(key) : null, inv = st && st.inv || {}
         let cubes = 0
         for (const id of cubeKeyIds) cubes += Number(inv[id] || inv[String(id)]) || 0
-        out.splice(3, 0, { id: "cube", abbr: "CUB", icon: keyIcon.cube, name: "Key: Hidden Cube", left: cubes, max: 0, server: false, known: !!st })
+        out.splice(3, 0, { id: "cube", abbr: keyAbbr.cube, icon: keyIcon.cube, name: "Key: Hidden Cube", left: cubes, max: 0, server: false, known: !!st })
         if (demo) for (const k of out) if (!k.known) { k.left = k.id === "cube" ? 4 : 3; k.known = true }
         return out
     }

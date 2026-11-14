@@ -60,6 +60,8 @@ Panel {
         property string value
         property string unit
         property color tint: Theme.text()
+        property color unitTint: Theme.muted()
+        property bool unitBold: false
         spacing: 3
         Text {
             visible: text.length > 0
@@ -77,8 +79,10 @@ Panel {
         Text {
             visible: text.length > 0
             anchors.baseline: parent.children[1].baseline
-            text: parent.unit; color: Theme.muted()
-            font.family: Theme.body; font.pixelSize: win.px
+            text: parent.unit; color: parent.unitTint
+            font.family: parent.unitBold ? Theme.display : Theme.body
+            font.pixelSize: parent.unitBold ? Math.round(12 * win.fs) : win.px
+            font.weight: parent.unitBold ? Font.Bold : Font.Normal
             style: Theme.textStyle(); styleColor: Theme.shadow
         }
     }
@@ -131,7 +135,7 @@ Panel {
         // it wraps when it does not fit.
         Item {
             id: values
-            readonly property bool anyValue: (!win.on("kinah") && win.on("perHour")) || win.on("gold") || win.on("odyle") || win.on("ping") || (win.dungeon && win.on("run"))
+            readonly property bool anyValue: (!win.on("kinah") && win.on("perHour")) || win.on("gold") || win.on("valuables") || win.on("odyle") || win.on("ping") || (win.dungeon && win.on("run"))
             readonly property bool anyKey: win.on("keys") && !!win.f && win.f.keys.length > 0
             visible: anyValue || anyKey
             width: parent.width
@@ -147,11 +151,12 @@ Panel {
                 Pair {
                     visible: win.on("gold") || (win.dungeon && win.on("run"))
                     value: win.f ? String(win.dungeon ? win.f.run.gold : win.f.gold) : ""
-                    label: "GLD"
+                    label: "GOLD"
                     tint: win.f && (win.dungeon ? win.f.run.gold : win.f.gold) ? "#f2c46b" : Theme.text()
                 }
                 Pair {
-                    visible: (win.on("gold") || (win.dungeon && win.on("run"))) && !!win.f && (win.dungeon ? win.f.run.valuables : win.f.valuables) > 0
+                    // Its own switch (MN, 0.8.24: "valuables nicht brauche").
+                    visible: win.on("valuables") && !!win.f && (win.dungeon ? win.f.run.valuables : win.f.valuables) > 0
                     value: win.f ? String(win.dungeon ? win.f.run.valuables : win.f.valuables) : ""
                     label: "VAL"
                     tint: "#f2c46b"
@@ -161,22 +166,28 @@ Panel {
                     spacing: 3
                     Image {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: Math.round(13 * win.fs); height: width
+                        width: Math.round(17 * win.fs); height: width
                         sourceSize: Qt.size(26, 26)
                         source: "qrc:/qt/qml/GameCompanion/assets/aion2/odyle.png"
                         Accessible.ignored: true
                     }
                     Pair {
+                        // Easier to read (MN, 0.8.24): a word before it and
+                        // the charged part as bright as the energy itself.
+                        label: "ODYLE"
                         value: win.f && win.f.extras.odyle ? win.grouped(win.f.extras.odyle[0]) : "–"
                         unit: win.f && win.f.extras.odyle ? "+" + win.grouped(win.f.extras.odyle[1]) : ""
                         tint: Theme.purpleText
+                        unitTint: Theme.purpleText
+                        unitBold: true
                     }
                 }
                 Pair {
                     visible: win.on("ping")
                     value: win.f && win.f.extras.ping != null ? String(win.f.extras.ping) : "–"
                     label: "PING"
-                    tint: win.f && win.f.extras.ping > 150 ? Theme.red : Theme.text()
+                    // Green up to 100 ms, red above (MN, 0.8.24).
+                    tint: !win.f || win.f.extras.ping == null ? Theme.text() : win.f.extras.ping > 100 ? Theme.red : "#7fdc9a"
                 }
                 Rectangle {
                     visible: values.anyValue && values.anyKey
