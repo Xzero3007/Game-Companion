@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.17 beta (2026-11-14): #44 gold line on top of windows removed, a window left screen-sized after a drag is placed again (entry below).
 - 0.8.16 QA collection (2026-11-14, MN's test of 0.8.14): #42 LOOT shop window stays open while browsing, farm window opacity/text/height and Show now, card rounds parsed (UTF-8 decoder) (entry below).
 - 0.8.15 QA collection (2026-11-14, MN's urgent report): #40 parts never take the game's focus or mouse on their own (keys only after a click into a part; input region set before the first show) (entry below).
 - 0.8.14 QA collection (2026-11-14): #36 GAMES tab WITH GAME (programs that start and close with a game, the old meter's watcher taken over), #37 LOOT after MN's test of 0.8.13 (farm window settings, Odyle energy and ping, shop window closing by the merchant, pets on every tab, icon retry, wider card limits), #38 videos louder (Video loudness +3/+6/+9 dB, Even out loudness) (entries below).
