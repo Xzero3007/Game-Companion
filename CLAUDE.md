@@ -77,7 +77,10 @@ learnt, so nothing has to be asked or worked out again.
   or 15 while a boss alert waits; src/aion2timers.rs; the person,
   2026-11-13); the Armory's NC character pages (aion2.plaync.com,
   api-search.plaync.com, profileimg.plaync.com; read only, no account;
-  src/armory.rs `allowed`; MN, 2026-11-13). Brave Origin and Legcord are the
+  src/armory.rs `allowed`; MN, 2026-11-13). The Legcord voice overlay
+  (MN, 2026-11-14) opens no connection at all: its Legcord plugin talks to
+  Game Companion over a Unix socket; avatars are fetched by Legcord itself
+  (its session, cdn.discordapp.com, as it does anyway). Brave Origin and Legcord are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
 - **Game modules only read** (like the AION 2 meter): never send anything to
@@ -403,6 +406,31 @@ learnt, so nothing has to be asked or worked out again.
   match by app id or class prefix (`brave`, `legcord`; Chromium site apps
   left out). `GC_DEMO=apps[,appmenu][,settings,appsettings]`. Check on the
   Arch bench: `arch-test/apps/` (stand-in windows, `test.sh`).
+- Legcord voice overlay (MN, 2026-11-14; mockups and plan in the project
+  folder `legcord-voice-plan.md`, `mockups/legcord-voice/`; N1 is the
+  default, N2 to N5 are choices): `legcord/game-companion-voice/` is a
+  Legcord plugin (Legcord 1.3's own plugin system, folder
+  `~/.config/legcord/plugins/game-companion-voice`, switched on by the
+  person in Legcord). Its renderer part reads Discord's stores by name
+  through Legcord's built-in Shelter (`shelter.flux.storesFlat`:
+  SelectedChannelStore, VoiceStateStore, SpeakingStore, UserStore,
+  ChannelStore, GuildMemberStore; reports what it misses as `check`), and
+  its main part gets that through a DevTools binding `gcVoice` (fallback: a
+  console line tagged `\u0001gcvoice `). It hands it to Game Companion over
+  `$XDG_RUNTIME_DIR/game-companion-voice.sock`. Legcord cancels WebSockets
+  to localhost (except 1211, 1112, 6888) and its strict CSP leaves
+  127.0.0.1 out, so there is no TCP. `src/voice_overlay.rs`: socket
+  (peer uid checked), JSON lines `hello`/`check`/`state`/`picture`,
+  avatars written as PNG to `$XDG_RUNTIME_DIR/game-companion-voice/`,
+  shown by file URL (Qt's Image took no `data:` URL); plugin files built
+  in (`include_str!`), "Install plugin" writes them, every start refreshes
+  an installed copy. `src/voice_object.rs`: the `VoiceChat` singleton
+  (`state`, `pictures`, `prefs` = settings `voice`). `qml/VoiceOverlay.qml`:
+  its own surface, with the hub or without, no ground by default, moved
+  while unlocked; one single-shot timer only while a talk mark fades
+  ("Stays after talking"). `GC_DEMO=voice`. Check end to end: Electron 44
+  with Legcord's loader and a made-up Discord page (project folder
+  `mockups/legcord-voice/e2e/`).
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
 - Video loudness (MN, 2026-11-14: videos quieter than the radio, which is

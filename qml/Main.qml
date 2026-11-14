@@ -146,7 +146,7 @@ Overlay {
         if (nativeWindow.testVideo.length > 0) Qt.callLater(() => twitchVideo.playFile(nativeWindow.testVideo))
         if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
         Streams.begin()
-        Apps.begin()
+        Apps.begin(); VoiceChat.begin()
         if (demo.indexOf("appmenu") >= 0) bar.menuFor = "brave"
     }
 
@@ -487,6 +487,14 @@ Overlay {
             onCloseClicked: root.scheduleOpen = false
             onShowOnMap: (id, name) => { if (!root.mapUsable) return; root.mapOpen = true; Qt.callLater(() => mapPanel.focusBoss(id, name)) }
         }
+    }
+
+    // Who is in the Legcord voice channel and who talks: with the hub or
+    // without, like the game's own HUD (Settings → Apps → Legcord).
+    Surface {
+        wanted: voiceOverlay.wanted
+        stack: 2
+        part: VoiceOverlay { id: voiceOverlay }
     }
 
     // An alert over the game: with the hub or without, never in the way

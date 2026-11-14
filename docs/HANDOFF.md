@@ -24,6 +24,12 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- Legcord voice overlay (2026-11-14, MN: N1 default, the others as
+  choices): Legcord plugin `legcord/game-companion-voice`,
+  `src/voice_overlay.rs`, `src/voice_object.rs`, `qml/VoiceOverlay.qml`,
+  Settings → Apps → "Legcord voice overlay". Checked end to end with
+  Electron 44 and a made-up Discord page; not yet with real Discord (the
+  store names are the risk): on MN's PC, Legcord 1.3.1.
 - Brave and Legcord over the game (branch `claude/project-thread-6m4xx8`,
   2026-11-14, MN's choices A + C1, Alt+B / Alt+N): `src/apps.rs`,
   `src/apps_object.rs`, HudBar `AppButton` + menu, Settings → Apps (tabs
