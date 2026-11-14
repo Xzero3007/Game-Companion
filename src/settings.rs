@@ -333,6 +333,11 @@ pub struct RadioSettings {
     pub country: String,
     /// "" for all genres, else a genre id.
     pub genre: String,
+    /// Stations that played on none of their addresses here, last time
+    /// they were tried (MN, 2026-11-14: greyed and listed last).
+    pub dead: Vec<String>,
+    /// Leaves those out of the list.
+    pub hide_dead: bool,
 }
 
 impl Default for RadioSettings {
@@ -345,6 +350,8 @@ impl Default for RadioSettings {
             tab: "all".into(),
             country: String::new(),
             genre: String::new(),
+            dead: Vec::new(),
+            hide_dead: false,
         }
     }
 }
