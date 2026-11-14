@@ -282,6 +282,8 @@ pub fn parse_event(line: &str) -> Option<Event> {
     }
 }
 
+const NO_SOUND_DEVICE: &str = "No sound device";
+
 /// mpv's error, in plain words.
 fn plain_error(error: &str) -> String {
     let e = error.to_ascii_lowercase();
@@ -290,7 +292,7 @@ fn plain_error(error: &str) -> String {
     } else if e.contains("unrecognized") || e.contains("format") || e.contains("demux") {
         "The stream couldn't be read".into()
     } else if e.contains("audio") {
-        "No sound device".into()
+        NO_SOUND_DEVICE.into()
     } else {
         "It doesn't play from here".into()
     }
@@ -315,6 +317,26 @@ pub fn remember(recent: &mut Vec<String>, id: &str) {
     recent.retain(|r| r != id);
     recent.insert(0, id.to_string());
     recent.truncate(10);
+}
+
+/// Marks a station as not playing here (or as playing again); true when
+/// the list changed.
+pub fn mark_dead(dead: &mut Vec<String>, id: &str, is_dead: bool) -> bool {
+    let known = dead.iter().any(|d| d == id);
+    if is_dead && !known {
+        dead.push(id.to_string());
+        true
+    } else if !is_dead && known {
+        dead.retain(|d| d != id);
+        true
+    } else {
+        false
+    }
+}
+
+/// Whether a failure is the station's own (and not, say, the sound card's).
+pub fn station_at_fault(why: &str) -> bool {
+    why != NO_SOUND_DEVICE
 }
 
 #[cfg(test)]
@@ -437,5 +459,19 @@ mod tests {
         assert_eq!(recent.len(), 10);
         assert_eq!(recent[0], "s5");
         assert_eq!(recent[1], "s11");
+    }
+
+    #[test]
+    fn dead_stations_are_marked_once_and_cleared_when_they_play() {
+        let mut dead = Vec::new();
+        assert!(mark_dead(&mut dead, "hot-97", true));
+        assert!(!mark_dead(&mut dead, "hot-97", true));
+        assert_eq!(dead, vec!["hot-97".to_string()]);
+        assert!(mark_dead(&mut dead, "hot-97", false));
+        assert!(!mark_dead(&mut dead, "hot-97", false));
+        assert!(dead.is_empty());
+        assert!(station_at_fault("The station's server doesn't answer"));
+        assert!(station_at_fault("No answer"));
+        assert!(!station_at_fault(&plain_error("audio output initialization failed")));
     }
 }

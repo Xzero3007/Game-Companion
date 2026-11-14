@@ -214,6 +214,10 @@ learnt, so nothing has to be asked or worked out again.
   on a socket, `--ytdl=no`, killed with the app through PR_SET_PDEATHSIG);
   `Player::load` refuses any address whose host is not in the station
   list. mpv's volume is cubic: `mpv_volume` maps the bar like a browser.
+  A station that plays on none of its addresses is remembered
+  (`settings.radio.dead`), greyed and listed last, hidden by the switch
+  right of the tabs (`hide_dead`); playing again clears it (MN,
+  2026-11-14).
 - Hub hidden (`Companion.shown` false): the bar, the welcome and settings go;
   panels and the player row stay if their id is in `pins`. Locked with the
   hub hidden, nothing takes clicks (Alt+Q / Alt+Y still work).
