@@ -579,6 +579,9 @@ impl DpsCalculator {
 
         // Filter and compute DPS
         let party_members = self.data_storage.get_party_members();
+        // Your own combat power and gear score when no roster names you
+        // (playing alone): the self record's, as the old meter showed them.
+        let me = self.data_storage.local_profile();
         let mut to_remove = Vec::new();
         for (&uid, data) in &mut dps_data.map {
             // Combat power joins on the character name: the roster carries an
@@ -586,6 +589,16 @@ impl DpsCalculator {
             let member = party_members.get(&data.nickname);
             data.combat_power = member.map(|m| m.combat_power).unwrap_or(0);
             data.gear_score = member.map(|m| m.gear_score).unwrap_or(0);
+            let mine = local_ids.as_ref().is_some_and(|ids| ids.contains(&uid))
+                || me.name.as_deref().is_some_and(|n| !n.trim().is_empty() && n.trim() == data.nickname.trim());
+            if mine {
+                if data.combat_power <= 0 {
+                    data.combat_power = me.combat_power.unwrap_or(0);
+                }
+                if data.gear_score <= 0 {
+                    data.gear_score = me.gear_score.unwrap_or(0);
+                }
+            }
             if data.job.is_empty() {
                 if local_ids.as_ref().is_some_and(|ids| ids.contains(&uid))
                     || data.heal_amount > 0.0
@@ -2349,6 +2362,28 @@ mod tests {
     /// players never spawned near you, so eight `#id` rows) is not put on
     /// your meter in Boss mode, nor kept there for hours after. Once you hit
     /// the boss it is yours, with everyone on it.
+    #[test]
+    fn alone_your_row_carries_the_self_records_combat_power() {
+        let storage = Arc::new(DataStorage::new());
+        storage.set_local_player_id(Some(2259));
+        storage.set_local_character_name(Some("Naicha".into()));
+        storage.append_nickname(2259, "Naicha");
+        storage.append_nickname(2260, "Faffy");
+        storage.note_self_combat_power("Naicha", 41_210);
+        storage.note_self_gear_score("Naicha", 3_050);
+        storage.append_damage(hit(2259, 50_000, 1_000));
+        storage.append_damage(hit(2260, 50_000, 1_100));
+        let mut calc = meter(&storage);
+        calc.set_target_selection_mode("lastHitByMe");
+        let shown = calc.get_dps();
+        let me = &shown.map[&2259];
+        assert_eq!((me.combat_power, me.gear_score), (41_210, 3_050));
+        // Nobody else's: theirs come only from a party roster.
+        if let Some(other) = shown.map.get(&2260) {
+            assert_eq!((other.combat_power, other.gear_score), (0, 0));
+        }
+    }
+
     #[test]
     fn boss_mode_shows_a_boss_only_once_you_or_your_party_hit_it() {
         let storage = Arc::new(DataStorage::new());
