@@ -23,7 +23,12 @@ Panel {
     minWidth: 240
     maxWidth: 700
     ground: Companion.alpha * (store ? store.farmOpacity() : 100) / 100
-    readonly property real fs: store ? store.farmText() : 1
+    // Its height follows its rows; dragging the corner down makes all of it
+    // bigger (MN, 0.8.19: "wieso kann ich die höhe nicht verstellen?"),
+    // double-click the corner for its own size.
+    stretchy: true
+    maxGrow: 120
+    readonly property real fs: (store ? store.farmText() : 1) * (1 + grow / 60)
     pinnable: false
 
     property var store: null
@@ -79,9 +84,11 @@ Panel {
     }
 
     // Moves the window while unlocked (it has no header).
+    // Sized by the content, never by the window (that made a loop that
+    // kept an old, taller height: MN, 0.8.19).
     MoveArea {
         width: win.width
-        height: win.height
+        height: content.height
         enabled: !Companion.locked
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         target: win
@@ -89,6 +96,7 @@ Panel {
     }
 
     Column {
+        id: content
         width: parent.width
         spacing: 0
 
@@ -181,11 +189,14 @@ Panel {
                     delegate: Row {
                         id: keyItem
                         required property var modelData
-                        readonly property string pic: win.iconUrl(modelData.icon || "")
+                        // Icons are kept as "Icon_<name>" (as the Market's).
+                        readonly property string pic: win.iconUrl(modelData.icon ? "Icon_" + modelData.icon : "")
                         spacing: 3
+                        // The game's icon; nothing until it is kept (MN: no empty boxes).
                         Item {
+                            visible: keyPic.status === Image.Ready
                             anchors.verticalCenter: parent.verticalCenter
-                            width: Math.round(14 * win.fs); height: width
+                            width: visible ? Math.round(14 * win.fs) : 0; height: Math.round(14 * win.fs)
                             Image {
                                 id: keyPic
                                 anchors.fill: parent
@@ -194,13 +205,6 @@ Panel {
                                 sourceSize: Qt.size(32, 32)
                                 asynchronous: true
                                 Accessible.ignored: true
-                            }
-                            // No icon in the game for it (Invasion, Subjugation), or not kept yet.
-                            Rectangle {
-                                anchors.fill: parent
-                                visible: !keyPic.visible
-                                color: "#1b1a20"
-                                border.color: "#3a3842"
                             }
                         }
                         Text {

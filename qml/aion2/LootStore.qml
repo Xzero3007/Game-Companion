@@ -460,6 +460,7 @@ QtObject {
     property var hereZone: null
     property var anchor: null
     property real walkingSince: 0
+    property bool fightLogged: false
     /// Closed with its × until you come back.
     property bool dismissed: false
     /// The shop window shows now.
@@ -473,20 +474,36 @@ QtObject {
         put("closet", { ids: closet ? Array.from(closet) : [], at: closetAt, chars: closetChars, seen: seen.slice(-1500), learned: learned })
         changed()
     }
+    /// What opened and closed the shop window and why (MN, 0.8.19: it still
+    /// closed by itself). Kept in aion2/loot/shop-log.json, the last 200, shown in
+    /// LOOT → CLOSET → MERCHANT. The rules that used to close it (walking,
+    /// distance, a fight) only write "would close" lines now.
+    property var shopLog: null
+    function logShop(what) {
+        if (shopLog === null) { const l = get("shop-log"); shopLog = Array.isArray(l) ? l : [] }
+        const d = new Date(), two = (n) => (n < 10 ? "0" : "") + n
+        const line = two(d.getHours()) + ":" + two(d.getMinutes()) + ":" + two(d.getSeconds()) + "  " + what
+        shopLog = shopLog.concat([line]).slice(-200)
+        console.info("Shop window: " + what)
+        put("shop-log", shopLog)
+    }
     function arrived(by) {
+        logShop((here ? "page (" : "opened (") + by + ")")
         if (!here) { dismissed = false; hereZone = zone }
         hereBy = by
         hereSince = Date.now()
         here = true
         anchor = null
         walkingSince = 0
+        fightLogged = false
         // Each shop page (a tab) starts it again: a minute after the last
         // one it goes, should nothing else have told that you left (MN, 0.8.13).
         hereTimer.interval = by === "hand" ? 180000 : 60000
         hereTimer.restart()
         changed()
     }
-    function left() {
+    function left(why) {
+        if (here) logShop("closed: " + (why || "?"))
         here = false
         dismissed = false
         hereTimer.stop()
@@ -500,7 +517,7 @@ QtObject {
         dismissed = false
         arrived("hand")
     }
-    property Timer hereTimer: Timer { interval: 180000; onTriggered: store.left() }
+    property Timer hereTimer: Timer { interval: 180000; onTriggered: store.left((interval / 1000) + " s after the last shop page") }
     /// The Market and the merchant send the same opening frame; the merchant
     /// sends its stock right after, the Market nothing: a shop opening with
     /// no stock within 4 s was the Market.
@@ -564,10 +581,11 @@ QtObject {
         }
     }
     // The Black Cloud merchant is a menu, not a place you walk to (MN,
-    // 0.8.14), and closing it sends nothing to read: walking, a fight or
-    // loot close the window; else a minute after the last shop page.
+    // 0.8.14), and closing it sends nothing known to read. Until it is
+    // known, only another zone or a minute after the last shop page close
+    // the window (MN, 0.8.19); walking, distance and a fight are logged.
     function closetWorld(w) {
-        if (w.zone != null && here && hereZone != null && w.zone !== hereZone) return left()
+        if (w.zone != null && here && hereZone != null && w.zone !== hereZone) return left("another zone (" + hereZone + " → " + w.zone + ")")
         if (here && hereZone == null && w.zone != null) hereZone = w.zone
         if (!here) return
         const me = w.me
@@ -577,16 +595,19 @@ QtObject {
         // hand it stays.
         if (hereBy !== "hand" && w.moving === true && Date.now() - hereSince > 3000) {
             if (!walkingSince) walkingSince = Date.now()
-            else if (Date.now() - walkingSince >= 3500) { walkingSince = 0; return left() }
+            else if (Date.now() - walkingSince >= 3500) { walkingSince = 0; logShop("would close: walking 3.5 s (rule off)") }
         } else if (w.moving === false) walkingSince = 0
         if (!me || !isFinite(me.x) || !isFinite(me.y)) return
         // Positions are in cm. An exact one says 6 m away; the estimated
         // ones (about 10 m off) count from 30 m (MN: it stayed open).
         if (!anchor || (me.exact && !anchor.exact)) anchor = { x: me.x, y: me.y, exact: !!me.exact }
-        else if (Math.hypot(me.x - anchor.x, me.y - anchor.y) > (me.exact && anchor.exact ? 600 : 3000)) left()
+        else if (!anchor.far && Math.hypot(me.x - anchor.x, me.y - anchor.y) > (me.exact && anchor.exact ? 600 : 3000)) {
+            anchor.far = true
+            logShop("would close: " + Math.round(Math.hypot(me.x - anchor.x, me.y - anchor.y) / 100) + " m from where it opened (" + (me.exact ? "exact" : "estimated") + ", rule off)")
+        }
     }
     function closetItems(it) {
-        if (it.snapshotAt && here && hereBy === "closet" && Date.now() - hereSince < 15000) left()
+        if (it.snapshotAt && here && hereBy === "closet" && Date.now() - hereSince < 15000) left("the closet's list was a world entry")
         const inv = it.containers && it.containers["1"]
         if (Array.isArray(inv)) bag = inv
         for (const ch of Array.isArray(it.changes) ? it.changes : []) if (ix.items.has(ch[3])) recent.push({ at: ch[1], item: ch[3] })
@@ -795,7 +816,10 @@ QtObject {
             try { c = JSON.parse(Aion2.combat) } catch (e) { return }
             // Only a fight that began after the window opened: the list keeps
             // the monsters fought shortly before (MN, 0.8.16: it closed at once).
-            if (c && Array.isArray(c.fought) && c.fought.some((f) => Number(f.since) > store.hereSince + 1000)) store.left()
+            if (!store.fightLogged && c && Array.isArray(c.fought) && c.fought.some((f) => Number(f.since) > store.hereSince + 1000)) {
+                store.fightLogged = true
+                store.logShop("would close: a fight began (rule off)")
+            }
         }
         function onWorldChanged() { let w = null; try { w = JSON.parse(Aion2.world) } catch (e) { } if (w) store.takeWorld(w) }
         function onActiveChanged() { if (Aion2.active) Qt.callLater(() => { let it = null; try { it = JSON.parse(Aion2.itemsNow()) } catch (e) { } if (it) store.takeItems(it) }) }
