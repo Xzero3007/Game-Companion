@@ -912,6 +912,23 @@ second address): The Beat, The Box, Jammin 181, Old School HipHop/RnB.
 Their host was confirmed in public station lists; the sandbox can't play
 them. A proxy only for the radio was offered and not chosen.
 
+## Branch `claude/project-thread-6m4xx8` (from beta): Brave stays over a full-screen game
+
+MN, 2026-11-14: Brave vanished on every click into AION 2, even with the
+game set to "borderless": Proton marks it as full screen, and KWin 6.8 puts
+an active full-screen window over keep-above windows. Now, while Brave or
+Legcord is shown, the game's window on that screen loses its full-screen
+mark (KWin script `unfull_body`: same size, no border) and gets it back when
+no app is shown, the game ends or Game Companion quits (`refull_body`,
+`Runtime.unfull`). If the game asks for full screen again (the watcher's new
+`full` event), the mark goes again, at most 5 times per show; then the old
+behaviour (apps minimised). Settings → Apps "Stay over a full-screen game"
+(`apps_over_full`, default on). Cost: VRR on "Automatic" pauses while an app
+is shown (MN's TV has no VRR in KDE anyway). Checked on the Arch bench (KWin
+6.8, stand-in game in full screen): `arch-test/apps/gc.sh`, all checks pass,
+including the switch off. Not checked: a real Proton game asking for full
+screen again (to watch on MN's PC).
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots
