@@ -11,17 +11,17 @@ import "lootkit.js" as LK
 // run brought, the keys and tickets you have, Odyle energy and the ping;
 // each row can be switched off. Nothing moves on its own: it builds again
 // when the LOOT store or the fight (ping, Odyle) changes.
+// Compact (MN, 0.8.16, design E5a): no header; the Kinah bar with Kinah and
+// worth per hour in it, and one line of values and the keys you chose
+// (the game's icon, three letters, the count).
 Panel {
     id: win
     panelId: "farm-window"
     title: "Farm"
-    tag: "AION 2"
-    width: 320
-    minWidth: 280
-    maxWidth: 900
-    // Its own opacity, text size and height (MN, 0.8.14): LOOT → DROPS → Farm window.
-    stretchy: true
-    maxGrow: 600
+    bare: true
+    width: 400
+    minWidth: 240
+    maxWidth: 700
     ground: Companion.alpha * (store ? store.farmOpacity() : 100) / 100
     readonly property real fs: store ? store.farmText() : 1
     pinnable: false
@@ -34,167 +34,227 @@ Panel {
     function on(k) { return !!store && store.farmRow(k) }
     onVisibleChanged: build()
     Component.onCompleted: build()
-
+    // The game's icons come from the Market's icon store (kept on disk).
+    property int iconsRevision: 0
+    Connections { target: Aion2; function onIconReady(name) { win.iconsRevision++ } }
+    function iconUrl(name) { iconsRevision; return name ? Aion2.icon(name) : "" }
     readonly property bool dungeon: !!f && f.mode === "dungeon"
     readonly property real share: f && f.cap ? Math.min(1, f.kinah / f.cap) : 0
-    badge: f ? (dungeon ? "RUN" : Math.floor(share * 100) + " %") : ""
     function kina(n) { return LK.C.kina(Math.round(n || 0)) }
     function shortN(n) {
         n = Math.round(n || 0)
         return n >= 1e6 ? (n % 1e6 === 0 ? n / 1e6 : (n / 1e6).toFixed(n >= 1e7 ? 1 : 2)) + "M" : n >= 1e4 ? Math.round(n / 1000) + "K" : String(n)
     }
+    function grouped(n) { return Number(n || 0).toLocaleString(Qt.locale("en_US"), "f", 0) }
     function clock(ms) { const d = new Date(ms); return (d.getHours() < 10 ? "0" : "") + d.getHours() + ":" + (d.getMinutes() < 10 ? "0" : "") + d.getMinutes() }
+    readonly property int px: Math.round(11 * fs)
 
-    component Label: Text {
-        color: Theme.muted()
-        font.family: Theme.display
-        font.pixelSize: Math.round((10) * win.fs)
-        font.weight: Font.Bold
-        font.letterSpacing: 1.3
-        style: Theme.textStyle(); styleColor: Theme.shadow
-    }
-    component Value: Text {
-        color: Theme.text()
-        font.family: Theme.display
-        font.pixelSize: Math.round((20) * win.fs)
-        font.weight: Font.Bold
-        style: Theme.textStyle(); styleColor: Theme.shadow
-    }
-    component Stat: Column {
+    // A number in Rajdhani with a dim word after it ("2.76M" "/h").
+    component Pair: Row {
         property string label
         property string value
+        property string unit
         property color tint: Theme.text()
-        spacing: 1
-        Label { text: parent.label }
-        Value { text: parent.value; color: parent.tint }
+        spacing: 3
+        Text {
+            visible: text.length > 0
+            anchors.verticalCenter: parent.verticalCenter
+            text: parent.label; color: Theme.muted()
+            font.family: Theme.display; font.pixelSize: Math.round(10 * win.fs); font.weight: Font.Bold
+            font.letterSpacing: 0.6
+            style: Theme.textStyle(); styleColor: Theme.shadow
+        }
+        Text {
+            text: parent.value; color: parent.tint
+            font.family: Theme.display; font.pixelSize: Math.round(12 * win.fs); font.weight: Font.Bold
+            style: Theme.textStyle(); styleColor: Theme.shadow
+        }
+        Text {
+            visible: text.length > 0
+            anchors.baseline: parent.children[1].baseline
+            text: parent.unit; color: Theme.muted()
+            font.family: Theme.body; font.pixelSize: win.px
+            style: Theme.textStyle(); styleColor: Theme.shadow
+        }
+    }
+
+    // Moves the window while unlocked (it has no header).
+    MoveArea {
+        width: win.width
+        height: win.height
+        enabled: !Companion.locked
+        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+        target: win
+        onReleased: win.remember()
     }
 
     Column {
         width: parent.width
-        spacing: 10
+        spacing: 0
 
-        Text {
-            width: parent.width
-            elide: Text.ElideRight
-            text: !win.f ? "" : win.dungeon ? win.f.place + (win.f.run.from ? " · since " + win.clock(win.f.run.from) : "") : win.f.place
-            color: Theme.textSoft()
-            font.family: Theme.body
-            font.pixelSize: Math.round((12) * win.fs)
-            style: Theme.textStyle(); styleColor: Theme.shadow
-        }
-
-        // The run (in a dungeon).
-        Row {
-            visible: win.dungeon && win.on("run")
-            width: parent.width
-            spacing: 12
-            Stat { width: (parent.width - 24) / 3; label: "KINAH"; value: win.f ? win.shortN(win.f.run.kinah) : "" }
-            Stat { width: (parent.width - 24) / 3; label: "GOLD ITEMS"; value: win.f ? String(win.f.run.gold) : ""; tint: win.f && win.f.run.gold ? "#f2c46b" : Theme.text() }
-            Stat { width: (parent.width - 24) / 3; label: "ITEM WORTH"; value: win.f ? win.shortN(win.f.run.worth) : "" }
-        }
-
-        // Kinah today toward the cap.
-        Column {
+        // Kinah today toward the cap, the number written in the bar.
+        Item {
             visible: win.on("kinah")
             width: parent.width
-            spacing: 4
-            Item {
-                width: parent.width
-                height: big.implicitHeight
-                Label { anchors.bottom: parent.bottom; anchors.bottomMargin: 3; text: "KINAH TODAY" }
-                Text {
-                    id: big
-                    anchors.right: parent.right
-                    text: win.f ? win.kina(win.f.kinah) + "  / " + win.shortN(win.f.cap) : ""
-                    color: win.f && win.f.capAt ? Theme.accent : Theme.text()
-                    font.family: Theme.display
-                    font.pixelSize: Math.round((win.dungeon ? 14 : 20) * win.fs)
-                    font.weight: Font.Bold
-                    style: Theme.textStyle(); styleColor: Theme.shadow
-                }
-            }
-            Rectangle {
-                width: parent.width
-                height: 6
-                color: "#2a2930"
-                Rectangle { width: parent.width * win.share; height: parent.height; color: Theme.accent }
+            height: Math.round(18 * win.fs)
+            Rectangle { anchors.fill: parent; color: "#2a2930"; opacity: 0.9 }
+            Rectangle { width: parent.width * win.share; height: parent.height; color: Qt.rgba(0.878, 0.647, 0.149, 0.6) }
+            Text {
+                anchors.left: parent.left; anchors.leftMargin: 7
+                anchors.verticalCenter: parent.verticalCenter
+                text: !win.f ? "" : win.kina(win.f.kinah) + " / " + win.shortN(win.f.cap) + " · " + (win.f.capAt ? "cap " + win.clock(win.f.capAt) : Math.floor(win.share * 100) + " %")
+                color: "#ffffff"
+                font.family: Theme.display; font.pixelSize: Math.round(12 * win.fs); font.weight: Font.Bold
+                style: Theme.textStyle(); styleColor: Theme.shadow
             }
             Text {
-                visible: !!win.f && !!win.f.capAt
-                text: win.f && win.f.capAt ? "Cap reached at " + win.clock(win.f.capAt) : ""
-                color: Theme.accent
-                font.family: Theme.body
-                font.pixelSize: Math.round((11) * win.fs)
+                anchors.right: parent.right; anchors.rightMargin: closeBox.visible ? closeBox.width + 2 : 7
+                anchors.verticalCenter: parent.verticalCenter
+                // Worth per hour (the open world) or this run's Kinah (a dungeon).
+                text: !win.f ? "" : win.dungeon ? (win.on("run") ? "RUN " + win.shortN(win.f.run.kinah) : "") : win.on("perHour") ? (win.f.perHour != null ? win.shortN(win.f.perHour) : "–") + "/h" : ""
+                color: "#ffffff"
+                font.family: Theme.display; font.pixelSize: Math.round(12 * win.fs); font.weight: Font.Bold
                 style: Theme.textStyle(); styleColor: Theme.shadow
             }
         }
 
-        // Worth per hour and gold items of today (the open world).
-        Row {
-            visible: !win.dungeon && (win.on("perHour") || win.on("gold"))
+        // One line (design E5a): gold items, valuables, Odyle energy, ping,
+        // then the keys you chose (the game's icon, three letters, count);
+        // it wraps when it does not fit.
+        Item {
+            id: values
+            readonly property bool anyValue: (!win.on("kinah") && win.on("perHour")) || win.on("gold") || win.on("odyle") || win.on("ping") || (win.dungeon && win.on("run"))
+            readonly property bool anyKey: win.on("keys") && !!win.f && win.f.keys.length > 0
+            visible: anyValue || anyKey
             width: parent.width
-            spacing: 12
-            Stat { visible: win.on("perHour"); width: win.on("gold") ? (parent.width - 12) / 2 : parent.width; label: "WORTH / HOUR"; value: win.f && win.f.perHour != null ? win.shortN(win.f.perHour) : "–" }
-            Stat { visible: win.on("gold"); width: win.on("perHour") ? (parent.width - 12) / 2 : parent.width; label: "GOLD ITEMS TODAY"; value: win.f ? String(win.f.gold) : ""; tint: win.f && win.f.gold ? "#f2c46b" : Theme.text() }
-        }
-
-        // Odyle energy and the ping, as the DPS meter's bar shows them (MN, 0.8.13).
-        Row {
-            visible: win.on("odyle") || win.on("ping")
-            width: parent.width
-            spacing: 12
-            Stat {
-                visible: win.on("odyle")
-                width: win.on("ping") ? (parent.width - 12) / 2 : parent.width
-                label: "ODYLE ENERGY"
-                value: win.f && win.f.extras.odyle ? win.f.extras.odyle[0].toLocaleString(Qt.locale("en_US"), "f", 0) + " (+" + win.f.extras.odyle[1].toLocaleString(Qt.locale("en_US"), "f", 0) + ")" : "–"
-                tint: Theme.purpleText
-            }
-            Stat {
-                visible: win.on("ping")
-                width: win.on("odyle") ? (parent.width - 12) / 2 : parent.width
-                label: "PING"
-                value: win.f && win.f.extras.ping != null ? win.f.extras.ping + " ms" : "–"
-                tint: win.f && win.f.extras.ping > 150 ? Theme.red : Theme.text()
-            }
-        }
-
-        // Keys and tickets you have.
-        Flow {
-            visible: win.on("keys") && !!win.f && win.f.keys.length > 0
-            width: parent.width
-            spacing: 6
-            Repeater {
-                model: win.f ? win.f.keys : []
-                delegate: Rectangle {
-                    required property var modelData
-                    width: keyText.implicitWidth + 14
-                    height: Math.round(22 * win.fs)
-                    color: "#1b1a20"
-                    border.color: "#2f2d36"
-                    Text {
-                        id: keyText
-                        anchors.centerIn: parent
-                        text: modelData.name + "  " + modelData.left + (modelData.max ? " / " + modelData.max : "")
-                        color: Theme.textSoft()
-                        font.family: Theme.body
-                        font.pixelSize: Math.round((11) * win.fs)
-                        style: Theme.textStyle(); styleColor: Theme.shadow
+            height: line.implicitHeight + 7
+            Flow {
+                id: line
+                anchors.left: parent.left; anchors.leftMargin: 6
+                anchors.right: parent.right; anchors.rightMargin: 6
+                y: 3
+                spacing: 7
+                Pair { visible: win.dungeon && win.on("run"); label: "WTH"; value: win.f ? win.shortN(win.f.run.worth) : "" }
+                Pair { visible: !win.on("kinah") && !win.dungeon && win.on("perHour"); label: "K/H"; value: win.f && win.f.perHour != null ? win.shortN(win.f.perHour) : "–" }
+                Pair {
+                    visible: win.on("gold") || (win.dungeon && win.on("run"))
+                    value: win.f ? String(win.dungeon ? win.f.run.gold : win.f.gold) : ""
+                    label: "GLD"
+                    tint: win.f && (win.dungeon ? win.f.run.gold : win.f.gold) ? "#f2c46b" : Theme.text()
+                }
+                Pair {
+                    visible: (win.on("gold") || (win.dungeon && win.on("run"))) && !!win.f && (win.dungeon ? win.f.run.valuables : win.f.valuables) > 0
+                    value: win.f ? String(win.dungeon ? win.f.run.valuables : win.f.valuables) : ""
+                    label: "VAL"
+                    tint: "#f2c46b"
+                }
+                Row {
+                    visible: win.on("odyle")
+                    spacing: 3
+                    Image {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.round(13 * win.fs); height: width
+                        sourceSize: Qt.size(26, 26)
+                        source: "qrc:/qt/qml/GameCompanion/assets/aion2/odyle.png"
+                        Accessible.ignored: true
+                    }
+                    Pair {
+                        value: win.f && win.f.extras.odyle ? win.grouped(win.f.extras.odyle[0]) : "–"
+                        unit: win.f && win.f.extras.odyle ? "+" + win.grouped(win.f.extras.odyle[1]) : ""
+                        tint: Theme.purpleText
+                    }
+                }
+                Pair {
+                    visible: win.on("ping")
+                    value: win.f && win.f.extras.ping != null ? String(win.f.extras.ping) : "–"
+                    label: "PING"
+                    tint: win.f && win.f.extras.ping > 150 ? Theme.red : Theme.text()
+                }
+                Rectangle {
+                    visible: values.anyValue && values.anyKey
+                    width: 1
+                    height: Math.round(13 * win.fs)
+                    color: "#3a3842"
+                }
+                Repeater {
+                    model: values.anyKey ? win.f.keys : []
+                    delegate: Row {
+                        id: keyItem
+                        required property var modelData
+                        readonly property string pic: win.iconUrl(modelData.icon || "")
+                        spacing: 3
+                        Item {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.round(14 * win.fs); height: width
+                            Image {
+                                id: keyPic
+                                anchors.fill: parent
+                                visible: status === Image.Ready
+                                source: keyItem.pic
+                                sourceSize: Qt.size(32, 32)
+                                asynchronous: true
+                                Accessible.ignored: true
+                            }
+                            // No icon in the game for it (Invasion, Subjugation), or not kept yet.
+                            Rectangle {
+                                anchors.fill: parent
+                                visible: !keyPic.visible
+                                color: "#1b1a20"
+                                border.color: "#3a3842"
+                            }
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: keyItem.modelData.abbr
+                            color: Theme.muted()
+                            font.family: Theme.display; font.pixelSize: Math.round(10 * win.fs); font.weight: Font.Bold
+                            font.letterSpacing: 0.6
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: String(keyItem.modelData.left)
+                            color: Theme.text()
+                            font.family: Theme.display; font.pixelSize: Math.round(12 * win.fs); font.weight: Font.Bold
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                        Accessible.name: keyItem.modelData.name + " " + keyItem.modelData.left
                     }
                 }
             }
         }
 
         Text {
-            visible: win.on("perHour") || (win.dungeon && win.on("run"))
-            width: parent.width
-            wrapMode: Text.WordWrap
-            text: win.dungeon ? "Worth: the Market's prices less its fee. Kinah today counts the open world's Kinah." : "Worth per hour: Kinah and the loot's Market worth, per hour of farming in the open world today."
-            color: Theme.dim()
-            font.family: Theme.body
-            font.pixelSize: Math.round((10) * win.fs)
+            visible: !win.f || (!win.on("kinah") && !values.visible)
+            leftPadding: 7; topPadding: 3; bottomPadding: 3
+            text: "Farm: nothing switched on (LOOT → DROPS → Farm window)"
+            color: Theme.muted()
+            font.family: Theme.body; font.pixelSize: win.px
             style: Theme.textStyle(); styleColor: Theme.shadow
         }
-        Item { width: 1; height: win.grow }
+    }
+
+    // × while unlocked only (locked, the window lets clicks through).
+    Item {
+        id: closeBox
+        visible: !Companion.locked
+        anchors.right: parent.right
+        width: Math.round(18 * win.fs)
+        height: Math.round(18 * win.fs)
+        HudIcon {
+            anchors.centerIn: parent
+            name: "close"
+            size: Math.round(10 * win.fs)
+            lineWidth: 2
+            color: closeMouse.containsMouse ? Theme.text() : "#ffffff"
+        }
+        MouseArea {
+            id: closeMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            onClicked: win.closeClicked()
+        }
+        Accessible.role: Accessible.Button
+        Accessible.name: "Close the farm window"
     }
 }

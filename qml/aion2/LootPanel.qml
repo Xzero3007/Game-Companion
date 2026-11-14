@@ -83,6 +83,7 @@ Panel {
         else if (a.day !== undefined) { dayView = Number(a.day) === LK.F.dayOf(Date.now()) ? null : Number(a.day); refresh() }
         else if (a.step) stepRound(a.step)
         else if (a.farmRow) store.setFarmRow(a.farmRow, a.v)
+        else if (a.farmKey) store.setFarmKey(a.farmKey, a.v)
         else if (a.farmShow) { if (store.farmMode() === "off") store.set("farmMode", "always"); store.showFarm() }
         else if (a.kindOf) { const k = Object.assign({}, st.kinds); k[a.kindOf] = a.v; store.set("kinds", k) }
         else if (a.window) store.showWindow(a.window)
@@ -205,13 +206,16 @@ Panel {
         out.controls.push([words("Opacity")].concat([100, 75, 50, 25, 10].map((v) => chip(v + " %", op === v, { set: "farmOpacity", v: v })))
             .concat([words("Text")]).concat([["S", 0.85], ["M", 1], ["L", 1.2], ["XL", 1.45]].map((x) => chip(x[0], Math.abs(fsz - x[1]) < 0.01, { set: "farmText", v: x[1] }))))
         out.controls.push([words("Rows")].concat(store.farmRowList.map((r) => chip(r[1], store.farmRow(r[0]), { farmRow: r[0], v: !store.farmRow(r[0]) }))))
+        // Which keys show (MN, 0.8.16: "ich muss auswählen können").
+        const shown = store.farmKeys().map((k) => k.id)
+        out.controls.push([words("Keys")].concat(store.keyChoices().map((k) => chip(k.abbr + " " + k.name + (k.known ? " " + k.left : ""), shown.indexOf(k.id) >= 0, { farmKey: k.id, v: shown.indexOf(k.id) < 0 }))))
         out.rows.push(group("When it shows"))
         out.rows.push(text(mode === "always" ? "The farm window stays while AION 2 runs; its × hides it until you go to another place or press Show now."
             : mode === "popup" ? "It opens when Kinah or loot comes in a row in the open world or a dungeon (the first 30 s in a place don't count, then two gains), and goes in a town or 10 minutes after the last gain in the open world."
             : "The farm window is off."))
         if (mode === "popup") out.rows.push(text("Now: " + store.farmWaits, Theme.textSoft()))
         out.rows.push(group("The rows"))
-        out.rows.push(text("Kinah today counts toward the daily 1,000,000. Worth per hour: Kinah and the loot's Market worth per hour of farming in the open world today. Gold items: today's. Dungeon run: what this run brought. Keys and tickets: those you have left. Odyle energy and the ping come from the game as the DPS meter shows them; the DPS panel need not be open. Width and height: drag the window's corner (double-click it for the size it had)."))
+        out.rows.push(text("Kinah today counts toward the daily 1,000,000. Worth per hour: Kinah and the loot's Market worth per hour of farming in the open world today. Gold items: gold gear (weapons, armour, accessories) of today; valuables (Egos, Minds, wings, Radiant Odyle) beside them, Special items not counted. Dungeon run: what this run brought. Keys and tickets: those you have left. Odyle energy and the ping come from the game as the DPS meter shows them; the DPS panel need not be open. Width: drag the window's corner (double-click it for the size it had); the height follows the rows and the text size. Unlocked, drag it anywhere to move it."))
     }
     function buildSession(out) {
         const ds = store.dropSession()
@@ -307,10 +311,13 @@ Panel {
                 if (list.length > 1) out.rows.push(cells(["All", hours(tot.active), kina(tot.kinah), kina(tot.n), [shortK(tot.worth), gold], String(tot.gold)], w, true))
             } else out.rows.push(text("Nothing came in yet this day."))
             if ((s.stints || []).length) { out.rows.push(group("Where and when")); stintRows(out, s.stints, s.account) }
-            const golds = (s.gold || []).slice().sort((a, b) => b[0] - a[0])
+            // Gold gear and valuables apart; Special is neither (MN, 0.8.16).
+            const kept = (s.gold || []).filter((g) => panel.store.isGoldGrade(g[1])).sort((a, b) => b[0] - a[0])
+            const golds = kept.filter((g) => panel.store.isGear(g[1])).concat(kept.filter((g) => !panel.store.isGear(g[1])))
             out.rows.push(group("Gold items"))
-            if (!golds.length) out.rows.push(text("No gold items this day."))
+            if (!kept.some((g) => panel.store.isGear(g[1]))) out.rows.push(text("No gold gear this day."))
             for (const gl of golds) {
+                if (gl === golds.find((g) => !panel.store.isGear(g[1]))) out.rows.push(group("Valuables"))
                 const tags = [gradeTag(LK.C.grade(gl[1])), [LK.F.NAMES[gl[3]] || gl[3], ""], [LK.F.zoneName(gl[4]), ""]].filter(Boolean)
                 if (s.account && gl[6]) tags.unshift([gl[6], ""])
                 out.rows.push(item(gl[1], LK.C.name(gl[1]) + (gl[2] > 1 ? " ×" + gl[2] : ""), tags, [clock(gl[0]), gl[5] != null ? [kina(gl[5]), gold] : ""], [0.12, 0.17]))
