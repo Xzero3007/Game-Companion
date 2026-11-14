@@ -31,6 +31,7 @@ fn main() {
         QmlFile::from("qml/MoveArea.qml"),
         QmlFile::from("qml/Overlay.qml"),
         QmlFile::from("qml/LaunchTab.qml"),
+        QmlFile::from("qml/StartWithTab.qml"),
         QmlFile::from("qml/LaunchSuggestions.qml"),
         QmlFile::from("qml/ProtonOverview.qml"),
         QmlFile::from("qml/ChoiceList.qml"),

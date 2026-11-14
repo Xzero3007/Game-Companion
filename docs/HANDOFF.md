@@ -714,6 +714,29 @@ by time (`BK.mergeHistory`, 600 kept), a newer old reading kept, the old
 references as builds, a character's old targets as a build on it when it
 has none (`settings.meterBuilds` notes what was taken, no copies).
 
+## Branch `games-launch` (from beta): programs that start with a game
+
+MN (2026-11-14): in GAMES, choose per game which programs start with it,
+and remove them again (the old meter started with AION 2). Option A, plus
+MN: "show me the watcher, what it does and what is in it; from now on this
+program is the watcher". Game Companion is now the watcher
+(`src/start_with.rs`): on a game's start (the 3 s detection in
+`games_object::detected`) it starts each switched-on entry once, unless a
+program of that name already runs (comm or argv0); after the game ends it
+closes only what it started, each after its own wait (default 10 s, 0 to
+600), SIGTERM to the program's session, SIGKILL after 10 s; a quick
+restart keeps them. Entries in `settings.games.start_with[game id]`
+(name, command, on, close, delay); removing an own game removes its
+entries. Tab WITH GAME in the game's form (`qml/StartWithTab.qml`): the
+old meter's watcher (`~/.config/autostart/a2tools-game-watch.desktop`,
+patch 0037) shown with what it does and its file, Take over (adds "A2Tools
+DPS Meter" and turns the old watcher off), Turn off (moved to
+`~/.config/game-companion/autostart-off`), Remove; a red mark when both
+would start the meter. Entries: switch, edit, remove, remove all; add from
+the menu (desktop files) or by hand. Needs Game Companion running (warning
+when its autostart is off). `GC_DEMO=games,startwith[,starterfile|,addprogram]`.
+Open: MN's test with the real old watcher file.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots
