@@ -880,6 +880,15 @@ chosen country, and USA had no electronic station.
   US connections. What to do about them waits for MN's choice (mark and
   sort last, replace and remove, or both).
 
+## Branch `radio-intl-us` (from beta): US hip-hop that plays worldwide
+
+MN chose (2026-11-14, card "Internationale Sender dazu") more US stations
+that play outside the US, instead of a proxy. Added four 181.FM stations
+(internet radio from Virginia, `listen.181fm.com`, https first, http as
+second address): The Beat, The Box, Jammin 181, Old School HipHop/RnB.
+Their host was confirmed in public station lists; the sandbox can't play
+them. A proxy only for the radio was offered and not chosen.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots
