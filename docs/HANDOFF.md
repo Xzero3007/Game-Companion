@@ -28,7 +28,12 @@ new session (or the same one after a usage limit) carries on from here.
 - 0.8.24 beta (2026-11-14): #59 DPS: your own combat power and gear score when playing alone, combat power kept in a narrow window (entry below).
 - 0.8.23 beta (2026-11-14): #58 LOOT: right-click on Loot in the game row opens or closes the farm window in every mode (entry below).
 - 0.8.22 beta (2026-11-14): #54 LOOT: SHU, SHA and INV keys show the golden Shugo key icon (entry below).
-
+- Legcord voice overlay (2026-11-14, MN: N1 default, the others as
+  choices): Legcord plugin `legcord/game-companion-voice`,
+  `src/voice_overlay.rs`, `src/voice_object.rs`, `qml/VoiceOverlay.qml`,
+  Settings → Apps → "Legcord voice overlay". Checked end to end with
+  Electron 44 and a made-up Discord page; not yet with real Discord (the
+  store names are the risk): on MN's PC, Legcord 1.3.1.
 - Brave and Legcord over the game (branch `claude/project-thread-6m4xx8`,
   2026-11-14, MN's choices A + C1, Alt+B / Alt+N): `src/apps.rs`,
   `src/apps_object.rs`, HudBar `AppButton` + menu, Settings → Apps (tabs

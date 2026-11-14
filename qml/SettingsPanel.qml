@@ -342,6 +342,152 @@ Panel {
                     }
                 }
             }
+            // The voice overlay: who is in the Legcord voice channel and who
+            // talks, told by Game Companion's own Legcord plugin.
+            Column {
+                id: vs
+                width: appsPage.width
+                spacing: 8
+                readonly property var st: { try { return JSON.parse(VoiceChat.state) } catch (e) { return ({}) } }
+                readonly property var p: { try { return JSON.parse(VoiceChat.prefs) } catch (e) { return ({}) } }
+                function pref(k, d) { return vs.p[k] !== undefined ? vs.p[k] : d }
+                function set(k, v) { VoiceChat.setPref(k, JSON.stringify(v)) }
+                property string why: ""
+                Item { width: 1; height: 6 }
+                Label { text: "Legcord voice overlay" }
+                Hint { text: "Who is in your voice channel and who is talking, over the game: only each picture and name. A small Legcord plugin reads it in Legcord and tells Game Companion on this PC; nothing goes over the network for it, and nothing is changed in Discord. The pictures come from Legcord, which loads them from Discord anyway." }
+                VoiceLine {
+                    label: "Legcord plugin"
+                    Text { style: Text.Outline; styleColor: Theme.shadow
+                        height: 24
+                        verticalAlignment: Text.AlignVCenter
+                        textFormat: Text.StyledText
+                        readonly property bool needsUpdate: vs.st.connected && (vs.st.ok === false || vs.st.plugin < vs.st.shipped)
+                        text: vs.st.connected
+                            ? (needsUpdate ? "<font color='" + Theme.red + "'>NEEDS AN UPDATE</font>" : "<font color='" + Theme.accent + "'>CONNECTED</font>")
+                              + "<font color='" + Theme.dim() + "'> · version " + vs.st.plugin + (vs.st.legcord ? " · Legcord " + vs.st.legcord : "")
+                              + (vs.st.ok === true ? " · everything found" : vs.st.ok === false ? " · missing: " + (vs.st.missing || []).join(", ") : "") + "</font>"
+                            : vs.st.installed ? "<font color='" + Theme.muted() + "'>INSTALLED</font><font color='" + Theme.dim() + "'> · not connected: switch it on in Legcord and restart Legcord</font>"
+                            : "<font color='" + Theme.muted() + "'>NOT INSTALLED</font>"
+                        color: Theme.text()
+                        font.family: Theme.display
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1
+                        font.pixelSize: 12
+                        wrapMode: Text.Wrap
+                        width: vs.width - 150
+                    }
+                }
+                VoiceLine {
+                    label: ""
+                    Chip { text: vs.st.installed ? "Install again" : "Install plugin"; onClicked: vs.why = VoiceChat.install() }
+                    Chip { visible: vs.st.installed === true; text: "Remove"; onClicked: vs.why = VoiceChat.remove() }
+                }
+                Hint {
+                    width: parent.width
+                    text: vs.why.length > 0 ? vs.why
+                        : vs.st.connected ? "Updates of the plugin come with Game Companion's; Legcord takes them at its next start."
+                        : "Then in Legcord: Settings → Plugins → \"Game Companion voice overlay\" on, and restart Legcord. Needs Legcord 1.3 or newer."
+                    color: vs.why.length > 0 ? Theme.red : Theme.dim()
+                }
+                VoiceLine {
+                    label: "Overlay"
+                    Chip { text: vs.pref("on", true) ? "Shown over the game" : "Off"; on: vs.pref("on", true); onClicked: vs.set("on", !vs.pref("on", true)) }
+                }
+                VoiceLine {
+                    label: "Show"
+                    Chip { text: "Everyone"; on: vs.pref("show", "everyone") === "everyone"; onClicked: vs.set("show", "everyone") }
+                    Chip { text: "Only who talks"; on: vs.pref("show", "everyone") === "talking"; onClicked: vs.set("show", "talking") }
+                }
+                VoiceLine {
+                    label: "Look"
+                    Chip { text: "Column"; on: vs.pref("look", "column") === "column"; onClicked: vs.set("look", "column") }
+                    Chip { text: "Pictures only"; on: vs.pref("look", "column") === "pictures"; onClicked: vs.set("look", "pictures") }
+                    Chip { text: "Row"; on: vs.pref("look", "column") === "row"; onClicked: vs.set("look", "row") }
+                }
+                VoiceLine {
+                    label: "Talking shows as"
+                    Chip { text: "Frame"; on: vs.pref("talk", "frame") === "frame"; onClicked: vs.set("talk", "frame") }
+                    Chip { text: "Glow"; on: vs.pref("talk", "frame") === "glow"; onClicked: vs.set("talk", "glow") }
+                    Chip { text: "Sound bars"; on: vs.pref("talk", "frame") === "bars"; onClicked: vs.set("talk", "bars") }
+                }
+                VoiceLine {
+                    label: "Quiet people"
+                    Chip { text: "Half seen"; on: vs.pref("quiet", "half") === "half"; onClicked: vs.set("quiet", "half") }
+                    Chip { text: "Full"; on: vs.pref("quiet", "half") === "full"; onClicked: vs.set("quiet", "full") }
+                }
+                VoiceLine {
+                    label: "Background"
+                    HudSlider {
+                        width: 150
+                        from: 0
+                        to: 100
+                        value: vs.pref("background", 0)
+                        onMoved: (v) => vs.set("background", Math.round(v))
+                    }
+                    Text { style: Text.Outline; styleColor: Theme.shadow
+                        height: 24
+                        verticalAlignment: Text.AlignVCenter
+                        text: vs.pref("background", 0) + " %" + (vs.pref("background", 0) === 0 ? " (none)" : "")
+                        color: Theme.accent
+                        font.family: Theme.body
+                        font.pixelSize: 12
+                    }
+                }
+                VoiceLine {
+                    label: "Stays after talking"
+                    Chip { text: "0 s"; on: vs.pref("stay", 1) === 0; onClicked: vs.set("stay", 0) }
+                    Chip { text: "1 s"; on: vs.pref("stay", 1) === 1; onClicked: vs.set("stay", 1) }
+                    Chip { text: "3 s"; on: vs.pref("stay", 1) === 3; onClicked: vs.set("stay", 3) }
+                }
+                VoiceLine {
+                    label: "Order"
+                    Chip { text: "Talking first"; on: vs.pref("order", "talking") === "talking"; onClicked: vs.set("order", "talking") }
+                    Chip { text: "Joined"; on: vs.pref("order", "talking") === "joined"; onClicked: vs.set("order", "joined") }
+                    Chip { text: "A–Z"; on: vs.pref("order", "talking") === "az"; onClicked: vs.set("order", "az") }
+                }
+                VoiceLine {
+                    label: "Yourself"
+                    Chip { text: "Show"; on: vs.pref("self", true) === true; onClicked: vs.set("self", true) }
+                    Chip { text: "Hide"; on: vs.pref("self", true) === false; onClicked: vs.set("self", false) }
+                }
+                VoiceLine {
+                    label: "Muted / deafened"
+                    Chip { text: "Red icon"; on: vs.pref("muted", "icon") === "icon"; onClicked: vs.set("muted", "icon") }
+                    Chip { text: "Leave out"; on: vs.pref("muted", "icon") === "hide"; onClicked: vs.set("muted", "hide") }
+                }
+                VoiceLine {
+                    label: "Names"
+                    Chip { text: "Show"; on: vs.pref("names", true) === true; onClicked: vs.set("names", true) }
+                    Chip { text: "Hide"; on: vs.pref("names", true) === false; onClicked: vs.set("names", false) }
+                }
+                VoiceLine {
+                    label: "Size"
+                    Chip { text: "S"; on: vs.pref("size", "m") === "s"; onClicked: vs.set("size", "s") }
+                    Chip { text: "M"; on: vs.pref("size", "m") === "m"; onClicked: vs.set("size", "m") }
+                    Chip { text: "L"; on: vs.pref("size", "m") === "l"; onClicked: vs.set("size", "l") }
+                }
+                VoiceLine {
+                    label: "When"
+                    Chip { text: "While in voice"; on: vs.pref("when", "voice") === "voice"; onClicked: vs.set("when", "voice") }
+                    Chip { text: "Only while a game runs"; on: vs.pref("when", "voice") === "game"; onClicked: vs.set("when", "game") }
+                }
+                Row {
+                    spacing: 10
+                    TextButton {
+                        visible: vs.pref("x", -1) >= 0
+                        text: "Forget its place"
+                        onClicked: { vs.set("x", -1); vs.set("y", -1) }
+                    }
+                    Text { style: Text.Outline; styleColor: Theme.shadow
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Unlock the overlay to move it."
+                        color: Theme.dim()
+                        font.family: Theme.body
+                        font.pixelSize: 12
+                    }
+                }
+            }
         }
 
         // General
@@ -1164,6 +1310,23 @@ Panel {
     }
 
     // A line of the overlay map's settings: its name, then its choices.
+    component VoiceLine: Row {
+        property string label
+        default property alias content: line.data
+        width: parent ? parent.width : 400
+        spacing: 10
+        Text { style: Text.Outline; styleColor: Theme.shadow
+            width: 130
+            height: 24
+            verticalAlignment: Text.AlignVCenter
+            text: parent.label
+            color: Theme.muted()
+            font.family: Theme.body
+            font.pixelSize: 12
+        }
+        Flow { id: line; width: parent.width - 140; spacing: 6 }
+    }
+
     component OverlayLine: Row {
         property string label
         default property alias content: holder.data
