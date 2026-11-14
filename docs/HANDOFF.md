@@ -787,6 +787,17 @@ surface takes focus (6.x checks first); the sandbox's patched
 layer-shell-qt crashes Game Companion now and then at start ("free():
 invalid size"), with and without this change.
 
+## Branch `no-gold-line` (from beta): no gold top line, windows move to the top
+
+MN (2026-11-14): the gold line on top of the windows goes everywhere
+(Panel.qml, the map overlay's strip, the boss sheet over the game); tabs
+keep their gold underline. MN could not push the farm window further up.
+On the headless KWin the window reached y = 0, but after letting go of a
+drag the window sometimes stayed as big as the screen (a late configure
+from the compositor) while the part was small again, so presses missed
+it. `Surface.sizeWrong` now places it again (up to 4 tries per change,
+250 ms apart). Open: MN's check on KWin 6.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots

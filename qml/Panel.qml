@@ -4,8 +4,8 @@ import GameCompanion
 import "theme.js" as Theme
 import "drag.js" as Drag
 
-// A window of the overlay: square corners, a 2 px gold line on top, a
-// header in capitals. Unlocked, it moves by its header, changes size by the
+// A window of the overlay: square corners, a header in capitals (no gold
+// line on top: MN, 2026-11-14). Unlocked, it moves by its header, changes size by the
 // gold corner at its bottom right, and remembers both; locked, clicks go
 // through it to the game.
 Item {
@@ -53,7 +53,7 @@ Item {
     signal areaChanged
 
     width: 400
-    height: 2 + header.height + (compact ? 0 : 12) + body.height + (compact ? 0 : 14)
+    height: header.height + (compact ? 0 : 12) + body.height + (compact ? 0 : 14)
 
     // Placed once the screen's size is known: where it was left, else at
     // its default place, always on the screen.
@@ -111,15 +111,7 @@ Item {
         color: Theme.panel(panel.ground)
     }
     Rectangle {
-        anchors.top: parent.top
-        width: parent.width
-        height: 2
-        color: Theme.accent
-    }
-
-    Rectangle {
         id: header
-        y: 2
         width: parent.width
         height: panel.compact ? 30 : 40
         color: Theme.headerTint
