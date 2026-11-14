@@ -93,6 +93,22 @@ new session (or the same one after a usage limit) carries on from here.
   6 m). CARDS: a Dimensional Invasion round did not arrive on MN's 0.8.6;
   `rest` now takes 16 KB (was 4 KB) and CARDS says how many rounds came
   unread (`store.odd`): check on the next test.
+  MN's test of 0.8.12: the farm window opens only after three gains in
+  the open world (two in a dungeon), none in the first 30 s in a place
+  (`farmHits`; it opened at login), and lists only keys and tickets with
+  some left (`keyIds`: Shugo, Nightmare, Dimensional Invasion, Daily
+  Dungeon, entry tickets, Subjugation, Ascension Trial). The shop window
+  closes when the client's steps say you walk (`world.moving` for 1.5 s,
+  from 3 s after arriving; not when opened by hand). Its tiles are framed
+  in their grade colour; pets come from PetTracker's merchant tables
+  (`pets.json` `market` item → pet and `watch`, by the pets import):
+  portrait, level, BUY (merchant-only, below level 3), NEED (monsters drop
+  it too), LV 3; at the Pets tab the pets come first, and a line says
+  which to buy (`offersNow().advice`, Pet Finder's recommendations). CARDS
+  draws each item as the game does: its picture in a frame of its grade's
+  colour with the count on it. The two unread rounds can only be read
+  once one is looked at (private notes repo): they stay kept and are read
+  again at every start (`LK.S.adopt`). `GC_DEMO=loot,shop,petsfirst`.
 - Event Timers / Schedule (branch `claude/project-thread-xz7nqt`, PR against
   beta, version from QA; 2026-11-13; MN chose "Ja, Aion 2 Timers gleich mit"
   on the canvas page "Zeitplan (Event Timers)", boards T1–T3). TIMERS in the
