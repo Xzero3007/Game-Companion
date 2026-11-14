@@ -9,7 +9,9 @@ license=(GPL-3.0-or-later)
 depends=(qt6-base qt6-declarative qt6-svg qt6-wayland layer-shell-qt xdg-desktop-portal polkit curl libpcap libcap qt6-imageformats)
 optdepends=('mpv: the radio and videos (libmpv)'
             'yt-dlp: YouTube, and Twitch without Streamlink'
-            'streamlink: Twitch without the ad breaks')
+            'streamlink: Twitch without the ad breaks'
+            'speech-dispatcher: speaks your own boss phases and alerts (with espeak-ng)'
+            'espeak-ng: the voice speech-dispatcher speaks with')
 makedepends=(rust clang mpv)
 options=(!lto !debug)
 install=game-companion.install
