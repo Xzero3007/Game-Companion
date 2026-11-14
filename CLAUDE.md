@@ -402,8 +402,14 @@ learnt, so nothing has to be asked or worked out again.
   kept when moved by hand), focus. Hide: minimise, focus back to the last
   other window. KWin 6.8 (Arch bench, 2026-11-14): a real full-screen game
   with the focus lies over keep-above windows (ActiveLayer); a borderless
-  game window does not. So a full-screen game taking the focus minimises
-  the apps on its screen. Game ended or app quits: each moved window back
+  game window does not, and Proton marks a "borderless" game as full screen
+  too (MN, 2026-11-14). So while an app is shown, the game's window on its
+  screen loses its full-screen mark (`unfull_body`: same size, no border;
+  again when the game asks for it, the watcher's `full` event, at most 5
+  times per show) and gets it back when no app is shown (`refull_body`,
+  `Runtime.unfull`, also on game end and quit). Settings → Apps "Stay over
+  a full-screen game" (settings `apps_over_full`, default on); off, a
+  full-screen game taking the focus minimises the apps on its screen. Game ended or app quits: each moved window back
   as it was (`Before`); `apps::quit` (main, after Qt) also closes what Game
   Companion started (SIGTERM, SIGKILL after 3 s) unless "Close it when Game
   Companion quits" is off; one the person started is never closed. Windows
