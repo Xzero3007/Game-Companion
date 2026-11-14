@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.30 beta (2026-11-14): #71 Radio: stations that play on none of their addresses are greyed and listed last, HIDE NOT PLAYING switch (entry below).
 - 0.8.29 beta (2026-11-14): #68 Radio: Techno genre with Techno Bunker FM and Radio Record Minimal Tech, SomaFM under USA (entry below).
 - 0.8.28 beta (2026-11-14): #67 LOOT farm window: four-letter labels (WRTH, VALU, SHUG, INVA, NMAR, DAIL, BALA, FAFN, SUBJ, ASCE, CUBE) (entry below).
 - 0.8.27 beta (2026-11-14): #65 LOOT farm window: GOLD and VAL switched apart, ping green up to 100 ms, clearer Odyle energy, labels GOLD, CUBE, SHU, NMD (entry below).
