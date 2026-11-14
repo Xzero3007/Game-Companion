@@ -393,6 +393,12 @@ Panel {
                                 text: "Try it outside the dungeon: ▶ on an entry plays it as in the fight."
                             }
                         }
+                        Line {
+                            visible: !Aion2.systemVoice()
+                            width: parent.width; wrapMode: Text.WordWrap; elide: Text.ElideNone
+                            color: Theme.accentLight; font.pixelSize: 11
+                            text: "Sheet entries are read by the computer's voice, which is not installed: only a beep plays. Install it with: sudo pacman -S speech-dispatcher espeak-ng"
+                        }
                     }
 
                     // The game's calls.
@@ -783,7 +789,7 @@ Panel {
                 Line {
                     width: parent.width; wrapMode: Text.WordWrap; elide: Text.ElideNone; color: Theme.dim(); font.pixelSize: 11
                     text: "Built-in: the game's lines, recorded once in English (Kokoro, Apache 2.0). Your own words: the computer's voice (speech-dispatcher), "
-                        + (Aion2.systemVoice() ? "installed." : "not installed: pacman -S speech-dispatcher espeak-ng")
+                        + (Aion2.systemVoice() ? "installed." : "not installed (a beep instead): sudo pacman -S speech-dispatcher espeak-ng")
                 }
                 Slider { label: "Volume"; from: 0; to: 100; value: panel.p.volume === undefined ? 70 : panel.p.volume; shown: String(Math.round(value)); onMoved: (v) => panel.brain.change("volume", Math.round(v)) }
                 Slider { label: "Speed"; from: 0.5; to: 2; step: 0.1; value: panel.p.rate || 1; shown: (value).toFixed(1) + "×"; onMoved: (v) => panel.brain.change("rate", Math.round(v * 10) / 10) }

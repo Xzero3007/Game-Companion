@@ -2,7 +2,8 @@
 //! areas' reminders later): the built-in English clips (A2 Tools' Boss
 //! Callouts voice, made with Kokoro; `aion2/boss/voice`) played by mpv, and
 //! for words with no clip (the person's own) the computer's voice through
-//! speech-dispatcher's `spd-say`, when it is installed. Nothing goes online.
+//! speech-dispatcher's `spd-say`, when it is installed (else a beep). Nothing
+//! goes online.
 //!
 //! Lines queue, two at most; a high line (what to do now) cuts off a low one
 //! (a boss's line still being read). One worker thread for the app's life:
@@ -168,7 +169,11 @@ fn start(line: &Line) -> Option<Child> {
             return play(&clip, line.volume, line.rate);
         }
     }
-    let spd = find("spd-say")?;
+    // Without the computer's voice a beep at least says something came
+    // (MN, 0.8.12: the Ludra preview showed its calls without a sound).
+    let Some(spd) = find("spd-say") else {
+        return beep_file().and_then(|f| play(&f, line.volume, 1.0));
+    };
     let rate = ((line.rate - 1.0) * 100.0).round().clamp(-100.0, 100.0) as i32;
     let volume = (i32::from(line.volume.min(100)) * 2 - 100).clamp(-100, 100);
     let mut command = Command::new(spd);

@@ -681,6 +681,13 @@ CHARACTERS shows "build NN %" under the gear score. Open: tested only with
 made-up data in the sandbox (NC's pages are blocked here); the first real
 reading is MN's test.
 
+## Branch `claude/project-thread-pv2u8z` (from beta): Boss voice without speech-dispatcher
+
+MN (0.8.12): the Ludra preview showed its calls without a sound. Sheet
+entries are own words (no Kokoro clip), read by spd-say, which MN likely
+lacks. Now a beep plays instead, SHEETS says so with the pacman line, and
+the package lists speech-dispatcher and espeak-ng as optdepends.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots
