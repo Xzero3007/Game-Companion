@@ -268,6 +268,31 @@ fn signal(proc_root: &Path, started: &Started, sig: libc::c_int) {
     }
 }
 
+/// Starts a program in a session of its own (for Brave and Legcord):
+/// its pid and start time.
+pub fn spawn_program(command: &str) -> Option<(i32, u64)> {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    spawn(command, home.as_deref())
+}
+
+/// Whether a program started by `spawn_program` still runs (any process of
+/// its session).
+pub fn program_alive(pid: i32, start: u64) -> bool {
+    let started = Started { game: String::new(), entry: 0, pid, start };
+    !session_members(Path::new("/proc"), &started).is_empty()
+}
+
+/// Sends a signal to every process of a program started by `spawn_program`.
+pub fn signal_program(pid: i32, start: u64, sig: libc::c_int) {
+    let started = Started { game: String::new(), entry: 0, pid, start };
+    signal(Path::new("/proc"), &started, sig);
+}
+
+/// Whether a program by this name runs (for "already running").
+pub fn program_runs(name: &str) -> bool {
+    runs(Path::new("/proc"), name)
+}
+
 /// Whether a list's program runs now because Game Companion started it.
 pub fn running_entries(game: &str) -> Vec<u32> {
     let proc_root = Path::new("/proc");

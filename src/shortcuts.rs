@@ -32,11 +32,13 @@ pub struct Shortcut {
     pub trigger: &'static str,
 }
 
-/// The overlay's shortcuts. Brave and Legcord get theirs once they are built.
-pub const ALL: [Shortcut; 3] = [
+/// The overlay's shortcuts.
+pub const ALL: [Shortcut; 5] = [
     Shortcut { id: "lock", description: "Lock or unlock the overlay (locked, clicks go to the game)", trigger: "ALT+q" },
     Shortcut { id: "toggle", description: "Hide or show the hub (pinned things stay)", trigger: "ALT+y" },
     Shortcut { id: "map-overlay", description: "AION 2: show or hide the overlay map", trigger: "ALT+m" },
+    Shortcut { id: "brave", description: "Show Brave over the game, or hide it", trigger: "ALT+b" },
+    Shortcut { id: "legcord", description: "Show Legcord over the game, or hide it", trigger: "ALT+n" },
 ];
 
 /// What the desktop said about one shortcut.
