@@ -50,11 +50,17 @@ jobs:
           restore-keys: |
             cargo-${{ env.QT_VERSION }}-${{ hashFiles('Cargo.lock') }}-
             cargo-${{ env.QT_VERSION }}-
+      # A push to beta was tested before it was merged (the pull request's
+      # own run and QA's Arch bench): only the package is built, so a beta
+      # update is out about 6 minutes sooner (MN, 2026-11-14). Pull
+      # requests and main still run tests and lint.
       - name: Tests
+        if: github.event_name != 'push' || github.ref != 'refs/heads/beta'
         run: |
           cargo test --locked
           cargo test --locked -p aion2 --features live
       - name: Lint
+        if: github.event_name != 'push' || github.ref != 'refs/heads/beta'
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       # The package (a release build) only for pushes, which publish it.
       - name: Package
