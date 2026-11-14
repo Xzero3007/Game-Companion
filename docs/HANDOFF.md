@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.19 beta (2026-11-14): #47 LOOT farm window compact (no header, one line), merchant menu keeps the shop window open, keys chosen, gold count gear only (entry below).
 - 0.8.18 beta (2026-11-14): #48 the 2 px where the gold line was stay as clear room (panel sizes as in 0.8.16), Surface as in 0.8.16 (entry below).
 - 0.8.17 beta (2026-11-14): #44 gold line on top of windows removed, a window left screen-sized after a drag is placed again (entry below).
 - 0.8.16 QA collection (2026-11-14, MN's test of 0.8.14): #42 LOOT shop window stays open while browsing, farm window opacity/text/height and Show now, card rounds parsed (UTF-8 decoder) (entry below).
