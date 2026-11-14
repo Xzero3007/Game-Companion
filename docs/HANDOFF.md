@@ -861,6 +861,23 @@ keep `open_panels` (ids, None until first kept) and `dps_closed`
 Main restores them at start (not in demo mode). An update or restart
 brings back exactly the panels that were open.
 
+## Branch `radio-dead` (from beta): Techno genre, Electronic under USA
+
+MN (2026-11-14): many stations don't play, and Electronic and Techno were
+missing from the genre list. The genre list only shows genres found in the
+chosen country, and USA had no electronic station.
+
+- New genre `techno` (after Electronic): sunshine live Techno, bigFM Deep &
+  Tech House, and two new stations: Techno Bunker FM
+  (`stream.laut.fm/technobunkerfm`) and Radio Record Minimal Tech
+  (`radiorecord.hostingradio.ru/mini96.aacp`, same host as Radio Record).
+  Both found in public station lists; not playable from the sandbox.
+- SomaFM's six stations moved from World to USA (they are from San
+  Francisco and play worldwide), so Electronic shows under USA too.
+- Why stations don't play: the US ones on StreamTheWorld/iHeart only send to
+  US connections. What to do about them waits for MN's choice (mark and
+  sort last, replace and remove, or both).
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots
