@@ -74,7 +74,9 @@ to the game.
   hides the bar and the panels; anything pinned (the pin in a panel's header,
   or at the end of the player row) stays on screen.
 - **Radio** (the bar's Radio button): 111 stations by country and genre,
-  favourites, recent, search, Best FM first. Played by your **mpv** in the
+  favourites, recent, search, Best FM first. A station that doesn't play
+  from your connection is greyed and listed last next time; "Hide not
+  playing" leaves those out. Played by your **mpv** in the
   background, so it plays on with the panel closed or the hub hidden. Only
   the stations' own stream servers are played (a built-in list, checked
   before every address). The station list comes from the Clicktrough Radio
