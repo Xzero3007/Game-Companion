@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.21 beta (2026-11-14): #52 LOOT: farm window fits its rows and grows by its corner, game key icons, merchant window stays open until zone change or 60 s (shop log) (entry below).
 - 0.8.20 beta (2026-11-14): #46 the open panels and the DPS panel closed by hand are kept across restarts and updates (entry below).
 - 0.8.19 beta (2026-11-14): #47 LOOT farm window compact (no header, one line), merchant menu keeps the shop window open, keys chosen, gold count gear only (entry below).
 - 0.8.18 beta (2026-11-14): #48 the 2 px where the gold line was stay as clear room (panel sizes as in 0.8.16), Surface as in 0.8.16 (entry below).
