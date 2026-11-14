@@ -45,6 +45,9 @@ Item {
     /// Slim (the DPS meter, like the old meter): a 30 px header with smaller
     /// buttons, and the body edge to edge with 8 px sides.
     property bool compact: false
+    /// No header and no margins (the farm window, MN 0.8.16:
+    /// "das soll gefälligst kompakt sein"): the content moves it itself.
+    property bool bare: false
     /// Shown in the header after the title (a slim panel's tabs).
     property Component headerTools: null
     default property alias content: body.data
@@ -54,6 +57,8 @@ Item {
 
     width: 400
     height: 2 + header.height + (compact ? 0 : 12) + body.height + (compact ? 0 : 14)
+
+    height: bare ? body.height : header.height + (compact ? 0 : 12) + body.height + (compact ? 0 : 14)
 
     // Placed once the screen's size is known: where it was left, else at
     // its default place, always on the screen.
@@ -115,8 +120,10 @@ Item {
         // 2 px clear room on top where the gold line was (MN, 2026-11-14:
         // only its colour goes; the windows keep their size).
         y: 2
+
+        visible: !panel.bare
         width: parent.width
-        height: panel.compact ? 30 : 40
+        height: panel.bare ? 0 : panel.compact ? 30 : 40
         color: Theme.headerTint
 
         MoveArea {
@@ -259,8 +266,8 @@ Item {
         anchors.top: header.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.margins: panel.compact ? 8 : 14
-        anchors.topMargin: panel.compact ? 0 : 12
+        anchors.margins: panel.bare ? 0 : panel.compact ? 8 : 14
+        anchors.topMargin: panel.bare || panel.compact ? 0 : 12
         height: childrenRect.height
     }
 

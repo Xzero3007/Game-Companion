@@ -30,7 +30,7 @@ QtObject {
     property var settings: ({
         tab: "items", list: "inv", sort: "value", sellableOnly: false, search: {}, fee: 10, view: null,
         drops: "session", source: "all", breakMin: 180, statSource: "open", statMetric: "kinah", farmWho: null,
-        closetTab: "merchant", shopWindow: true, marketWindow: false, farmWindow: true, farmMode: null, farmRows: null, popupMinutes: 1, windowView: "shop", lucky: false, kind: "all", grade: "all", order: "price",
+        closetTab: "merchant", shopWindow: true, marketWindow: false, farmWindow: true, farmMode: null, farmRows: null, farmKeys: null, popupMinutes: 1, windowView: "shop", lucky: false, kind: "all", grade: "all", order: "price",
         cards: "round", cardKind: "all", kinds: {}, cardChar: "all"
     })
     function set(key, value) {
@@ -252,7 +252,7 @@ QtObject {
     // Modes (settings.farmMode): "always" while AION 2 runs (the default),
     // "popup" while farming (goes in a town, 10 minutes after the last gain
     // in the open world, or with its × until the next place), "off".
-    readonly property var farmRowList: [["kinah", "Kinah today"], ["perHour", "Worth per hour"], ["gold", "Gold items"], ["run", "Dungeon run"], ["keys", "Keys and tickets"], ["odyle", "Odyle energy"], ["ping", "Ping"]]
+    readonly property var farmRowList: [["kinah", "Kinah today"], ["perHour", "Worth per hour"], ["gold", "Gold items and valuables"], ["run", "Dungeon run"], ["keys", "Keys and tickets"], ["odyle", "Odyle energy"], ["ping", "Ping"]]
     function farmMode() {
         const m = settings.farmMode
         if (m === "always" || m === "popup" || m === "off") return m
@@ -305,6 +305,9 @@ QtObject {
         if (settings.farmMode === "popup") { farmShown = true; farmIdle.restart() }
         changed()
     }
+    function isGoldGrade(id) { const g = LK.C.grade(id); return g >= 4 && g < 7 && !LK.C.currency(id) }
+    /// Weapons (1xx), armour (2xx) and accessories (3xx).
+    function isGear(id) { return /^[123]/.test(String(id)) }
     /// What the farm window shows.
     function farmNow() {
         const d = farmDay && farmKey === currentKey() ? farmDay : null
@@ -312,21 +315,35 @@ QtObject {
         const none = { kinah: 0, active: 0, gold: 0, worth: 0, n: 0 }
         const src = d ? d.src || {} : {}
         const open = Object.assign({}, none, src.open || {})
-        let gold = 0, worth = 0
-        for (const k in src) { gold += src[k].gold || 0; worth += src[k].worth || 0 }
+        let worth = 0
+        for (const k in src) worth += src[k].worth || 0
+        // Gold items are gear (weapons, armour, accessories) of Unique and
+        // up; other things of those grades are valuables (Egos, Minds,
+        // wings, Radiant Odyle); Special (tickets, Soul Codex) is neither
+        // (MN, 0.8.16). Counted from the day's list, so older days' Special
+        // entries no longer count either.
+        const goldList = (d && d.gold || []).filter((g) => isGoldGrade(g[1]))
+        const goldOf = (l) => l.filter((g) => isGear(g[1])).length
+        const valuablesOf = (l) => l.filter((g) => !isGear(g[1])).reduce((n, g) => n + (Number(g[2]) || 1), 0)
+        const gold = goldOf(goldList), valuables = valuablesOf(goldList)
         const hours = (open.active || 0) / 3600000
-        const run = { kinah: 0, gold: 0, worth: 0, n: 0, from: null }
+        const run = { kinah: 0, gold: 0, valuables: 0, worth: 0, n: 0, from: null }
         if (d && mode === "dungeon") for (const st of d.stints) {
             if (st.to < zoneSince - 1000 || st.zone !== Number(zone)) continue
             run.kinah += st.kinah || 0; run.gold += st.gold || 0; run.worth += st.worth || 0; run.n += st.n || 0
             if (run.from == null || st.from < run.from) run.from = st.from
+        }
+        if (run.from != null) {
+            const inRun = goldList.filter((g) => g[0] >= run.from && Number(g[4]) === Number(zone))
+            run.gold = goldOf(inRun)
+            run.valuables = valuablesOf(inRun)
         }
         return {
             mode: mode, place: placeLabel(),
             kinah: d && d.counter ? d.counter.last : open.kinah, cap: LK.C.KINA_DAILY, capAt: d && d.cap ? d.cap.at : null,
             // Kinah and the loot's worth per hour of open-world farming.
             perHour: hours >= 0.05 ? (open.kinah + open.worth) / hours : null, hours: hours,
-            gold: gold, worth: worth, run: run, keys: farmKeys(), extras: farmExtras()
+            gold: gold, valuables: valuables, worth: worth, run: run, keys: farmKeys(), extras: farmExtras()
         }
     }
     /// Ping and Odyle energy, as the DPS meter's bar shows them (the engine
@@ -342,18 +359,49 @@ QtObject {
     /// left: Shugo Festival, Nightmare, Dimensional Invasion, Daily Dungeon,
     /// the entry tickets, Subjugation and Ascension Trial; not the many
     /// reward counters (MN, 0.8.12: "was ist das?"). [{ name, left, max }].
-    readonly property var keyIds: ["1", "7", "4", "8", "101", "102", "103", "70000001", "80000001"]
-    function farmKeys() {
+    readonly property var keyIds: ["7", "1", "8", "4", "101", "102", "103", "70000001", "80000001"]
+    /// Three letters for each, so they read at a glance (MN, 0.8.16), and
+    /// the matching ticket item's icon in the game.
+    readonly property var keyAbbr: ({ "7": "SHU", "1": "SHA", "8": "INV", "4": "NMR", "101": "DLY", "102": "BAL", "103": "FAF", "70000001": "SUB", "80000001": "ASC", "cube": "CUB" })
+    readonly property var keyIcon: ({
+        "7": "Item_Currency_Treasure_Key_Legend_004", "1": "Item_Currency_Treasure_Key_Legend_004",
+        "4": "Ticket_Entrance_BossChallenge_001", "101": "Ticket_Entrance_DailyDungeon_001",
+        "102": "Ticket_Entrance_Dungeon_001", "103": "Ticket_Entrance_Dungeon_001",
+        "80000001": "Ticket_Entrance_Awaken_001", "cube": "Item_Currency_Treasure_Key_A_s_001"
+    })
+    /// Key: Hidden Cube, in the inventory (all its kinds, bound or with days).
+    readonly property var cubeKeyIds: [610900001, 630900003, 660900003, 600900001, 600900002, 600900003]
+    /// Every key and ticket there is to show, with what the character has.
+    function keyChoices() {
         const counts = character && character.contentCounts || {}
         const out = []
         for (const id of keyIds) {
             const t = T.TICKETS[id], v = counts[id]
-            if (!t || t[4] || !Array.isArray(v)) continue
-            const left = (Number(v[0]) || 0) + (Number(v[1]) || 0)
-            if (left > 0) out.push({ id: id, name: t[0].replace(/ Entry Count$/, ""), left: left, max: t[1] || 0, server: !!t[3] })
+            if (!t || t[4]) continue
+            const left = Array.isArray(v) ? (Number(v[0]) || 0) + (Number(v[1]) || 0) : 0
+            out.push({ id: id, abbr: keyAbbr[id] || "", icon: keyIcon[id] || "", name: t[0].replace(/ Entry Count$/, ""), left: left, max: t[1] || 0, server: !!t[3], known: Array.isArray(v) })
         }
         for (const k of out) if (out.some((o) => o !== k && o.name === k.name)) k.name += k.server ? " (account)" : " (character)"
+        const key = currentKey(), st = key ? stock(key) : null, inv = st && st.inv || {}
+        let cubes = 0
+        for (const id of cubeKeyIds) cubes += Number(inv[id] || inv[String(id)]) || 0
+        out.splice(3, 0, { id: "cube", abbr: "CUB", icon: keyIcon.cube, name: "Key: Hidden Cube", left: cubes, max: 0, server: false, known: !!st })
+        if (demo) for (const k of out) if (!k.known) { k.left = k.id === "cube" ? 4 : 3; k.known = true }
         return out
+    }
+    /// The ones you chose (LOOT → DROPS → Farm window → Keys); until you
+    /// choose, those with some left.
+    function farmKeyOn(id) { const l = settings.farmKeys; return Array.isArray(l) ? l.indexOf(id) >= 0 : null }
+    function setFarmKey(id, on) {
+        const all = keyChoices()
+        let l = Array.isArray(settings.farmKeys) ? settings.farmKeys.slice() : all.filter((k) => k.left > 0).map((k) => k.id)
+        l = l.filter((x) => x !== id)
+        if (on) l.push(id)
+        set("farmKeys", all.map((k) => k.id).filter((x) => l.indexOf(x) >= 0))
+    }
+    function farmKeys() {
+        const chosen = settings.farmKeys
+        return keyChoices().filter((k) => Array.isArray(chosen) ? chosen.indexOf(k.id) >= 0 : k.left > 0)
     }
 
     // ---------- Drops: dungeon runs ----------
@@ -529,7 +577,7 @@ QtObject {
         // hand it stays.
         if (hereBy !== "hand" && w.moving === true && Date.now() - hereSince > 3000) {
             if (!walkingSince) walkingSince = Date.now()
-            else if (Date.now() - walkingSince >= 1500) { walkingSince = 0; return left() }
+            else if (Date.now() - walkingSince >= 3500) { walkingSince = 0; return left() }
         } else if (w.moving === false) walkingSince = 0
         if (!me || !isFinite(me.x) || !isFinite(me.y)) return
         // Positions are in cm. An exact one says 6 m away; the estimated
@@ -745,7 +793,9 @@ QtObject {
             if (!store.here || store.hereBy === "hand" || Date.now() - store.hereSince < 3000) return
             let c = null
             try { c = JSON.parse(Aion2.combat) } catch (e) { return }
-            if (c && Array.isArray(c.fought) && c.fought.length) store.left()
+            // Only a fight that began after the window opened: the list keeps
+            // the monsters fought shortly before (MN, 0.8.16: it closed at once).
+            if (c && Array.isArray(c.fought) && c.fought.some((f) => Number(f.since) > store.hereSince + 1000)) store.left()
         }
         function onWorldChanged() { let w = null; try { w = JSON.parse(Aion2.world) } catch (e) { } if (w) store.takeWorld(w) }
         function onActiveChanged() { if (Aion2.active) Qt.callLater(() => { let it = null; try { it = JSON.parse(Aion2.itemsNow()) } catch (e) { } if (it) store.takeItems(it) }) }

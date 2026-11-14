@@ -48,3 +48,14 @@ assert.equal(stock.offers[0].price, 80000);
 assert.equal(S.stats([], prices, null).rounds, 0);
 assert.equal(S.kindOf({ event: 22020112, at: now }).kind, 'di');
 console.log('lootkit: all good');
+// Gear taken off (worn gear to the inventory, one frame) is no gold drop
+// (MN, 0.8.16); a gold item that came in alone is.
+{
+  const goldId = Number(Object.keys(MK.G.MARKET_ITEMS.items).find((id) => C.grade(Number(id)) >= 4 && !/^93/.test(id)));
+  const t = now + 60000;
+  let d = F.newDay(t);
+  d = F.addItems(d, { changes: [[1, t, 11, goldId, -1], [2, t, '1', goldId, 1]] }, 1, null, 'Field');
+  assert.equal(F.summary(d).gold.length, 0);
+  d = F.addItems(d, { changes: [[3, t + 5000, '1', goldId, 1]] }, 1, null, 'Field');
+  assert.equal(F.summary(d).gold.length, 1);
+}
