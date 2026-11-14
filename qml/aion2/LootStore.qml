@@ -371,7 +371,8 @@ QtObject {
     readonly property var keyIds: ["7", "1", "8", "4", "101", "102", "103", "70000001", "80000001"]
     /// Three letters for each, so they read at a glance (MN, 0.8.16), and
     /// the matching ticket item's icon in the game.
-    readonly property var keyAbbr: ({ "7": "SHU", "1": "SHU", "8": "INV", "4": "NMD", "101": "DLY", "102": "BAL", "103": "FAF", "70000001": "SUB", "80000001": "ASC", "cube": "CUBE" })
+    // Four letters each (MN, 0.8.24: easier to tell apart).
+    readonly property var keyAbbr: ({ "7": "SHUG", "1": "SHUG", "8": "INVA", "4": "NMAR", "101": "DAIL", "102": "BALA", "103": "FAFN", "70000001": "SUBJ", "80000001": "ASCE", "cube": "CUBE" })
     readonly property var keyIcon: ({
         // The golden key the game shows for the Shugo Festival (MN, 0.8.21);
         // the Invasion's keys get it too, as the game has no other found yet.
