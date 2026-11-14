@@ -439,11 +439,57 @@ pub fn filter_videos(list: Vec<Value>, s: &settings::StreamsSettings) -> (Vec<Va
     (kept, gone)
 }
 
-/// Twitch's filters applied to live cards, and the order.
+thread_local! {
+    /// How the last Twitch list of this thread was asked (said under the
+    /// list when a page brought nothing new).
+    static TWITCH_WAY: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
+fn say_way(way: String) {
+    TWITCH_WAY.with(|w| *w.borrow_mut() = way);
+}
+
+fn last_way() -> String {
+    TWITCH_WAY.with(|w| w.borrow().clone())
+}
+
+/// All live's page `p` without a cursor: the streams of the most watched
+/// categories `p * SWEEP + 1` on (see `streams::SWEEP`).
+fn sweep_page(p: usize, st: &settings::StreamsSettings) -> Result<(Vec<Value>, Value), String> {
+    let n = (p + 1) * streams::SWEEP;
+    if n > streams::SWEEP_LONGEST {
+        return Ok((Vec::new(), json!({})));
+    }
+    let cats = streams::twitch_categories(&streams::twitch(&streams::twitch_query_page("categories", &Value::Null, None, Some(n))?, None)?);
+    let names: Vec<String> = cats.iter().skip(p * streams::SWEEP).take(streams::SWEEP).filter_map(|c| c["name"].as_str().map(str::to_string)).collect();
+    if names.is_empty() {
+        return Ok((Vec::new(), json!({})));
+    }
+    let filtered = !st.languages.is_empty() || st.hide_reruns;
+    let asked = if filtered {
+        match streams::twitch(&streams::twitch_sweep_query(&names, true)?, None) {
+            Ok(data) if data.get("_errors").is_none() => Ok(data),
+            _ => streams::twitch(&streams::twitch_sweep_query(&names, false)?, None),
+        }
+    } else {
+        streams::twitch(&streams::twitch_sweep_query(&names, false)?, None)
+    };
+    let data = asked?;
+    say_way(format!("categories {} to {}", p * streams::SWEEP + 1, p * streams::SWEEP + names.len()));
+    let next = if names.len() == streams::SWEEP && n < streams::SWEEP_LONGEST { json!({ "sweep": p + 1 }) } else { json!({}) };
+    Ok((filter_cards(streams::sweep_cards(&data), st), next))
+}
+
 /// A Twitch list, from its page cursors on (`more`, as the last page gave
 /// them; None: the first page): its cards (filtered as set) and where the
 /// next page starts (`{}` when there is none; one cursor per part).
 fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: Option<&str>, more: Option<&Value>) -> Result<(Vec<Value>, Value), String> {
+    say_way(String::new());
+    if view == "live" {
+        if let Some(p) = more.and_then(|m| m.get("sweep")).and_then(Value::as_u64) {
+            return sweep_page(p as usize, st);
+        }
+    }
     let cursor = |k: &str| more.and_then(|m| m.get(k)).and_then(Value::as_str).map(str::to_string);
     // A longer list from the top instead of a cursor (`{"first": n}`), and
     // the next one's length while there may be more.
@@ -473,9 +519,13 @@ fn fetch_twitch(view: &str, text: &str, st: &settings::StreamsSettings, token: O
         // All live: Twitch's own directory query first (the only one it
         // pages); the written-out query if none of its ids answers.
         if game.is_null() {
-            if let Some(data) = streams::twitch_browse(after.as_deref(), first) {
-                page(&data, &mut next);
-                return Ok(streams::twitch_cards(&data));
+            match streams::twitch_browse(after.as_deref(), first) {
+                Ok(data) => {
+                    say_way("directory query".into());
+                    page(&data, &mut next);
+                    return Ok(streams::twitch_cards(&data));
+                }
+                Err(why) => say_way(format!("written-out query; directory query: {}", why.chars().take(80).collect::<String>())),
             }
         }
         // Sorted by viewers first; the fields for the filters while one is
@@ -562,6 +612,7 @@ fn card_key(c: &Value) -> String {
     format!("{}{}{}", c["login"].as_str().unwrap_or(""), c["name"].as_str().unwrap_or(""), c["id"].as_str().unwrap_or(""))
 }
 
+/// Twitch's filters applied to live cards, and the order.
 pub fn filter_cards(mut cards: Vec<Value>, s: &settings::StreamsSettings) -> Vec<Value> {
     let langs: Vec<String> = s.languages.iter().map(|l| l.to_ascii_lowercase()).collect();
     cards.retain(|c| {
@@ -895,17 +946,48 @@ impl qobject::Streams {
         let thread = self.qt_thread();
         std::thread::spawn(move || {
             let mut result = fetch_twitch(&view, &text, &st, None, Some(&more));
+            let mut ways = vec![last_way()];
+            let nothing_new = |r: &Result<(Vec<Value>, Value), String>| match r {
+                Ok((cards, _)) => cards.iter().all(|c| known.contains(&card_key(c))),
+                Err(_) => true,
+            };
             // Twitch may send the first page again for a cursor (MN's
             // 0.7.7): then ask for a longer list from the top instead.
             let pages = matches!(view.as_str(), "game" | "category" | "live" | "categories");
-            if let Ok((cards, _)) = &result {
-                if pages && more.get("first").is_none() && cards.iter().all(|c| known.contains(&card_key(c))) {
-                    let n = (known.len() + 30).min(streams::TWITCH_LONGEST);
-                    if n > known.len() {
-                        result = fetch_twitch(&view, &text, &st, None, Some(&json!({ "first": n })));
-                    }
+            if pages && more.get("first").is_none() && more.get("sweep").is_none() && result.is_ok() && nothing_new(&result) {
+                let n = (known.len() + 30).min(streams::TWITCH_LONGEST);
+                if n > known.len() {
+                    result = fetch_twitch(&view, &text, &st, None, Some(&json!({ "first": n })));
+                    ways.push(format!("longer list: {}", last_way()));
                 }
             }
+            // All live still the same (MN's 0.8.12): the streams of the most
+            // watched categories, a few categories a page, until new ones come.
+            if view == "live" {
+                let mut tries = 0;
+                while nothing_new(&result) && tries < 3 {
+                    let p = match &result {
+                        Ok((_, next)) => next.get("sweep").and_then(Value::as_u64),
+                        Err(_) => None,
+                    };
+                    let p = match p {
+                        Some(p) => p,
+                        None if tries == 0 && more.get("sweep").is_none() => 0,
+                        None => break,
+                    };
+                    let swept = fetch_twitch(&view, &text, &st, None, Some(&json!({ "sweep": p })));
+                    ways.push(match &swept {
+                        Ok(_) => last_way(),
+                        Err(e) => format!("categories: {e}"),
+                    });
+                    // A failed sweep keeps what the cursor brought.
+                    if swept.is_ok() || result.is_err() {
+                        result = swept;
+                    }
+                    tries += 1;
+                }
+            }
+            let ways: Vec<String> = ways.into_iter().filter(|w| !w.is_empty()).collect();
             let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
                 // Another list came meanwhile: this page is not its.
                 if obj.rust().twitch_request != request {
@@ -928,8 +1010,12 @@ impl qobject::Streams {
                     }
                 }
                 // Twitch answered without anything new: say so, not nothing.
-                let note = if all.len() == before { "Twitch sent nothing new (the filters may leave everything out)." } else { "" };
-                obj.as_mut().set_twitch_more_note(q(note));
+                let note = match (all.len() == before, ways.is_empty()) {
+                    (false, _) => String::new(),
+                    (true, true) => "Twitch sent nothing new (the filters may leave everything out).".into(),
+                    (true, false) => format!("Twitch sent nothing new ({}). The filters may leave everything out.", ways.join("; ")),
+                };
+                obj.as_mut().set_twitch_more_note(q(&note));
                 let has_more = next.as_object().is_some_and(|m| !m.is_empty());
                 obj.as_mut().rust_mut().twitch_more = has_more.then(|| (view.clone(), text.clone(), next));
                 obj.as_mut().set_twitch_has_more(has_more);
