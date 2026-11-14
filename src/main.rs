@@ -27,6 +27,7 @@ mod radio_object;
 mod settings;
 mod shortcuts;
 mod sponsorblock;
+mod start_with;
 mod streams;
 mod streams_object;
 mod tray;

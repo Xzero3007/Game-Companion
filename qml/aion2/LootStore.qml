@@ -30,7 +30,7 @@ QtObject {
     property var settings: ({
         tab: "items", list: "inv", sort: "value", sellableOnly: false, search: {}, fee: 10, view: null,
         drops: "session", source: "all", breakMin: 180, statSource: "open", statMetric: "kinah", farmWho: null,
-        closetTab: "merchant", shopWindow: true, marketWindow: false, farmWindow: true, popupMinutes: 3, windowView: "shop", lucky: false, kind: "all", grade: "all", order: "price",
+        closetTab: "merchant", shopWindow: true, marketWindow: false, farmWindow: true, farmMode: null, farmRows: null, popupMinutes: 1, windowView: "shop", lucky: false, kind: "all", grade: "all", order: "price",
         cards: "round", cardKind: "all", kinds: {}, cardChar: "all"
     })
     function set(key, value) {
@@ -245,31 +245,43 @@ QtObject {
         return key ? charSums(key) : []
     }
 
-    // ---------- the farm window (MN, 2026-11-13) ----------
-    // Opens by itself when Kinah or loot comes in in the open world (toward
-    // the daily 1,000,000 Kinah) or in a dungeon (what this run brought);
-    // goes in a town, 10 minutes after the last gain in the open world, or
-    // with its × until the next place. Settings: Drops → "Farm window".
+    // ---------- the farm window (MN, 2026-11-13/14) ----------
+    // Shows Kinah toward the daily 1,000,000, the worth per hour, the gold
+    // items, a dungeon's run, keys and tickets, Odyle energy and the ping;
+    // which of them is the player's choice (MN, 0.8.13: "was er zeigen soll").
+    // Modes (settings.farmMode): "always" while AION 2 runs (the default),
+    // "popup" while farming (goes in a town, 10 minutes after the last gain
+    // in the open world, or with its × until the next place), "off".
+    readonly property var farmRowList: [["kinah", "Kinah today"], ["perHour", "Worth per hour"], ["gold", "Gold items"], ["run", "Dungeon run"], ["keys", "Keys and tickets"], ["odyle", "Odyle energy"], ["ping", "Ping"]]
+    function farmMode() {
+        const m = settings.farmMode
+        if (m === "always" || m === "popup" || m === "off") return m
+        return settings.farmWindow === false ? "off" : "always"
+    }
+    function farmRow(k) { const r = settings.farmRows || {}; return r[k] !== undefined ? !!r[k] : true }
+    function setFarmRow(k, on) { const r = Object.assign({}, settings.farmRows || {}); r[k] = !!on; set("farmRows", r) }
     property real zoneSince: 0
     property bool farmShown: false
     property bool farmDismissed: false
-    readonly property bool farmWanted: farmShown && !farmDismissed && settings.farmWindow !== false
+    readonly property bool farmWanted: !farmDismissed && (settings.farmMode === "always" || (settings.farmMode == null && settings.farmWindow !== false) || (settings.farmMode === "popup" && farmShown))
     property Timer farmIdle: Timer { interval: 600000; onTriggered: store.farmGone() }
     // Farming means gains coming in a row: the first 30 s in a place (a
-    // login's or a teleport's items) don't count, then three gains in the
-    // open world (one is a quest's reward) or two in a dungeon open it
-    // (MN, 0.8.12: it opened right after logging in).
+    // login's or a teleport's items) don't count, then two gains open it
+    // (MN, 0.8.12: it opened right after logging in; 0.8.13: three were too
+    // many, it never opened). farmWaits says what it waits for.
     property int farmHits: 0
     property real farmLastTo: 0
+    property string farmWaits: "Waiting for Kinah or loot in the open world or a dungeon."
     function farmCheck() {
         if (!farmDay || farmKey !== currentKey()) return
         const k = LK.F.zoneSource(zone)
-        if (k !== "open" && k !== "dungeon") return farmGone()
+        if (k !== "open" && k !== "dungeon") { farmWaits = "Not in the open world or a dungeon (" + placeLabel() + ")."; return farmGone() }
         const st = farmDay.stints[farmDay.stints.length - 1]
-        if (!st || st.src !== k || st.to < zoneSince - 1000 || Date.now() - st.to > 600000) return
+        if (!st || st.to < zoneSince - 1000 || Date.now() - st.to > 600000) return
         if (!(st.kinah > 0 || st.n > 0)) return
         if (st.to !== farmLastTo && st.to - zoneSince > 30000) { farmLastTo = st.to; farmHits++ }
-        if (farmHits < (k === "open" ? 3 : 2)) return
+        if (farmHits < 2) { farmWaits = farmHits + " of 2 gains here so far (the first 30 s in a place don't count)."; return }
+        farmWaits = "Farming in " + placeLabel() + "."
         farmShown = true
         if (k === "open") farmIdle.restart()
         else farmIdle.stop()
@@ -305,8 +317,17 @@ QtObject {
             kinah: d && d.counter ? d.counter.last : open.kinah, cap: LK.C.KINA_DAILY, capAt: d && d.cap ? d.cap.at : null,
             // Kinah and the loot's worth per hour of open-world farming.
             perHour: hours >= 0.05 ? (open.kinah + open.worth) / hours : null, hours: hours,
-            gold: gold, worth: worth, run: run, keys: farmKeys()
+            gold: gold, worth: worth, run: run, keys: farmKeys(), extras: farmExtras()
         }
+    }
+    /// Ping and Odyle energy, as the DPS meter's bar shows them (the engine
+    /// counts them whether the DPS panel is open or not).
+    function farmExtras() {
+        let f = null
+        try { f = JSON.parse(Aion2.fight) } catch (e) { }
+        const x = f && f.extras ? f.extras : {}
+        if (demo) return { ping: 14, odyle: [90, 1850] }
+        return { ping: x.ping == null ? null : Number(x.ping), odyle: Array.isArray(x.odyle) ? x.odyle : null }
     }
     /// The keys and tickets the character has now, only those with some
     /// left: Shugo Festival, Nightmare, Dimensional Invasion, Daily Dungeon,
@@ -402,11 +423,15 @@ QtObject {
         here = true
         anchor = null
         walkingSince = 0
-        hereTimer.interval = Math.max(1, Number(settings.popupMinutes) || 3) * 60000
+        // Each shop page (a tab) starts it again: a minute after the last
+        // one it goes, should nothing else have told that you left (MN, 0.8.13).
+        hereTimer.interval = by === "hand" ? 180000 : 60000
         hereTimer.restart()
         changed()
     }
     function left() {
+        merchant = null
+        merchantMissing = 0
         here = false
         dismissed = false
         hereTimer.stop()
@@ -446,7 +471,12 @@ QtObject {
         }
         lastStock = { at: Date.now(), owner: character ? character.name : "" }
         saveCloset()
-        if (Date.now() - stock.at < 60000) { marketTimer.stop(); arrived("shop") }
+        if (Date.now() - stock.at < 60000) {
+            marketTimer.stop()
+            const wasHere = here && hereBy === "shop"
+            arrived("shop")
+            if (!wasHere || !merchant) pickMerchant()
+        }
     }
     function decodedCloset(e) {
         const d = e.data, at = Number(e.at) || Date.now()
@@ -480,10 +510,39 @@ QtObject {
             marketTimer.restart()
         }
     }
+    /// The merchant: the NPC nearest to you when its stock came (within
+    /// 15 m). Out of sight (gone from the NPCs around) or 8 m away from it,
+    /// you left (MN, 0.8.13: it closed only minutes after leaving).
+    property var merchant: null
+    property int merchantMissing: 0
+    property var lastWorld: null
+    function pickMerchant() {
+        merchant = null
+        merchantMissing = 0
+        const w = lastWorld
+        const me = w && w.me
+        if (!me || !isFinite(me.x) || !isFinite(me.y) || !Array.isArray(w.npcs)) return
+        let best = null, bestD = 1500
+        for (const n of w.npcs) {
+            const d = Math.hypot(n[2] - me.x, n[3] - me.y)
+            if (d < bestD) { bestD = d; best = n }
+        }
+        if (best) merchant = { e: best[0], x: best[2], y: best[3] }
+    }
     function closetWorld(w) {
+        lastWorld = w
         if (w.zone != null && here && hereZone != null && w.zone !== hereZone) return left()
         if (here && hereZone == null && w.zone != null) hereZone = w.zone
         if (!here) return
+        const me = w.me
+        if (hereBy === "shop" && merchant && Array.isArray(w.npcs)) {
+            const m = w.npcs.find((n) => n[0] === merchant.e)
+            if (!m) { if (++merchantMissing >= 2) return left() }
+            else {
+                merchantMissing = 0
+                if (me && me.exact && Math.hypot(me.x - merchant.x, me.y - merchant.y) > 800) return left()
+            }
+        }
         // Walking means the shop is closed (no frame says so): the client's
         // steps (world.moving) for 1.5 s, from 3 s after arriving, close it
         // (MN, 0.8.12: it stayed open after leaving the merchant). Opened by
@@ -492,7 +551,6 @@ QtObject {
             if (!walkingSince) walkingSince = Date.now()
             else if (Date.now() - walkingSince >= 1500) { walkingSince = 0; return left() }
         } else if (w.moving === false) walkingSince = 0
-        const me = w.me
         if (!me || !isFinite(me.x) || !isFinite(me.y)) return
         // Positions are in cm. An exact one says 6 m away; the estimated
         // ones (about 10 m off) count from 30 m (MN: it stayed open).
@@ -523,7 +581,7 @@ QtObject {
     /// level 3, mobs drop it too), "owned" (level 3) or "" (not known),
     /// portrait }. MN, 0.8.12: the pets first, and which to buy.
     function petInfo(item) {
-        const out = { pet: null, level: -1, status: "", portrait: "", watch: false }
+        const out = { pet: null, level: -1, status: "", portrait: "", watch: false, souls: 0, from: "" }
         if (typeof Aion2.petData !== "function") return out
         try {
             if (!petCatalog) petCatalog = JSON.parse(Aion2.petData())
@@ -541,6 +599,12 @@ QtObject {
             out.watch = (petCatalog.watch || []).indexOf(pet) >= 0
             out.portrait = petDir + pet + ".webp"
             out.status = level < 0 ? "" : level >= 3 ? "owned" : out.watch ? "buy" : "need"
+            out.souls = synced ? Number((info.souls || {})[pet]) || 0 : 0
+            // Where it comes from: only chests and merchants, else the monster
+            // seen most often that drops its soul (MN: "ob die nur aus der kiste kommen").
+            const d = petCatalog.pets ? petCatalog.pets[pet] : null
+            const drops = d && d.drops ? d.drops.slice().sort((a, b) => (b.spawns || 0) - (a.spawns || 0)) : []
+            out.from = out.watch || !drops.length ? (d && d.chests && d.chests.length || out.watch ? "Chests and merchants only" : "") : "Drops: " + drops[0].name
         } catch (e) { }
         return out
     }
@@ -549,6 +613,8 @@ QtObject {
     /// comes from: chests first (the merchant's and the Battle Pass' boxes),
     /// then the monsters that drop its soul. MN, 2026-11-13.
     property var petCatalog: null
+    /// Souls a pet needs at each level to reach the next (Pet Finder's).
+    readonly property var petGoals: [5, 25, 75]
     function petsNeeded() {
         if (typeof Aion2.petData !== "function") return { synced: false, rows: [] }
         try {
@@ -574,6 +640,7 @@ QtObject {
     /// its tabs, skins and pets), with whose it is.
     function offersNow() {
         const now = Date.now()
+        if (!petCatalog && typeof Aion2.petData === "function") try { petCatalog = JSON.parse(Aion2.petData()) } catch (e) { }
         let best = null
         for (const k in closetChars) {
             const c = closetChars[k]
@@ -589,10 +656,13 @@ QtObject {
             for (const o of s.offers) {
                 const m = LK.L.statusOf(o.item, closet, ix, learned)
                 if (m.skin) offers.push({ item: o.item, name: m.skin.name, sub: (LK.L.GRADES[m.skin.grade] || "") + " · " + m.skin.slot, grade: m.skin.grade, status: m.status, price: o.price, discount: o.discount, tab: s.tabName, soldOut: !!o.soldOut, icon: m.skin.icon ? "Icon_" + m.skin.icon : LK.C.icon(o.item), pet: false })
-                else if (pets) {
+                else if (pets || (petCatalog && petCatalog.market && petCatalog.market[String(o.item)] != null) || /^Pet:/i.test(LK.C.name(o.item))) {
+                    // A pet on any tab: the Special tab has them too (MN, 0.8.13).
                     const pi = petInfo(o.item)
+                    if (pi.pet == null && !pets) continue
                     const nm = pi.pet != null && petCatalog.pets[pi.pet] ? petCatalog.pets[pi.pet].name : LK.C.name(o.item).replace(/^Pet:\s*/, "")
-                    offers.push({ item: o.item, name: nm, sub: pi.level < 0 ? "Pet" : pi.level >= 3 ? "Pet · level 3" : "Pet · level " + pi.level + " of 3", grade: LK.C.grade(o.item), status: pi.status, price: o.price, discount: o.discount, tab: s.tabName, soldOut: !!o.soldOut, icon: LK.C.icon(o.item), portrait: pi.portrait, pet: true })
+                    offers.push({ item: o.item, name: nm, sub: pi.level < 0 ? "Pet" : pi.level >= 3 ? "Pet · level 3" : "Pet · level " + pi.level + " of 3", grade: LK.C.grade(o.item), status: pi.status, price: o.price, discount: o.discount, tab: s.tabName, soldOut: !!o.soldOut, icon: LK.C.icon(o.item), portrait: pi.portrait, pet: true,
+                        souls: pi.level >= 0 && pi.level < 3 ? pi.souls + " / " + petGoals[pi.level] + " souls" : "", from: pi.status === "owned" ? "" : pi.from })
                 }
             }
         }
@@ -1020,10 +1090,11 @@ QtObject {
                     card(2, [[pick(4, i), 1], [pick(2, i + 3), 10]], 0, i % 5 === 0 ? [[pick(4, i + 1), 1]] : null), card(3, [[pick(1, i), 20]], i % 2 ? 0 : 1), card(4, [[pick(2, i + 7), 12]], 0)] })
         }
         const tab = nativeWindow.demo.split(",").find((x) => ["items", "drops", "closet", "cards"].indexOf(x) >= 0)
-        const sub = nativeWindow.demo.split(",").find((x) => ["days", "dungeons", "missing", "combine", "gold", "places", "itemlist", "char", "acc"].indexOf(x) >= 0)
+        const sub = nativeWindow.demo.split(",").find((x) => ["days", "dungeons", "farmwin", "missing", "combine", "gold", "places", "itemlist", "char", "acc"].indexOf(x) >= 0)
         const st = Object.assign({}, settings)
         if (tab) st.tab = tab
         if (sub === "days" || sub === "dungeons") st.drops = sub
+        if (sub === "farmwin") { st.drops = "window"; st.farmMode = "popup"; st.farmRows = { gold: false } }
         if (sub === "missing" || sub === "combine") st.closetTab = sub
         if (sub === "gold" || sub === "places") st.cards = sub
         if (sub === "itemlist") st.cards = "items"

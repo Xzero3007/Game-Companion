@@ -58,6 +58,10 @@ pub mod qobject {
         #[qproperty(QString, sponsorblock)]
         /// Videos decoded by the graphics card.
         #[qproperty(bool, hwdec)]
+        /// Videos made louder by this many dB (0, 3, 6, 9).
+        #[qproperty(i32, video_boost)]
+        /// Videos' quiet and loud passages evened out.
+        #[qproperty(bool, even_loudness)]
         /// YouTube lists: what is left out. JSON `{"shorts", "watched",
         /// "channels": [{id, name}], "words": [..]}`.
         #[qproperty(QString, filters)]
@@ -157,6 +161,14 @@ pub mod qobject {
 
         #[qinvokable]
         fn save_hwdec(self: Pin<&mut Streams>, on: bool);
+
+        /// Settings → Streams → Videos "Video loudness".
+        #[qinvokable]
+        fn save_video_boost(self: Pin<&mut Streams>, db: i32);
+
+        /// Settings → Streams → Videos "Even out loudness".
+        #[qinvokable]
+        fn save_even_loudness(self: Pin<&mut Streams>, on: bool);
 
         /// How much of a video window shows, in percent (50 to 100).
         #[qinvokable]
@@ -313,6 +325,8 @@ pub struct StreamsRust {
     grid: bool,
     sponsorblock: QString,
     hwdec: bool,
+    video_boost: i32,
+    even_loudness: bool,
     filters: QString,
     groups: QString,
     group: QString,
@@ -730,6 +744,8 @@ impl Default for StreamsRust {
             grid: s.grid,
             sponsorblock: q(&serde_json::to_string(&s.sponsorblock).unwrap_or_default()),
             hwdec: s.hwdec,
+            video_boost: i32::from(s.video_boost),
+            even_loudness: s.even_loudness,
             filters: q(&filters_json(&s)),
             groups: q(&groups_json(&s)),
             group: q(&s.group),
@@ -1458,6 +1474,17 @@ impl qobject::Streams {
     fn save_grid(self: Pin<&mut Self>, grid: bool) {
         settings::change(|s| s.streams.grid = grid);
         self.set_grid(grid);
+    }
+
+    fn save_video_boost(self: Pin<&mut Self>, db: i32) {
+        let db = settings::clamp_video_boost(db);
+        settings::change(|s| s.streams.video_boost = db);
+        self.set_video_boost(i32::from(db));
+    }
+
+    fn save_even_loudness(self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.streams.even_loudness = on);
+        self.set_even_loudness(on);
     }
 
     fn save_hwdec(self: Pin<&mut Self>, on: bool) {

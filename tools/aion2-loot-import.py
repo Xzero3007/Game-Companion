@@ -70,6 +70,15 @@ lowered = subprocess.run(esbuild + ["--target=es2017", "--loader=js", "--log-lev
 if lowered.returncode != 0:
     sys.exit(lowered.stderr)
 text = lowered.stdout
+# A card round of a Dimensional Invasion: more players pick a card than in a
+# Shugo round (the plugin allowed 8 and 10 picks each; MN's 0.8.13 rounds
+# stayed unread). Wider bounds, the same layout.
+for a, b in [("if (n < 1 || n > 10) return null;", "if (n < 1 || n > 16) return null;"),
+             ("if (np > 8) return null;", "if (np > 64) return null;"),
+             ("if (times < 1 || times > 10) return null;", "if (times < 1 || times > 100) return null;")]:
+    if a not in text:
+        sys.exit("shugo-cards/calc.js changed: " + a)
+    text = text.replace(a, b)
 left = [line[:120] for line in text.split("\n") if re.search(r"toLocaleString\(|BigInt", line)]
 if left:
     sys.exit("not readable by Qt 6.4's JavaScript:\n" + "\n".join(left[:10]))
