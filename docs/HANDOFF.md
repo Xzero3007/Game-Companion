@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.26 beta (2026-11-14): #62 Legcord voice overlay: who is in the voice channel and who talks (Legcord plugin over a Unix socket) (entry below).
 - 0.8.25 beta (2026-11-14): #57 Brave and Legcord over the game: bar buttons, right-click menu, Alt+B / Alt+N (KWin scripts) (entry below).
 - 0.8.24 beta (2026-11-14): #59 DPS: your own combat power and gear score when playing alone, combat power kept in a narrow window (entry below).
 - 0.8.23 beta (2026-11-14): #58 LOOT: right-click on Loot in the game row opens or closes the farm window in every mode (entry below).
