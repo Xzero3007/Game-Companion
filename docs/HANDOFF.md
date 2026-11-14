@@ -157,6 +157,17 @@ new session (or the same one after a usage limit) carries on from here.
   `LootStore.isGear`, counted from the day's list so older days follow).
   Gear taken off no longer counts as a gain (`gains()` skips what another
   container lost in the same frame).
+  MN's test of 0.8.19: the farm window kept a tall empty height (its
+  MoveArea took the window's height, the body's childrenRect took the
+  MoveArea: a loop that never shrank; now the content's height), the key
+  icons stayed empty boxes (the icon store keeps `Icon_<name>`; no box
+  while there is none), and the corner makes all of it bigger (`grow`
+  scales `fs`). The shop window still closed by itself: it now closes only
+  on another zone or 60 s after the last shop page; walking, distance and
+  a fight only write "would close" lines to the shop log
+  (~/.local/share/game-companion/aion2/loot/shop-log.json, last 200 lines,
+  also in CLOSET → MERCHANT) beside every open, page and close with its
+  reason. MN uploads that file; no access to MN's computer.
 - Event Timers / Schedule (branch `claude/project-thread-xz7nqt`, PR against
   beta, version from QA; 2026-11-13; MN chose "Ja, Aion 2 Timers gleich mit"
   on the canvas page "Zeitplan (Event Timers)", boards T1–T3). TIMERS in the
