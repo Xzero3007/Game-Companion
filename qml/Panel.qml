@@ -56,9 +56,7 @@ Item {
     signal areaChanged
 
     width: 400
-    height: 2 + header.height + (compact ? 0 : 12) + body.height + (compact ? 0 : 14)
-
-    height: bare ? body.height : header.height + (compact ? 0 : 12) + body.height + (compact ? 0 : 14)
+    height: bare ? body.height : 2 + header.height + (compact ? 0 : 12) + body.height + (compact ? 0 : 14)
 
     // Placed once the screen's size is known: where it was left, else at
     // its default place, always on the screen.
@@ -119,8 +117,7 @@ Item {
         id: header
         // 2 px clear room on top where the gold line was (MN, 2026-11-14:
         // only its colour goes; the windows keep their size).
-        y: 2
-
+        y: panel.bare ? 0 : 2
         visible: !panel.bare
         width: parent.width
         height: panel.bare ? 0 : panel.compact ? 30 : 40
