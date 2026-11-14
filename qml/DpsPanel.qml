@@ -401,14 +401,15 @@ Panel {
                             }
                             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                                 id: cpText
-                                visible: cp > 0 && !panel.narrow
+                                visible: cp > 0
                                 anchors.left: nameText.right
                                 anchors.leftMargin: 6
                                 anchors.right: perSecondText.left
                                 anchors.rightMargin: 8
                                 anchors.verticalCenter: parent.verticalCenter
                                 elide: Text.ElideRight
-                                text: panel.brief(cp) + (gs > 0 ? " · " + panel.number(gs) : "")
+                                // Narrow: combat power alone.
+                                text: panel.brief(cp) + (gs > 0 && !panel.narrow ? " · " + panel.number(gs) : "")
                                 color: panel.cpColour
                                 font.family: Theme.body
                                 font.pixelSize: 10
