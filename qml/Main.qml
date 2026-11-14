@@ -96,7 +96,32 @@ Overlay {
         streamsOpen = ids.indexOf("streams") >= 0
     }
 
+    // The open panels are kept, so an update or a restart brings back what
+    // was open (MN: the DPS panel came back after every update, because
+    // "closed by hand" was only remembered while the app ran).
+    property bool keepsOpen: false
+    readonly property string openState: JSON.stringify(openPanels()) + (dpsClosed ? "1" : "0")
+    onOpenStateChanged: if (keepsOpen) keepOpen.restart()
+    Timer {
+        id: keepOpen
+        interval: 500
+        onTriggered: Companion.saveOpenPanels(JSON.stringify(root.openPanels()), root.dpsClosed)
+    }
+    function restoreOpen() {
+        if (nativeWindow.demo.length > 0) return
+        try {
+            const kept = Companion.openPanels()
+            if (kept.length > 0) {
+                const k = JSON.parse(kept)
+                openFrom(k.open || [])
+                dpsClosed = k.dpsClosed === true
+            }
+        } catch (e) { }
+        keepsOpen = true
+    }
+
     Component.onCompleted: {
+        restoreOpen()
         const demo = nativeWindow.demo.split(",")
         if (demo.indexOf("unlocked") >= 0 && Companion.locked) Companion.toggleLocked()
         if (demo.indexOf("settings") >= 0) settingsOpen = true

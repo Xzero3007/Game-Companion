@@ -799,6 +799,16 @@ from the compositor) while the part was small again, so presses missed
 it. `Surface.sizeWrong` now places it again (up to 4 tries per change,
 250 ms apart). Open: MN's check on KWin 6.
 
+## Branch `dps-stays-closed` (from beta): open panels survive updates
+
+MN (2026-11-14): "why is the DPS meter there after every update?" Main
+only remembered "DPS closed by hand" while the app ran, so after an update
+(a restart) the DPS panel opened again when AION 2 started. Settings now
+keep `open_panels` (ids, None until first kept) and `dps_closed`
+(`Companion.openPanels` / `saveOpenPanels`, saved 500 ms after a change);
+Main restores them at start (not in demo mode). An update or restart
+brings back exactly the panels that were open.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots

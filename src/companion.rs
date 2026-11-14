@@ -158,6 +158,16 @@ pub mod qobject {
         #[qinvokable]
         fn close_welcome(self: Pin<&mut Companion>);
 
+        /// The panels open when the app last ran, as JSON
+        /// `{"open": [ids], "dpsClosed": bool}`, or "" if never kept.
+        #[qinvokable]
+        fn open_panels(self: &Companion) -> QString;
+
+        /// Keeps which panels are open (`open`: their ids as a JSON list)
+        /// and whether the DPS panel was closed by hand.
+        #[qinvokable]
+        fn save_open_panels(self: Pin<&mut Companion>, open: &QString, dps_closed: bool);
+
         /// Where a panel was left and its size, as JSON
         /// `{"x","y","w","grow"}`, or "" if never moved.
         #[qinvokable]
@@ -663,6 +673,27 @@ impl qobject::Companion {
     fn close_welcome(self: Pin<&mut Self>) {
         settings::change(|s| s.welcome = false);
         self.set_welcome(false);
+    }
+
+    fn open_panels(&self) -> QString {
+        match settings::read(|s| s.open_panels.clone().map(|open| (open, s.dps_closed))) {
+            Some((open, dps_closed)) => {
+                QString::from(&serde_json::json!({ "open": open, "dpsClosed": dps_closed }).to_string())
+            }
+            None => QString::default(),
+        }
+    }
+
+    fn save_open_panels(self: Pin<&mut Self>, open: &QString, dps_closed: bool) {
+        let Ok(open) = serde_json::from_str::<Vec<String>>(&open.to_string()) else { return };
+        let open: Vec<String> = open.into_iter().filter(|id| id.len() <= 40).take(40).collect();
+        if settings::read(|s| s.open_panels.as_ref() == Some(&open) && s.dps_closed == dps_closed) {
+            return;
+        }
+        settings::change(|s| {
+            s.open_panels = Some(open);
+            s.dps_closed = dps_closed;
+        });
     }
 
     fn place_of(&self, id: &QString) -> QString {
