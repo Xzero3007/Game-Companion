@@ -681,6 +681,16 @@ CHARACTERS shows "build NN %" under the gear score. Open: tested only with
 made-up data in the sandbox (NC's pages are blocked here); the first real
 reading is MN's test.
 
+0.8.12 test (MN, 2026-11-14): reading a real character works. Fixed after:
+GEAR keeps several slots open at once (`opened`), and a closed slot leaves
+no gap (the details Loader's height follows `implicitHeight`, 0 when
+closed). The old Clicktrough Armory's data is taken over once by itself
+(HISTORY has a button for again): `meter_import::read_armory` (local, read
+only) → `Aion2.meterArmoryGot` → `ArmoryStore.takeMeter`; histories merged
+by time (`BK.mergeHistory`, 600 kept), a newer old reading kept, the old
+references as builds, a character's old targets as a build on it when it
+has none (`settings.meterBuilds` notes what was taken, no copies).
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots

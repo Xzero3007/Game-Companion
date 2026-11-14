@@ -139,3 +139,32 @@ test("boss fights beside the build: the character's damage, the build's version 
   const f = BK.fightsOf(list, "[Character 2]", hist, "x");
   assert.deepEqual(f.map((x) => [x.id, x.dps, x.p, x.v]), [["f2", 20000, 55, 2], ["f1", 10000, 40, 1]]);
 });
+
+test("the old Armory's files: characters, history merged by time, references", () => {
+  const keyOf = (n, s) => n + "@" + Number(s);
+  const files = {
+    settings: { chars: { "c-2305-_Character_2_": { name: "[Character 2]", serverId: 2305, className: "Ranger" } }, goalGs: 3200 },
+    "c-2305-_Character_2_": snapOf(10, 5),
+    "hc-2305-_Character_2_": [{ at: 100, cp: 1 }, { at: 200, cp: 2 }, null, { at: "x" }],
+    "tc-2305-_Character_2_": { skills: { Snipe: 16 }, mineAt: { MainHand: { enchant: 15 } } },
+    "hc-1-orphan": [{ at: 5 }],
+    references: { active: 0, list: [{ id: 7, name: "Old ref", items: [] }] },
+    "bad key!": {},
+  };
+  const old = BK.readOld(files, keyOf);
+  assert.equal(old.chars.length, 1);
+  const c = old.chars[0];
+  assert.equal(c.key, "[Character 2]@2305");
+  assert.equal(c.history.length, 2);
+  assert.ok(c.snap);
+  assert.equal(old.refs.length, 1);
+  assert.equal(old.goalGs, 3200);
+  assert.ok(BK.hasTargets(c.targets));
+  const t = BK.targetsFromOld(c.targets, old.goalGs);
+  assert.equal(t.skills.Snipe, 16);
+  assert.equal(t.goalGs, 3200);
+  assert.equal(t.mineAt, undefined);
+  const merged = BK.mergeHistory([{ at: 200, cp: 9 }, { at: 300, cp: 3 }], c.history, 600);
+  assert.deepEqual(merged.map((e) => [e.at, e.cp]), [[100, 1], [200, 9], [300, 3]]);
+  assert.equal(BK.mergeHistory(merged, [], 2).length, 2);
+});

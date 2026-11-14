@@ -21,9 +21,11 @@ Column {
     readonly property var targets: ui ? ui.targets : BK.emptyTargets()
     readonly property var prices: ui && ui.store ? ui.store.prices : null
     readonly property real rate: { if (!ui) return 0; ui.rev; return tab.ck.cpPerGearScore(ui.store.history).rate }
-    property string open: ""
-    Component.onCompleted: if (ui && ui.store.demo && ui.store.demoList.indexOf("compare") >= 0) open = "MainHand"
-    onUiChanged: if (ui && ui.store.demo && ui.store.demoList.indexOf("compare") >= 0) open = "MainHand"
+    /// The slots opened, several at once (MN, 2026-11-14): { slot: true }.
+    property var opened: ({})
+    function toggle(slot) { const o = Object.assign({}, opened); if (o[slot]) delete o[slot]; else o[slot] = true; opened = o }
+    Component.onCompleted: if (ui && ui.store.demo && ui.store.demoList.indexOf("compare") >= 0) opened = { MainHand: true, Helmet: true }
+    onUiChanged: if (ui && ui.store.demo && ui.store.demoList.indexOf("compare") >= 0) opened = { MainHand: true, Helmet: true }
     spacing: 8
 
     readonly property var groups: [["Weapons", ["MainHand", "SubHand"]], ["Armor", ["Helmet", "Shoulder", "Torso", "Pants", "Gloves", "Boots", "Cape", "Belt"]],
@@ -119,7 +121,7 @@ Column {
                     id: slotRow
                     required property var modelData
                     readonly property var r: modelData
-                    readonly property bool expanded: tab.open === r.slot
+                    readonly property bool expanded: !!tab.opened[r.slot]
                     width: tab.width
                     spacing: 0
                     Rectangle {
@@ -127,7 +129,7 @@ Column {
                         height: 44
                         color: slotRow.expanded ? "#24222a" : (rowMouse.containsMouse ? "#201f25" : "#1b1a20")
                         opacity: slotRow.r.skipped ? 0.55 : 1
-                        MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: tab.open = slotRow.expanded ? "" : slotRow.r.slot }
+                        MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: tab.toggle(slotRow.r.slot) }
                         AUi.Tick {
                             x: 8
                             anchors.verticalCenter: parent.verticalCenter
@@ -206,9 +208,13 @@ Column {
                             color: Theme.accent
                         }
                     }
+                    // Its height follows the details and is 0 when closed: a
+                    // Loader keeps the last item's height otherwise (MN saw
+                    // an empty gap under closed rows).
                     Loader {
                         active: slotRow.expanded && !!tab.ck
                         width: parent.width
+                        height: active && item ? item.implicitHeight : 0
                         sourceComponent: Component { ArmoryGearDetails { tab: me; r: slotRow.r } }
                     }
                 }
