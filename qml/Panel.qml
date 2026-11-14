@@ -53,7 +53,7 @@ Item {
     signal areaChanged
 
     width: 400
-    height: header.height + (compact ? 0 : 12) + body.height + (compact ? 0 : 14)
+    height: 2 + header.height + (compact ? 0 : 12) + body.height + (compact ? 0 : 14)
 
     // Placed once the screen's size is known: where it was left, else at
     // its default place, always on the screen.
@@ -112,6 +112,9 @@ Item {
     }
     Rectangle {
         id: header
+        // 2 px clear room on top where the gold line was (MN, 2026-11-14:
+        // only its colour goes; the windows keep their size).
+        y: 2
         width: parent.width
         height: panel.compact ? 30 : 40
         color: Theme.headerTint
