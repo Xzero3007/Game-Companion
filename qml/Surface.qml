@@ -88,11 +88,29 @@ Window {
         height: surface.screenH
     }
 
-    onAreaChanged: if (attached) { nativeWindow.place(surface, area); input(); settleInput.restart() }
+    onAreaChanged: if (attached) { nativeWindow.place(surface, area); input(); retries = 0; settleInput.restart() }
     // The compositor takes a new size a moment later: the input region is
     // given again then, so a resized window never keeps a stale one (the
     // DPS panel took no clicks after its first fight grew it, on KWin).
-    Timer { id: settleInput; interval: 250; onTriggered: surface.applyInput() }
+    // A late answer from the compositor can also leave the window at an
+    // old size (after a drag it stayed as big as the screen while the part
+    // was small again, so the next press missed the part and the window
+    // could not be moved further): then it is placed again.
+    property int retries: 0
+    readonly property bool sizeWrong: attached && visible && !held
+        && (Math.round(width) !== Math.round(area.width) || Math.round(height) !== Math.round(area.height))
+    onSizeWrongChanged: if (sizeWrong && retries < 4) settleInput.restart()
+    Timer {
+        id: settleInput
+        interval: 250
+        onTriggered: {
+            if (surface.sizeWrong && surface.retries < 4) {
+                surface.retries += 1
+                nativeWindow.place(surface, surface.area)
+            }
+            surface.applyInput()
+        }
+    }
     // Shown for the first time, a layer surface takes its input region only
     // once the compositor has configured it: given again a moment later
     // (the game row took no clicks on KWin until it was hidden and shown).

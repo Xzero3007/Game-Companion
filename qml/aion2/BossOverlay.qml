@@ -62,7 +62,6 @@ Item {
     onParentChanged: place()
 
     Rectangle { anchors.fill: parent; color: Theme.panel(Companion.alpha) }
-    Rectangle { width: parent.width; height: 2; color: Theme.accent }
 
     component Small: Text {
         color: Theme.dim()

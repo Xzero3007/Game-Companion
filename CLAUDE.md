@@ -49,7 +49,8 @@ learnt, so nothing has to be asked or worked out again.
   bar buttons with the icon and a capitals label under it (Rajdhani 700),
   active = gold icon and 2 px gold underline; player row as a slanted strip
   under the bar (square status dots, bar-style volume); panels with square
-  corners, 2 px gold top line, capitals headers, underline tabs; panel ground
+  corners, no gold line on top (MN, 2026-11-14: removed everywhere),
+  capitals headers, underline tabs; panel ground
   `rgba(12,12,15,0.9)` (the opacity setting); body text Inter. Purple
   `#9b6be8` / `#c4a8f0` tags the game module.
 - **Nothing is sent without the person's yes.** No account, no pop-ups, no
