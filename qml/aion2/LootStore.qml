@@ -266,7 +266,10 @@ QtObject {
     property real zoneSince: 0
     property bool farmShown: false
     property bool farmDismissed: false
-    readonly property bool farmWanted: !farmDismissed && (settings.farmMode === "always" || (settings.farmMode == null && settings.farmWindow !== false) || (settings.farmMode === "popup" && farmShown))
+    /// Opened with a right-click on Loot in the game row (MN, 0.8.21): stays
+    /// in every mode, even Off, until its × or another right-click.
+    property bool farmByHand: false
+    readonly property bool farmWanted: !farmDismissed && (farmByHand || settings.farmMode === "always" || (settings.farmMode == null && settings.farmWindow !== false) || (settings.farmMode === "popup" && farmShown))
     property Timer farmIdle: Timer { interval: 600000; onTriggered: store.farmGone() }
     // Farming means gains coming in a row: the first 30 s in a place (a
     // login's or a teleport's items) don't count, then two gains open it
@@ -298,7 +301,13 @@ QtObject {
         farmDismissed = false
         farmGone()
     }
-    function dismissFarm() { farmDismissed = true; changed() }
+    function dismissFarm() { farmDismissed = true; farmByHand = false; changed() }
+    function toggleFarm() {
+        if (farmWanted) return dismissFarm()
+        farmDismissed = false
+        farmByHand = true
+        changed()
+    }
     /// Back after its × (MN, 0.8.14: "jetzt taucht es nicht auf").
     function showFarm() {
         farmDismissed = false
@@ -364,7 +373,9 @@ QtObject {
     /// the matching ticket item's icon in the game.
     readonly property var keyAbbr: ({ "7": "SHU", "1": "SHA", "8": "INV", "4": "NMR", "101": "DLY", "102": "BAL", "103": "FAF", "70000001": "SUB", "80000001": "ASC", "cube": "CUB" })
     readonly property var keyIcon: ({
-        "7": "Item_Currency_Treasure_Key_Legend_004", "1": "Item_Currency_Treasure_Key_Legend_004",
+        // The golden key the game shows for the Shugo Festival (MN, 0.8.21);
+        // the Invasion's keys get it too, as the game has no other found yet.
+        "7": "Item_Currency_Treasure_Key_A_s_001", "1": "Item_Currency_Treasure_Key_A_s_001", "8": "Item_Currency_Treasure_Key_A_s_001",
         "4": "Ticket_Entrance_BossChallenge_001", "101": "Ticket_Entrance_DailyDungeon_001",
         "102": "Ticket_Entrance_Dungeon_001", "103": "Ticket_Entrance_Dungeon_001",
         "80000001": "Ticket_Entrance_Awaken_001", "cube": "Item_Currency_Treasure_Key_A_s_001"

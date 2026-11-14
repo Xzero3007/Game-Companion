@@ -322,6 +322,7 @@ Overlay {
             lootShown: (Aion2.active && root.lootInBar) || root.lootOpen || lootStore.demo
             lootOpen: root.lootOpen
             onLootClicked: root.lootOpen = root.fromRow("loot", root.lootOpen)
+            onLootRightClicked: lootStore.toggleFarm()
             armoryShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.armory")) || root.armoryOpen || armoryStore.demo
             armoryOpen: root.armoryOpen
             onArmoryClicked: root.armoryOpen = root.fromRow("armory", root.armoryOpen)
