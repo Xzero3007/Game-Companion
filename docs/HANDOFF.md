@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.33 beta (2026-11-14): #76 Settings scroll when taller than the screen; right Legcord plugin steps (entry below).
 - 0.8.32 beta (2026-11-14): #72 Radio: four 181.FM stations under USA (entry below).
 - 0.8.31 beta (2026-11-14): #73 LOOT farm window: valuables split into MATS, ARTW, ORNG and VALU, each with its own switch (entry below).
 - 0.8.30 beta (2026-11-14): #71 Radio: stations that play on none of their addresses are greyed and listed last, HIDE NOT PLAYING switch (entry below).
