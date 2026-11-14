@@ -29,6 +29,10 @@ Panel {
         for (const k of keys) if (k.id === id) return k.key
         return ""
     }
+    /// Room for the pages: from the panel's place down to the screen's
+    /// bottom, less the header and the tabs.
+    readonly property real room: Math.max(200, (parent ? parent.height : 900) - y - 68 - tabRow.height - 25 - 8)
+    onTabChanged: scroller.contentY = 0
     signal saveLayoutRequested(string name)
     signal loadLayoutRequested(string name)
     Component.onCompleted: {
@@ -43,6 +47,7 @@ Panel {
 
         // Eight tabs: closer together, and onto a second line if still too wide.
         Flow {
+            id: tabRow
             width: parent.width
             spacing: 8
             Tab { name: "general"; label: "General" }
@@ -56,1256 +61,1309 @@ Panel {
         }
         Rectangle { width: parent.width; height: 1; color: Theme.divider; anchors.topMargin: -12 }
 
-        // Plugins: grouped by package (global, then one per game), each
-        // plugin on or off and with its button in the bar or not.
-        Column {
-            id: pluginsPage
-            visible: settings.tab === "plugins"
+        // The pages scroll when they are taller than the room below the
+        // panel's place on the screen (Apps grew past it, MN 0.8.29).
+        Item {
             width: parent.width
-            spacing: 10
-            readonly property var all: JSON.parse(Companion.plugins)
-            property string packageId: nativeWindow.demo.indexOf("pluginsglobal") >= 0 ? "global" : "aion2"
-            readonly property var pack: Plugins.packages.filter((p) => p.id === packageId)[0]
+            height: scroller.height
+            Flickable {
+                id: scroller
+                width: parent.width
+                height: Math.min(pages.height, settings.room)
+                contentHeight: pages.height
+                clip: scrolls
+                interactive: false
+                boundsBehavior: Flickable.StopAtBounds
+                readonly property bool scrolls: pages.height > height + 1
+                Column {
+                    id: pages
+                    width: scroller.width - (scroller.scrolls ? 12 : 0)
+                    spacing: 12
 
-            Row {
-                spacing: 16
-                Repeater {
-                    model: Plugins.packages
-                    delegate: Item {
-                        required property var modelData
-                        readonly property bool chosen: pluginsPage.packageId === modelData.id
-                        readonly property bool loaded: modelData.id === "aion2" && Aion2.active
-                        width: packRow.implicitWidth
-                        height: 26
-                        Row {
-                            id: packRow
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 6
-                            Rectangle {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 7
-                                height: 7
-                                color: !modelData.game ? Theme.muted() : parent.parent.loaded ? Theme.purple : "transparent"
-                                border.color: modelData.game ? Theme.purple : Theme.muted()
+                // Plugins: grouped by package (global, then one per game), each
+                // plugin on or off and with its button in the bar or not.
+                Column {
+                    id: pluginsPage
+                    visible: settings.tab === "plugins"
+                    width: parent.width
+                    spacing: 10
+                    readonly property var all: JSON.parse(Companion.plugins)
+                    property string packageId: nativeWindow.demo.indexOf("pluginsglobal") >= 0 ? "global" : "aion2"
+                    readonly property var pack: Plugins.packages.filter((p) => p.id === packageId)[0]
+
+                    Row {
+                        spacing: 16
+                        Repeater {
+                            model: Plugins.packages
+                            delegate: Item {
+                                required property var modelData
+                                readonly property bool chosen: pluginsPage.packageId === modelData.id
+                                readonly property bool loaded: modelData.id === "aion2" && Aion2.active
+                                width: packRow.implicitWidth
+                                height: 26
+                                Row {
+                                    id: packRow
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 6
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 7
+                                        height: 7
+                                        color: !modelData.game ? Theme.muted() : parent.parent.loaded ? Theme.purple : "transparent"
+                                        border.color: modelData.game ? Theme.purple : Theme.muted()
+                                    }
+                                    Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                                        text: modelData.name.toUpperCase()
+                                        color: parent.parent.chosen ? Theme.accent : (packMouse.containsMouse ? Theme.text() : Theme.dim())
+                                        font.family: Theme.display
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                        font.letterSpacing: 1.5
+                                    }
+                                }
+                                Rectangle { visible: parent.chosen; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent }
+                                MouseArea {
+                                    id: packMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: pluginsPage.packageId = modelData.id
+                                }
+                                Accessible.role: Accessible.PageTab
+                                Accessible.name: modelData.name
                             }
+                        }
+                    }
+
+                    Hint {
+                        text: pluginsPage.pack.about
+                            + (pluginsPage.pack.id === "aion2" ? (Aion2.active ? " Running now: loaded." : " Not running: nothing loaded.") : "")
+                    }
+                    OnOff {
+                        visible: pluginsPage.pack.game
+                        width: parent.width
+                        text: "Load with the game"
+                        on: Plugins.loads(pluginsPage.all, pluginsPage.pack.id)
+                        onToggled: Companion.setPackage(pluginsPage.pack.id, !Plugins.loads(pluginsPage.all, pluginsPage.pack.id))
+                    }
+                    Hint {
+                        visible: pluginsPage.pack.plugins.length === 0
+                        text: "No plugins in this package yet."
+                    }
+
+                    Repeater {
+                        model: pluginsPage.pack.plugins
+                        delegate: Item {
+                            id: plugRow
+                            required property var modelData
+                            readonly property var p: modelData
+                            readonly property var c: Plugins.choice(pluginsPage.all, p.id)
+                            readonly property bool usable: !pluginsPage.pack.game || Plugins.loads(pluginsPage.all, pluginsPage.pack.id)
+                            width: pluginsPage.width
+                            readonly property real headHeight: Math.max(48, plugText.implicitHeight + 16)
+                            // The Map's overlay map: its settings fold out under it.
+                            readonly property bool hasOverlay: p.id === "aion2.map" && !!settings.mapSource
+                            // The Event Timers' sources and alerts fold out the same way.
+                            readonly property bool hasTimers: p.id === "aion2.timers" && !!settings.timerStore
+                            property bool expanded: (hasOverlay && nativeWindow.demo.indexOf("overlay") >= 0)
+                                || (hasTimers && nativeWindow.demo.indexOf("timers") >= 0)
+                            height: headHeight + (expanded ? overlayBox.height + 12 : 0)
+                            opacity: (p.fixed || c.on) && usable ? 1 : 0.55
+                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
+                            Rectangle {
+                                y: 8
+                                width: 30
+                                height: 30
+                                color: pluginsPage.pack.game ? Qt.rgba(155 / 255, 107 / 255, 232 / 255, 0.25) : Qt.rgba(1, 1, 1, 0.08)
+                                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                                    anchors.centerIn: parent
+                                    text: plugRow.p.short
+                                    color: pluginsPage.pack.game ? "#e6dbfa" : Theme.textSoft()
+                                    font.family: Theme.display
+                                    font.pixelSize: 13
+                                    font.weight: Font.Bold
+                                }
+                            }
+                            Column {
+                                id: plugText
+                                x: 42
+                                y: 8
+                                width: parent.width - 42 - controls.width - 10
+                                spacing: 2
+                                Row {
+                                    spacing: 8
+                                    Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                                        text: plugRow.p.name
+                                        color: Theme.text()
+                                        font.family: Theme.body
+                                        font.pixelSize: 13
+                                        font.weight: Font.DemiBold
+                                    }
+                                    Rectangle {
+                                        visible: !plugRow.p.built
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: comingText.implicitWidth + 10
+                                        height: 16
+                                        color: "transparent"
+                                        border.color: Theme.dim()
+                                        Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                                            id: comingText
+                                            anchors.centerIn: parent
+                                            text: "COMING"
+                                            color: Theme.dim()
+                                            font.family: Theme.display
+                                            font.pixelSize: 10
+                                            font.weight: Font.Bold
+                                            font.letterSpacing: 1.2
+                                        }
+                                    }
+                                }
+                                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    text: plugRow.p.about
+                                    color: Theme.muted()
+                                    font.family: Theme.body
+                                    font.pixelSize: 12
+                                }
+                            }
+                            Row {
+                                id: controls
+                                anchors.right: parent.right
+                                y: 10
+                                spacing: 8
+                                SmallToggle {
+                                    visible: plugRow.hasTimers
+                                    width: 92
+                                    text: "SETTINGS " + (plugRow.expanded ? "▴" : "▾")
+                                    on: plugRow.expanded
+                                    tip: "Where the times come from, and the alerts"
+                                    onClicked: plugRow.expanded = !plugRow.expanded
+                                }
+                                SmallToggle {
+                                    visible: plugRow.hasOverlay
+                                    width: 92
+                                    text: "OVERLAY " + (plugRow.expanded ? "▴" : "▾")
+                                    on: plugRow.expanded
+                                    tip: "The overlay map's settings"
+                                    onClicked: plugRow.expanded = !plugRow.expanded
+                                }
+                                // Where its button sits: the bar, or none.
+                                SmallToggle {
+                                    visible: !plugRow.p.fixed
+                                    enabled: plugRow.c.on
+                                    width: 78
+                                    text: plugRow.c.place === "bar" ? "IN ROW" : "HIDDEN"
+                                    on: plugRow.c.on && plugRow.c.place === "bar"
+                                    tip: "Whether its button shows in the game's row under the bar"
+                                    onClicked: Companion.setPlugin(plugRow.p.id, plugRow.c.on, plugRow.c.place === "bar" ? "hidden" : "bar")
+                                }
+                                SmallToggle {
+                                    width: 52
+                                    text: plugRow.p.fixed ? "CORE" : plugRow.c.on ? "ON" : "OFF"
+                                    on: plugRow.p.fixed || plugRow.c.on
+                                    enabled: !plugRow.p.fixed
+                                    tip: plugRow.p.fixed ? "Part of Game Companion itself" : "Switch the plugin on or off"
+                                    onClicked: Companion.setPlugin(plugRow.p.id, !plugRow.c.on, plugRow.c.place)
+                                }
+                            }
+                            Loader {
+                                id: overlayBox
+                                active: plugRow.expanded
+                                x: 42
+                                y: plugRow.headHeight
+                                width: plugRow.width - 42
+                                height: item ? item.implicitHeight : 0
+                                sourceComponent: plugRow.hasTimers ? timersComponent : overlayComponent
+                            }
+                        }
+                    }
+                    Hint { text: pluginsPage.pack.game
+                        ? "Global plugins sit in their own group and are never mixed with a game's. A plugin marked COMING is still being moved over from the AION 2 meter; your choice is kept for when it arrives."
+                        : "Radio and Streams are part of Game Companion and always there." }
+                }
+
+                // Apps: Brave and Legcord over the game (their real windows, moved
+                // by KWin: Apps).
+                Column {
+                    id: appsPage
+                    visible: settings.tab === "apps"
+                    width: parent.width
+                    spacing: 10
+                    readonly property var state: JSON.parse(Apps.state)
+                    Hint { text: "Brave and Legcord stay your own programs, with all their extensions and settings. Their button in the bar (or the shortcut) puts the real window over the game, with the focus, where you left it last time; pressing again minimises it and gives the focus back to the game. Move and resize it by its own edges while it is shown: Game Companion keeps the place. When the game ends, it goes back where and how it was." }
+                    Hint {
+                        text: appsPage.state.available
+                            ? "A game in real full screen covers every window while it has the focus: clicking into such a game minimises the app. A borderless game window does not, and the app stays over it."
+                            : "Needs KDE Plasma (KWin) on Wayland: here the buttons only start the programs."
+                        color: appsPage.state.available ? Theme.dim() : Theme.red
+                    }
+                    Repeater {
+                        model: ["brave", "legcord"]
+                        delegate: Column {
+                            id: appBox
+                            required property string modelData
+                            readonly property var info: appsPage.state.apps ? appsPage.state.apps[modelData] : ({})
+                            width: appsPage.width
+                            spacing: 8
+                            Item { width: 1; height: 6 }
+                            Label { text: appBox.info.name || appBox.modelData }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                text: "Program"
+                                color: Theme.textSoft()
+                                font.family: Theme.body
+                                font.pixelSize: 13
+                            }
+                            NameField {
+                                id: commandField
+                                width: parent.width
+                                maxLength: 300
+                                text: appBox.info.command || ""
+                                placeholder: (appBox.info.program || "").length > 0 ? "Found: " + appBox.info.program : "Not found: type the command that starts it"
+                                onAccepted: Apps.setCommand(appBox.modelData, text)
+                                onActiveFocusChanged: if (!activeFocus) Apps.setCommand(appBox.modelData, text)
+                            }
+                            Hint { text: "Empty: Game Companion looks for it itself" + ((appBox.info.program || "").length > 0 ? " (now " + appBox.info.program + ")." : ", and found nothing.")
+                                + " Enter keeps a command of your own." }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                text: "Opacity over the game"
+                                color: Theme.textSoft()
+                                font.family: Theme.body
+                                font.pixelSize: 13
+                            }
+                            Level {
+                                from: 0.2
+                                value: (appBox.info.opacity || 90) / 100
+                                onMoved: (v) => Apps.setOpacity(appBox.modelData, Math.round(v * 100))
+                            }
+                            OnOff {
+                                width: parent.width
+                                text: "Start when a game starts (not shown)"
+                                on: appBox.info.withGame === true
+                                onToggled: Apps.setWithGame(appBox.modelData, !appBox.info.withGame)
+                            }
+                            OnOff {
+                                width: parent.width
+                                text: "Close it when Game Companion quits"
+                                on: appBox.info.closeOnQuit === true
+                                onToggled: Apps.setCloseOnQuit(appBox.modelData, !appBox.info.closeOnQuit)
+                            }
+                            Hint { text: "Only if Game Companion started it. One you started yourself is never closed." }
+                            Row {
+                                spacing: 10
+                                TextButton {
+                                    visible: appBox.info.placed === true
+                                    text: "Forget its place"
+                                    onClicked: Apps.forgetPlace(appBox.modelData)
+                                }
+                                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "Shortcut " + (settings.keyOf(appBox.modelData).length > 0 ? settings.keyOf(appBox.modelData).toUpperCase() : "—") + " (Shortcuts tab)"
+                                    color: Theme.dim()
+                                    font.family: Theme.body
+                                    font.pixelSize: 12
+                                }
+                            }
+                        }
+                    }
+                    // The voice overlay: who is in the Legcord voice channel and who
+                    // talks, told by Game Companion's own Legcord plugin.
+                    Column {
+                        id: vs
+                        width: appsPage.width
+                        spacing: 8
+                        readonly property var st: { try { return JSON.parse(VoiceChat.state) } catch (e) { return ({}) } }
+                        readonly property var p: { try { return JSON.parse(VoiceChat.prefs) } catch (e) { return ({}) } }
+                        function pref(k, d) { return vs.p[k] !== undefined ? vs.p[k] : d }
+                        function set(k, v) { VoiceChat.setPref(k, JSON.stringify(v)) }
+                        property string why: ""
+                        Item { width: 1; height: 6 }
+                        Label { text: "Legcord voice overlay" }
+                        Hint { text: "Who is in your voice channel and who is talking, over the game: only each picture and name. A small Legcord plugin reads it in Legcord and tells Game Companion on this PC; nothing goes over the network for it, and nothing is changed in Discord. The pictures come from Legcord, which loads them from Discord anyway." }
+                        VoiceLine {
+                            label: "Legcord plugin"
+                            Text { style: Text.Outline; styleColor: Theme.shadow
+                                height: 24
+                                verticalAlignment: Text.AlignVCenter
+                                textFormat: Text.StyledText
+                                readonly property bool needsUpdate: vs.st.connected && (vs.st.ok === false || vs.st.plugin < vs.st.shipped)
+                                text: vs.st.connected
+                                    ? (needsUpdate ? "<font color='" + Theme.red + "'>NEEDS AN UPDATE</font>" : "<font color='" + Theme.accent + "'>CONNECTED</font>")
+                                      + "<font color='" + Theme.dim() + "'> · version " + vs.st.plugin + (vs.st.legcord ? " · Legcord " + vs.st.legcord : "")
+                                      + (vs.st.ok === true ? " · everything found" : vs.st.ok === false ? " · missing: " + (vs.st.missing || []).join(", ") : "") + "</font>"
+                                    : vs.st.installed ? "<font color='" + Theme.muted() + "'>INSTALLED</font><font color='" + Theme.dim() + "'> · not connected: switch it on in Legcord (steps below) and restart Legcord</font>"
+                                    : "<font color='" + Theme.muted() + "'>NOT INSTALLED</font>"
+                                color: Theme.text()
+                                font.family: Theme.display
+                                font.weight: Font.Bold
+                                font.letterSpacing: 1
+                                font.pixelSize: 12
+                                wrapMode: Text.Wrap
+                                width: vs.width - 150
+                            }
+                        }
+                        VoiceLine {
+                            label: ""
+                            Chip { text: vs.st.installed ? "Install again" : "Install plugin"; onClicked: vs.why = VoiceChat.install() }
+                            Chip { visible: vs.st.installed === true; text: "Remove"; onClicked: vs.why = VoiceChat.remove() }
+                        }
+                        Hint {
+                            width: parent.width
+                            text: vs.why.length > 0 ? vs.why
+                                : vs.st.connected ? "Updates of the plugin come with Game Companion's; Legcord takes them at its next start."
+                                : "Then in Legcord (1.3 or newer): Settings → Advanced → \"Show experimental plugin menu\" on; then Plugins (under Legcord, on the left) → \"Game Companion voice overlay\" on, and restart Legcord. \"Extended plugin abilities\" is not needed."
+                            color: vs.why.length > 0 ? Theme.red : Theme.dim()
+                        }
+                        VoiceLine {
+                            label: "Overlay"
+                            Chip { text: vs.pref("on", true) ? "Shown over the game" : "Off"; on: vs.pref("on", true); onClicked: vs.set("on", !vs.pref("on", true)) }
+                        }
+                        VoiceLine {
+                            label: "Show"
+                            Chip { text: "Everyone"; on: vs.pref("show", "everyone") === "everyone"; onClicked: vs.set("show", "everyone") }
+                            Chip { text: "Only who talks"; on: vs.pref("show", "everyone") === "talking"; onClicked: vs.set("show", "talking") }
+                        }
+                        VoiceLine {
+                            label: "Look"
+                            Chip { text: "Column"; on: vs.pref("look", "column") === "column"; onClicked: vs.set("look", "column") }
+                            Chip { text: "Pictures only"; on: vs.pref("look", "column") === "pictures"; onClicked: vs.set("look", "pictures") }
+                            Chip { text: "Row"; on: vs.pref("look", "column") === "row"; onClicked: vs.set("look", "row") }
+                        }
+                        VoiceLine {
+                            label: "Talking shows as"
+                            Chip { text: "Frame"; on: vs.pref("talk", "frame") === "frame"; onClicked: vs.set("talk", "frame") }
+                            Chip { text: "Glow"; on: vs.pref("talk", "frame") === "glow"; onClicked: vs.set("talk", "glow") }
+                            Chip { text: "Sound bars"; on: vs.pref("talk", "frame") === "bars"; onClicked: vs.set("talk", "bars") }
+                        }
+                        VoiceLine {
+                            label: "Quiet people"
+                            Chip { text: "Half seen"; on: vs.pref("quiet", "half") === "half"; onClicked: vs.set("quiet", "half") }
+                            Chip { text: "Full"; on: vs.pref("quiet", "half") === "full"; onClicked: vs.set("quiet", "full") }
+                        }
+                        VoiceLine {
+                            label: "Background"
+                            HudSlider {
+                                width: 150
+                                from: 0
+                                to: 100
+                                value: vs.pref("background", 0)
+                                onMoved: (v) => vs.set("background", Math.round(v))
+                            }
+                            Text { style: Text.Outline; styleColor: Theme.shadow
+                                height: 24
+                                verticalAlignment: Text.AlignVCenter
+                                text: vs.pref("background", 0) + " %" + (vs.pref("background", 0) === 0 ? " (none)" : "")
+                                color: Theme.accent
+                                font.family: Theme.body
+                                font.pixelSize: 12
+                            }
+                        }
+                        VoiceLine {
+                            label: "Stays after talking"
+                            Chip { text: "0 s"; on: vs.pref("stay", 1) === 0; onClicked: vs.set("stay", 0) }
+                            Chip { text: "1 s"; on: vs.pref("stay", 1) === 1; onClicked: vs.set("stay", 1) }
+                            Chip { text: "3 s"; on: vs.pref("stay", 1) === 3; onClicked: vs.set("stay", 3) }
+                        }
+                        VoiceLine {
+                            label: "Order"
+                            Chip { text: "Talking first"; on: vs.pref("order", "talking") === "talking"; onClicked: vs.set("order", "talking") }
+                            Chip { text: "Joined"; on: vs.pref("order", "talking") === "joined"; onClicked: vs.set("order", "joined") }
+                            Chip { text: "A–Z"; on: vs.pref("order", "talking") === "az"; onClicked: vs.set("order", "az") }
+                        }
+                        VoiceLine {
+                            label: "Yourself"
+                            Chip { text: "Show"; on: vs.pref("self", true) === true; onClicked: vs.set("self", true) }
+                            Chip { text: "Hide"; on: vs.pref("self", true) === false; onClicked: vs.set("self", false) }
+                        }
+                        VoiceLine {
+                            label: "Muted / deafened"
+                            Chip { text: "Red icon"; on: vs.pref("muted", "icon") === "icon"; onClicked: vs.set("muted", "icon") }
+                            Chip { text: "Leave out"; on: vs.pref("muted", "icon") === "hide"; onClicked: vs.set("muted", "hide") }
+                        }
+                        VoiceLine {
+                            label: "Names"
+                            Chip { text: "Show"; on: vs.pref("names", true) === true; onClicked: vs.set("names", true) }
+                            Chip { text: "Hide"; on: vs.pref("names", true) === false; onClicked: vs.set("names", false) }
+                        }
+                        VoiceLine {
+                            label: "Size"
+                            Chip { text: "S"; on: vs.pref("size", "m") === "s"; onClicked: vs.set("size", "s") }
+                            Chip { text: "M"; on: vs.pref("size", "m") === "m"; onClicked: vs.set("size", "m") }
+                            Chip { text: "L"; on: vs.pref("size", "m") === "l"; onClicked: vs.set("size", "l") }
+                        }
+                        VoiceLine {
+                            label: "When"
+                            Chip { text: "While in voice"; on: vs.pref("when", "voice") === "voice"; onClicked: vs.set("when", "voice") }
+                            Chip { text: "Only while a game runs"; on: vs.pref("when", "voice") === "game"; onClicked: vs.set("when", "game") }
+                        }
+                        Row {
+                            spacing: 10
+                            TextButton {
+                                visible: vs.pref("x", -1) >= 0
+                                text: "Forget its place"
+                                onClicked: { vs.set("x", -1); vs.set("y", -1) }
+                            }
+                            Text { style: Text.Outline; styleColor: Theme.shadow
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "Unlock the overlay to move it."
+                                color: Theme.dim()
+                                font.family: Theme.body
+                                font.pixelSize: 12
+                            }
+                        }
+                    }
+                }
+
+                // General
+                Column {
+                    visible: settings.tab === "general"
+                    width: parent.width
+                    spacing: 10
+
+                    Label { text: "Overlay" }
+                    Hint { text: nativeWindow.layerShell
+                        ? "On KDE's overlay layer: above games in fullscreen, borderless or windowed mode."
+                        : "Not on KDE's overlay layer (no Wayland, or built without it): above other windows where the desktop allows it." }
+
+                    Item { width: 1; height: 6 }
+                    Label { text: "Start" }
+                    Dropdown {
+                        id: startChoice
+                        width: parent.width
+                        z: 30
+                        label: "With the desktop"
+                        options: [
+                            { id: "off", name: "Off" },
+                            { id: "hidden", name: Companion.tray ? "Hidden (tray icon only)" : "Hidden" },
+                            { id: "visible", name: "Visible (hub shown)" }
+                        ]
+                        current: Companion.autostartMode
+                        onChosen: (id) => Companion.setAutostartTo(id)
+                    }
+                    Hint { text: Companion.autostartMode === "hidden"
+                        ? (Companion.tray
+                            ? "Starts when you log in with only the tray icon; the hub shows when a game starts or from the tray."
+                            : "Starts hidden when you log in, with no tray icon (it is off below); the hub shows when a game starts, with Alt+Y, or when you start Game Companion again from the application menu.")
+                        : Companion.autostartMode === "visible"
+                        ? "Starts when you log in with the hub shown."
+                        : "Start it yourself from the application menu. Starting it again while it runs brings the hub forward." }
+                    OnOff {
+                        width: parent.width
+                        text: "Show the hub when a game starts"
+                        on: Companion.showOnGame
+                        onToggled: Companion.setShowOnGameOn(!Companion.showOnGame)
+                    }
+                    Hint { text: "Hides again when the game ends. Each game's own start options (Games) apply on top." }
+                    OnOff {
+                        width: parent.width
+                        text: "Tray icon"
+                        on: Companion.tray
+                        onToggled: Companion.setTrayOn(!Companion.tray)
+                    }
+                    Hint { text: "A gold gamepad in the panel while Game Companion runs: a click shows or hides the hub, a right click opens its menu." }
+
+                    Item { width: 1; height: 6 }
+                    Label { text: "Games" }
+                    OnOff {
+                        width: parent.width
+                        text: "Download missing covers"
+                        on: Games.downloadCovers
+                        onToggled: Games.saveDownloadCovers(!Games.downloadCovers)
+                    }
+                    Hint { text: "From Steam, Epic and GOG image servers; only the game's id is sent. Each cover is fetched once and kept." }
+
+                    Item { width: 1; height: 6 }
+                    Label { text: "Updates" }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: "This is " + Companion.version() + "."
+                            + (Updates.latest.length > 0 ? " Latest release: " + Updates.latest + "." : "")
+                        color: Theme.textSoft()
+                        font.family: Theme.body
+                        font.pixelSize: 13
+                    }
+                    Hint {
+                        visible: Updates.message.length > 0
+                        text: Updates.message
+                        color: Updates.state === "failed" ? Theme.red
+                            : Updates.state === "available" || Updates.state === "installing" ? Theme.accent : Theme.dim()
+                    }
+                    Row {
+                        spacing: 10
+                        TextButton {
+                            text: Updates.state === "checking" ? "Checking…" : "Check for updates"
+                            onClicked: Updates.check()
+                        }
+                        TextButton {
+                            visible: Updates.state === "available"
+                            text: "Install update"
+                            onClicked: Updates.install()
+                        }
+                    }
+                    OnOff {
+                        width: parent.width
+                        text: "Beta updates (test builds)"
+                        on: Updates.beta
+                        onToggled: Updates.setChannel(!Updates.beta)
+                    }
+                    Hint { text: (Updates.runningBeta ? "This copy is a beta build. " : "")
+                        + "Beta builds bring new things first and may break; switching back off installs the latest stable release." }
+                    Hint { text: "Looks at Game Companion's own releases on GitHub when it starts and every 20 minutes. Nothing else is sent." }
+
+                    Item { width: 1; height: 6 }
+                    Label { text: "Turn off" }
+                    Hint { text: "Closes the hub completely, with the radio. Start it again from the application menu." }
+                    TextButton {
+                        text: "Turn off Game Companion"
+                        danger: true
+                        onClicked: Qt.quit()
+                    }
+                }
+
+                // Display
+                Column {
+                    visible: settings.tab === "display"
+                    width: parent.width
+                    spacing: 10
+
+                    Label { text: "Screen" }
+                    Dropdown {
+                        id: screenChoice
+                        width: parent.width
+                        z: 30
+                        label: "Show on"
+                        property string picked: Companion.chosenScreen()
+                        options: [{ id: "", name: "KDE's primary screen" }].concat(JSON.parse(nativeWindow.screenList))
+                        current: picked
+                        onChosen: (id) => {
+                            picked = id
+                            Companion.saveScreen(id)
+                            nativeWindow.setPreferredScreen(id)
+                        }
+                    }
+                    Hint { text: "Where the bar and the panels show. Now on " + nativeWindow.screenName + "." }
+
+                    Item { width: 1; height: 6 }
+                    Label { text: "Scrolling" }
+                    Dropdown {
+                        width: parent.width
+                        z: 29
+                        label: "Scroll speed"
+                        options: [50, 100, 150, 200, 300, 400, 500].map((p) => ({ id: String(p), name: p + " %" }))
+                        current: String(Companion.wheelSpeed)
+                        onChosen: (id) => Companion.saveWheelSpeed(parseInt(id))
+                    }
+                    Hint { text: "How far one notch of the mouse wheel moves a list." }
+
+                    Item { width: 1; height: 6 }
+                    Label { text: "Panel opacity" }
+                    Level {
+                        from: 0.05
+                        value: Companion.alpha
+                        onChanging: (v) => Companion.alpha = v
+                        onMoved: (v) => Companion.saveAlpha(v)
+                    }
+                    Presets {
+                        kind: "alpha"
+                        values: JSON.parse(Companion.alphaPresets)
+                        current: Companion.alpha
+                        onPicked: (v) => Companion.saveAlpha(v)
+                    }
+                    Hint { text: "How much of the game shows through the bar and the panels. Under half, text gets a dark outline to stay readable." }
+
+                    Item { width: 1; height: 6 }
+                    Label { text: "Bar text brightness" }
+                    Level {
+                        from: 0.4
+                        value: Companion.textLevel
+                        onChanging: (v) => Companion.textLevel = v
+                        onMoved: (v) => Companion.saveTextLevel(v)
+                    }
+                    Presets {
+                        kind: "text"
+                        values: JSON.parse(Companion.textPresets)
+                        current: Companion.textLevel
+                        onPicked: (v) => Companion.saveTextLevel(v)
+                    }
+                    Hint { text: "Darkens the white and grey text of the bar and the player row. Panels stay as they are." }
+
+                    Item { width: 1; height: 6 }
+                    Label { text: "Bar accent brightness" }
+                    Level {
+                        from: 0.4
+                        value: Companion.accentLevel
+                        onChanging: (v) => Companion.accentLevel = v
+                        onMoved: (v) => Companion.saveAccentLevel(v)
+                    }
+                    Presets {
+                        kind: "accent"
+                        values: JSON.parse(Companion.accentPresets)
+                        current: Companion.accentLevel
+                        onPicked: (v) => Companion.saveAccentLevel(v)
+                    }
+                    Hint { text: "Darkens the gold of the bar and the player row." }
+
+                    Item { width: 1; height: 6 }
+                    Label { text: "Bar size" }
+                    Level {
+                        from: 0.6
+                        value: Companion.barScale
+                        onChanging: (v) => Companion.barScale = v
+                        onMoved: (v) => Companion.saveBarScale(v)
+                    }
+                    Hint { text: "Shrinks the bar and the player row under it. Unlocked, drag the bar by its name or its slanted ends to move it sideways." }
+                    TextButton {
+                        text: "Center bar"
+                        onClicked: Companion.saveBarOffset(0)
+                    }
+
+                    Hint { text: "P1 to P3: a click uses the value, holding or a right click keeps the current one there." }
+                }
+
+                // Layouts
+                Column {
+                    visible: settings.tab === "layouts"
+                    width: parent.width
+                    spacing: 10
+
+                    Label { text: "Save this arrangement" }
+                    Row {
+                        width: parent.width
+                        spacing: 10
+                        NameField {
+                            id: newName
+                            width: parent.width - saveButton.width - 10
+                            placeholder: "Name, e.g. Raid or Farming"
+                            onAccepted: saveButton.clicked()
+                        }
+                        TextButton {
+                            id: saveButton
+                            text: "Save"
+                            onClicked: {
+                                const name = newName.text.trim()
+                                if (name.length === 0) { settings.layoutMessage = "Give it a name first."; return }
+                                const replaced = settings.layouts.indexOf(name) >= 0
+                                settings.saveLayoutRequested(name)
+                                settings.layoutMessage = (replaced ? "Replaced " : "Saved ") + "\u201c" + name + "\u201d."
+                                newName.text = ""
+                            }
+                        }
+                    }
+                    Hint { text: "Keeps which panels are open, where they are, their size, what is pinned and the opacity. A name that exists is replaced." }
+                    Hint {
+                        visible: settings.layoutMessage.length > 0
+                        text: settings.layoutMessage
+                        color: Theme.accent
+                    }
+
+                    Item { width: 1; height: 4 }
+                    Label { text: "Saved layouts" }
+                    Hint {
+                        visible: settings.layouts.length === 0
+                        text: "None yet."
+                    }
+                    Repeater {
+                        model: settings.layouts
+                        delegate: Item {
+                            id: layoutRow
+                            required property string modelData
+                            readonly property bool editing: settings.renaming === modelData
+                            width: parent.width
+                            height: 46
+                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                visible: !layoutRow.editing
+                                anchors.left: parent.left
+                                anchors.right: rowButtons.left
+                                anchors.rightMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                elide: Text.ElideRight
+                                text: layoutRow.modelData
+                                color: Theme.text()
+                                font.family: Theme.body
+                                font.pixelSize: 13
+                            }
+                            NameField {
+                                id: renameField
+                                visible: layoutRow.editing
+                                anchors.left: parent.left
+                                anchors.right: rowButtons.left
+                                anchors.rightMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                onVisibleChanged: if (visible) { text = layoutRow.modelData; forceActiveFocus() }
+                                onAccepted: renameOk.clicked()
+                            }
+                            Row {
+                                id: rowButtons
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 6
+                                TextButton {
+                                    visible: !layoutRow.editing
+                                    text: "Load"
+                                    onClicked: {
+                                        settings.loadLayoutRequested(layoutRow.modelData)
+                                        settings.layoutMessage = "Loaded \u201c" + layoutRow.modelData + "\u201d."
+                                    }
+                                }
+                                TextButton {
+                                    visible: !layoutRow.editing
+                                    text: "Rename"
+                                    onClicked: settings.renaming = layoutRow.modelData
+                                }
+                                TextButton {
+                                    id: renameOk
+                                    visible: layoutRow.editing
+                                    text: "OK"
+                                    onClicked: {
+                                        const name = renameField.text.trim()
+                                        if (name === layoutRow.modelData) { settings.renaming = ""; return }
+                                        if (Companion.renameLayout(layoutRow.modelData, name)) settings.renaming = ""
+                                        else settings.layoutMessage = name.length === 0 ? "A layout needs a name." : "\u201c" + name + "\u201d exists already."
+                                    }
+                                }
+                                TextButton {
+                                    visible: layoutRow.editing
+                                    text: "Cancel"
+                                    onClicked: settings.renaming = ""
+                                }
+                                IconButton {
+                                    visible: !layoutRow.editing
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    icon: "close"
+                                    tip: "Delete " + layoutRow.modelData
+                                    color: Theme.dim()
+                                    hoverColor: Theme.red
+                                    onClicked: {
+                                        Companion.deleteLayout(layoutRow.modelData)
+                                        settings.layoutMessage = "Deleted \u201c" + layoutRow.modelData + "\u201d."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Hint { text: "Later, each game can bring its own layout, loaded when it starts." }
+                }
+
+                // Streams
+                Column {
+                    visible: settings.tab === "streams"
+                    width: parent.width
+                    spacing: 10
+                    readonly property var account: JSON.parse(Streams.account)
+                    readonly property var game: JSON.parse(Streams.game)
+                    onVisibleChanged: if (visible) Streams.refreshAccount()
+                    property string part: nativeWindow.demo.indexOf("sponsor") >= 0 ? "sponsorblock"
+                        : nativeWindow.demo.indexOf("jellyfin") >= 0 ? "jellyfin"
+                        : nativeWindow.demo.indexOf("hwdec") >= 0 ? "videos"
+                        : nativeWindow.demo.indexOf("ytsettings") >= 0 ? "youtube" : "twitch"
+
+                    Row {
+                        spacing: 16
+                        Repeater {
+                            model: [["twitch", "Twitch"], ["youtube", "YouTube"], ["sponsorblock", "SponsorBlock"], ["jellyfin", "Jellyfin"], ["videos", "Videos"]]
+                            delegate: Item {
+                                required property var modelData
+                                readonly property bool chosen: parent.parent.part === modelData[0]
+                                width: partText.implicitWidth
+                                height: 26
+                                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                    id: partText
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData[1].toUpperCase()
+                                    color: parent.chosen ? Theme.accent : (partMouse.containsMouse ? Theme.text() : Theme.dim())
+                                    font.family: Theme.display
+                                    font.pixelSize: 12
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.5
+                                }
+                                Rectangle { visible: parent.chosen; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent }
+                                MouseArea {
+                                    id: partMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: parent.parent.parent.part = modelData[0]
+                                }
+                                Accessible.role: Accessible.PageTab
+                                Accessible.name: modelData[1]
+                            }
+                        }
+                    }
+
+                    Column {
+                    visible: parent.part === "twitch"
+                    width: parent.width
+                    spacing: 10
+                    readonly property var account: parent.account
+                    readonly property var game: parent.game
+                    Label { text: "Twitch token" }
+                    Row {
+                        width: parent.width
+                        spacing: 8
+                        visible: !parent.account.user || parent.account.user === "?"
+                        NameField {
+                            id: tokenField
+                            width: parent.width - showToken.width - signIn.width - 16
+                            placeholder: "twitch.tv's auth-token"
+                            secret: !showToken.shown
+                            maxLength: 80
+                            onAccepted: signIn.clicked()
+                        }
+                        TextButton {
+                            id: showToken
+                            property bool shown: false
+                            text: shown ? "Hide" : "Show"
+                            onClicked: shown = !shown
+                        }
+                        TextButton {
+                            id: signIn
+                            text: "Sign in"
+                            onClicked: { Streams.signIn(tokenField.text); tokenField.text = "" }
+                        }
+                    }
+                    Row {
+                        visible: !!parent.account.user && parent.account.user !== "?"
+                        spacing: 12
+                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: parent.parent.account.user === "…" ? "Checking with Twitch…" : "Signed in as " + parent.parent.account.user
+                            color: Theme.accent
+                            font.family: Theme.body
+                            font.pixelSize: 13
+                        }
+                        TextButton { text: "Sign out"; danger: true; onClicked: Streams.signOut() }
+                    }
+                    Hint {
+                        visible: !!parent.account.error
+                        text: parent.account.error || ""
+                        color: Theme.red
+                    }
+                    Hint { text: "For the Following tab, and Twitch without ads with Turbo or a subscription. Sent only to Twitch; kept in its own file on this PC. Find it in your browser on twitch.tv: developer tools → Storage → Cookies → auth-token." }
+                    Hint {
+                        text: parent.account.streamlink ? "Streamlink is installed: Twitch plays without the ad breaks."
+                            : "Streamlink is not installed: Twitch plays through yt-dlp, with its ad breaks (sudo pacman -S streamlink)."
+                        color: parent.account.streamlink ? Theme.dim() : Theme.textSoft()
+                    }
+
+                    Item { width: 1; height: 4 }
+                    Label { text: "Live notes" }
+                    OnOff {
+                        width: parent.width
+                        text: "Tell me when followed or favorite channels go live"
+                        on: Streams.alerts
+                        onToggled: Streams.switchAlerts(!Streams.alerts)
+                    }
+                    Hint { text: "Asks Twitch every two minutes while on. A red count shows on the Streams panel's Following tab and the channels show at the top of the list; no pop-up, no sound. Leave one channel out with ⋯ beside it." }
+
+                    Item { width: 1; height: 4 }
+                    Label { text: "Chat" }
+                    OnOff {
+                        width: parent.width
+                        text: "Write in chat with this sign-in"
+                        on: Streams.chatWrite
+                        onToggled: Streams.saveChatWrite(!Streams.chatWrite)
+                    }
+                    Hint { text: "Show the chat with the speech bubble on the Twitch video. Off, or not signed in, the chat is read only. Emotes come from Twitch, 7TV and BTTV." }
+
+                    Item { width: 1; height: 4 }
+                    Label { text: "Preset search for the game" }
+                    Hint { text: "Now: " + parent.game.name + " · Twitch category \u201c" + parent.game.twitch + "\u201d · YouTube \u201c" + parent.game.youtube + "\u201d. Change it with CHANGE in the Streams panel; with game detection, each game brings its own." }
+                    }
+
+                    Column {
+                    visible: parent.part === "youtube"
+                    width: parent.width
+                    spacing: 10
+                    readonly property var filters: JSON.parse(Streams.filters)
+                    readonly property var words: JSON.parse(Streams.trendWords)
+                    Label { text: "FreeTube" }
+                    Row {
+                        spacing: 10
+                        TextButton {
+                            text: Streams.freetubeLive ? "Take over from FreeTube" : "Take over again"
+                            onClicked: takeNote.text = Streams.takeFreetube()
+                        }
+                    }
+                    Connections {
+                        target: Streams
+                        function onFreetubeTaken(note) { takeNote.text = note; Library.refresh() }
+                    }
+                    Hint {
+                        id: takeNote
+                        text: Streams.freetubeLive
+                            ? "Now FreeTube's subscriptions are read from its file as they are. Taking over copies its subscriptions (with its profiles as groups), playlists, bookmark list and history into Game Companion once; then FreeTube is no longer needed. FreeTube's files are only read."
+                            : "Your subscriptions, playlists and history live here now. Taking over again adds what is new in FreeTube (nothing is doubled)."
+                    }
+
+                    Item { width: 1; height: 4 }
+                    Label { text: "In the lists" }
+                    OnOff { width: parent.width; text: "Leave Shorts out"; on: parent.filters.shorts; onToggled: Streams.setHideShorts(!parent.filters.shorts) }
+                    OnOff { width: parent.width; text: "Leave watched videos out"; on: parent.filters.watched; onToggled: Streams.setHideWatched(!parent.filters.watched) }
+                    OnOff { width: parent.width; text: "Leave Indian content out"; on: parent.filters.indian !== false; onToggled: Streams.setHideIndian(parent.filters.indian === false) }
+                    Hint { text: "Videos whose title or channel is written in an Indian script (Hindi, Bengali, Tamil, Telugu and others)." }
+                    Row {
+                        width: parent.width
+                        spacing: 8
+                        NameField {
+                            id: wordsField
+                            width: parent.width - wordsSave.width - 8
+                            wrap: true
+                            placeholder: "Words whose videos never show, with commas"
+                            maxLength: 400
+                            text: parent.parent.filters.words.join(", ")
+                            onAccepted: wordsSave.clicked()
+                        }
+                        TextButton { id: wordsSave; text: "Save"; onClicked: Streams.setHiddenWords(wordsField.text) }
+                    }
+                    Flow {
+                        visible: parent.filters.channels.length > 0
+                        width: parent.width
+                        spacing: 6
+                        Repeater {
+                            model: parent.parent.filters.channels
+                            delegate: Chip {
+                                required property var modelData
+                                text: modelData.name + "  ×"
+                                onClicked: Streams.toggleHiddenChannel(modelData.id, modelData.name)
+                            }
+                        }
+                    }
+                    Hint { text: parent.filters.channels.length > 0 ? "Hidden channels: a click shows one again. Hide one with ⋯ beside its video." : "Hide a channel with ⋯ beside one of its videos." }
+
+                    Item { width: 1; height: 4 }
+                    Label { text: "Video languages" }
+                    Flow {
+                        width: parent.width
+                        spacing: 6
+                        readonly property var chosen: JSON.parse(Streams.videoLanguages)
+                        Repeater {
+                            model: [["de", "German"], ["tr", "Turkish"], ["en", "English"], ["fr", "French"], ["it", "Italian"], ["es", "Spanish"], ["nl", "Dutch"], ["pl", "Polish"]]
+                            delegate: Chip {
+                                required property var modelData
+                                text: modelData[1]
+                                on: parent.chosen.indexOf(modelData[0]) >= 0
+                                onClicked: Streams.toggleVideoLanguage(modelData[0])
+                            }
+                        }
+                    }
+                    Hint { text: "Searches and Trending ask YouTube in these languages, so videos from those countries come first; Gaming, Europe and the national teams also search with each language's word (\u201cgaming deutsch\u201d). None chosen: as YouTube gives it. Takes effect on the next load." }
+
+                    Item { width: 1; height: 4 }
+                    Label { text: "Trending: search words" }
+                    Repeater {
+                        model: [["gaming", "Gaming"], ["europe", "Europe"], ["national", "National teams"], ["tr", "Süper Lig"], ["de", "Bundesliga"],
+                                ["en", "Premier League"], ["fr", "Ligue 1"], ["it", "Serie A"], ["es", "LaLiga"]]
+                        delegate: Row {
+                            required property var modelData
+                            width: parent.width
+                            spacing: 8
                             Text { style: Theme.textStyle(); styleColor: Theme.shadow
-                                text: modelData.name.toUpperCase()
-                                color: parent.parent.chosen ? Theme.accent : (packMouse.containsMouse ? Theme.text() : Theme.dim())
+                                y: 9
+                                width: 110
+                                wrapMode: Text.WordWrap
+                                text: modelData[1]
+                                color: Theme.textSoft(); font.family: Theme.body; font.pixelSize: 12 }
+                            NameField {
+                                id: trendField
+                                width: parent.width - 118
+                                wrap: true
+                                maxLength: 400
+                                placeholder: "Search words, with commas (empty: as it came)"
+                                text: (JSON.parse(Streams.trendWords)[modelData[0]] || []).join(", ")
+                                onAccepted: Streams.changeTrendWords(modelData[0], text)
+                            }
+                        }
+                    }
+                    Hint { text: "Each part asks YouTube's search (through yt-dlp) for this week's videos with these words and mixes the answers; Gaming takes this week's most watched. Enter saves a line." }
+                    }
+
+                    Column {
+                    visible: parent.part === "sponsorblock"
+                    width: parent.width
+                    spacing: 10
+                    Item {
+                        id: sbHead
+                        width: parent.width
+                        height: 26
+                        readonly property var sb: JSON.parse(Streams.sponsorblock)
+                        property string message: ""
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 10
+                            Label { text: "SponsorBlock" }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                text: sbHead.sb.enabled ? "ON" : "OFF"
+                                color: sbHead.sb.enabled ? Theme.accent : Theme.dim()
                                 font.family: Theme.display
                                 font.pixelSize: 12
                                 font.weight: Font.Bold
                                 font.letterSpacing: 1.5
                             }
                         }
-                        Rectangle { visible: parent.chosen; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent }
-                        MouseArea {
-                            id: packMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: pluginsPage.packageId = modelData.id
-                        }
-                        Accessible.role: Accessible.PageTab
-                        Accessible.name: modelData.name
-                    }
-                }
-            }
-
-            Hint {
-                text: pluginsPage.pack.about
-                    + (pluginsPage.pack.id === "aion2" ? (Aion2.active ? " Running now: loaded." : " Not running: nothing loaded.") : "")
-            }
-            OnOff {
-                visible: pluginsPage.pack.game
-                width: parent.width
-                text: "Load with the game"
-                on: Plugins.loads(pluginsPage.all, pluginsPage.pack.id)
-                onToggled: Companion.setPackage(pluginsPage.pack.id, !Plugins.loads(pluginsPage.all, pluginsPage.pack.id))
-            }
-            Hint {
-                visible: pluginsPage.pack.plugins.length === 0
-                text: "No plugins in this package yet."
-            }
-
-            Repeater {
-                model: pluginsPage.pack.plugins
-                delegate: Item {
-                    id: plugRow
-                    required property var modelData
-                    readonly property var p: modelData
-                    readonly property var c: Plugins.choice(pluginsPage.all, p.id)
-                    readonly property bool usable: !pluginsPage.pack.game || Plugins.loads(pluginsPage.all, pluginsPage.pack.id)
-                    width: pluginsPage.width
-                    readonly property real headHeight: Math.max(48, plugText.implicitHeight + 16)
-                    // The Map's overlay map: its settings fold out under it.
-                    readonly property bool hasOverlay: p.id === "aion2.map" && !!settings.mapSource
-                    // The Event Timers' sources and alerts fold out the same way.
-                    readonly property bool hasTimers: p.id === "aion2.timers" && !!settings.timerStore
-                    property bool expanded: (hasOverlay && nativeWindow.demo.indexOf("overlay") >= 0)
-                        || (hasTimers && nativeWindow.demo.indexOf("timers") >= 0)
-                    height: headHeight + (expanded ? overlayBox.height + 12 : 0)
-                    opacity: (p.fixed || c.on) && usable ? 1 : 0.55
-                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
-                    Rectangle {
-                        y: 8
-                        width: 30
-                        height: 30
-                        color: pluginsPage.pack.game ? Qt.rgba(155 / 255, 107 / 255, 232 / 255, 0.25) : Qt.rgba(1, 1, 1, 0.08)
-                        Text { style: Theme.textStyle(); styleColor: Theme.shadow
-                            anchors.centerIn: parent
-                            text: plugRow.p.short
-                            color: pluginsPage.pack.game ? "#e6dbfa" : Theme.textSoft()
-                            font.family: Theme.display
-                            font.pixelSize: 13
-                            font.weight: Font.Bold
-                        }
-                    }
-                    Column {
-                        id: plugText
-                        x: 42
-                        y: 8
-                        width: parent.width - 42 - controls.width - 10
-                        spacing: 2
-                        Row {
-                            spacing: 8
-                            Text { style: Theme.textStyle(); styleColor: Theme.shadow
-                                text: plugRow.p.name
-                                color: Theme.text()
-                                font.family: Theme.body
-                                font.pixelSize: 13
-                                font.weight: Font.DemiBold
-                            }
-                            Rectangle {
-                                visible: !plugRow.p.built
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: comingText.implicitWidth + 10
-                                height: 16
-                                color: "transparent"
-                                border.color: Theme.dim()
-                                Text { style: Theme.textStyle(); styleColor: Theme.shadow
-                                    id: comingText
-                                    anchors.centerIn: parent
-                                    text: "COMING"
-                                    color: Theme.dim()
-                                    font.family: Theme.display
-                                    font.pixelSize: 10
-                                    font.weight: Font.Bold
-                                    font.letterSpacing: 1.2
-                                }
-                            }
-                        }
-                        Text { style: Theme.textStyle(); styleColor: Theme.shadow
-                            width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: plugRow.p.about
-                            color: Theme.muted()
-                            font.family: Theme.body
-                            font.pixelSize: 12
-                        }
-                    }
-                    Row {
-                        id: controls
-                        anchors.right: parent.right
-                        y: 10
-                        spacing: 8
-                        SmallToggle {
-                            visible: plugRow.hasTimers
-                            width: 92
-                            text: "SETTINGS " + (plugRow.expanded ? "▴" : "▾")
-                            on: plugRow.expanded
-                            tip: "Where the times come from, and the alerts"
-                            onClicked: plugRow.expanded = !plugRow.expanded
-                        }
-                        SmallToggle {
-                            visible: plugRow.hasOverlay
-                            width: 92
-                            text: "OVERLAY " + (plugRow.expanded ? "▴" : "▾")
-                            on: plugRow.expanded
-                            tip: "The overlay map's settings"
-                            onClicked: plugRow.expanded = !plugRow.expanded
-                        }
-                        // Where its button sits: the bar, or none.
-                        SmallToggle {
-                            visible: !plugRow.p.fixed
-                            enabled: plugRow.c.on
-                            width: 78
-                            text: plugRow.c.place === "bar" ? "IN ROW" : "HIDDEN"
-                            on: plugRow.c.on && plugRow.c.place === "bar"
-                            tip: "Whether its button shows in the game's row under the bar"
-                            onClicked: Companion.setPlugin(plugRow.p.id, plugRow.c.on, plugRow.c.place === "bar" ? "hidden" : "bar")
-                        }
-                        SmallToggle {
-                            width: 52
-                            text: plugRow.p.fixed ? "CORE" : plugRow.c.on ? "ON" : "OFF"
-                            on: plugRow.p.fixed || plugRow.c.on
-                            enabled: !plugRow.p.fixed
-                            tip: plugRow.p.fixed ? "Part of Game Companion itself" : "Switch the plugin on or off"
-                            onClicked: Companion.setPlugin(plugRow.p.id, !plugRow.c.on, plugRow.c.place)
-                        }
-                    }
-                    Loader {
-                        id: overlayBox
-                        active: plugRow.expanded
-                        x: 42
-                        y: plugRow.headHeight
-                        width: plugRow.width - 42
-                        height: item ? item.implicitHeight : 0
-                        sourceComponent: plugRow.hasTimers ? timersComponent : overlayComponent
-                    }
-                }
-            }
-            Hint { text: pluginsPage.pack.game
-                ? "Global plugins sit in their own group and are never mixed with a game's. A plugin marked COMING is still being moved over from the AION 2 meter; your choice is kept for when it arrives."
-                : "Radio and Streams are part of Game Companion and always there." }
-        }
-
-        // Apps: Brave and Legcord over the game (their real windows, moved
-        // by KWin: Apps).
-        Column {
-            id: appsPage
-            visible: settings.tab === "apps"
-            width: parent.width
-            spacing: 10
-            readonly property var state: JSON.parse(Apps.state)
-            Hint { text: "Brave and Legcord stay your own programs, with all their extensions and settings. Their button in the bar (or the shortcut) puts the real window over the game, with the focus, where you left it last time; pressing again minimises it and gives the focus back to the game. Move and resize it by its own edges while it is shown: Game Companion keeps the place. When the game ends, it goes back where and how it was." }
-            Hint {
-                text: appsPage.state.available
-                    ? "A game in real full screen covers every window while it has the focus: clicking into such a game minimises the app. A borderless game window does not, and the app stays over it."
-                    : "Needs KDE Plasma (KWin) on Wayland: here the buttons only start the programs."
-                color: appsPage.state.available ? Theme.dim() : Theme.red
-            }
-            Repeater {
-                model: ["brave", "legcord"]
-                delegate: Column {
-                    id: appBox
-                    required property string modelData
-                    readonly property var info: appsPage.state.apps ? appsPage.state.apps[modelData] : ({})
-                    width: appsPage.width
-                    spacing: 8
-                    Item { width: 1; height: 6 }
-                    Label { text: appBox.info.name || appBox.modelData }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        text: "Program"
-                        color: Theme.textSoft()
-                        font.family: Theme.body
-                        font.pixelSize: 13
-                    }
-                    NameField {
-                        id: commandField
-                        width: parent.width
-                        maxLength: 300
-                        text: appBox.info.command || ""
-                        placeholder: (appBox.info.program || "").length > 0 ? "Found: " + appBox.info.program : "Not found: type the command that starts it"
-                        onAccepted: Apps.setCommand(appBox.modelData, text)
-                        onActiveFocusChanged: if (!activeFocus) Apps.setCommand(appBox.modelData, text)
-                    }
-                    Hint { text: "Empty: Game Companion looks for it itself" + ((appBox.info.program || "").length > 0 ? " (now " + appBox.info.program + ")." : ", and found nothing.")
-                        + " Enter keeps a command of your own." }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        text: "Opacity over the game"
-                        color: Theme.textSoft()
-                        font.family: Theme.body
-                        font.pixelSize: 13
-                    }
-                    Level {
-                        from: 0.2
-                        value: (appBox.info.opacity || 90) / 100
-                        onMoved: (v) => Apps.setOpacity(appBox.modelData, Math.round(v * 100))
-                    }
-                    OnOff {
-                        width: parent.width
-                        text: "Start when a game starts (not shown)"
-                        on: appBox.info.withGame === true
-                        onToggled: Apps.setWithGame(appBox.modelData, !appBox.info.withGame)
-                    }
-                    OnOff {
-                        width: parent.width
-                        text: "Close it when Game Companion quits"
-                        on: appBox.info.closeOnQuit === true
-                        onToggled: Apps.setCloseOnQuit(appBox.modelData, !appBox.info.closeOnQuit)
-                    }
-                    Hint { text: "Only if Game Companion started it. One you started yourself is never closed." }
-                    Row {
-                        spacing: 10
-                        TextButton {
-                            visible: appBox.info.placed === true
-                            text: "Forget its place"
-                            onClicked: Apps.forgetPlace(appBox.modelData)
-                        }
-                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "Shortcut " + (settings.keyOf(appBox.modelData).length > 0 ? settings.keyOf(appBox.modelData).toUpperCase() : "—") + " (Shortcuts tab)"
-                            color: Theme.dim()
-                            font.family: Theme.body
-                            font.pixelSize: 12
-                        }
-                    }
-                }
-            }
-            // The voice overlay: who is in the Legcord voice channel and who
-            // talks, told by Game Companion's own Legcord plugin.
-            Column {
-                id: vs
-                width: appsPage.width
-                spacing: 8
-                readonly property var st: { try { return JSON.parse(VoiceChat.state) } catch (e) { return ({}) } }
-                readonly property var p: { try { return JSON.parse(VoiceChat.prefs) } catch (e) { return ({}) } }
-                function pref(k, d) { return vs.p[k] !== undefined ? vs.p[k] : d }
-                function set(k, v) { VoiceChat.setPref(k, JSON.stringify(v)) }
-                property string why: ""
-                Item { width: 1; height: 6 }
-                Label { text: "Legcord voice overlay" }
-                Hint { text: "Who is in your voice channel and who is talking, over the game: only each picture and name. A small Legcord plugin reads it in Legcord and tells Game Companion on this PC; nothing goes over the network for it, and nothing is changed in Discord. The pictures come from Legcord, which loads them from Discord anyway." }
-                VoiceLine {
-                    label: "Legcord plugin"
-                    Text { style: Text.Outline; styleColor: Theme.shadow
-                        height: 24
-                        verticalAlignment: Text.AlignVCenter
-                        textFormat: Text.StyledText
-                        readonly property bool needsUpdate: vs.st.connected && (vs.st.ok === false || vs.st.plugin < vs.st.shipped)
-                        text: vs.st.connected
-                            ? (needsUpdate ? "<font color='" + Theme.red + "'>NEEDS AN UPDATE</font>" : "<font color='" + Theme.accent + "'>CONNECTED</font>")
-                              + "<font color='" + Theme.dim() + "'> · version " + vs.st.plugin + (vs.st.legcord ? " · Legcord " + vs.st.legcord : "")
-                              + (vs.st.ok === true ? " · everything found" : vs.st.ok === false ? " · missing: " + (vs.st.missing || []).join(", ") : "") + "</font>"
-                            : vs.st.installed ? "<font color='" + Theme.muted() + "'>INSTALLED</font><font color='" + Theme.dim() + "'> · not connected: switch it on in Legcord and restart Legcord</font>"
-                            : "<font color='" + Theme.muted() + "'>NOT INSTALLED</font>"
-                        color: Theme.text()
-                        font.family: Theme.display
-                        font.weight: Font.Bold
-                        font.letterSpacing: 1
-                        font.pixelSize: 12
-                        wrapMode: Text.Wrap
-                        width: vs.width - 150
-                    }
-                }
-                VoiceLine {
-                    label: ""
-                    Chip { text: vs.st.installed ? "Install again" : "Install plugin"; onClicked: vs.why = VoiceChat.install() }
-                    Chip { visible: vs.st.installed === true; text: "Remove"; onClicked: vs.why = VoiceChat.remove() }
-                }
-                Hint {
-                    width: parent.width
-                    text: vs.why.length > 0 ? vs.why
-                        : vs.st.connected ? "Updates of the plugin come with Game Companion's; Legcord takes them at its next start."
-                        : "Then in Legcord: Settings → Plugins → \"Game Companion voice overlay\" on, and restart Legcord. Needs Legcord 1.3 or newer."
-                    color: vs.why.length > 0 ? Theme.red : Theme.dim()
-                }
-                VoiceLine {
-                    label: "Overlay"
-                    Chip { text: vs.pref("on", true) ? "Shown over the game" : "Off"; on: vs.pref("on", true); onClicked: vs.set("on", !vs.pref("on", true)) }
-                }
-                VoiceLine {
-                    label: "Show"
-                    Chip { text: "Everyone"; on: vs.pref("show", "everyone") === "everyone"; onClicked: vs.set("show", "everyone") }
-                    Chip { text: "Only who talks"; on: vs.pref("show", "everyone") === "talking"; onClicked: vs.set("show", "talking") }
-                }
-                VoiceLine {
-                    label: "Look"
-                    Chip { text: "Column"; on: vs.pref("look", "column") === "column"; onClicked: vs.set("look", "column") }
-                    Chip { text: "Pictures only"; on: vs.pref("look", "column") === "pictures"; onClicked: vs.set("look", "pictures") }
-                    Chip { text: "Row"; on: vs.pref("look", "column") === "row"; onClicked: vs.set("look", "row") }
-                }
-                VoiceLine {
-                    label: "Talking shows as"
-                    Chip { text: "Frame"; on: vs.pref("talk", "frame") === "frame"; onClicked: vs.set("talk", "frame") }
-                    Chip { text: "Glow"; on: vs.pref("talk", "frame") === "glow"; onClicked: vs.set("talk", "glow") }
-                    Chip { text: "Sound bars"; on: vs.pref("talk", "frame") === "bars"; onClicked: vs.set("talk", "bars") }
-                }
-                VoiceLine {
-                    label: "Quiet people"
-                    Chip { text: "Half seen"; on: vs.pref("quiet", "half") === "half"; onClicked: vs.set("quiet", "half") }
-                    Chip { text: "Full"; on: vs.pref("quiet", "half") === "full"; onClicked: vs.set("quiet", "full") }
-                }
-                VoiceLine {
-                    label: "Background"
-                    HudSlider {
-                        width: 150
-                        from: 0
-                        to: 100
-                        value: vs.pref("background", 0)
-                        onMoved: (v) => vs.set("background", Math.round(v))
-                    }
-                    Text { style: Text.Outline; styleColor: Theme.shadow
-                        height: 24
-                        verticalAlignment: Text.AlignVCenter
-                        text: vs.pref("background", 0) + " %" + (vs.pref("background", 0) === 0 ? " (none)" : "")
-                        color: Theme.accent
-                        font.family: Theme.body
-                        font.pixelSize: 12
-                    }
-                }
-                VoiceLine {
-                    label: "Stays after talking"
-                    Chip { text: "0 s"; on: vs.pref("stay", 1) === 0; onClicked: vs.set("stay", 0) }
-                    Chip { text: "1 s"; on: vs.pref("stay", 1) === 1; onClicked: vs.set("stay", 1) }
-                    Chip { text: "3 s"; on: vs.pref("stay", 1) === 3; onClicked: vs.set("stay", 3) }
-                }
-                VoiceLine {
-                    label: "Order"
-                    Chip { text: "Talking first"; on: vs.pref("order", "talking") === "talking"; onClicked: vs.set("order", "talking") }
-                    Chip { text: "Joined"; on: vs.pref("order", "talking") === "joined"; onClicked: vs.set("order", "joined") }
-                    Chip { text: "A–Z"; on: vs.pref("order", "talking") === "az"; onClicked: vs.set("order", "az") }
-                }
-                VoiceLine {
-                    label: "Yourself"
-                    Chip { text: "Show"; on: vs.pref("self", true) === true; onClicked: vs.set("self", true) }
-                    Chip { text: "Hide"; on: vs.pref("self", true) === false; onClicked: vs.set("self", false) }
-                }
-                VoiceLine {
-                    label: "Muted / deafened"
-                    Chip { text: "Red icon"; on: vs.pref("muted", "icon") === "icon"; onClicked: vs.set("muted", "icon") }
-                    Chip { text: "Leave out"; on: vs.pref("muted", "icon") === "hide"; onClicked: vs.set("muted", "hide") }
-                }
-                VoiceLine {
-                    label: "Names"
-                    Chip { text: "Show"; on: vs.pref("names", true) === true; onClicked: vs.set("names", true) }
-                    Chip { text: "Hide"; on: vs.pref("names", true) === false; onClicked: vs.set("names", false) }
-                }
-                VoiceLine {
-                    label: "Size"
-                    Chip { text: "S"; on: vs.pref("size", "m") === "s"; onClicked: vs.set("size", "s") }
-                    Chip { text: "M"; on: vs.pref("size", "m") === "m"; onClicked: vs.set("size", "m") }
-                    Chip { text: "L"; on: vs.pref("size", "m") === "l"; onClicked: vs.set("size", "l") }
-                }
-                VoiceLine {
-                    label: "When"
-                    Chip { text: "While in voice"; on: vs.pref("when", "voice") === "voice"; onClicked: vs.set("when", "voice") }
-                    Chip { text: "Only while a game runs"; on: vs.pref("when", "voice") === "game"; onClicked: vs.set("when", "game") }
-                }
-                Row {
-                    spacing: 10
-                    TextButton {
-                        visible: vs.pref("x", -1) >= 0
-                        text: "Forget its place"
-                        onClicked: { vs.set("x", -1); vs.set("y", -1) }
-                    }
-                    Text { style: Text.Outline; styleColor: Theme.shadow
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "Unlock the overlay to move it."
-                        color: Theme.dim()
-                        font.family: Theme.body
-                        font.pixelSize: 12
-                    }
-                }
-            }
-        }
-
-        // General
-        Column {
-            visible: settings.tab === "general"
-            width: parent.width
-            spacing: 10
-
-            Label { text: "Overlay" }
-            Hint { text: nativeWindow.layerShell
-                ? "On KDE's overlay layer: above games in fullscreen, borderless or windowed mode."
-                : "Not on KDE's overlay layer (no Wayland, or built without it): above other windows where the desktop allows it." }
-
-            Item { width: 1; height: 6 }
-            Label { text: "Start" }
-            Dropdown {
-                id: startChoice
-                width: parent.width
-                z: 30
-                label: "With the desktop"
-                options: [
-                    { id: "off", name: "Off" },
-                    { id: "hidden", name: Companion.tray ? "Hidden (tray icon only)" : "Hidden" },
-                    { id: "visible", name: "Visible (hub shown)" }
-                ]
-                current: Companion.autostartMode
-                onChosen: (id) => Companion.setAutostartTo(id)
-            }
-            Hint { text: Companion.autostartMode === "hidden"
-                ? (Companion.tray
-                    ? "Starts when you log in with only the tray icon; the hub shows when a game starts or from the tray."
-                    : "Starts hidden when you log in, with no tray icon (it is off below); the hub shows when a game starts, with Alt+Y, or when you start Game Companion again from the application menu.")
-                : Companion.autostartMode === "visible"
-                ? "Starts when you log in with the hub shown."
-                : "Start it yourself from the application menu. Starting it again while it runs brings the hub forward." }
-            OnOff {
-                width: parent.width
-                text: "Show the hub when a game starts"
-                on: Companion.showOnGame
-                onToggled: Companion.setShowOnGameOn(!Companion.showOnGame)
-            }
-            Hint { text: "Hides again when the game ends. Each game's own start options (Games) apply on top." }
-            OnOff {
-                width: parent.width
-                text: "Tray icon"
-                on: Companion.tray
-                onToggled: Companion.setTrayOn(!Companion.tray)
-            }
-            Hint { text: "A gold gamepad in the panel while Game Companion runs: a click shows or hides the hub, a right click opens its menu." }
-
-            Item { width: 1; height: 6 }
-            Label { text: "Games" }
-            OnOff {
-                width: parent.width
-                text: "Download missing covers"
-                on: Games.downloadCovers
-                onToggled: Games.saveDownloadCovers(!Games.downloadCovers)
-            }
-            Hint { text: "From Steam, Epic and GOG image servers; only the game's id is sent. Each cover is fetched once and kept." }
-
-            Item { width: 1; height: 6 }
-            Label { text: "Updates" }
-            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                width: parent.width
-                wrapMode: Text.WordWrap
-                text: "This is " + Companion.version() + "."
-                    + (Updates.latest.length > 0 ? " Latest release: " + Updates.latest + "." : "")
-                color: Theme.textSoft()
-                font.family: Theme.body
-                font.pixelSize: 13
-            }
-            Hint {
-                visible: Updates.message.length > 0
-                text: Updates.message
-                color: Updates.state === "failed" ? Theme.red
-                    : Updates.state === "available" || Updates.state === "installing" ? Theme.accent : Theme.dim()
-            }
-            Row {
-                spacing: 10
-                TextButton {
-                    text: Updates.state === "checking" ? "Checking…" : "Check for updates"
-                    onClicked: Updates.check()
-                }
-                TextButton {
-                    visible: Updates.state === "available"
-                    text: "Install update"
-                    onClicked: Updates.install()
-                }
-            }
-            OnOff {
-                width: parent.width
-                text: "Beta updates (test builds)"
-                on: Updates.beta
-                onToggled: Updates.setChannel(!Updates.beta)
-            }
-            Hint { text: (Updates.runningBeta ? "This copy is a beta build. " : "")
-                + "Beta builds bring new things first and may break; switching back off installs the latest stable release." }
-            Hint { text: "Looks at Game Companion's own releases on GitHub when it starts and every 20 minutes. Nothing else is sent." }
-
-            Item { width: 1; height: 6 }
-            Label { text: "Turn off" }
-            Hint { text: "Closes the hub completely, with the radio. Start it again from the application menu." }
-            TextButton {
-                text: "Turn off Game Companion"
-                danger: true
-                onClicked: Qt.quit()
-            }
-        }
-
-        // Display
-        Column {
-            visible: settings.tab === "display"
-            width: parent.width
-            spacing: 10
-
-            Label { text: "Screen" }
-            Dropdown {
-                id: screenChoice
-                width: parent.width
-                z: 30
-                label: "Show on"
-                property string picked: Companion.chosenScreen()
-                options: [{ id: "", name: "KDE's primary screen" }].concat(JSON.parse(nativeWindow.screenList))
-                current: picked
-                onChosen: (id) => {
-                    picked = id
-                    Companion.saveScreen(id)
-                    nativeWindow.setPreferredScreen(id)
-                }
-            }
-            Hint { text: "Where the bar and the panels show. Now on " + nativeWindow.screenName + "." }
-
-            Item { width: 1; height: 6 }
-            Label { text: "Scrolling" }
-            Dropdown {
-                width: parent.width
-                z: 29
-                label: "Scroll speed"
-                options: [50, 100, 150, 200, 300, 400, 500].map((p) => ({ id: String(p), name: p + " %" }))
-                current: String(Companion.wheelSpeed)
-                onChosen: (id) => Companion.saveWheelSpeed(parseInt(id))
-            }
-            Hint { text: "How far one notch of the mouse wheel moves a list." }
-
-            Item { width: 1; height: 6 }
-            Label { text: "Panel opacity" }
-            Level {
-                from: 0.05
-                value: Companion.alpha
-                onChanging: (v) => Companion.alpha = v
-                onMoved: (v) => Companion.saveAlpha(v)
-            }
-            Presets {
-                kind: "alpha"
-                values: JSON.parse(Companion.alphaPresets)
-                current: Companion.alpha
-                onPicked: (v) => Companion.saveAlpha(v)
-            }
-            Hint { text: "How much of the game shows through the bar and the panels. Under half, text gets a dark outline to stay readable." }
-
-            Item { width: 1; height: 6 }
-            Label { text: "Bar text brightness" }
-            Level {
-                from: 0.4
-                value: Companion.textLevel
-                onChanging: (v) => Companion.textLevel = v
-                onMoved: (v) => Companion.saveTextLevel(v)
-            }
-            Presets {
-                kind: "text"
-                values: JSON.parse(Companion.textPresets)
-                current: Companion.textLevel
-                onPicked: (v) => Companion.saveTextLevel(v)
-            }
-            Hint { text: "Darkens the white and grey text of the bar and the player row. Panels stay as they are." }
-
-            Item { width: 1; height: 6 }
-            Label { text: "Bar accent brightness" }
-            Level {
-                from: 0.4
-                value: Companion.accentLevel
-                onChanging: (v) => Companion.accentLevel = v
-                onMoved: (v) => Companion.saveAccentLevel(v)
-            }
-            Presets {
-                kind: "accent"
-                values: JSON.parse(Companion.accentPresets)
-                current: Companion.accentLevel
-                onPicked: (v) => Companion.saveAccentLevel(v)
-            }
-            Hint { text: "Darkens the gold of the bar and the player row." }
-
-            Item { width: 1; height: 6 }
-            Label { text: "Bar size" }
-            Level {
-                from: 0.6
-                value: Companion.barScale
-                onChanging: (v) => Companion.barScale = v
-                onMoved: (v) => Companion.saveBarScale(v)
-            }
-            Hint { text: "Shrinks the bar and the player row under it. Unlocked, drag the bar by its name or its slanted ends to move it sideways." }
-            TextButton {
-                text: "Center bar"
-                onClicked: Companion.saveBarOffset(0)
-            }
-
-            Hint { text: "P1 to P3: a click uses the value, holding or a right click keeps the current one there." }
-        }
-
-        // Layouts
-        Column {
-            visible: settings.tab === "layouts"
-            width: parent.width
-            spacing: 10
-
-            Label { text: "Save this arrangement" }
-            Row {
-                width: parent.width
-                spacing: 10
-                NameField {
-                    id: newName
-                    width: parent.width - saveButton.width - 10
-                    placeholder: "Name, e.g. Raid or Farming"
-                    onAccepted: saveButton.clicked()
-                }
-                TextButton {
-                    id: saveButton
-                    text: "Save"
-                    onClicked: {
-                        const name = newName.text.trim()
-                        if (name.length === 0) { settings.layoutMessage = "Give it a name first."; return }
-                        const replaced = settings.layouts.indexOf(name) >= 0
-                        settings.saveLayoutRequested(name)
-                        settings.layoutMessage = (replaced ? "Replaced " : "Saved ") + "\u201c" + name + "\u201d."
-                        newName.text = ""
-                    }
-                }
-            }
-            Hint { text: "Keeps which panels are open, where they are, their size, what is pinned and the opacity. A name that exists is replaced." }
-            Hint {
-                visible: settings.layoutMessage.length > 0
-                text: settings.layoutMessage
-                color: Theme.accent
-            }
-
-            Item { width: 1; height: 4 }
-            Label { text: "Saved layouts" }
-            Hint {
-                visible: settings.layouts.length === 0
-                text: "None yet."
-            }
-            Repeater {
-                model: settings.layouts
-                delegate: Item {
-                    id: layoutRow
-                    required property string modelData
-                    readonly property bool editing: settings.renaming === modelData
-                    width: parent.width
-                    height: 46
-                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        visible: !layoutRow.editing
-                        anchors.left: parent.left
-                        anchors.right: rowButtons.left
-                        anchors.rightMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        elide: Text.ElideRight
-                        text: layoutRow.modelData
-                        color: Theme.text()
-                        font.family: Theme.body
-                        font.pixelSize: 13
-                    }
-                    NameField {
-                        id: renameField
-                        visible: layoutRow.editing
-                        anchors.left: parent.left
-                        anchors.right: rowButtons.left
-                        anchors.rightMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        onVisibleChanged: if (visible) { text = layoutRow.modelData; forceActiveFocus() }
-                        onAccepted: renameOk.clicked()
-                    }
-                    Row {
-                        id: rowButtons
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 6
-                        TextButton {
-                            visible: !layoutRow.editing
-                            text: "Load"
-                            onClicked: {
-                                settings.loadLayoutRequested(layoutRow.modelData)
-                                settings.layoutMessage = "Loaded \u201c" + layoutRow.modelData + "\u201d."
-                            }
-                        }
-                        TextButton {
-                            visible: !layoutRow.editing
-                            text: "Rename"
-                            onClicked: settings.renaming = layoutRow.modelData
-                        }
-                        TextButton {
-                            id: renameOk
-                            visible: layoutRow.editing
-                            text: "OK"
-                            onClicked: {
-                                const name = renameField.text.trim()
-                                if (name === layoutRow.modelData) { settings.renaming = ""; return }
-                                if (Companion.renameLayout(layoutRow.modelData, name)) settings.renaming = ""
-                                else settings.layoutMessage = name.length === 0 ? "A layout needs a name." : "\u201c" + name + "\u201d exists already."
-                            }
-                        }
-                        TextButton {
-                            visible: layoutRow.editing
-                            text: "Cancel"
-                            onClicked: settings.renaming = ""
-                        }
-                        IconButton {
-                            visible: !layoutRow.editing
-                            anchors.verticalCenter: parent.verticalCenter
-                            icon: "close"
-                            tip: "Delete " + layoutRow.modelData
-                            color: Theme.dim()
-                            hoverColor: Theme.red
-                            onClicked: {
-                                Companion.deleteLayout(layoutRow.modelData)
-                                settings.layoutMessage = "Deleted \u201c" + layoutRow.modelData + "\u201d."
-                            }
-                        }
-                    }
-                }
-            }
-            Hint { text: "Later, each game can bring its own layout, loaded when it starts." }
-        }
-
-        // Streams
-        Column {
-            visible: settings.tab === "streams"
-            width: parent.width
-            spacing: 10
-            readonly property var account: JSON.parse(Streams.account)
-            readonly property var game: JSON.parse(Streams.game)
-            onVisibleChanged: if (visible) Streams.refreshAccount()
-            property string part: nativeWindow.demo.indexOf("sponsor") >= 0 ? "sponsorblock"
-                : nativeWindow.demo.indexOf("jellyfin") >= 0 ? "jellyfin"
-                : nativeWindow.demo.indexOf("hwdec") >= 0 ? "videos"
-                : nativeWindow.demo.indexOf("ytsettings") >= 0 ? "youtube" : "twitch"
-
-            Row {
-                spacing: 16
-                Repeater {
-                    model: [["twitch", "Twitch"], ["youtube", "YouTube"], ["sponsorblock", "SponsorBlock"], ["jellyfin", "Jellyfin"], ["videos", "Videos"]]
-                    delegate: Item {
-                        required property var modelData
-                        readonly property bool chosen: parent.parent.part === modelData[0]
-                        width: partText.implicitWidth
-                        height: 26
-                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                            id: partText
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: modelData[1].toUpperCase()
-                            color: parent.chosen ? Theme.accent : (partMouse.containsMouse ? Theme.text() : Theme.dim())
-                            font.family: Theme.display
-                            font.pixelSize: 12
-                            font.weight: Font.Bold
-                            font.letterSpacing: 1.5
-                        }
-                        Rectangle { visible: parent.chosen; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent }
-                        MouseArea {
-                            id: partMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: parent.parent.parent.part = modelData[0]
-                        }
-                        Accessible.role: Accessible.PageTab
-                        Accessible.name: modelData[1]
-                    }
-                }
-            }
-
-            Column {
-            visible: parent.part === "twitch"
-            width: parent.width
-            spacing: 10
-            readonly property var account: parent.account
-            readonly property var game: parent.game
-            Label { text: "Twitch token" }
-            Row {
-                width: parent.width
-                spacing: 8
-                visible: !parent.account.user || parent.account.user === "?"
-                NameField {
-                    id: tokenField
-                    width: parent.width - showToken.width - signIn.width - 16
-                    placeholder: "twitch.tv's auth-token"
-                    secret: !showToken.shown
-                    maxLength: 80
-                    onAccepted: signIn.clicked()
-                }
-                TextButton {
-                    id: showToken
-                    property bool shown: false
-                    text: shown ? "Hide" : "Show"
-                    onClicked: shown = !shown
-                }
-                TextButton {
-                    id: signIn
-                    text: "Sign in"
-                    onClicked: { Streams.signIn(tokenField.text); tokenField.text = "" }
-                }
-            }
-            Row {
-                visible: !!parent.account.user && parent.account.user !== "?"
-                spacing: 12
-                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: parent.parent.account.user === "…" ? "Checking with Twitch…" : "Signed in as " + parent.parent.account.user
-                    color: Theme.accent
-                    font.family: Theme.body
-                    font.pixelSize: 13
-                }
-                TextButton { text: "Sign out"; danger: true; onClicked: Streams.signOut() }
-            }
-            Hint {
-                visible: !!parent.account.error
-                text: parent.account.error || ""
-                color: Theme.red
-            }
-            Hint { text: "For the Following tab, and Twitch without ads with Turbo or a subscription. Sent only to Twitch; kept in its own file on this PC. Find it in your browser on twitch.tv: developer tools → Storage → Cookies → auth-token." }
-            Hint {
-                text: parent.account.streamlink ? "Streamlink is installed: Twitch plays without the ad breaks."
-                    : "Streamlink is not installed: Twitch plays through yt-dlp, with its ad breaks (sudo pacman -S streamlink)."
-                color: parent.account.streamlink ? Theme.dim() : Theme.textSoft()
-            }
-
-            Item { width: 1; height: 4 }
-            Label { text: "Live notes" }
-            OnOff {
-                width: parent.width
-                text: "Tell me when followed or favorite channels go live"
-                on: Streams.alerts
-                onToggled: Streams.switchAlerts(!Streams.alerts)
-            }
-            Hint { text: "Asks Twitch every two minutes while on. A red count shows on the Streams panel's Following tab and the channels show at the top of the list; no pop-up, no sound. Leave one channel out with ⋯ beside it." }
-
-            Item { width: 1; height: 4 }
-            Label { text: "Chat" }
-            OnOff {
-                width: parent.width
-                text: "Write in chat with this sign-in"
-                on: Streams.chatWrite
-                onToggled: Streams.saveChatWrite(!Streams.chatWrite)
-            }
-            Hint { text: "Show the chat with the speech bubble on the Twitch video. Off, or not signed in, the chat is read only. Emotes come from Twitch, 7TV and BTTV." }
-
-            Item { width: 1; height: 4 }
-            Label { text: "Preset search for the game" }
-            Hint { text: "Now: " + parent.game.name + " · Twitch category \u201c" + parent.game.twitch + "\u201d · YouTube \u201c" + parent.game.youtube + "\u201d. Change it with CHANGE in the Streams panel; with game detection, each game brings its own." }
-            }
-
-            Column {
-            visible: parent.part === "youtube"
-            width: parent.width
-            spacing: 10
-            readonly property var filters: JSON.parse(Streams.filters)
-            readonly property var words: JSON.parse(Streams.trendWords)
-            Label { text: "FreeTube" }
-            Row {
-                spacing: 10
-                TextButton {
-                    text: Streams.freetubeLive ? "Take over from FreeTube" : "Take over again"
-                    onClicked: takeNote.text = Streams.takeFreetube()
-                }
-            }
-            Connections {
-                target: Streams
-                function onFreetubeTaken(note) { takeNote.text = note; Library.refresh() }
-            }
-            Hint {
-                id: takeNote
-                text: Streams.freetubeLive
-                    ? "Now FreeTube's subscriptions are read from its file as they are. Taking over copies its subscriptions (with its profiles as groups), playlists, bookmark list and history into Game Companion once; then FreeTube is no longer needed. FreeTube's files are only read."
-                    : "Your subscriptions, playlists and history live here now. Taking over again adds what is new in FreeTube (nothing is doubled)."
-            }
-
-            Item { width: 1; height: 4 }
-            Label { text: "In the lists" }
-            OnOff { width: parent.width; text: "Leave Shorts out"; on: parent.filters.shorts; onToggled: Streams.setHideShorts(!parent.filters.shorts) }
-            OnOff { width: parent.width; text: "Leave watched videos out"; on: parent.filters.watched; onToggled: Streams.setHideWatched(!parent.filters.watched) }
-            OnOff { width: parent.width; text: "Leave Indian content out"; on: parent.filters.indian !== false; onToggled: Streams.setHideIndian(parent.filters.indian === false) }
-            Hint { text: "Videos whose title or channel is written in an Indian script (Hindi, Bengali, Tamil, Telugu and others)." }
-            Row {
-                width: parent.width
-                spacing: 8
-                NameField {
-                    id: wordsField
-                    width: parent.width - wordsSave.width - 8
-                    wrap: true
-                    placeholder: "Words whose videos never show, with commas"
-                    maxLength: 400
-                    text: parent.parent.filters.words.join(", ")
-                    onAccepted: wordsSave.clicked()
-                }
-                TextButton { id: wordsSave; text: "Save"; onClicked: Streams.setHiddenWords(wordsField.text) }
-            }
-            Flow {
-                visible: parent.filters.channels.length > 0
-                width: parent.width
-                spacing: 6
-                Repeater {
-                    model: parent.parent.filters.channels
-                    delegate: Chip {
-                        required property var modelData
-                        text: modelData.name + "  ×"
-                        onClicked: Streams.toggleHiddenChannel(modelData.id, modelData.name)
-                    }
-                }
-            }
-            Hint { text: parent.filters.channels.length > 0 ? "Hidden channels: a click shows one again. Hide one with ⋯ beside its video." : "Hide a channel with ⋯ beside one of its videos." }
-
-            Item { width: 1; height: 4 }
-            Label { text: "Video languages" }
-            Flow {
-                width: parent.width
-                spacing: 6
-                readonly property var chosen: JSON.parse(Streams.videoLanguages)
-                Repeater {
-                    model: [["de", "German"], ["tr", "Turkish"], ["en", "English"], ["fr", "French"], ["it", "Italian"], ["es", "Spanish"], ["nl", "Dutch"], ["pl", "Polish"]]
-                    delegate: Chip {
-                        required property var modelData
-                        text: modelData[1]
-                        on: parent.chosen.indexOf(modelData[0]) >= 0
-                        onClicked: Streams.toggleVideoLanguage(modelData[0])
-                    }
-                }
-            }
-            Hint { text: "Searches and Trending ask YouTube in these languages, so videos from those countries come first; Gaming, Europe and the national teams also search with each language's word (\u201cgaming deutsch\u201d). None chosen: as YouTube gives it. Takes effect on the next load." }
-
-            Item { width: 1; height: 4 }
-            Label { text: "Trending: search words" }
-            Repeater {
-                model: [["gaming", "Gaming"], ["europe", "Europe"], ["national", "National teams"], ["tr", "Süper Lig"], ["de", "Bundesliga"],
-                        ["en", "Premier League"], ["fr", "Ligue 1"], ["it", "Serie A"], ["es", "LaLiga"]]
-                delegate: Row {
-                    required property var modelData
-                    width: parent.width
-                    spacing: 8
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow
-                        y: 9
-                        width: 110
-                        wrapMode: Text.WordWrap
-                        text: modelData[1]
-                        color: Theme.textSoft(); font.family: Theme.body; font.pixelSize: 12 }
-                    NameField {
-                        id: trendField
-                        width: parent.width - 118
-                        wrap: true
-                        maxLength: 400
-                        placeholder: "Search words, with commas (empty: as it came)"
-                        text: (JSON.parse(Streams.trendWords)[modelData[0]] || []).join(", ")
-                        onAccepted: Streams.changeTrendWords(modelData[0], text)
-                    }
-                }
-            }
-            Hint { text: "Each part asks YouTube's search (through yt-dlp) for this week's videos with these words and mixes the answers; Gaming takes this week's most watched. Enter saves a line." }
-            }
-
-            Column {
-            visible: parent.part === "sponsorblock"
-            width: parent.width
-            spacing: 10
-            Item {
-                id: sbHead
-                width: parent.width
-                height: 26
-                readonly property var sb: JSON.parse(Streams.sponsorblock)
-                property string message: ""
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 10
-                    Label { text: "SponsorBlock" }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        text: sbHead.sb.enabled ? "ON" : "OFF"
-                        color: sbHead.sb.enabled ? Theme.accent : Theme.dim()
-                        font.family: Theme.display
-                        font.pixelSize: 12
-                        font.weight: Font.Bold
-                        font.letterSpacing: 1.5
-                    }
-                }
-                Row {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 8
-                    TextButton {
-                        text: "Take from FreeTube"
-                        onClicked: sbHead.message = Streams.sponsorFromFreetube()
-                    }
-                    TextButton {
-                        text: sbHead.sb.enabled ? "Switch off" : "Switch on"
-                        onClicked: Streams.setSponsorEnabled(!sbHead.sb.enabled)
-                    }
-                }
-            }
-            Hint { visible: sbHead.message.length > 0; text: sbHead.message; color: Theme.textSoft() }
-            Column {
-                width: parent.width
-                opacity: sbHead.sb.enabled ? 1 : 0.45
-                Repeater {
-                    model: [["sponsor", "Sponsor"], ["selfpromo", "Self-promotion"], ["interaction", "Interaction reminder"],
-                            ["intro", "Intro"], ["outro", "Outro"], ["preview", "Preview, recap"],
-                            ["filler", "Filler, jokes"], ["music_offtopic", "Non-music part (music videos)"]]
-                    delegate: Item {
-                        required property var modelData
-                        width: parent.width
-                        height: 28
-                        readonly property string mode: (sbHead.sb.categories || {})[modelData[0]] || "off"
-                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: modelData[1]
-                            color: Theme.textSoft()
-                            font.family: Theme.body
-                            font.pixelSize: 12
-                        }
                         Row {
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: 12
-                            Repeater {
-                                model: [["skip", "Skip"], ["show", "Show"], ["off", "Off"]]
-                                delegate: Item {
-                                    required property var modelData
-                                    readonly property bool chosen: parent.parent.mode === modelData[0]
-                                    width: choiceText.implicitWidth
-                                    height: 24
-                                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                                        id: choiceText
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: modelData[1].toUpperCase()
-                                        color: parent.chosen ? Theme.accent : (choiceMouse.containsMouse ? Theme.text() : Theme.dim())
-                                        font.family: Theme.display
-                                        font.pixelSize: 12
-                                        font.weight: Font.Bold
-                                        font.letterSpacing: 1
+                            spacing: 8
+                            TextButton {
+                                text: "Take from FreeTube"
+                                onClicked: sbHead.message = Streams.sponsorFromFreetube()
+                            }
+                            TextButton {
+                                text: sbHead.sb.enabled ? "Switch off" : "Switch on"
+                                onClicked: Streams.setSponsorEnabled(!sbHead.sb.enabled)
+                            }
+                        }
+                    }
+                    Hint { visible: sbHead.message.length > 0; text: sbHead.message; color: Theme.textSoft() }
+                    Column {
+                        width: parent.width
+                        opacity: sbHead.sb.enabled ? 1 : 0.45
+                        Repeater {
+                            model: [["sponsor", "Sponsor"], ["selfpromo", "Self-promotion"], ["interaction", "Interaction reminder"],
+                                    ["intro", "Intro"], ["outro", "Outro"], ["preview", "Preview, recap"],
+                                    ["filler", "Filler, jokes"], ["music_offtopic", "Non-music part (music videos)"]]
+                            delegate: Item {
+                                required property var modelData
+                                width: parent.width
+                                height: 28
+                                readonly property string mode: (sbHead.sb.categories || {})[modelData[0]] || "off"
+                                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData[1]
+                                    color: Theme.textSoft()
+                                    font.family: Theme.body
+                                    font.pixelSize: 12
+                                }
+                                Row {
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 12
+                                    Repeater {
+                                        model: [["skip", "Skip"], ["show", "Show"], ["off", "Off"]]
+                                        delegate: Item {
+                                            required property var modelData
+                                            readonly property bool chosen: parent.parent.mode === modelData[0]
+                                            width: choiceText.implicitWidth
+                                            height: 24
+                                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                                id: choiceText
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: modelData[1].toUpperCase()
+                                                color: parent.chosen ? Theme.accent : (choiceMouse.containsMouse ? Theme.text() : Theme.dim())
+                                                font.family: Theme.display
+                                                font.pixelSize: 12
+                                                font.weight: Font.Bold
+                                                font.letterSpacing: 1
+                                            }
+                                            Rectangle { visible: parent.chosen; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent }
+                                            MouseArea {
+                                                id: choiceMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: Streams.setSponsorMode(parent.parent.parent.modelData[0], modelData[0])
+                                            }
+                                            Accessible.role: Accessible.RadioButton
+                                            Accessible.name: modelData[1]
+                                        }
                                     }
-                                    Rectangle { visible: parent.chosen; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent }
-                                    MouseArea {
-                                        id: choiceMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: Streams.setSponsorMode(parent.parent.parent.modelData[0], modelData[0])
-                                    }
-                                    Accessible.role: Accessible.RadioButton
-                                    Accessible.name: modelData[1]
                                 }
                             }
                         }
                     }
-                }
-            }
-            Hint { text: "Skips or marks the parts of YouTube videos that viewers flagged. Asks sponsor.ajay.app with only the first four characters of the video's hash, so it never learns which video plays. Segments: SponsorBlock, CC BY-NC-SA 4.0." }
-            }
-
-            Column {
-            visible: parent.part === "jellyfin"
-            width: parent.width
-            spacing: 10
-            readonly property var jf: Jellyfin.account.length > 0 ? JSON.parse(Jellyfin.account) : null
-            Label { text: "Jellyfin server" }
-            JellyfinSignIn { visible: !parent.jf; width: parent.width }
-            Item {
-                visible: !!parent.jf
-                width: parent.width
-                height: 34
-                Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        text: parent.parent.parent.jf ? "Signed in as " + parent.parent.parent.jf.user + " on " + parent.parent.parent.jf.serverName : ""
-                        color: Theme.accent
-                        font.family: Theme.body
-                        font.pixelSize: 13
+                    Hint { text: "Skips or marks the parts of YouTube videos that viewers flagged. Asks sponsor.ajay.app with only the first four characters of the video's hash, so it never learns which video plays. Segments: SponsorBlock, CC BY-NC-SA 4.0." }
                     }
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        text: parent.parent.parent.jf ? parent.parent.parent.jf.server : ""
-                        color: Theme.dim()
-                        font.family: Theme.body
-                        font.pixelSize: 11
-                    }
-                }
-                TextButton { anchors.right: parent.right; text: "Sign out"; danger: true; onClicked: Jellyfin.signOut() }
-            }
-            Hint {
-                visible: !!parent.jf
-                text: "Signing out tells your server to forget this PC's key, and deletes it here."
-            }
-            Item { width: 1; height: 4 }
-            OnOff {
-                width: parent.width
-                text: "Skip intros and credits by themselves"
-                on: Jellyfin.autoSkip
-                onToggled: Jellyfin.saveAutoSkip(!Jellyfin.autoSkip)
-            }
-            OnOff {
-                width: parent.width
-                text: "Play a show's next episode"
-                on: Jellyfin.autoNext
-                onToggled: Jellyfin.saveAutoNext(!Jellyfin.autoNext)
-            }
-            Hint { text: "Only a server in your home network (192.168.x.x, 10.x.x.x, 172.16-31.x.x, localhost, nas.local) is ever asked; anything else is refused before it is tried, and nothing goes through a proxy. Your server learns what plays and how far, so Continue watching is right in every Jellyfin app." }
-            }
 
-            Column {
-            visible: parent.part === "videos"
-            width: parent.width
-            spacing: 10
-            OnOff {
-                width: parent.width
-                text: "Hardware decoding"
-                on: Streams.hwdec
-                onToggled: Streams.saveHwdec(!Streams.hwdec)
-            }
-            Hint { text: "On: the graphics card unpacks the videos. The processor has less to do, and the video takes some video memory (a few hundred MB for a stream). Off: the processor does it, which leaves the video memory to the game but costs processor time. Changes take hold at once." }
-            Item { width: 1; height: 4 }
-            Dropdown {
-                width: parent.width
-                z: 29
-                label: "Video loudness"
-                options: [{ id: "0", name: "Normal" }, { id: "3", name: "+3 dB" }, { id: "6", name: "+6 dB" }, { id: "9", name: "+9 dB" }]
-                current: String(Streams.videoBoost)
-                onChosen: (id) => Streams.saveVideoBoost(parseInt(id))
-            }
-            Hint { text: "Streams and videos are mixed quieter than radio stations: this makes Twitch, YouTube and Jellyfin louder, the radio stays as it is. +6 dB sounds about twice as loud as Normal; very loud videos can distort at +9 dB. Changes take hold at once." }
-            OnOff {
-                width: parent.width
-                text: "Even out loudness"
-                on: Streams.evenLoudness
-                onToggled: Streams.saveEvenLoudness(!Streams.evenLoudness)
-            }
-            Hint { text: "Quiet videos and quiet passages get louder, loud ones softer, as they play: one stream sounds much like the next. Costs mpv a little processor time. Changes take hold at once." }
-            }
-        }
-
-        // Shortcuts
-        Column {
-            visible: settings.tab === "shortcuts"
-            width: parent.width
-            spacing: 6
-            Repeater {
-                model: settings.keys
-                delegate: Item {
-                    required property var modelData
-                    width: parent.width
-                    height: 46
-                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
                     Column {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - 120
-                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                            width: parent.width
-                            elide: Text.ElideRight
-                            text: modelData.description
-                            color: Theme.text()
-                            font.family: Theme.body
-                            font.pixelSize: 13
+                    visible: parent.part === "jellyfin"
+                    width: parent.width
+                    spacing: 10
+                    readonly property var jf: Jellyfin.account.length > 0 ? JSON.parse(Jellyfin.account) : null
+                    Label { text: "Jellyfin server" }
+                    JellyfinSignIn { visible: !parent.jf; width: parent.width }
+                    Item {
+                        visible: !!parent.jf
+                        width: parent.width
+                        height: 34
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                text: parent.parent.parent.jf ? "Signed in as " + parent.parent.parent.jf.user + " on " + parent.parent.parent.jf.serverName : ""
+                                color: Theme.accent
+                                font.family: Theme.body
+                                font.pixelSize: 13
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                text: parent.parent.parent.jf ? parent.parent.parent.jf.server : ""
+                                color: Theme.dim()
+                                font.family: Theme.body
+                                font.pixelSize: 11
+                            }
                         }
-                        Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        TextButton { anchors.right: parent.right; text: "Sign out"; danger: true; onClicked: Jellyfin.signOut() }
+                    }
+                    Hint {
+                        visible: !!parent.jf
+                        text: "Signing out tells your server to forget this PC's key, and deletes it here."
+                    }
+                    Item { width: 1; height: 4 }
+                    OnOff {
+                        width: parent.width
+                        text: "Skip intros and credits by themselves"
+                        on: Jellyfin.autoSkip
+                        onToggled: Jellyfin.saveAutoSkip(!Jellyfin.autoSkip)
+                    }
+                    OnOff {
+                        width: parent.width
+                        text: "Play a show's next episode"
+                        on: Jellyfin.autoNext
+                        onToggled: Jellyfin.saveAutoNext(!Jellyfin.autoNext)
+                    }
+                    Hint { text: "Only a server in your home network (192.168.x.x, 10.x.x.x, 172.16-31.x.x, localhost, nas.local) is ever asked; anything else is refused before it is tried, and nothing goes through a proxy. Your server learns what plays and how far, so Continue watching is right in every Jellyfin app." }
+                    }
+
+                    Column {
+                    visible: parent.part === "videos"
+                    width: parent.width
+                    spacing: 10
+                    OnOff {
+                        width: parent.width
+                        text: "Hardware decoding"
+                        on: Streams.hwdec
+                        onToggled: Streams.saveHwdec(!Streams.hwdec)
+                    }
+                    Hint { text: "On: the graphics card unpacks the videos. The processor has less to do, and the video takes some video memory (a few hundred MB for a stream). Off: the processor does it, which leaves the video memory to the game but costs processor time. Changes take hold at once." }
+                    Item { width: 1; height: 4 }
+                    Dropdown {
+                        width: parent.width
+                        z: 29
+                        label: "Video loudness"
+                        options: [{ id: "0", name: "Normal" }, { id: "3", name: "+3 dB" }, { id: "6", name: "+6 dB" }, { id: "9", name: "+9 dB" }]
+                        current: String(Streams.videoBoost)
+                        onChosen: (id) => Streams.saveVideoBoost(parseInt(id))
+                    }
+                    Hint { text: "Streams and videos are mixed quieter than radio stations: this makes Twitch, YouTube and Jellyfin louder, the radio stays as it is. +6 dB sounds about twice as loud as Normal; very loud videos can distort at +9 dB. Changes take hold at once." }
+                    OnOff {
+                        width: parent.width
+                        text: "Even out loudness"
+                        on: Streams.evenLoudness
+                        onToggled: Streams.saveEvenLoudness(!Streams.evenLoudness)
+                    }
+                    Hint { text: "Quiet videos and quiet passages get louder, loud ones softer, as they play: one stream sounds much like the next. Costs mpv a little processor time. Changes take hold at once." }
+                    }
+                }
+
+                // Shortcuts
+                Column {
+                    visible: settings.tab === "shortcuts"
+                    width: parent.width
+                    spacing: 6
+                    Repeater {
+                        model: settings.keys
+                        delegate: Item {
+                            required property var modelData
                             width: parent.width
-                            elide: Text.ElideRight
-                            text: modelData.state === "bound" ? "Set in KDE"
-                                : modelData.state === "suggested" ? "Suggested, waiting for KDE"
-                                : modelData.state === "nokey" ? "KDE gave it no key: set one in System Settings"
-                                : "No shortcuts: " + modelData.state.replace("unavailable: ", "")
-                            color: modelData.state === "bound" || modelData.state === "suggested" ? Theme.dim() : Theme.red
-                            font.family: Theme.body
-                            font.pixelSize: 11
+                            height: 46
+                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 120
+                                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                    width: parent.width
+                                    elide: Text.ElideRight
+                                    text: modelData.description
+                                    color: Theme.text()
+                                    font.family: Theme.body
+                                    font.pixelSize: 13
+                                }
+                                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                    width: parent.width
+                                    elide: Text.ElideRight
+                                    text: modelData.state === "bound" ? "Set in KDE"
+                                        : modelData.state === "suggested" ? "Suggested, waiting for KDE"
+                                        : modelData.state === "nokey" ? "KDE gave it no key: set one in System Settings"
+                                        : "No shortcuts: " + modelData.state.replace("unavailable: ", "")
+                                    color: modelData.state === "bound" || modelData.state === "suggested" ? Theme.dim() : Theme.red
+                                    font.family: Theme.body
+                                    font.pixelSize: 11
+                                }
+                            }
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.key.length > 0 ? modelData.key.toUpperCase() : "—"
+                                color: Theme.accent
+                                font.family: Theme.display
+                                font.pixelSize: 15
+                                font.weight: Font.Bold
+                                font.letterSpacing: 1
+                            }
                         }
                     }
+                    Hint { text: "KDE keeps the keys. Change them in System Settings → Keyboard → Shortcuts → Game Companion." }
+                    Item {
+                        width: parent.width
+                        height: 40
+                        TextButton {
+                            anchors.bottom: parent.bottom
+                            text: "Open KDE shortcuts"
+                            onClicked: Companion.openShortcutSettings()
+                        }
+                    }
+                }
+
+                // About
+                Column {
+                    visible: settings.tab === "about"
+                    width: parent.width
+                    spacing: 8
                     Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: modelData.key.length > 0 ? modelData.key.toUpperCase() : "—"
+                        text: "GAME COMPANION " + Companion.version().toUpperCase()
                         color: Theme.accent
                         font.family: Theme.display
-                        font.pixelSize: 15
+                        font.pixelSize: 16
                         font.weight: Font.Bold
-                        font.letterSpacing: 1
+                        font.letterSpacing: 2
                     }
+                    Hint { text: "One overlay for every game on Linux. Free software under the GNU GPL 3.0." }
+                    Hint { text: "The overlay works without the internet. It goes online only for the radio you play, Twitch and YouTube in Streams, SponsorBlock when you switch it on, and to look for its own updates on GitHub." }
+                    Hint { text: "Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project Authors, both under the SIL Open Font License 1.1." }
+                }
                 }
             }
-            Hint { text: "KDE keeps the keys. Change them in System Settings → Keyboard → Shortcuts → Game Companion." }
-            Item {
-                width: parent.width
-                height: 40
-                TextButton {
-                    anchors.bottom: parent.bottom
-                    text: "Open KDE shortcuts"
-                    onClicked: Companion.openShortcutSettings()
+            WheelScroll { flick: scroller }
+            // The bar on the right: shows where the page is, and drags it.
+            Rectangle {
+                id: track
+                visible: scroller.scrolls
+                x: parent.width - 4
+                width: 4
+                height: scroller.height
+                color: Theme.trackDark
+                Rectangle {
+                    id: thumb
+                    width: parent.width
+                    height: Math.max(30, track.height * scroller.height / Math.max(1, scroller.contentHeight))
+                    y: (track.height - height) * scroller.contentY / Math.max(1, scroller.contentHeight - scroller.height)
+                    color: thumbDrag.pressed || thumbDrag.containsMouse ? Theme.accent : Theme.track
+                }
+                MouseArea {
+                    id: thumbDrag
+                    x: -6
+                    width: track.width + 8
+                    height: track.height
+                    hoverEnabled: true
+                    function scrollTo(my) {
+                        const room = scroller.contentHeight - scroller.height
+                        const f = (my - thumb.height / 2) / Math.max(1, track.height - thumb.height)
+                        scroller.contentY = Math.max(0, Math.min(room, f * room))
+                    }
+                    onPressed: (m) => scrollTo(m.y)
+                    onPositionChanged: (m) => { if (pressed) scrollTo(m.y) }
                 }
             }
-        }
-
-        // About
-        Column {
-            visible: settings.tab === "about"
-            width: parent.width
-            spacing: 8
-            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                text: "GAME COMPANION " + Companion.version().toUpperCase()
-                color: Theme.accent
-                font.family: Theme.display
-                font.pixelSize: 16
-                font.weight: Font.Bold
-                font.letterSpacing: 2
-            }
-            Hint { text: "One overlay for every game on Linux. Free software under the GNU GPL 3.0." }
-            Hint { text: "The overlay works without the internet. It goes online only for the radio you play, Twitch and YouTube in Streams, SponsorBlock when you switch it on, and to look for its own updates on GitHub." }
-            Hint { text: "Fonts: Rajdhani by the Indian Type Foundry and Inter by The Inter Project Authors, both under the SIL Open Font License 1.1." }
         }
     }
 
