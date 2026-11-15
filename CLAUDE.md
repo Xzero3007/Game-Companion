@@ -764,8 +764,11 @@ learnt, so nothing has to be asked or worked out again.
   (`node tools/poe2-session-test.js`), `SessionStore.qml`,
   `SessionPanel.qml`, `SessionWindow.qml`; new session after 30 min / 1 h
   of pause or at midnight. `GC_DEMO=session`. Details: docs/HANDOFF.md.
-  PoE 2 has no stash API (GGG: PoE 1 only): drops come later by Ctrl+C and
-  a currency list (poe.ninja); never read the game's memory.
+  Loot by hand (part 2): currency with − / + or a copied stack and items
+  by the price check's "+ Session", worth from poe.ninja's exchange
+  overview (`SessionStore.needRates`, only while the session holds loot,
+  30 min; the price check's "poe.ninja prices" switch). PoE 2 has no stash
+  API (GGG: PoE 1 only); never read the game's memory.
   Path of Building is the third app (`pob`, `AppDef.args` "poe2",
   `AppDef.game` "poe2"; bar button while PoE 2 or PoB runs).
   Qt's JavaScript runs without its JIT (`main.rs` sets

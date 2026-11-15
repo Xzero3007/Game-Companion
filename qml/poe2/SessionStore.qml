@@ -87,7 +87,153 @@ QtObject {
         bump()
     }
     /// What the panel and the window show (counted up to `now`).
-    function viewOf(s, now) { return SK.view(s, now) }
+    function viewOf(s, now) { rates; return SK.view(s, now, rates) }
+
+    // ---------- loot (part 2): told by hand, priced by poe.ninja ----------
+    // Client.txt names no drops and PoE 2 has no stash API (MN, 2026-11-15:
+    // to be talked over again later). Currency is counted with + and − or a
+    // copied stack; other items come from the price check's "+ Session".
+    // poe.ninja (the price check's switch, Settings → Plugins → PoE 2) gives
+    // the rates: its exchange overview, asked only while loot needs a price,
+    // kept 30 minutes (Poe2.request: poe.ninja's PoE 2 economy only).
+    readonly property var priceChoices: { try { return JSON.parse(Poe2.prefs) } catch (e) { return {} } }
+    readonly property bool ninjaOn: priceChoices.ninja !== false
+    /// { league, at, exalted, byId: { id: { div, name } }, list: [{ id, name, div }] } or null.
+    property var rates: null
+    property string ratesError: ""
+    property bool ratesAsking: false
+    property real ratesFailedAt: 0
+    readonly property int requestBase: 77000
+    property int requestNext: 0
+    property var waiting: ({})
+    /// The price check's store (its kit knows the trade site's leagues).
+    property var price: null
+    /// The default rows of the currency list.
+    readonly property var usualCurrency: [["divine", "Divine Orb"], ["exalted", "Exalted Orb"], ["chaos", "Chaos Orb"]]
+
+    function ask(url) {
+        return new Promise(function (resolve, reject) {
+            const id = store.requestBase + (store.requestNext++ % 1000)
+            store.waiting[id] = { resolve: resolve, reject: reject }
+            Poe2.request(id, "GET", url, "")
+        })
+    }
+    property Connections answers: Connections {
+        target: Poe2
+        function onAnswered(id, status, headers, body) {
+            const w = store.waiting[id]
+            if (!w) return
+            delete store.waiting[id]
+            if (status === 200) w.resolve(body)
+            else w.reject(new Error(status ? "poe.ninja answered " + status : body))
+        }
+    }
+    /// A copied item's stack size (1 if none is written).
+    function stackOf(text) {
+        const m = /^(?:Stack Size|Stapelgröße): *([\d.,\s]+)\//m.exec(String(text || ""))
+        return m ? Math.max(1, Number(m[1].replace(/[.,\s]/g, "")) || 1) : 1
+    }
+    /// Asks poe.ninja for the rates if loot needs them and they are old.
+    function needRates() {
+        if (!ninjaOn || demoOn || ratesAsking) return
+        const now = Date.now()
+        if (rates && now - rates.at < 30 * SK.MIN) return
+        if (now - ratesFailedAt < 4 * SK.MIN) return
+        ratesAsking = true
+        const base = "https://poe.ninja/poe2/api/economy/"
+        const chosen = String(priceChoices.league || "")
+        // No league chosen yet: the price check's own pick (the trade site's
+        // league list, kept as the price check's league), poe.ninja's list
+        // only if that fails (its shape not seen yet).
+        const fromNinja = function () {
+            return ask(base + "leagues").then(function (b) {
+                const d = JSON.parse(b)
+                const list = Array.isArray(d) ? d : (d && (d.leagues || d.items)) || []
+                const first = list.length ? (list[0].id || list[0].name || list[0]) : ""
+                if (!first) throw new Error("poe.ninja named no league")
+                return String(first)
+            })
+        }
+        const fromTrade = function () {
+            return store.price.kit("leagues", [""]).then(function (l) {
+                if (!l || !l.selected) throw new Error("no league")
+                Poe2.setPref("league", JSON.stringify(l.selected))
+                return String(l.selected)
+            })
+        }
+        const league = chosen ? Promise.resolve(chosen) : store.price ? fromTrade().then(null, fromNinja) : fromNinja()
+        league.then(function (lg) {
+            return ask(base + "exchange/current/overview?league=" + encodeURIComponent(lg) + "&type=Currency").then(function (b) { return store.readRates(lg, b) })
+        }).then(function (r) {
+            rates = r
+            ratesError = ""
+            ratesAsking = false
+            bump()
+        }, function (e) {
+            ratesFailedAt = Date.now()
+            ratesError = String(e && e.message || e)
+            ratesAsking = false
+            Companion.log("poe2", "session: poe.ninja: " + ratesError)
+            bump()
+        })
+    }
+    /// poe.ninja's exchange overview, read as the price check does.
+    function readRates(league, text) {
+        const d = JSON.parse(text)
+        const core = (d && d.core) || {}
+        const exalted = Number((core.rates || {}).exalted) || 0
+        const names = {}
+        const items = (d && d.items) || []
+        for (let i = 0; i < items.length; i++) if (items[i] && items[i].id) names[items[i].id] = String(items[i].name || "")
+        const byId = {}
+        const list = []
+        const lines = (d && d.lines) || []
+        for (let i = 0; i < lines.length; i++) {
+            const l = lines[i]
+            if (!l || !l.id || typeof l.primaryValue !== "number") continue
+            byId[l.id] = { div: l.primaryValue, name: names[l.id] || l.id }
+            list.push({ id: l.id, name: names[l.id] || l.id, div: l.primaryValue })
+        }
+        if (!byId.divine) byId.divine = { div: 1, name: "Divine Orb" }
+        if (!exalted || !list.length) throw new Error("poe.ninja sent no prices")
+        list.sort(function (a, b) { return b.div - a.div })
+        return { league: league, at: Date.now(), exalted: exalted, byId: byId, list: list }
+    }
+
+    function changeLoot(fn) {
+        let s = SK.copy(session)
+        const now = Date.now()
+        const cut = SK.cutAt(s, now, breakMs)
+        if (cut !== null) {
+            keepOld(SK.finish(s, cut))
+            s = SK.carryOn(s, now)
+        } else if (SK.isEmpty(s)) s.start = now
+        fn(s, now)
+        session = s
+        put("current", session)
+        needRates()
+        bump()
+    }
+    function addCurrency(id, name, n) { changeLoot(function (s) { SK.addCurrency(s, id, name, n) }) }
+    function removeItem(index) { changeLoot(function (s) { SK.removeItem(s, index) }) }
+    /// "+ Session" in the price check: a currency item adds its stack to the
+    /// currency list; another item its price (poe.ninja's, else the median
+    /// of the five cheapest listings) in divines.
+    function addFromPrice(view, result, text) {
+        if (!view) return
+        const ninja = (result && result.ninja) || view.ninja
+        if (ninja && ninja.id) {
+            addCurrency(ninja.id, view.name, stackOf(text))
+            return
+        }
+        const listed = result && result.kind === "trade" ? (result.listed || []).slice(0, 5) : []
+        const prices = listed.map(function (l) { return { amount: Number(l.amount) || 0, currency: String(l.currency || "") } }).filter(function (p) { return p.amount > 0 })
+        const div = SK.medianDiv(prices, rates)
+        changeLoot(function (s, now) { SK.addItem(s, { t: now, name: view.name, div: div, how: div == null ? "" : "listings" }) })
+    }
+    /// Asks poe.ninja again if the running session holds loot and the
+    /// rates are old (the panel and the window call it while they show).
+    function freshen() { if (SK.hasLoot(session)) needRates() }
 
     onOnChanged: {
         Poe2Log.watch(on, String(prefs.path || ""))
@@ -147,6 +293,18 @@ QtObject {
             }
         }
         if (s.char) s.char.from = 90
+        SK.addCurrency(s, "divine", "Divine Orb", 1)
+        SK.addCurrency(s, "exalted", "Exalted Orb", 146)
+        SK.addCurrency(s, "chaos", "Chaos Orb", 22)
+        SK.addCurrency(s, "annul", "Orb of Annulment", 3)
+        SK.addItem(s, { t: t0 + 41 * MIN, name: "Ingenuity, Utility Belt", div: 0.85, how: "listings" })
+        SK.addItem(s, { t: t0 + 77 * MIN, name: "Sacred Focus", div: null, how: "" })
+        const list = [{ id: "divine", name: "Divine Orb", div: 1 }, { id: "annul", name: "Orb of Annulment", div: 0.06 },
+                      { id: "chaos", name: "Chaos Orb", div: 0.021 }, { id: "exalted", name: "Exalted Orb", div: 1 / 410 },
+                      { id: "regal", name: "Regal Orb", div: 0.0009 }]
+        const byId = {}
+        for (let i = 0; i < list.length; i++) byId[list[i].id] = { div: list[i].div, name: list[i].name }
+        rates = { league: "Demo", at: now, exalted: 410, byId: byId, list: list }
         session = s
         const day = 24 * 60 * MIN
         const past = (startAgo, played, n, deaths) => {

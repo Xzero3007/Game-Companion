@@ -6,7 +6,7 @@ const assert = require('assert')
 const src = fs.readFileSync(path.join(__dirname, '..', 'qml', 'poe2', 'sessionkit.js'), 'utf8')
     .split('\n').filter((l) => !l.startsWith('.pragma')).join('\n')
 const K = {}
-new Function('K', src + '\nfor (const n of ["kindOf","actOf","nameFromId","newSession","apply","pause","view","cutAt","finish","carryOn","isEmpty","span","clock","MIN","HOUR"]) K[n]=eval(n);')(K)
+new Function('K', src + '\nfor (const n of ["addCurrency","addItem","removeItem","medianDiv","worth","kindOf","actOf","nameFromId","newSession","apply","pause","view","cutAt","finish","carryOn","isEmpty","span","clock","MIN","HOUR"]) K[n]=eval(n);')(K)
 const { MIN } = K
 
 // Areas by id.
@@ -94,3 +94,33 @@ assert.equal(K.span(2 * K.HOUR + 5 * MIN), '2h 05m')
 assert.equal(K.span(12 * MIN), '12m')
 assert.equal(K.clock(372000), '6:12')
 console.log('poe2 session: all good')
+
+// Part 2: loot told by hand.
+{
+  let s = K.newSession(t0)
+  assert.ok(K.isEmpty(s))
+  K.addCurrency(s, 'divine', 'Divine Orb', 2)
+  K.addCurrency(s, 'exalted', 'Exalted Orb', 30)
+  K.addCurrency(s, 'exalted', '', -10)
+  K.addCurrency(s, 'chaos', 'Chaos Orb', 5)
+  K.addCurrency(s, 'chaos', '', -9)
+  assert.ok(!K.isEmpty(s))
+  assert.deepEqual(s.loot.cur, { divine: 2, exalted: 20 })
+  const rates = { exalted: 400, byId: { exalted: { div: 1 / 400 }, chaos: { div: 1 / 50 }, annul: { div: 0.05 } } }
+  assert.equal(K.medianDiv([{ amount: 40, currency: 'exalted' }, { amount: 1, currency: 'divine' }, { amount: 80, currency: 'exalted' }], rates), 0.2)
+  assert.equal(K.medianDiv([{ amount: 3, currency: 'mystery' }], rates), null)
+  K.addItem(s, { t: at(5), name: 'Bluff Waystone', div: 0.5, how: 'listings' })
+  K.addItem(s, { t: at(6), name: 'Odd ring', div: null })
+  let w = K.worth(s, rates)
+  assert.ok(Math.abs(w.div - 2.55) < 1e-9)
+  assert.equal(w.unknown, 1)
+  assert.ok(Math.abs(w.exalted - 1020) < 1e-6)
+  K.removeItem(s, 1)
+  w = K.worth(s, null)
+  assert.equal(w.div, 2.5) // divines and priced items count without rates
+  assert.equal(w.unknown, 1) // the exalted need rates
+  // Older sessions without loot still show.
+  const old = K.newSession(t0); delete old.loot
+  assert.equal(K.view(old, at(1), rates).worth.any, false)
+  console.log('poe2 session loot: all good')
+}
