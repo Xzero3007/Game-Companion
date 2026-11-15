@@ -118,6 +118,8 @@ Overlay {
             if (kept.length > 0) {
                 const k = JSON.parse(kept)
                 openFrom(k.open || [])
+                // The DPS panel opens when AION 2 starts, not with the app.
+                if (!Aion2.active) dpsOpen = false
                 dpsClosed = k.dpsClosed === true
             }
         } catch (e) { }
@@ -196,7 +198,14 @@ Overlay {
         function onStopped(id) {
             // Brave and Legcord back where and how they were.
             Apps.gameStopped()
-            if (id === root.aionId && Aion2.active) { Aion2.stop(); root.aionId = "" }
+            if (id === root.aionId && Aion2.active) {
+                Aion2.stop()
+                root.aionId = ""
+                // The DPS panel came with the game and goes with it (MN: it
+                // stayed, "NO GAME RUNNING", with its tab in the bar). Not
+                // "closed by hand": it opens again with the next start.
+                root.dpsOpen = false
+            }
             if (root.shownForGame && Companion.shown) Companion.toggleShown()
             root.shownForGame = false
         }
