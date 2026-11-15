@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.53 beta (2026-11-14): #121 PoE 2 price check: layout like the game with min/max, EE2 settings, Trade site, listings with mods and tiers, poe.ninja prices (entry below).
 - 0.8.52 beta (2026-11-14): #120 Print flicker (desktop tools never count as a full-screen game), newest first sorts by date, UP NEXT tiles and click fix, dragged video holds its picture (entry below).
 - 0.8.51 beta (2026-11-14): #116 Next video: the shown list goes along, ⏭, UP NEXT, AUTOPLAY, close the player when nothing follows (entry below).
 - 0.8.50 beta (2026-11-14): #114 (+ #113) Print/Spectacle: videos stand still and parts let clicks through while its selection is open; more YouTube dates via yt-dlp; kit tests without fixed sleeps (entry below).
