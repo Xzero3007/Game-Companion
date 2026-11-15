@@ -519,6 +519,7 @@ Overlay {
     // its panel and the small window over the game.
     SessionStore {
         id: sessionStore
+        price: priceStore
         demo: nativeWindow.demo
         on: Plugins.loads(root.plugins, "poe2") && Plugins.choice(root.plugins, "poe2.session").on && Games.runningKnown === "poe2"
     }

@@ -106,6 +106,8 @@ QtObject {
     readonly property int requestBase: 77000
     property int requestNext: 0
     property var waiting: ({})
+    /// The price check's store (its kit knows the trade site's leagues).
+    property var price: null
     /// The default rows of the currency list.
     readonly property var usualCurrency: [["divine", "Divine Orb"], ["exalted", "Exalted Orb"], ["chaos", "Chaos Orb"]]
 
@@ -140,13 +142,26 @@ QtObject {
         ratesAsking = true
         const base = "https://poe.ninja/poe2/api/economy/"
         const chosen = String(priceChoices.league || "")
-        const league = chosen ? Promise.resolve(chosen) : ask(base + "leagues").then(function (b) {
-            const d = JSON.parse(b)
-            const list = Array.isArray(d) ? d : (d && (d.leagues || d.items)) || []
-            const first = list.length ? (list[0].id || list[0].name || list[0]) : ""
-            if (!first) throw new Error("poe.ninja named no league")
-            return String(first)
-        })
+        // No league chosen yet: the price check's own pick (the trade site's
+        // league list, kept as the price check's league), poe.ninja's list
+        // only if that fails (its shape not seen yet).
+        const fromNinja = function () {
+            return ask(base + "leagues").then(function (b) {
+                const d = JSON.parse(b)
+                const list = Array.isArray(d) ? d : (d && (d.leagues || d.items)) || []
+                const first = list.length ? (list[0].id || list[0].name || list[0]) : ""
+                if (!first) throw new Error("poe.ninja named no league")
+                return String(first)
+            })
+        }
+        const fromTrade = function () {
+            return store.price.kit("leagues", [""]).then(function (l) {
+                if (!l || !l.selected) throw new Error("no league")
+                Poe2.setPref("league", JSON.stringify(l.selected))
+                return String(l.selected)
+            })
+        }
+        const league = chosen ? Promise.resolve(chosen) : store.price ? fromTrade().then(null, fromNinja) : fromNinja()
         league.then(function (lg) {
             return ask(base + "exchange/current/overview?league=" + encodeURIComponent(lg) + "&type=Currency").then(function (b) { return store.readRates(lg, b) })
         }).then(function (r) {

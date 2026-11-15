@@ -1104,7 +1104,9 @@ project folder `poe2-session-plan.md`; no GGG API, no network). Part 1:
     (ids from 77000, `Poe2.answered`), the price check's league or
     poe.ninja's first, only when the session holds loot, kept 30 min,
     again after 4 min on failure; off with the price check's "poe.ninja
-    prices". `addFromPrice(view, result)`: a currency item (`ninja.id`)
+    prices"; with no league chosen it takes the price check kit's pick
+    (the trade site's list, saved as the price check's league), poe.ninja's
+    leagues list only if that fails. `addFromPrice(view, result, text)`: a currency item (`ninja.id`)
     adds the copied stack (`Stack Size:` / `Stapelgröße:`), another item
     the median of the five cheapest listings in divines (or no price).
   - SessionPanel LOOT: worth, per hour, items without price; Divine,
