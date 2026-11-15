@@ -573,6 +573,7 @@ Item {
             MpvVideo {
                 opacity: win.videoOpacity
                 visible: drawable
+                frozen: !!win.Window.window && win.Window.window.settling === true
                 hwdec: Streams.hwdec
                 levelling: Streams.evenLoudness
                 // Jellyfin: the home network's server, nothing else.

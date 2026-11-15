@@ -178,7 +178,7 @@ private:
         auto *core = static_cast<MpvCore *>(ctx);
         QPointer<MpvVideo> item = core->item;
         if (item) {
-            QMetaObject::invokeMethod(item.data(), [item] { if (item) item->update(); }, Qt::QueuedConnection);
+            QMetaObject::invokeMethod(item.data(), [item] { if (item) item->newFrame(); }, Qt::QueuedConnection);
         }
     }
 
@@ -356,6 +356,28 @@ void MpvVideo::setYtdlOptions(const QString &options)
     }
     m_ytdlOptions = options;
     emit ytdlOptionsChanged();
+}
+
+void MpvVideo::setFrozen(bool on)
+{
+    if (m_frozen == on) {
+        return;
+    }
+    m_frozen = on;
+    if (!on && m_missed) {
+        m_missed = false;
+        update();
+    }
+    emit frozenChanged();
+}
+
+void MpvVideo::newFrame()
+{
+    if (m_frozen) {
+        m_missed = true;
+        return;
+    }
+    update();
 }
 
 void MpvVideo::setHeldUntil(qint64 at)
