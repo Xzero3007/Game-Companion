@@ -315,6 +315,16 @@ learnt, so nothing has to be asked or worked out again.
   into group" opens the name field at once (`startGroup`). The star beside a
   video or channel subscribes at once and asks before unsubscribing
   (`starChannel`, menu kind `unsub`; MN, 0.8.43).
+  Searches asked in another language than English (`youtube:lang=`) come
+  without dates (yt-dlp reads English time texts only): `dates_later`
+  asks the feeds of up to 24 channels in the list not asked for 15 minutes,
+  stores them in the feed cache and fills the shown list
+  (`apply_known_from`; also History and playlists, whose entries keep what
+  a video had when added). Order (MN, 0.8.43): "Sort ▾" left of the arrows,
+  settings `streams.sorts` per view (`Streams.setSort`, in `filters`);
+  the game's search asks YouTube in its order (`game_sp`: relevance, date,
+  views), the others are sorted as loaded (`StreamsPanel.youtubeShown`,
+  `sortVideos`; playlist Move up/down only in the playlist's own order).
   Lists keep their place when their array is replaced (load more, the
   background subscriptions look, lengths coming in; MN 0.8.37: jumped to
   the top): `StreamsPanel.listModel` is set by `swapList` from

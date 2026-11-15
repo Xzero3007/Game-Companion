@@ -204,6 +204,11 @@ pub struct StreamsSettings {
     /// Videos whose title or channel is written in an Indian script left
     /// out (the person, 2026-11-13).
     pub hide_indian: bool,
+    /// Each YouTube list's order, by view ("game": "relevance", "date" or
+    /// "views", asked of YouTube; the others sorted as loaded: "newest",
+    /// "oldest", "longest", "shortest", "own"). A view not in it keeps its
+    /// own default (MN, 0.8.43).
+    pub sorts: BTreeMap<String, String>,
     /// FreeTube's subscriptions are read from its file as they are (until
     /// they are taken over: then only `channels` count).
     pub freetube_live: bool,
@@ -278,6 +283,7 @@ impl Default for StreamsSettings {
             hidden_channels: Vec::new(),
             hidden_words: Vec::new(),
             hide_indian: true,
+            sorts: BTreeMap::new(),
             freetube_live: true,
             group: String::new(),
             search: SearchFilter::default(),
