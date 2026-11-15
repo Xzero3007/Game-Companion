@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.39 beta (2026-11-14): #92 Video: a grab freezes frames and position first, the surface changes size 40 ms later (PR #92) (entry below).
 - 0.8.38 beta (2026-11-14): #89 YouTube: lists keep their place, channel from a tile, lengths and dates, groups row; video frames held while its surface resizes (PR #89) (entry below).
 - 0.8.37 beta (2026-11-14): #86 YouTube: visionOS player first, patient watchdog until a video moves; subscriptions as a stored list (PR #86) (entry below).
 - 0.8.36 beta (2026-11-14): #83 YouTube subscriptions: 15 per channel, retries, kept on disk; 404 channels via yt-dlp; PLAYLIST in the video window (entry below).
