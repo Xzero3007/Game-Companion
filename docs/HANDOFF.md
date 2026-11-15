@@ -764,6 +764,10 @@ Untested online (the sandbox reaches neither YouTube nor Twitch): Trending
 searches, Twitch GQL fields for categories/VODs/clips/filters, chat login
 and emotes. The person tests these.
 
+Open, low priority (MN, 0.8.49, "nicht soooo schlimm"): dragging a video
+window while it plays still stutters a little (the grab freeze fixed the
+stretched frame, not the move itself).
+
 ## Branch `claude/project-thread-pv2u8z` (from beta): Boss panel (A5)
 
 Boss Notes and Boss Callouts as one Boss window (canvas page "boss", MN's

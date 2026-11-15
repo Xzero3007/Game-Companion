@@ -204,6 +204,8 @@ pub enum Event {
     Full(Win),
     /// The watcher has reported every window there was.
     Ready,
+    /// Spectacle's full-screen selection opened (true) or every one closed.
+    Shot(bool),
 }
 
 pub fn parse_event(kind: &str, data: &str) -> Option<Event> {
@@ -216,6 +218,10 @@ pub fn parse_event(kind: &str, data: &str) -> Option<Event> {
         "active" => Some(Event::Active(serde_json::from_str::<Win>(data).ok().filter(|w| !w.id.is_empty()))),
         "full" => serde_json::from_str::<Win>(data).ok().filter(|w| !w.id.is_empty()).map(Event::Full),
         "ready" => Some(Event::Ready),
+        "shot" => {
+            let v: Value = serde_json::from_str(data).ok()?;
+            Some(Event::Shot(v.get("on")?.as_bool()?))
+        }
         _ => None,
     }
 }
@@ -264,7 +270,30 @@ function gcWatched(w) {{
     for (var i = 0; i < GC_KEYS.length; i++) if (k.indexOf(GC_KEYS[i]) >= 0) return true;
     return false;
 }}
+// Spectacle's selection (Print): a window over a whole screen, on the same
+// overlay layer as Game Companion's parts. While one is open the parts
+// stand still and let clicks through (MN, 0.8.49: flicker over its frozen
+// picture). Its own result window is left alone.
+var gcShots = [];
+function gcShot(w) {{
+    if (!w) return false;
+    var k = (String(w.desktopFileName || "") + " " + String(w.resourceClass || "") + " " + String(w.resourceName || "")).toLowerCase();
+    if (k.indexOf("spectacle") < 0) return false;
+    var o = w.output, g = w.frameGeometry;
+    return w.fullScreen || (!!o && g.width >= o.geometry.width && g.height >= o.geometry.height);
+}}
+function gcShotGone(w) {{
+    var i = gcShots.indexOf(w);
+    if (i < 0) return;
+    gcShots.splice(i, 1);
+    if (gcShots.length === 0) gcSend("shot", "{{\"on\":false}}");
+}}
 function gcHook(w) {{
+    if (gcShot(w)) {{
+        gcShots.push(w);
+        gcSend("shot", "{{\"on\":true}}");
+        return;
+    }}
     if (!gcWatched(w)) {{
         // Any other window going full screen (a game taking its mark back).
         if (w && w.normalWindow) w.fullScreenChanged.connect(function () {{ if (w.fullScreen) gcSend("full", gcInfo(w)); }});
@@ -277,10 +306,14 @@ function gcHook(w) {{
     w.fullScreenChanged.connect(function () {{ gcSend("window", gcInfo(w)); }});
 }}
 workspace.windowAdded.connect(gcHook);
-workspace.windowRemoved.connect(function (w) {{ if (gcWatched(w)) gcSend("removed", JSON.stringify({{ id: String(w.internalId) }})); }});
+workspace.windowRemoved.connect(function (w) {{
+    gcShotGone(w);
+    if (gcWatched(w)) gcSend("removed", JSON.stringify({{ id: String(w.internalId) }}));
+}});
 workspace.windowActivated.connect(function (w) {{ gcSend("active", w && w.normalWindow ? gcInfo(w) : "{{}}"); }});
 var gcAll = workspace.windowList();
 for (var i = 0; i < gcAll.length; i++) gcHook(gcAll[i]);
+if (gcShots.length === 0) gcSend("shot", "{{\"on\":false}}");
 var gcNow = workspace.activeWindow;
 gcSend("active", gcNow && gcNow.normalWindow ? gcInfo(gcNow) : "{{}}");
 gcSend("ready", "{{}}");
@@ -720,6 +753,9 @@ mod tests {
         assert_eq!((w.id.as_str(), w.x, w.w, w.out.as_str()), ("{a}", 5, 300, "DP-2"));
         assert_eq!(parse_event("removed", r#"{"id":"{a}"}"#), Some(Event::Removed("{a}".into())));
         assert_eq!(parse_event("active", "{}"), Some(Event::Active(None)));
+        assert_eq!(parse_event("shot", r#"{"on":true}"#), Some(Event::Shot(true)));
+        assert_eq!(parse_event("shot", r#"{"on":false}"#), Some(Event::Shot(false)));
+        assert_eq!(parse_event("shot", "{}"), None);
         assert_eq!(parse_event("ready", "{}"), Some(Event::Ready));
         let e = parse_event("full", r#"{"id":"{g}","cls":"aion2.exe","normal":true,"full":true,"out":"DP-2"}"#);
         let Some(Event::Full(g)) = e else { panic!("{e:?}") };
