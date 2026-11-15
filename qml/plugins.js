@@ -31,8 +31,10 @@ var packages = [
     },
     {
         id: "poe2", name: "Path of Exile 2", game: true,
-        about: "Loads only while Path of Exile 2 runs. Its helper programs are planned later.",
-        plugins: []
+        about: "Loads only while Path of Exile 2 runs. Reads only what you copy: nothing is sent to the game.",
+        plugins: [
+            { id: "poe2.price", short: "PC", name: "Price Check", about: "Hover an item in the game and press Ctrl+C: Exiled Exchange 2's price check shows the trade site's cheapest listings, with its filters and stat lines to switch. Asks www.pathofexile.com (the trade site's API) only.", built: true }
+        ]
     }
 ]
 

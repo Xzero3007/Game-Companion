@@ -80,7 +80,10 @@ learnt, so nothing has to be asked or worked out again.
   src/armory.rs `allowed`; MN, 2026-11-13). The Legcord voice overlay
   (MN, 2026-11-14) opens no connection at all: its Legcord plugin talks to
   Game Companion over a Unix socket; avatars are fetched by Legcord itself
-  (its session, cdn.discordapp.com, as it does anyway). Brave Origin and Legcord are the
+  (its session, cdn.discordapp.com, as it does anyway). The PoE 2 price check (MN, 2026-11-15:
+  "bau ee2 nach"): www.pathofexile.com/api/trade2/ only (search, fetch,
+  exchange, data; src/poe2.rs `allowed`), asked when an item is checked.
+  Brave Origin, Legcord and Rusty Path of Building are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
 - **Game modules only read** (like the AION 2 meter): never send anything to
@@ -620,6 +623,29 @@ learnt, so nothing has to be asked or worked out again.
   file in Downloads (`armory-*.json`, `src/armory.rs`). Battle History
   entries carry `players` [[name, damage]] for HISTORY's boss fights.
   `GC_DEMO=armory[,gear[,compare]|,soul[,pick]|,askills|,daev|,stats|,goals|,builds|,ahistory]`.
+
+- PoE 2 price check (MN 2026-11-15, Exiled Exchange 2 rebuilt because
+  EE2 was unreliable on KDE Wayland): `tools/poe2-ee2/build.mjs <EE2
+  checkout>` makes `qml/poe2/ee2kit.js` (EE2's parser, filters and trade
+  code for Qt's ES2016: shims, polyfills, look-behind patch, named groups
+  through `__gcMatch`/`__gcExec`, no setInterval) and `data/poe2/` (en, de;
+  installed to /usr/share/game-companion/poe2, `GC_POE2_DATA`). Rebuild it
+  when EE2 brings a new league's data (1.0 in December). `src/poe2.rs`:
+  trade requests (one at a time, 429 respected, cookie jar in
+  $XDG_RUNTIME_DIR) and the XFixes clipboard watcher on XWayland (the
+  person's own Ctrl+C in the game; nothing is sent to the game).
+  `qml/poe2/PriceStore.qml` + `PriceWindow.qml`, plugin `poe2.price`, only
+  while PoE 2 runs. Tests: `node tools/poe2-ee2/test/run.js`, the ignored
+  `copied_items_are_seen` under xvfb-run with xclip. `GC_DEMO=price[,results]`.
+  Path of Building is the third app (`pob`, `AppDef.args` "poe2",
+  `AppDef.game` "poe2"; bar button while PoE 2 or PoB runs).
+  Qt's JavaScript runs without its JIT (`main.rs` sets
+  `QV4_FORCE_INTERPRETER=1`, `GC_JIT=1` keeps it): Arch's Qt 6.12 JIT
+  crashed in the kit every run (QA 2026-11-15), Qt 6.12.0 from PySide did
+  not; the interpreter cost no more CPU in the demos. Run Qt 6.12 in the
+  sandbox from a PySide6-Essentials venv (`LD_LIBRARY_PATH`,
+  `QT_PLUGIN_PATH`, `QML_IMPORT_PATH` to its `Qt/` folders): the app built
+  on 6.4 runs on it.
 
 ## Checking a change
 

@@ -1,6 +1,6 @@
 # Builds Game Companion from this checkout: `cd packaging/arch && makepkg -si`
 pkgname=game-companion
-pkgver=0.8.39
+pkgver=0.8.40
 pkgrel=1
 pkgdesc="One overlay for every game on Linux (KDE Plasma, Wayland)"
 arch=(x86_64)
@@ -50,6 +50,12 @@ package() {
     cp -r crates/aion2/data/. "$pkgdir/usr/share/game-companion/aion2/"
     find "$pkgdir/usr/share/game-companion/aion2" -type d -exec chmod 755 {} +
     find "$pkgdir/usr/share/game-companion/aion2" -type f -exec chmod 644 {} +
+    # Exiled Exchange 2's item and stat data for the PoE 2 price check (MIT).
+    install -d "$pkgdir/usr/share/game-companion/poe2"
+    cp -r data/poe2/. "$pkgdir/usr/share/game-companion/poe2/"
+    find "$pkgdir/usr/share/game-companion/poe2" -type d -exec chmod 755 {} +
+    find "$pkgdir/usr/share/game-companion/poe2" -type f -exec chmod 644 {} +
+    install -Dm644 NOTICE-ExiledExchange2.txt "$pkgdir/usr/share/licenses/$pkgname/NOTICE-ExiledExchange2.txt"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
     # The update button installs without a password: this script, run as root
     # through pkexec, installs nothing but the latest release (see it).
