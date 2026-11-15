@@ -980,6 +980,24 @@ nach". PoE 2 1.0 comes in December: everything must work by then.
 - Later (asked, not built): poe.ninja estimates (needs MN's yes for the
   host), a Client.txt reader, filter manager, levelling guide.
 
+## Branch `claude/project-thread-6m4xx8` (from beta): open Brave and Legcord taken over again
+
+MN, 0.8.37: after an update (and after a restart from the tray) Game
+Companion no longer saw the open Brave and Legcord: "NOT RUNNING", and each
+press started another one. The watcher was loaded (`isScriptLoaded` true)
+but never ran: KWin gives a new script the number of scripts it holds, so
+once any script was unloaded (other KWin scripts, Game Companion's own
+one-off scripts) the new number's D-Bus path belonged to a script still
+loaded, and `run` reached that one. A fresh login has no gaps, hence "it
+worked before". Now every load also calls `/Scripting start` (runs every
+loaded script not yet running). Belt and braces: with no window known, a
+press asks KWin for the app's windows first (`scan_body`,
+`look_then_start`, `looked`) and loads the watcher again if it missed one;
+a game start does the same before starting apps set to start with it.
+Checked on the Arch bench: `arch-test/apps/holes.sh` (a gap in the ids:
+taken over, no second Brave, the watcher saw it itself), `restart.sh`
+(restart after SIGTERM and SIGKILL), `gc.sh` all pass.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots
