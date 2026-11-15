@@ -26,6 +26,8 @@ mod meter_import;
 mod native;
 mod poe2;
 mod poe2_kit;
+mod poe2_log;
+mod poe2_log_object;
 mod poe2_object;
 mod protondb;
 mod radio;
@@ -89,6 +91,7 @@ fn main() {
     // them closes (unless the person chose otherwise).
     apps::quit();
     poe2_kit::stop();
+    poe2_log::stop();
     voice_overlay::quit();
     log::end(code);
     std::process::exit(code);

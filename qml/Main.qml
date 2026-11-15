@@ -27,6 +27,7 @@ Overlay {
     property bool bossOpen: false
     property bool lootOpen: false
     property bool armoryOpen: false
+    property bool sessionOpen: false
     /// The person closed the DPS panel: it stays closed when AION 2 starts.
     property bool dpsClosed: false
     /// The game id AION 2 runs under (its module stops when that one ends).
@@ -79,6 +80,7 @@ Overlay {
         if (bossOpen) ids.push("boss")
         if (lootOpen) ids.push("loot")
         if (armoryOpen) ids.push("armory")
+        if (sessionOpen) ids.push("poe2-session")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
         return ids
@@ -93,6 +95,7 @@ Overlay {
         bossOpen = ids.indexOf("boss") >= 0
         lootOpen = ids.indexOf("loot") >= 0
         armoryOpen = ids.indexOf("armory") >= 0
+        sessionOpen = ids.indexOf("poe2-session") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
     }
@@ -139,6 +142,7 @@ Overlay {
         if (demo.indexOf("boss") >= 0) bossOpen = true
         if (demo.indexOf("armory") >= 0) armoryOpen = true
         if (demo.indexOf("loot") >= 0) lootOpen = demo.indexOf("shop") < 0 || demo.indexOf("panel") >= 0
+        if (demo.indexOf("session") >= 0 && demo.indexOf("price") < 0) sessionOpen = true
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("games") >= 0) games.demo(demo)
@@ -148,8 +152,9 @@ Overlay {
         if (demo.indexOf("jellyvideo") >= 0) jellyfinVideo.demo()
         if (demo.indexOf("upnext") >= 0) {
             // The YouTube player started from a list: NEXT, UP NEXT, AUTOPLAY.
-            const q = [1, 2, 3, 4, 5, 6, 7].map((n) => ({ id: "demovideo0" + n, title: ["Patch notes explained", "Season start guide", "Top 10 builds",
-                "Boss guide: Ludra", "Crafting for beginners", "Market tips", "Weekly news"][n - 1], channel: "Channel " + n }))
+            const q = [1, 2, 3, 4, 5, 6, 7].map((n) => ({ id: "demovideo0" + n, title: ["Patch notes explained", "Season start guide: everything you need to know before the new league begins, with all builds and tips", "Top 10 builds",
+                "Boss guide: Ludra", "Crafting for beginners", "Market tips", "Weekly news"][n - 1], channel: "Channel " + n,
+                duration: 300 + n * 97, published: new Date(Date.now() - n * 7 * 3600000).toISOString() }))
             youtubeVideo.item = { kind: "youtube", id: q[0].id, title: q[0].title, name: q[0].channel, video: q[0], queue: q, index: 0, through: false, loop: false, playlist: "" }
             if (demo.indexOf("upnextlist") >= 0) Qt.callLater(youtubeVideo.openUpNext)
             if (demo.indexOf("nextnote") >= 0) { youtubeVideo.nextItem = youtubeVideo.queued(1); youtubeVideo.nextNote = "NEXT: " + q[1].title }
@@ -316,7 +321,7 @@ Overlay {
             readonly property bool onScreen: active && root.onScreen("game-row")
             x: Math.max(0, Math.min(root.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
             y: Companion.shown ? bar.height * bar.scale : 0
-            gameName: Games.runningName.length > 0 ? Games.runningName : (priceStore.shown ? "Path of Exile 2" : "AION 2")
+            gameName: Games.runningName.length > 0 ? Games.runningName : (priceStore.shown || sessionStore.demoOn ? "Path of Exile 2" : "AION 2")
             dpsShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.dps")) || root.dpsOpen
             dpsOpen: root.dpsOpen
             onDpsClicked: { root.dpsOpen = root.fromRow("dps", root.dpsOpen); root.dpsClosed = !root.dpsOpen }
@@ -347,6 +352,10 @@ Overlay {
             priceShown: (Games.runningKnown === "poe2" && Plugins.inBar(root.plugins, "poe2.price")) || priceStore.shown
             priceOpen: priceStore.shown
             onPriceClicked: if (priceStore.shown) priceStore.close(); else priceStore.shown = true
+            sessionShown: (sessionStore.on && Plugins.inBar(root.plugins, "poe2.session")) || root.sessionOpen || sessionStore.demoOn
+            sessionOpen: root.sessionOpen
+            onSessionClicked: root.sessionOpen = root.fromRow("poe2-session", root.sessionOpen)
+            onSessionRightClicked: sessionStore.setPref("window", sessionStore.prefs.window === false)
         }
     }
 
@@ -508,9 +517,38 @@ Overlay {
         part: PriceWindow {
             id: priceWindow
             store: priceStore
+            session: sessionStore
             defaultX: Math.max(24, root.width - width - 80)
             defaultY: 160
             onCloseClicked: priceStore.close()
+        }
+    }
+
+    // PoE 2's session tracker: follows the game's log while PoE 2 runs;
+    // its panel and the small window over the game.
+    SessionStore {
+        id: sessionStore
+        price: priceStore
+        demo: nativeWindow.demo
+        on: Plugins.loads(root.plugins, "poe2") && Plugins.choice(root.plugins, "poe2.session").on && Games.runningKnown === "poe2"
+    }
+    Surface {
+        wanted: root.sessionOpen && root.onScreen("poe2-session")
+        stack: 3
+        part: SessionPanel {
+            store: sessionStore
+            defaultX: Math.max(24, root.width - width - 80)
+            defaultY: 160
+            onCloseClicked: root.sessionOpen = false
+        }
+    }
+    Surface {
+        wanted: sessionStore.windowWanted
+        stack: 4
+        part: SessionWindow {
+            store: sessionStore
+            defaultX: Math.max(24, (root.width - width) / 2)
+            defaultY: 96
         }
     }
 
@@ -692,6 +730,7 @@ Overlay {
             pinnable: false
             mapSource: mapPanel
             timerStore: timerStore
+            priceStore: priceStore
             defaultX: root.width - width - 24
             defaultY: 120
             onCloseClicked: root.settingsOpen = false

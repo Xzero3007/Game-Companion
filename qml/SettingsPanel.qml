@@ -3,6 +3,7 @@ import GameCompanion
 import "theme.js" as Theme
 import "plugins.js" as Plugins
 import "aion2/timekit.js" as TK
+import "poe2"
 
 // Settings: how solid the panels are, the shortcuts, and what this is.
 Panel {
@@ -12,7 +13,7 @@ Panel {
     width: 540
 
     property string tab: nativeWindow.demo.indexOf("display") >= 0 ? "display"
-        : nativeWindow.demo.indexOf("timers") >= 0 ? "plugins"
+        : nativeWindow.demo.indexOf("timers") >= 0 || nativeWindow.demo.indexOf("poe2prefs") >= 0 ? "plugins"
         : nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0
         || nativeWindow.demo.indexOf("ytsettings") >= 0 ? "streams" : "general"
     property var keys: JSON.parse(Companion.shortcuts)
@@ -25,6 +26,7 @@ Panel {
     property var mapSource: null
     /// The Schedule's store (its settings fold out under Event Timers).
     property var timerStore: null
+    property var priceStore: null
     function keyOf(id) {
         for (const k of keys) if (k.id === id) return k.key
         return ""
@@ -88,7 +90,7 @@ Panel {
                     width: parent.width
                     spacing: 10
                     readonly property var all: JSON.parse(Companion.plugins)
-                    property string packageId: nativeWindow.demo.indexOf("pluginsglobal") >= 0 ? "global" : "aion2"
+                    property string packageId: nativeWindow.demo.indexOf("pluginsglobal") >= 0 ? "global" : nativeWindow.demo.indexOf("poe2prefs") >= 0 ? "poe2" : "aion2"
                     readonly property var pack: Plugins.packages.filter((p) => p.id === packageId)[0]
 
                     Row {
@@ -165,8 +167,11 @@ Panel {
                             readonly property bool hasOverlay: p.id === "aion2.map" && !!settings.mapSource
                             // The Event Timers' sources and alerts fold out the same way.
                             readonly property bool hasTimers: p.id === "aion2.timers" && !!settings.timerStore
+                            // The PoE 2 price check's choices (as in its window's ⚙).
+                            readonly property bool hasPrice: p.id === "poe2.price" && !!settings.priceStore
                             property bool expanded: (hasOverlay && nativeWindow.demo.indexOf("overlay") >= 0)
                                 || (hasTimers && nativeWindow.demo.indexOf("timers") >= 0)
+                                || (hasPrice && nativeWindow.demo.indexOf("poe2prefs") >= 0)
                             height: headHeight + (expanded ? overlayBox.height + 12 : 0)
                             opacity: (p.fixed || c.on) && usable ? 1 : 0.55
                             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
@@ -233,11 +238,11 @@ Panel {
                                 y: 10
                                 spacing: 8
                                 SmallToggle {
-                                    visible: plugRow.hasTimers
+                                    visible: plugRow.hasTimers || plugRow.hasPrice
                                     width: 92
                                     text: "SETTINGS " + (plugRow.expanded ? "▴" : "▾")
                                     on: plugRow.expanded
-                                    tip: "Where the times come from, and the alerts"
+                                    tip: plugRow.hasPrice ? "Search range, listings, currency, seller, tiers" : "Where the times come from, and the alerts"
                                     onClicked: plugRow.expanded = !plugRow.expanded
                                 }
                                 SmallToggle {
@@ -274,7 +279,7 @@ Panel {
                                 y: plugRow.headHeight
                                 width: plugRow.width - 42
                                 height: item ? item.implicitHeight : 0
-                                sourceComponent: plugRow.hasTimers ? timersComponent : overlayComponent
+                                sourceComponent: plugRow.hasTimers ? timersComponent : plugRow.hasPrice ? priceComponent : overlayComponent
                             }
                         }
                     }
@@ -1442,6 +1447,7 @@ Panel {
 
     Component { id: overlayComponent; OverlaySettings { map: settings.mapSource } }
     Component { id: timersComponent; ScheduleSettings { store: settings.timerStore } }
+    Component { id: priceComponent; PriceSettings { store: settings.priceStore } }
 
     // The Event Timers' settings (canvas board T3): where the times come
     // from, and how alerts show.

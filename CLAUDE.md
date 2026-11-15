@@ -82,7 +82,17 @@ learnt, so nothing has to be asked or worked out again.
   Game Companion over a Unix socket; avatars are fetched by Legcord itself
   (its session, cdn.discordapp.com, as it does anyway). The PoE 2 price check (MN, 2026-11-15:
   "bau ee2 nach"): www.pathofexile.com/api/trade2/ only (search, fetch,
-  exchange, data; src/poe2.rs `allowed`), asked when an item is checked.
+  exchange, data; src/poe2.rs `allowed`), asked when an item is checked;
+  "Trade site ↗" opens the same search on www.pathofexile.com/trade2/
+  (search or exchange pages only, `trade_page_ok`) in the person's own
+  browser through xdg-open, only on a click (MN, 2026-11-15: "es muss nur
+  aufgehen wenn ich da was anklicken kann"). poe.ninja's PoE 2 economy
+  (poe.ninja/poe2/api/economy/ only: leagues, exchange, stash; GET, no
+  cookies; `ninja_allowed`), the league's currency overview once in 30
+  minutes when an item is checked, on by default, off under Settings →
+  Plugins → PoE 2 "poe.ninja prices" (MN, 2026-11-15: "standartmäßig an
+  kann man aber auch aus klicken"). poeprices.info: not until it
+  knows PoE 2 (MN chose so, 2026-11-15; EE2 itself switched it off).
   Brave Origin, Legcord and Rusty Path of Building are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
@@ -317,8 +327,12 @@ learnt, so nothing has to be asked or worked out again.
   (`starChannel`, menu kind `unsub`; MN, 0.8.43). A YouTube video
   started from a list takes the shown list along (`playVideo`: `queue`,
   `index`; `through` only for a playlist or "Play all", which go on at
-  once): the player's ⏭, "UP NEXT ▾" (`upNext`, the next five; its first
-  row and, from 640 px, the bar's AUTOPLAY switch `Streams.autoplay`,
+  once): the player's ⏭, "UP NEXT ▾" (`upNext`, up to 50 following, shown
+  as tiles with picture, length, the whole title, channel and date,
+  scrolled by the wheel, a click plays one; MN 0.8.51: the old picker
+  lost the click because closing it destroyed the row, so a handler that
+  closes its own list takes what it needs first), AUTOPLAY in its header
+  and from 640 px in the bar (`Streams.autoplay`,
   settings `streams.autoplay`, default off) and, with AUTOPLAY on, the
   5 s "NEXT:" note (`nextItem`, shared with Jellyfin's next episode).
   Settings → Streams → Videos "Close the player when nothing follows"
@@ -326,8 +340,12 @@ learnt, so nothing has to be asked or worked out again.
   → `closeIfEnded` (via `Qt.callLater`, never inside the player's own
   signal) → `stop()`, which lets mpv go as the close button does; for
   YouTube, Twitch and Jellyfin (after no next episode or track came).
-  Narrow windows: below 520 px with UP NEXT the speed button hides
-  (MN, 2026-11-15). `GC_DEMO=video,upnext[,upnextlist|,nextnote],unlocked`.
+  Narrow windows: with UP NEXT the time buttons hide below 560 px and
+  speed below 520 px (MN, 2026-11-15). The game's search with "Newest
+  first" is also sorted here by date (YouTube's own order was loose).
+  A video being dragged or resized stays still (`Surface.held` →
+  `MpvVideo.frozen`, sound plays on, watchdog paused): redrawn with every
+  move, the move stuttered (MN, 0.8.49). `GC_DEMO=video,upnext[,upnextlist|,nextnote],unlocked`.
   Searches asked in another language than English (`youtube:lang=`) come
   without dates (yt-dlp reads English time texts only): `dates_later`
   asks the feeds of up to 24 channels in the list not asked for 15 minutes,
@@ -346,7 +364,11 @@ learnt, so nothing has to be asked or worked out again.
   (`gcShot`, event `shot`) → `Apps.screenshot`: videos frozen (watchdog
   paused), every part's input region one pixel (Surface.applyInput), so
   nothing flickers over its frozen picture and clicks are Spectacle's
-  (MN, 0.8.49). `GC_DEMO=…,shot` sets it (under xcb the one-pixel mask
+  (MN, 0.8.49). Spectacle's selection is full screen and takes the
+  focus: `apps::desktop_tool` keeps it (and plasmashell, KRunner, the lock
+  screen, polkit) out of the full-screen game logic; taken for a game
+  while Brave was shown, it lost its full-screen mark, took it back, five
+  times, and the screens flickered (MN, 0.8.51). `GC_DEMO=…,shot` sets it (under xcb the one-pixel mask
   also hides the windows: an X11 artifact).
   Lists keep their place when their array is replaced (load more, the
   background subscriptions look, lengths coming in; MN 0.8.37: jumped to
@@ -709,8 +731,44 @@ learnt, so nothing has to be asked or worked out again.
   a promise; if the child dies only the price check starts again
   (`kitGone`). GC_DEMO=price answers inside the child (`DEMO`). The kit is
   still built without array iterators (Babel pass in build.mjs). Tests:
-  `cargo test poe2_kit` (an item, a search, EE2's 27 samples in QuickJS). Tests: `node tools/poe2-ee2/test/run.js`, the ignored
-  `copied_items_are_seen` under xvfb-run with xclip. `GC_DEMO=price[,results]`.
+  `cargo test poe2_kit` (an item, a search, EE2's 27 samples in QuickJS).
+  Tests: `node tools/poe2-ee2/test/run.js`, the ignored
+  `copied_items_are_seen` under xvfb-run with xclip. `GC_DEMO=price[,results|,gloves]`,
+  `settings,poe2prefs`, `price,results,listing` (a listing's item shown),
+  `price,currency` (the exchange with poe.ninja's price). A click on a
+  listing shows its item under the row (`ListedItem.qml`, the kit's
+  `item` from EE2's DisplayItem: values, requirements, enchants, runes,
+  implicits, mods with tiers, in the trade site's colours; MN, 2026-11-15).
+  poe.ninja (`tools/poe2-ee2/ninja.ts`): the exchange's Currency overview
+  (`core.rates.exalted` = ex per divine, `lines[].primaryValue` in divines,
+  ids = the trade site's currency ids, `items[]` the names; shape from MN's
+  copy, Runes of Aldur); each listing's `norm` (in ex, from one divine up in
+  div), a currency item's `ninja` (div, ex, 7-day change) in the view and
+  the result. Layout like the game (MN, 2026-11-15): with the
+  advanced copy (Ctrl+C with Alt held) the kit's `view().mods` (from the
+  item text's `{ … }` headers, matched to EE2's mods by name and tier)
+  make the groups IMPLICIT · ENCHANT · RUNES, PREFIXES, SUFFIXES (each
+  line with the tier's range in brackets, its tier, the stat line that
+  searches for it, or "in the totals"/"in the item's values"); without it
+  EE2's stat lines in VALUES, LINES, TOTALS. Min/max per line
+  (`RangeField`, wheel works locked). EE2's settings in `PriceSettings.qml`
+  (window ⚙ and Settings → Plugins → PoE 2), kept in settings.poe2,
+  handed to the kit by `setPrefs`. The clipboard watcher connects again by
+  itself when XWayland's connection ends; `Poe2.watchError` shows in the
+  window (0.8.44, MN: Ctrl+C did nothing). EE2's leagues come unencoded
+  ("Runes of Aldur"): `encode_address` before `allowed`.
+  PoE 2 session tracker (MN 2026-11-15, plugin `poe2.session`; no network):
+  `src/poe2_log.rs` reads the game's own `logs/Client.txt` while PoE 2
+  runs (from its end; only area, level-up, own death and AFK lines, never
+  chat or whispers), `Poe2Log.heard`; rules in `qml/poe2/sessionkit.js`
+  (`node tools/poe2-session-test.js`), `SessionStore.qml`,
+  `SessionPanel.qml`, `SessionWindow.qml`; new session after 30 min / 1 h
+  of pause or at midnight. `GC_DEMO=session`. Details: docs/HANDOFF.md.
+  Loot by hand (part 2): currency with − / + or a copied stack and items
+  by the price check's "+ Session", worth from poe.ninja's exchange
+  overview (`SessionStore.needRates`, only while the session holds loot,
+  30 min; the price check's "poe.ninja prices" switch). PoE 2 has no stash
+  API (GGG: PoE 1 only); never read the game's memory.
   Path of Building is the third app (`pob`, `AppDef.args` "poe2",
   `AppDef.game` "poe2"; bar button while PoE 2 or PoB runs).
   Qt's JavaScript runs without its JIT (`main.rs` sets
