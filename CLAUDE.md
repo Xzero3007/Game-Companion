@@ -186,6 +186,22 @@ learnt, so nothing has to be asked or worked out again.
   start prints "already running" and ends. Ending cleanly: mpv children die
   with the app (PR_SET_PDEATHSIG); for an update the app quits and, if Qt
   hangs, exits after 5 s anyway (the installer waits for its pid).
+- The app's log (`src/log.rs`, MN 2026-11-15: "bau ein log ein", "nein zu
+  persönlichen daten und mehr daten als nötig"):
+  `~/.cache/game-companion/game-companion.log`, moved to `.log.1` past 2 MB,
+  each line written at once. Start (version, Qt, platform, screens), end
+  and why (signal, tray, Turn off, update), an unclean last session (the
+  `running` marker), Qt warnings and errors (`gc_log_qt` from the message
+  handler in cpp/native.cpp; each kind once per session, the JS lint never),
+  a crash's signal and backtrace (handler with `write`/`backtrace_symbols_fd`
+  only, then the signal goes on: core dump as before), the PoE 2 steps
+  (copy seen item yes/no and its length, check, search, each trade request's
+  endpoint kind and HTTP status, timers), children started and ended,
+  shortcuts, the running game, the AION 2 meter. Never item or chat texts,
+  tokens, accounts or request bodies; `log::clean` writes the home folder as
+  `~` and cuts values after token marks. QML: `Companion.log(area, text)`.
+  Settings → General "Log" (Open log folder, Copy log = last 300 lines),
+  tray "Open log folder". `GC_LOG=stderr` mirrors it, `GC_LOG=off` stops it.
 - `src/companion.rs`: the `Companion` QML singleton (CXX-Qt). The shortcut
   thread queues onto the Qt thread (`qt_thread().queue`).
 - `src/shortcuts.rs`: the GlobalShortcuts portal, adapted from the meter's

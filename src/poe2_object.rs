@@ -81,11 +81,18 @@ impl qobject::Poe2 {
     fn request(self: Pin<&mut Self>, id: i32, method: &QString, url: &QString, body: &QString) {
         let (method, url, body) = (method.to_string(), url.to_string(), body.to_string());
         let thread = self.qt_thread();
+        let what = endpoint(&url);
+        crate::log::write("poe2", &format!("request {id}: {method} {what}"));
         let _ = std::thread::Builder::new().name("poe2-trade".into()).spawn(move || {
             let (status, headers, body) = match crate::poe2::request(&method, &url, &body) {
                 Ok(a) => (i32::from(a.status), Value::Object(a.headers).to_string(), a.body),
                 Err(why) => (0, "{}".to_string(), why),
             };
+            if status == 0 {
+                crate::log::write("poe2", &format!("request {id}: no answer: {body}"));
+            } else {
+                crate::log::write("poe2", &format!("request {id}: HTTP {status}, {} bytes", body.len()));
+            }
             let _ = thread.queue(move |obj: Pin<&mut qobject::Poe2>| obj.answered(id, status, QString::from(&headers), QString::from(&body)));
         });
     }
@@ -122,12 +129,36 @@ impl qobject::Poe2 {
                 },
             );
             if let Err(why) = result {
+                crate::log::write("poe2", &format!("clipboard watcher cannot start: {why}"));
                 self.as_mut().rust_mut().started = false;
                 self.as_mut().set_watch_error(QString::from(&why));
             } else {
+                crate::log::write("poe2", "clipboard watcher started");
                 self.as_mut().set_watch_error(QString::default());
             }
         }
+        if *self.watching() != on {
+            crate::log::write("poe2", if on { "price check: watching copies" } else { "price check: not watching copies" });
+        }
         self.as_mut().set_watching(on);
+    }
+}
+
+/// The trade site's endpoint for the log, without leagues, ids or queries:
+/// `/api/trade2/fetch/…` → `fetch`.
+fn endpoint(url: &str) -> String {
+    let path = url.split(['?', '#']).next().unwrap_or("");
+    let after = path.split("/api/trade2/").nth(1).unwrap_or("");
+    let part = after.split('/').next().unwrap_or("");
+    if part.is_empty() { "other".into() } else { part.chars().filter(|c| c.is_ascii_alphanumeric()).take(20).collect() }
+}
+
+#[cfg(test)]
+mod log_tests {
+    #[test]
+    fn endpoint_names_only_the_kind() {
+        assert_eq!(super::endpoint("https://www.pathofexile.com/api/trade2/fetch/abc,def?query=x"), "fetch");
+        assert_eq!(super::endpoint("https://www.pathofexile.com/api/trade2/search/Rise%20of"), "search");
+        assert_eq!(super::endpoint("https://example.com/"), "other");
     }
 }
