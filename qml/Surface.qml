@@ -33,21 +33,29 @@ Window {
     /// Where the window was when the press came (see drag.js).
     property point heldOrigin: Qt.point(0, 0)
     function grab(on) {
-        if (on && !held) heldOrigin = Qt.point(area.x, area.y)
-        held = on
+        if (on && !held && !holdLater.running) heldOrigin = Qt.point(area.x, area.y)
+        // Nothing draws first (a playing video holds still, `settling`),
+        // then the window changes size once frames on their way are out: a
+        // frame drawn at the old size and handed over with the new one
+        // showed the whole window stretched over the screen (MN; Sway on
+        // the Arch bench, about every second grab while a video played,
+        // never paused).
+        heldWanted = on
+        settling = true
+        settled.stop()
+        holdLater.restart()
     }
+    property bool heldWanted: false
+    Timer { id: holdLater; interval: 40; onTriggered: { surface.held = surface.heldWanted; settled.restart() } }
     /// The window has had time to take the whole screen: pointer places
     /// are measured from it from now on (MoveArea ignores moves until then).
     property bool steady: false
-    onHeldChanged: { steady = false; if (held) settle.restart(); settling = true; settled.restart() }
+    onHeldChanged: { steady = false; if (held) settle.restart() }
     Timer { id: settle; interval: 120; onTriggered: surface.steady = true }
-    /// The window changes size for a grab or its end: a playing video draws
-    /// no frame meanwhile (MpvVideo.frozen). Qt may hand the compositor a
-    /// frame of the old size with the new size (or the other way round),
-    /// which showed the video stretched over the screen for a moment (MN,
-    /// only while it played).
+    /// Around a change of size for a grab or its end: a playing video draws
+    /// no frame and its time holds still (MpvVideo.frozen).
     property bool settling: false
-    Timer { id: settled; interval: 150; onTriggered: surface.settling = false }
+    Timer { id: settled; interval: 250; onTriggered: surface.settling = false }
 
     property bool attached: false
     transientParent: null

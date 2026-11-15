@@ -301,9 +301,14 @@ learnt, so nothing has to be asked or worked out again.
   rough one stays "3 weeks ago"). `VideoByline.qml`: channel name opens
   the channel (also ⋯ "Go to channel", "Channel into group ▸", which
   subscribes first); the GROUPS row shows in Subscriptions and Channels
-  even without groups, saying how to make one. A playing video draws no
-  frame while its surface changes size for a grab (`Surface.settling`,
-  150 ms; `MpvVideo.frozen`): MN saw it flash stretched over the screen.
+  even without groups, saying how to make one. A grab first freezes a
+  playing video (`Surface.settling` → `MpvVideo.frozen`: no frames, no
+  position updates) and changes the surface's size 40 ms later
+  (`holdLater`), unfrozen 250 ms after: a frame drawn at the old size and
+  committed with the new one showed the whole window stretched over the
+  screen (MN; Sway bench, about every second grab while playing, never
+  paused; 0.8.38's freeze at the same moment as the resize didn't help).
+  Bench check: `arch-test/video-drag.sh` (project folder).
   Under xvfb (llvmpipe) a large video shows
   stripes after some seconds (also without resizing): most likely a
   software-GL artifact; to be checked on the person's GPU. `GC_SCREENSHOT_DELAY` sets the screenshot's moment.
