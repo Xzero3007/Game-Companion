@@ -613,7 +613,7 @@ Item {
         enabled: !Companion.locked
     }
     readonly property bool barsWanted: pointerOn.hovered || qualityPicker.open || opacityPicker.open || audioPicker.open || subtitlePicker.open
-        || speedPicker.open || chapterPicker.open
+        || speedPicker.open || chapterPicker.open || playlistPicker.open
     onBarsWantedChanged: if (!barsWanted) barsLinger.restart()
     Timer { id: barsLinger; interval: 700 }
 
@@ -634,7 +634,7 @@ Item {
     onShowBarsChanged: if (!showBars) closePickers()
     function closePickers() {
         qualityPicker.open = false; opacityPicker.open = false; audioPicker.open = false; subtitlePicker.open = false
-        speedPicker.open = false; chapterPicker.open = false
+        speedPicker.open = false; chapterPicker.open = false; playlistPicker.open = false
     }
     /// The chapter at a time ("" none).
     function chapterAt(t) {
@@ -758,6 +758,11 @@ Item {
                 color: on ? Theme.accent : Theme.muted()
                 tip: on ? "Remove from the bookmark list" : "Bookmark"
                 onClicked: Library.toggleQuick(win.videoJson())
+            }
+            TrackButton {
+                visible: !!win.item && win.item.kind === "youtube"
+                text: "PLAYLIST"
+                picker: playlistPicker
             }
             TrackButton {
                 visible: win.jelly && !!win.jf.tracks && win.jf.tracks.audio.length > 1
@@ -1029,7 +1034,7 @@ Item {
             onClicked: { const o = !parent.picker.open; win.closePickers(); parent.picker.open = o }
         }
         Accessible.role: Accessible.ComboBox
-        Accessible.name: text === "SOUND" ? "Sound track" : "Subtitles"
+        Accessible.name: text === "SOUND" ? "Sound track" : text === "PLAYLIST" ? "Add to playlist" : text === "SUBS" ? "Subtitles" : text
     }
 
     component SeekButton: Item {
@@ -1149,6 +1154,33 @@ Item {
         options: video.chapters.map((c, i) => ({ id: String(i), name: win.clock(c.time) + "  " + (c.title || "Chapter " + (i + 1)) }))
         current: { let at = -1; video.chapters.forEach((c, i) => { if (c.time <= video.position) at = i }); return String(at) }
         onChosen: (id) => video.seek(video.chapters[Number(id)].time, false)
+    }
+    // The video into one of the playlists or out (✓ = in it), or a new one.
+    Picker {
+        id: playlistPicker
+        anchors.right: parent.right
+        anchors.rightMargin: 36
+        y: 36
+        width: Math.min(260, win.width - 48)
+        maxHeight: win.height - y - 44
+        options: {
+            if (!open || !win.item || win.item.kind !== "youtube" || Library.revision < 0) return []
+            const lists = JSON.parse(Library.mark(win.item.id)).lists
+            return JSON.parse(Library.playlists).map((p) => ({ id: "to:" + p.id, name: (lists.indexOf(p.id) >= 0 ? "✓ " : "") + p.name }))
+                .concat([{ id: "new", name: "+ New playlist" }])
+        }
+        onChosen: (id) => {
+            if (!win.item) return
+            const json = win.videoJson()
+            if (id === "new") {
+                const pid = Library.create("Playlist " + (JSON.parse(Library.playlists).length + 1))
+                if (pid) Library.addTo(pid, json)
+            } else if (id.indexOf("to:") === 0) {
+                const pid = id.slice(3)
+                if (JSON.parse(Library.mark(win.item.id)).lists.indexOf(pid) >= 0) Library.removeFrom(pid, win.item.id)
+                else Library.addTo(pid, json)
+            }
+        }
     }
     Picker {
         id: speedPicker

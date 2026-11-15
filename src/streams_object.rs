@@ -3,7 +3,7 @@
 //! Twitch sign-in; and the address a video player plays.
 
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -649,7 +649,8 @@ const FEEDS_AT_ONCE: usize = 8;
 /// How long loaded subscriptions are kept (the refresh button asks again).
 const KEEP_SUBSCRIPTIONS: Duration = Duration::from_secs(15 * 60);
 
-type Kept = Option<(Instant, Vec<String>, Vec<Value>)>;
+/// When, for which channels, the videos, and how many channels didn't answer.
+type Kept = Option<(Instant, Vec<String>, Vec<Value>, usize)>;
 
 /// Which live-notes thread may go on (a new one, or none when switched off).
 static ALERTS_RUN: AtomicU64 = AtomicU64::new(0);
@@ -660,13 +661,15 @@ fn subscriptions_kept() -> &'static Mutex<Kept> {
 }
 
 /// The subscriptions loaded a little earlier for the same channels.
-fn kept_subscriptions(ids: &[String]) -> Option<Vec<Value>> {
+fn kept_subscriptions(ids: &[String]) -> Option<(Vec<Value>, usize)> {
     let kept = subscriptions_kept().lock().unwrap_or_else(|p| p.into_inner());
-    kept.as_ref().filter(|(at, kept_ids, _)| at.elapsed() < KEEP_SUBSCRIPTIONS && kept_ids == ids).map(|(_, _, v)| v.clone())
+    kept.as_ref()
+        .filter(|(at, kept_ids, _, _)| at.elapsed() < KEEP_SUBSCRIPTIONS && kept_ids == ids)
+        .map(|(_, _, v, missing)| (v.clone(), *missing))
 }
 
-fn keep_subscriptions(ids: &[String], videos: &[Value]) {
-    *subscriptions_kept().lock().unwrap_or_else(|p| p.into_inner()) = Some((Instant::now(), ids.to_vec(), videos.to_vec()));
+fn keep_subscriptions(ids: &[String], videos: &[Value], missing: usize) {
+    *subscriptions_kept().lock().unwrap_or_else(|p| p.into_inner()) = Some((Instant::now(), ids.to_vec(), videos.to_vec(), missing));
 }
 
 /// The newest 60 videos, newest first.
@@ -680,9 +683,32 @@ fn newest_of(mut all: Vec<Value>, n: usize) -> Vec<Value> {
     all
 }
 
-/// The channels' feeds, several at once (each channel's newest five).
+/// What `fetch_feeds` gives: each answering channel's videos, the channels
+/// that didn't answer, and why.
+type Feeds = (Vec<(String, Vec<Value>)>, Vec<String>, Option<String>);
+
+/// The channels' feeds, several at once (each channel's newest 15, all its
+/// feed holds). A feed that didn't answer is asked once more a few seconds
+/// later (YouTube's feeds fail now and then, MN saw few subscriptions).
 /// `progress` hears how many are done and what came so far, now and then.
-fn fetch_feeds(ids: Vec<String>, progress: impl Fn(usize, &[Value])) -> (Vec<Value>, Option<String>) {
+/// Gives each answering channel's videos, the channels that still didn't
+/// answer, and why.
+fn fetch_feeds(ids: Vec<String>, progress: impl Fn(usize, &[Value])) -> Feeds {
+    let (mut got, failed, mut why) = fetch_feeds_once(ids, &progress);
+    if failed.is_empty() {
+        return (got, failed, why);
+    }
+    std::thread::sleep(Duration::from_secs(3));
+    let (more, still, again) = fetch_feeds_once(failed, |_, _| {});
+    got.extend(more);
+    if again.is_some() {
+        why = again;
+    }
+    (got, still, why)
+}
+
+/// One round of `fetch_feeds`.
+fn fetch_feeds_once(ids: Vec<String>, progress: impl Fn(usize, &[Value])) -> Feeds {
     let ids = Arc::new(ids);
     let next = Arc::new(AtomicUsize::new(0));
     let (tx, rx) = mpsc::channel();
@@ -691,29 +717,92 @@ fn fetch_feeds(ids: Vec<String>, progress: impl Fn(usize, &[Value])) -> (Vec<Val
         std::thread::spawn(move || loop {
             let i = next.fetch_add(1, Ordering::Relaxed);
             let Some(id) = ids.get(i) else { break };
-            if tx.send(streams::youtube_feed(id)).is_err() {
+            if tx.send((id.clone(), streams::youtube_feed(id))).is_err() {
                 break;
             }
         });
     }
     drop(tx);
-    let mut all = Vec::new();
-    let mut failed = None;
+    let mut got = Vec::new();
+    let mut so_far = Vec::new();
+    let mut failed = Vec::new();
+    let mut why = None;
     let mut done = 0;
     let mut told = Instant::now();
-    for result in rx {
+    for (id, result) in rx {
         done += 1;
         match result {
-            Ok(v) => all.extend(v.into_iter().take(5)),
-            Err(e) => failed = Some(e),
+            Ok(v) => {
+                let v: Vec<Value> = v.into_iter().take(15).collect();
+                so_far.extend(v.iter().cloned());
+                got.push((id, v));
+            }
+            Err(e) => {
+                failed.push(id);
+                why = Some(e);
+            }
         }
         if told.elapsed() > Duration::from_millis(700) && done < ids.len() {
-            progress(done, &all);
+            progress(done, &so_far);
             told = Instant::now();
         }
     }
-    (all, failed)
+    (got, failed, why)
 }
+
+/// Each channel's last feed, kept on disk
+/// (~/.cache/game-companion/youtube-feeds.json, `{id: {"at": unix seconds,
+/// "videos": [...]}}`; MN: remember what was loaded): shown at once when the
+/// subscriptions open, a channel read within 15 minutes isn't asked again,
+/// and one whose feed fails keeps its last videos.
+fn feed_cache_path() -> std::path::PathBuf {
+    crate::updater::cache_dir().join("youtube-feeds.json")
+}
+
+fn read_feed_cache() -> serde_json::Map<String, Value> {
+    std::fs::read_to_string(feed_cache_path())
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| match v {
+            Value::Object(m) => Some(m),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+/// Writes the cache whole (through a temporary file), leaving out channels
+/// not read for 30 days.
+fn write_feed_cache(cache: &mut serde_json::Map<String, Value>, now: u64) {
+    cache.retain(|_, e| now.saturating_sub(e["at"].as_u64().unwrap_or(0)) < 30 * 24 * 3600);
+    let path = feed_cache_path();
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let tmp = path.with_extension("json.part");
+    if std::fs::write(&tmp, Value::Object(cache.clone()).to_string()).is_ok() {
+        let _ = std::fs::rename(&tmp, &path);
+    }
+}
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+/// Splits the channels into those read from the cache (within `fresh`
+/// seconds, unless `force`) and those to ask; gives the cached videos of
+/// every channel that has any, for showing at once.
+fn plan_feeds(ids: &[String], cache: &serde_json::Map<String, Value>, now: u64, fresh: u64, force: bool) -> (Vec<String>, Vec<String>) {
+    ids.iter().cloned().partition(|id| {
+        !force && cache.get(id).and_then(|e| e["at"].as_u64()).is_some_and(|at| now.saturating_sub(at) < fresh)
+    })
+}
+
+fn cached_videos(ids: &[String], cache: &serde_json::Map<String, Value>) -> Vec<Value> {
+    ids.iter().filter_map(|id| cache.get(id)?["videos"].as_array().cloned()).flatten().collect()
+}
+
+/// Set by ↻ (`forget`): the next subscriptions ask every channel again.
+static FEEDS_FORCED: AtomicBool = AtomicBool::new(false);
 
 fn account_json(user: &str) -> String {
     json!({ "streamlink": streams::streamlink_path().is_some(), "user": user }).to_string()
@@ -1085,7 +1174,7 @@ impl qobject::Streams {
                         .take(MAX_CHANNELS)
                         .collect();
                     match kept_subscriptions(&ids) {
-                        Some(all) => {
+                        Some((all, _)) => {
                             let (kept, _) = filter_videos(all, &st);
                             last_page = kept.len() <= (page + 1) * 60;
                             Ok(kept.into_iter().skip(page * 60).take(60).collect())
@@ -1192,6 +1281,8 @@ impl qobject::Streams {
         std::thread::spawn(move || {
             // Searches ask in the first chosen language.
             let lang = st.video_languages.first().map(String::as_str).unwrap_or("");
+            // Subscriptions: how many channels' feeds didn't answer.
+            let mut missing = 0;
             let result = (|| -> Result<Vec<Value>, String> {
                 match view.as_str() {
                     "game" => streams::youtube_search(&st.game.youtube, true, lang),
@@ -1219,30 +1310,61 @@ impl qobject::Streams {
                             });
                         }
                         ids.truncate(MAX_CHANNELS);
-                        if let Some(kept) = kept_subscriptions(&ids) {
+                        if let Some((kept, gone)) = kept_subscriptions(&ids) {
+                            missing = gone;
                             return Ok(kept);
                         }
+                        let now = unix_now();
+                        let mut cache = read_feed_cache();
+                        let force = FEEDS_FORCED.swap(false, Ordering::Relaxed);
+                        let (fresh, ask) = plan_feeds(&ids, &cache, now, KEEP_SUBSCRIPTIONS.as_secs(), force);
                         let total = ids.len();
-                        let progress = thread.clone();
-                        let st2 = st.clone();
-                        let (all, failed) = fetch_feeds(ids.clone(), move |done, so_far| {
-                            // What came so far shows while the rest loads.
-                            let (so_far, _) = filter_videos(newest(so_far.to_vec()), &st2);
-                            let _ = progress.queue(move |mut obj: Pin<&mut qobject::Streams>| {
+                        let show = |done: usize, list: Vec<Value>| {
+                            let (list, _) = filter_videos(newest(list), &st);
+                            let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
                                 if obj.rust().youtube_request != request {
                                     return;
                                 }
-                                obj.as_mut().set_youtube(q(&Value::Array(so_far).to_string()));
+                                obj.as_mut().set_youtube(q(&Value::Array(list).to_string()));
                                 obj.set_youtube_message(q(&format!("{done} of {total} channels")));
                             });
-                        });
+                        };
+                        // What's kept on disk shows while the rest loads.
+                        let earlier = cached_videos(&ids, &cache);
+                        if !ask.is_empty() && !earlier.is_empty() {
+                            show(fresh.len(), earlier);
+                        }
+                        let from_cache = cached_videos(&fresh, &cache);
+                        let (got, failed, why) = if ask.is_empty() {
+                            (Vec::new(), Vec::new(), None)
+                        } else {
+                            let base = from_cache.clone();
+                            let skip = fresh.len();
+                            fetch_feeds(ask, |done, so_far| {
+                                let mut list = base.clone();
+                                list.extend(so_far.iter().cloned());
+                                show(skip + done, list);
+                            })
+                        };
+                        let mut all = from_cache;
+                        let changed = !got.is_empty();
+                        for (id, videos) in got {
+                            all.extend(videos.iter().cloned());
+                            cache.insert(id, json!({ "at": now, "videos": videos }));
+                        }
+                        // A channel that didn't answer keeps its last videos.
+                        all.extend(cached_videos(&failed, &cache));
+                        if changed {
+                            write_feed_cache(&mut cache, now);
+                        }
                         if all.is_empty() {
-                            return Err(failed.unwrap_or_else(|| "Nothing new.".into()));
+                            return Err(why.unwrap_or_else(|| "Nothing new.".into()));
                         }
                         // Kept before leaving anything out: a changed filter
                         // needs no new fetch.
-                        let all = newest_of(all, 200);
-                        keep_subscriptions(&ids, &all);
+                        missing = failed.len();
+                        let all = newest_of(all, 300);
+                        keep_subscriptions(&ids, &all, missing);
                         Ok(all)
                     }
                 }
@@ -1263,7 +1385,10 @@ impl qobject::Streams {
                 match result {
                     Ok((videos, gone, _)) => {
                         let n = videos.len();
-                        let message = if gone > 0 { format!("{n} videos · {gone} hidden") } else { format!("{n} videos") };
+                        let mut message = if gone > 0 { format!("{n} videos · {gone} hidden") } else { format!("{n} videos") };
+                        if missing > 0 {
+                            message += &format!(" · {missing} {} didn't answer", if missing == 1 { "channel" } else { "channels" });
+                        }
                         obj.as_mut().set_youtube(q(&Value::Array(videos).to_string()));
                         obj.as_mut().set_youtube_state(q("ready"));
                         obj.set_youtube_message(q(&message));
@@ -1563,6 +1688,7 @@ impl qobject::Streams {
 
     fn forget(self: Pin<&mut Self>) {
         *subscriptions_kept().lock().unwrap_or_else(|p| p.into_inner()) = None;
+        FEEDS_FORCED.store(true, Ordering::Relaxed);
     }
 
     fn save_volume(self: Pin<&mut Self>, volume: i32) {
@@ -1991,5 +2117,28 @@ impl qobject::Streams {
 
     fn video_id(&self, text: &QString) -> QString {
         q(&streams::video_id_of(&text.to_string()).unwrap_or_default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn feed_cache_plans() {
+        let ids: Vec<String> = ["UCa", "UCb", "UCc"].iter().map(|s| s.to_string()).collect();
+        let mut cache = serde_json::Map::new();
+        cache.insert("UCa".into(), json!({ "at": 1000, "videos": [{ "id": "a1" }, { "id": "a2" }] }));
+        cache.insert("UCb".into(), json!({ "at": 100, "videos": [{ "id": "b1" }] }));
+        // UCa read 100 s ago is fresh; UCb is old; UCc was never read.
+        let (fresh, ask) = plan_feeds(&ids, &cache, 1100, 900, false);
+        assert_eq!(fresh, vec!["UCa".to_string()]);
+        assert_eq!(ask, vec!["UCb".to_string(), "UCc".to_string()]);
+        // ↻ asks every channel.
+        let (fresh, ask) = plan_feeds(&ids, &cache, 1100, 900, true);
+        assert!(fresh.is_empty());
+        assert_eq!(ask.len(), 3);
+        assert_eq!(cached_videos(&ids, &cache).len(), 3);
+        assert_eq!(cached_videos(&["UCc".to_string()], &cache).len(), 0);
     }
 }
