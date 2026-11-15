@@ -202,6 +202,7 @@ pub fn start_install(package: &Path) -> Result<(), String> {
             Ok(())
         });
     }
+    crate::log::write("update", "installer starts; the app quits for it (its output: update.log)");
     command.spawn().map(|_| ()).map_err(|e| format!("The installer did not start: {e}"))
 }
 

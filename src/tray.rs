@@ -22,6 +22,7 @@ pub enum Action {
     ToggleLocked,
     Settings,
     CheckUpdates,
+    OpenLog,
     Quit,
 }
 
@@ -36,6 +37,7 @@ pub fn entries(shown: bool, locked: bool) -> Vec<Entry> {
         None,
         Some(("Settings", Action::Settings)),
         Some(("Check for updates", Action::CheckUpdates)),
+        Some(("Open log folder", Action::OpenLog)),
         None,
         Some(("Quit", Action::Quit)),
     ]
@@ -228,8 +230,8 @@ mod tests {
 
     #[test]
     fn menu_follows_the_state() {
-        assert_eq!(labels(true, true), ["Hide hub", "Unlock", "-", "Settings", "Check for updates", "-", "Quit"]);
-        assert_eq!(labels(false, false), ["Show hub", "Lock", "-", "Settings", "Check for updates", "-", "Quit"]);
+        assert_eq!(labels(true, true), ["Hide hub", "Unlock", "-", "Settings", "Check for updates", "Open log folder", "-", "Quit"]);
+        assert_eq!(labels(false, false), ["Show hub", "Lock", "-", "Settings", "Check for updates", "Open log folder", "-", "Quit"]);
         assert!(state_text(false, true).starts_with("Hub hidden"));
     }
 
@@ -241,7 +243,7 @@ mod tests {
         assert_eq!(tray.icon_pixmap().len(), 1, "a picture of the wrong length is left out");
         tray.activate(0, 0);
         let menu = tray.menu();
-        assert_eq!(menu.len(), 7);
+        assert_eq!(menu.len(), 8);
         for item in &menu {
             if let MenuItem::Standard(item) = item {
                 (item.activate)(&mut tray);
@@ -249,7 +251,7 @@ mod tests {
         }
         assert_eq!(
             *seen.lock().unwrap(),
-            [Action::ToggleShown, Action::ToggleShown, Action::ToggleLocked, Action::Settings, Action::CheckUpdates, Action::Quit]
+            [Action::ToggleShown, Action::ToggleShown, Action::ToggleLocked, Action::Settings, Action::CheckUpdates, Action::OpenLog, Action::Quit]
         );
     }
 }

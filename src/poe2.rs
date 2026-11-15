@@ -229,7 +229,10 @@ pub fn watch_clipboard(on: impl Fn() -> bool + Send + 'static, copied: impl Fn(S
     std::thread::Builder::new()
         .name("poe2-clipboard".into())
         .spawn(move || loop {
-            let Ok(event) = conn.wait_for_event() else { return };
+            let Ok(event) = conn.wait_for_event() else {
+                crate::log::write("poe2", "clipboard watcher: XWayland connection lost, watcher stopped");
+                return;
+            };
             match event {
                 Event::XfixesSelectionNotify(e) if e.selection == clipboard => {
                     if on() {
@@ -243,8 +246,13 @@ pub fn watch_clipboard(on: impl Fn() -> bool + Send + 'static, copied: impl Fn(S
                     if let Some(r) = reply {
                         if r.type_ == utf8 || r.type_ == u32::from(AtomEnum::STRING) {
                             let text = String::from_utf8_lossy(&r.value).replace("\r\n", "\n");
-                            if on() && looks_like_item(&text) {
-                                copied(text);
+                            if on() {
+                                let item = looks_like_item(&text);
+                                // Never the text itself: only whether it was an item.
+                                crate::log::write("poe2", &format!("copy seen: {} ({} bytes)", if item { "item, checking" } else { "not an item, ignored" }, text.len()));
+                                if item {
+                                    copied(text);
+                                }
                             }
                         }
                     }

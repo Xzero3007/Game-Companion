@@ -374,6 +374,7 @@ impl qobject::Aion2 {
         if self.engine.is_some() {
             return;
         }
+        crate::log::write("aion2", "meter starts (capture helper)");
         let engine = Arc::new(Engine::start(&helper(), &aion2::data_dir(), "en", &history::default_dir()));
         let stop = Arc::new(AtomicBool::new(false));
         self.as_mut().rust_mut().engine = Some(engine.clone());
@@ -535,6 +536,7 @@ impl qobject::Aion2 {
         }
         if let Some(engine) = self.as_mut().rust_mut().engine.take() {
             // Saves what is still on the meter.
+            crate::log::write("aion2", "meter stops");
             engine.stop();
             let list = history::list(&history::default_dir()).to_string();
             self.as_mut().set_history(QString::from(&list));

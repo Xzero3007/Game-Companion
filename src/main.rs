@@ -16,6 +16,7 @@ mod instance;
 mod jellyfin;
 mod jellyfin_object;
 mod library;
+mod log;
 mod library_object;
 mod launch_check;
 mod launch_demo;
@@ -69,6 +70,7 @@ fn main() {
         }
         return;
     };
+    log::start();
     if let Some(listener) = instance::bind(&dir) {
         instance::keep(listener);
     }
@@ -82,6 +84,7 @@ fn main() {
     // them closes (unless the person chose otherwise).
     apps::quit();
     voice_overlay::quit();
+    log::end(code);
     std::process::exit(code);
 }
 
@@ -125,6 +128,7 @@ fn quit_on_signals() {
             // SAFETY: reads from our own pipe; blocks until a signal came.
             while unsafe { libc::read(read, byte.as_mut_ptr().cast(), 1) } == 1 {
                 seen += 1;
+                log::write("app", if seen > 1 { "quit: second signal, ending at once" } else { "quit: signal (SIGTERM, SIGINT or SIGHUP)" });
                 if seen > 1 {
                     // SAFETY: ends the process at once (second signal).
                     unsafe { libc::_exit(1) };
@@ -132,6 +136,7 @@ fn quit_on_signals() {
                 native::quit();
                 std::thread::spawn(|| {
                     std::thread::sleep(std::time::Duration::from_secs(10));
+                    log::write("app", "quit hung for 10 s after the signal: ending anyway");
                     // SAFETY: the tidy quit hung: end anyway.
                     unsafe { libc::_exit(1) };
                 });

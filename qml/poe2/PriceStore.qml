@@ -41,7 +41,7 @@ QtObject {
     property int nextId: 1
     property var timers: ({})
     readonly property Component timerComp: Component {
-        Timer { property var cb; onTriggered: { const f = cb; cb = null; destroy(); if (f) f() } }
+        Timer { property var cb; onTriggered: { Companion.log("poe2", "timer fired (" + interval + " ms)"); const f = cb; cb = null; destroy(); if (f) f() } }
     }
     readonly property var host: ({
         request: function (url, method, body) {
@@ -75,6 +75,7 @@ QtObject {
             if (status === 0) { p.reject(new Error(body)); return }
             let h = {}
             try { h = JSON.parse(headers) } catch (e) { }
+            Companion.log("poe2", "answer " + id + " into the kit")
             p.resolve({ status: status, headers: h, body: body })
         }
         function onCopied(text) { store.check(text) }
@@ -87,12 +88,14 @@ QtObject {
         result = null
         busy = true
         shown = true
+        Companion.log("poe2", "check: start")
         Kit.EE2.check(text, league).then(function (v) {
             busy = false
-            if (!v || v.error) { view = null; error = why(v ? v.error : "", v ? v.detail : ""); return }
+            if (!v || v.error) { Companion.log("poe2", "check: done, " + (v ? v.error : "no result")); view = null; error = why(v ? v.error : "", v ? v.detail : ""); return }
+            Companion.log("poe2", "check: done, item read" + (v.atOnce ? ", searching at once" : ""))
             view = v
             if (v.atOnce || demo.indexOf("results") >= 0) search()
-        }, function (e) { busy = false; view = null; error = String(e) })
+        }, function (e) { Companion.log("poe2", "check: failed: " + e); busy = false; view = null; error = String(e) })
     }
 
     function why(code, detail) {
@@ -108,10 +111,12 @@ QtObject {
         if (!view) return
         busy = true
         error = ""
-        Kit.EE2.search(function (r) { if (r) result = r }).then(function (r) {
+        Companion.log("poe2", "search: start")
+        Kit.EE2.search(function (r) { if (r) { Companion.log("poe2", "search: part of the results in"); result = r } }).then(function (r) {
             busy = false
+            Companion.log("poe2", "search: done" + (r && r.error ? ", " + r.error : ""))
             if (r && r.error) error = r.error
-        }, function (e) { busy = false; error = String(e); console.log("poe2: search failed:", e, e && e.stack) })
+        }, function (e) { busy = false; error = String(e); Companion.log("poe2", "search: failed: " + e + (e && e.stack ? " at " + String(e.stack).split("\n")[0] : "")); console.log("poe2: search failed:", e, e && e.stack) })
     }
 
     function toggleStat(i) {
