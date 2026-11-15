@@ -103,6 +103,13 @@ Item {
     Connections {
         target: !win.jelly ? video : null
         function onStateChanged() {
+            // YouTube as the visionOS player failed: once more with yt-dlp's
+            // own choice of players (it may have to wait for YouTube then).
+            if (video.state === "failed" && win.item && win.item.kind === "youtube" && !win.anyPlayer) {
+                win.anyPlayer = true
+                win.load(win.seekable ? Math.max(0, video.position) : 0)
+                return
+            }
             if (video.state === "ended" && win.item && win.item.kind === "youtube") {
                 Library.record(win.videoJson(), video.duration, video.duration, true)
                 if (win.nextInQueue) win.playNext()
@@ -118,6 +125,7 @@ Item {
         if (what.kind === "twitch") quality = Streams.qualityFor(what.id) || Streams.quality
         else if (!jelly) quality = Streams.quality
         tries = 0
+        anyPlayer = false
         segments = []
         skipped = ({})
         skipNote = ""
@@ -152,6 +160,12 @@ Item {
         failure = ""
         via = src.via
         video.volume = mpvVolume(volume)
+        // YouTube: yt-dlp asks as the visionOS player first. YouTube places
+        // an ad for its TV players and serves their stream only once the ad
+        // would have run (mpv 0.41 got 403 and stalled; MN, 0.8.36); the
+        // visionOS player got none.
+        video.ytdlOptions = item.kind === "youtube" && !anyPlayer ? "extractor-args=youtube:player_client=visionos" : ""
+        moved = false
         video.play(src.url, src.format, start || 0)
     }
     // Screenshots (GC_DEMO=jellyvideo): an episode with its tracks, in its intro.
@@ -201,6 +215,12 @@ Item {
     property int tries: 0
     property int goodFor: 0
     property bool reconnecting: false
+    // Whether the video moved on since it was (re)loaded: until then it may
+    // still be opening (mpv opens YouTube's separate streams after it says
+    // "loaded", and ffmpeg knocks again while YouTube holds them back).
+    property bool moved: false
+    // YouTube: yt-dlp chooses its players itself (after visionOS failed).
+    property bool anyPlayer: false
     // YouTube serves a video only once its ad would have run; mpv waits that
     // long (it says so, video.heldUntil) and the watchdog waits with it.
     property real nowMs: 0
@@ -218,6 +238,9 @@ Item {
                 return
             }
             if (Math.abs(video.position - win.lastPosition) > 0.05 && video.state !== "loading") {
+                // A natural step (not the jump to where it resumes).
+                const step = video.position - win.lastPosition
+                if (win.lastPosition >= 0 && step > 0 && step < 3) win.moved = true
                 win.lastPosition = video.position
                 win.stillFor = 0
                 win.reconnecting = false
@@ -229,19 +252,25 @@ Item {
             // Loading: an mpv older than 0.42 doesn't wait for YouTube by
             // itself, ffmpeg knocks again for up to about a minute instead.
             const youtube = win.item && win.item.kind === "youtube"
-            if (win.stillFor >= (video.state === "loading" ? (youtube ? 65 : 20) : 4)) win.reconnect()
+            const opening = video.state === "loading" || !win.moved
+            if (win.stillFor >= (opening ? (youtube ? 65 : 20) : 4)) win.reconnect()
         }
     }
     function reconnect() {
         stillFor = 0
         if (tries >= 3) {
             reconnecting = false
+            // mpv's or yt-dlp's last word says why, where it said one.
             failure = "Stuck: it played no further after three new tries. Play starts it again."
+                + (video.why ? " (" + video.why + ")" : "")
             video.stop()
             return
         }
         tries++
         reconnecting = true
+        // A YouTube video stuck as the visionOS player: the next try lets
+        // yt-dlp choose.
+        if (item && item.kind === "youtube") anyPlayer = true
         const at = seekable ? Math.max(0, video.position) : 0
         load(at)
     }
@@ -580,6 +609,8 @@ Item {
         property var chapters: []
         property real speed: 1
         property real heldUntil: 0
+        property string why: ""
+        property string ytdlOptions: ""
         function play(url, format, start, header) { return false }
         function setTrack(kind, id) {}
         function addSubtitle(url) {}
