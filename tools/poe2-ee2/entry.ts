@@ -20,6 +20,7 @@ import {
 } from "@/web/price-check/trade/pathofexile-trade";
 import { useLeagues } from "@/web/background/Leagues";
 import { useI18n } from "./shims/i18n";
+import * as Ninja from "./ninja";
 
 // The languages whose data Game Companion ships, told apart by the copied
 // text's first line (as EE2's own LANGUAGE_DETECTOR does).
@@ -41,6 +42,7 @@ export interface Prefs {
   collapseListings: "app" | "api";
   showSeller: "account" | "ign" | "";
   accountName: string;
+  ninja: boolean; // poe.ninja's prices (on by default)
 }
 const prefs: Prefs = {
   searchStatRange: 10,
@@ -52,7 +54,10 @@ const prefs: Prefs = {
   collapseListings: "app",
   showSeller: "account",
   accountName: "",
+  ninja: true,
 };
+/** poe.ninja's prices for the search being shown (null when off or not there). */
+let ninjaNow: any = null;
 /** Takes the settings over (missing ones keep EE2's defaults). */
 export function setPrefs(p: Partial<Prefs>) {
   for (const k in p) if ((p as any)[k] !== undefined && k in prefs) (prefs as any)[k] = (p as any)[k];
@@ -64,6 +69,10 @@ export function setPrefs(p: Partial<Prefs>) {
   AppConfig().accountName = prefs.accountName;
 }
 let leaguesLoaded = false;
+
+/** poe.ninja's answer read as the kit does (for the tests). */
+export const ninjaRead = Ninja.readOverview;
+export const ninjaNorm = Ninja.normalised;
 
 export function setup(h: HostApi) {
   setHost(h);
@@ -148,6 +157,8 @@ export async function check(text: string, league: string): Promise<any> {
     defaultAllSelected: prefs.defaultAllSelected,
   });
   current = { item, presets, run: 0 };
+  // poe.ninja's prices, asked in the background (the search waits for them).
+  if (prefs.ninja) Ninja.load(lg.selected);
   const f = preset(current).filters;
   if (api(current) === "bulk") f.trade.listingType = "online";
   if (prefs.fillMax) {
@@ -221,6 +232,7 @@ export function view(): any {
     presets: c.presets.presets.map((x) => ({ id: x.id, active: x.id === c.presets.active })),
     api: api(c),
     atOnce: searchesAtOnce(it),
+    ninja: prefs.ninja ? Ninja.priceOf(Ninja.known(p.filters.trade.league), it.info.refName) : null,
     filters,
     stats: p.stats.map((s: StatFilter, i: number) => ({
       index: i,
@@ -462,8 +474,10 @@ function shownItem(d: any) {
 }
 
 function trade(r: any) {
+  const norm = Ninja.normalised(ninjaNow, r.priceAmount, r.priceCurrency);
   return {
     id: r.id,
+    norm,
     item: shownItem(r.displayItem),
     amount: r.priceAmount,
     currency: r.priceCurrency,
@@ -491,6 +505,9 @@ export async function search(update: (r: any) => void): Promise<any> {
   const run = ++c.run;
   const p = preset(c);
   const kind = api(c);
+  ninjaNow = prefs.ninja ? await Ninja.load(p.filters.trade.league) : null;
+  if (run !== c.run || current !== c) return null;
+  const ninja = Ninja.priceOf(ninjaNow, c.item.info.refName);
   if (kind === "bulk") {
     try {
       const have = ["exalted", "divine"];
@@ -501,11 +518,13 @@ export async function search(update: (r: any) => void): Promise<any> {
       const out = {
         kind,
         done: true,
+        ninja,
         groups: res.filter((g) => g).map((g) => ({
           have: g!.haveTag,
           total: g!.total,
           listed: g!.listed.map((r) => ({
             rate: r.itemAmount ? r.exchangeAmount / r.itemAmount : 0,
+            norm: Ninja.normalised(ninjaNow, r.itemAmount ? r.exchangeAmount / r.itemAmount : 0, g!.haveTag),
             exchangeAmount: r.exchangeAmount,
             itemAmount: r.itemAmount,
             stock: r.stock,
@@ -528,7 +547,7 @@ export async function search(update: (r: any) => void): Promise<any> {
   // the first twenty at once, then tens until enough sellers show.
   const fetched: PricingResult[] = [];
   let total = 0;
-  const snapshot = (done: boolean, error = "") => ({ kind, done, error, total, listed: grouped(fetched).map(trade) });
+  const snapshot = (done: boolean, error = "") => ({ kind, done, error, total, ninja, listed: grouped(fetched).map(trade) });
   try {
     const result = await requestTradeResultList(createTradeRequest(p.filters, p.stats, c.item), p.filters.trade.league);
     if (run !== c.run || current !== c) return null;

@@ -43,7 +43,8 @@ QtObject {
             currency: prefs.currency || "",
             collapseListings: prefs.collapse === "api" ? "api" : "app",
             showSeller: prefs.seller !== undefined ? prefs.seller : "account",
-            accountName: prefs.account || ""
+            accountName: prefs.account || "",
+            ninja: prefs.ninja !== false
         }
     }
     function setPref(key, value) { Poe2.setPref(key, JSON.stringify(value)) }
@@ -192,5 +193,7 @@ QtObject {
     readonly property string demoItem: "Item Class: Bows\nRarity: Rare\nOblivion Strike\nRider Bow\n--------\nPhysical Damage: 36-61\nElemental Damage: 27-36 (fire), 9-13 (cold), 5-82 (lightning)\nCritical Hit Chance: 5.00%\nAttacks per Second: 1.20\n--------\nRequires: Level 51, 103 (augmented) Dex\n--------\nItem Level: 80\n--------\n{ Prefix Modifier \"Shocking\" (Tier: 4) \u2014 Damage, Elemental, Lightning, Attack }\nAdds 5(1-5) to 82(62-89) Lightning Damage\n{ Prefix Modifier \"Scorching\" (Tier: 5) \u2014 Damage, Elemental, Fire, Attack }\nAdds 27(20-30) to 36(31-46) Fire Damage\n{ Prefix Modifier \"Icy\" (Tier: 8) \u2014 Damage, Elemental, Cold, Attack }\nAdds 9(6-9) to 13(10-15) Cold Damage\n{ Suffix Modifier \"of Radiance\" (Tier: 1) \u2014 Attack }\n+57(41-60) to Accuracy Rating\n15% increased Light Radius\n"
     // GC_DEMO=price,gloves: an armour piece with implicit, rune, prefixes and suffixes.
     readonly property string demoGloves: "Item Class: Gloves\nRarity: Rare\nGrim Grip\nSpiked Bracers\n--------\nEvasion Rating: 631 (augmented)\n--------\nRequires: Level 78, 111 Dex\n--------\nSockets: S \n--------\nItem Level: 82\n--------\n+14% to Cold and Chaos Resistances (rune)\n--------\n{ Implicit Modifier }\nGain 1 Rage on Melee Hit (implicit)\n--------\n{ Prefix Modifier \"Agile\" (Tier: 2) \u2014 Defences }\n+120(111-130) to Evasion Rating\n{ Prefix Modifier \"Smouldering\" (Tier: 4) \u2014 Damage, Elemental, Fire, Attack }\nAdds 12(10-14) to 17(15-22) Fire damage to Attacks\n{ Suffix Modifier \"of the Ice\" (Tier: 3) \u2014 Elemental, Cold, Resistance }\n+33(31-35)% to Cold Resistance\n{ Suffix Modifier \"of Order\" (Tier: 4) \u2014 Chaos, Resistance }\n+11(9-12)% to Chaos Resistance\n{ Suffix Modifier \"of Plunder\" (Tier: 2) }\n17(15-18)% increased Rarity of Items found\n"
-    function showDemo() { check(demo.indexOf("gloves") >= 0 ? demoGloves : demoItem) }
+    // GC_DEMO=price,currency: a currency item (the exchange and poe.ninja's price).
+    readonly property string demoCurrency: "Item Class: Stackable Currency\nRarity: Currency\nOrb of Annulment\n--------\nStack Size: 3/20\n--------\nRemoves a random modifier from an item\n--------\nRight click this item then left click a magic or rare item to apply it.\n"
+    function showDemo() { check(demo.indexOf("gloves") >= 0 ? demoGloves : demo.indexOf("currency") >= 0 ? demoCurrency : demoItem) }
 }

@@ -107,14 +107,17 @@ __gcHost.request = function (url) {
                 { description: (14 + i) + "% increased Attack Speed", hash: "e4", mods: [{ tier: "S3" }] }] } };
     };
     var body = "{}";
-    if (url.indexOf("/data/leagues") >= 0) body = JSON.stringify({ result: [{ id: "Standard", text: "Standard" }, { id: "Hardcore", text: "Hardcore" }, { id: "Rise of the Abyssal", text: "Rise of the Abyssal" }, { id: "HC Rise of the Abyssal", text: "Hardcore Rise of the Abyssal" }] });
+    if (url.indexOf("https://poe.ninja/poe2/api/economy/exchange/") === 0) body = JSON.stringify({ core: { items: [], rates: { exalted: 537.3, chaos: 6.93 }, primary: "divine", secondary: "chaos" },
+        lines: [{ id: "divine", primaryValue: 1 }, { id: "exalted", primaryValue: 0.001861, sparkline: { totalChange: 5.5, data: [] } }, { id: "chaos", primaryValue: 0.1443, sparkline: { totalChange: 30.6, data: [] } }, { id: "annul", primaryValue: 0.4267, sparkline: { totalChange: -2.63, data: [] } }],
+        items: [{ id: "divine", name: "Divine Orb" }, { id: "exalted", name: "Exalted Orb" }, { id: "chaos", name: "Chaos Orb" }, { id: "annul", name: "Orb of Annulment" }] });
+    else if (url.indexOf("/data/leagues") >= 0) body = JSON.stringify({ result: [{ id: "Standard", text: "Standard" }, { id: "Hardcore", text: "Hardcore" }, { id: "Rise of the Abyssal", text: "Rise of the Abyssal" }, { id: "HC Rise of the Abyssal", text: "Hardcore Rise of the Abyssal" }] });
     else if (url.indexOf("/data/") >= 0) body = JSON.stringify({ result: [] });
     else if (url.indexOf("/search/") >= 0) body = JSON.stringify({ id: "demo", total: 143, result: ["r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9"] });
     else if (url.indexOf("/exchange/") >= 0) body = JSON.stringify({ id: "x1", total: 1, result: { r1: { id: "r1", listing: { indexed: new Date().toISOString(), account: { name: "Bulk1", lastCharacterName: "B", online: { league: "Standard" } }, offers: [{ exchange: { currency: "exalted", amount: 3 }, item: { currency: "x", amount: 1, stock: 20 } }] } } } });
     else if (url.indexOf("/fetch/") >= 0) body = JSON.stringify({ result: [
         listing(0, 1, "exalted", "Kestrel_Arrow", 0.2, true), listing(1, 2, "exalted", "VaalTrader", 1, true), listing(2, 2, "exalted", "VaalTrader", 1, true),
-        listing(3, 3, "exalted", "Mireth", 3, false), listing(4, 5, "exalted", "Oriathan", 5, true), listing(5, 8, "exalted", "Doryani_Fan", 9, true),
-        listing(6, 10, "exalted", "Sekhema", 20, false), listing(7, 1, "divine", "Azmeri", 26, true), listing(8, 1, "divine", "Ezomyte", 50, false),
+        listing(3, 1, "chaos", "Mireth", 3, false), listing(4, 5, "exalted", "Oriathan", 5, true), listing(5, 8, "exalted", "Doryani_Fan", 9, true),
+        listing(6, 2, "chaos", "Sekhema", 20, false), listing(7, 1, "divine", "Azmeri", 26, true), listing(8, 1, "divine", "Ezomyte", 50, false),
         listing(9, 2, "divine", "Karui_King", 72, true)] });
     return Promise.resolve({ status: 200, headers: {}, body: body });
 };

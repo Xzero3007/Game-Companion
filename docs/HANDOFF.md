@@ -1015,9 +1015,18 @@ nach". PoE 2 1.0 comes in December: everything must work by then.
     game writes them), min/max fields, `PriceSettings.qml` (window ⚙ and
     Settings → Plugins → PoE 2), "Trade site ↗" (`tradeLink()`,
     `Poe2.openTrade`, xdg-open, www.pathofexile.com/trade2 pages only).
-  - Next: poe.ninja prices (MN: yes, on by default, switchable; not
-    poeprices.info until it knows PoE 2), best tier with its range (needs
-    PoE 2 mod data whose licence allows it; RePoE's data is GGG's).
+  - Third round (MN's test of 0.8.51: "ich muss die gelisteten items sehen
+    können"): a click on a listing shows its item (`ListedItem.qml`, the
+    kit's `item` from EE2's DisplayItem); poe.ninja prices
+    (`tools/poe2-ee2/ninja.ts`, `poe2::ninja_allowed`, setting `ninja`, on
+    by default): listings in ex/div, a currency's own price with its 7-day
+    change. Only the Currency overview so far; uniques and other exchange
+    kinds (fragments, runes, essences …) need their `type` names, unknown
+    here (poe.ninja is blocked in the sandbox and on the bench: MN ran the
+    curls for leagues and Currency).
+  - Next: best tier with its range (needs PoE 2 mod data whose licence
+    allows it; RePoE's data is GGG's); not poeprices.info until it knows
+    PoE 2.
 
 ## Branch `claude/project-thread-6m4xx8` (from beta): open Brave and Legcord taken over again
 

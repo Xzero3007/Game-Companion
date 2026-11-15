@@ -86,7 +86,12 @@ learnt, so nothing has to be asked or worked out again.
   "Trade site ↗" opens the same search on www.pathofexile.com/trade2/
   (search or exchange pages only, `trade_page_ok`) in the person's own
   browser through xdg-open, only on a click (MN, 2026-11-15: "es muss nur
-  aufgehen wenn ich da was anklicken kann"). poeprices.info: not until it
+  aufgehen wenn ich da was anklicken kann"). poe.ninja's PoE 2 economy
+  (poe.ninja/poe2/api/economy/ only: leagues, exchange, stash; GET, no
+  cookies; `ninja_allowed`), the league's currency overview once in 30
+  minutes when an item is checked, on by default, off under Settings →
+  Plugins → PoE 2 "poe.ninja prices" (MN, 2026-11-15: "standartmäßig an
+  kann man aber auch aus klicken"). poeprices.info: not until it
   knows PoE 2 (MN chose so, 2026-11-15; EE2 itself switched it off).
   Brave Origin, Legcord and Rusty Path of Building are the
   person's own programs. Before saying something is done, grep for hosts and
@@ -717,7 +722,17 @@ learnt, so nothing has to be asked or worked out again.
   `cargo test poe2_kit` (an item, a search, EE2's 27 samples in QuickJS).
   Tests: `node tools/poe2-ee2/test/run.js`, the ignored
   `copied_items_are_seen` under xvfb-run with xclip. `GC_DEMO=price[,results|,gloves]`,
-  `settings,poe2prefs`. Layout like the game (MN, 2026-11-15): with the
+  `settings,poe2prefs`, `price,results,listing` (a listing's item shown),
+  `price,currency` (the exchange with poe.ninja's price). A click on a
+  listing shows its item under the row (`ListedItem.qml`, the kit's
+  `item` from EE2's DisplayItem: values, requirements, enchants, runes,
+  implicits, mods with tiers, in the trade site's colours; MN, 2026-11-15).
+  poe.ninja (`tools/poe2-ee2/ninja.ts`): the exchange's Currency overview
+  (`core.rates.exalted` = ex per divine, `lines[].primaryValue` in divines,
+  ids = the trade site's currency ids, `items[]` the names; shape from MN's
+  copy, Runes of Aldur); each listing's `norm` (in ex, from one divine up in
+  div), a currency item's `ninja` (div, ex, 7-day change) in the view and
+  the result. Layout like the game (MN, 2026-11-15): with the
   advanced copy (Ctrl+C with Alt held) the kit's `view().mods` (from the
   item text's `{ … }` headers, matched to EE2's mods by name and tier)
   make the groups IMPLICIT · ENCHANT · RUNES, PREFIXES, SUFFIXES (each

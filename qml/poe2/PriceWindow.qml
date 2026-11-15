@@ -419,7 +419,8 @@ Panel {
                                             spacing: 6
                                             Text {
                                                 anchors.baseline: tierText.baseline
-                                                visible: !row.md && !!row.st && row.st.low !== null
+                                                // Not beside the mods' own column (30 px): it ran over the max field.
+                                                visible: !win.modsShown && !row.md && !!row.st && row.st.low !== null
                                                 text: visible ? win.statAmount(row.st.low) + "–" + win.statAmount(row.st.high) : ""
                                                 color: Theme.dim()
                                                 font.family: Theme.body
@@ -462,7 +463,8 @@ Panel {
                     }
                     Text {
                         width: pageColumn.width
-                        visible: win.v !== null && !win.v.advanced && !win.showSettings
+                        // Only where mods can be: not for currency and the like.
+                        visible: win.v !== null && !win.v.advanced && !win.showSettings && win.v.api !== "bulk" && win.v.stats.length > 0
                         topPadding: 8
                         wrapMode: Text.WordWrap
                         text: "For prefixes, suffixes and tiers hold Alt (the game's advanced mod key) while pressing Ctrl+C."
@@ -513,6 +515,48 @@ Panel {
 
                     Item { width: 1; height: 8 }
 
+                    // poe.ninja's price of a currency item (MN, 2026-11-15: on by
+                    // default, Settings → Plugins → PoE 2 "poe.ninja prices").
+                    Item {
+                        readonly property var n: win.r && win.r.ninja ? win.r.ninja : (win.v ? win.v.ninja : null)
+                        visible: !!n && !win.showSettings
+                        width: pageColumn.width
+                        height: visible ? 26 : 0
+                        Text {
+                            id: ninjaLabel
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "POE.NINJA"
+                            color: Theme.dim()
+                            font.family: Theme.display
+                            font.pixelSize: 11
+                            font.weight: Font.Bold
+                            font.letterSpacing: 1.5
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                        Text {
+                            anchors.left: ninjaLabel.right
+                            anchors.leftMargin: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: parent.n ? (parent.n.div >= 1 ? win.amount(parent.n.div) + " div" : win.amount(parent.n.exalted) + " ex") + (parent.n.div >= 1 ? " · " + win.amount(parent.n.exalted) + " ex" : (parent.n.div >= 0.01 ? " · " + win.amount(parent.n.div) + " div" : "")) : ""
+                            color: Theme.text()
+                            font.family: Theme.display
+                            font.pixelSize: 14
+                            font.weight: Font.Bold
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                        Text {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !!parent.n && parent.n.change !== null
+                            text: parent.n && parent.n.change !== null ? "7 days " + (parent.n.change > 0 ? "+" : "") + win.amount(parent.n.change) + " %" : ""
+                            color: Theme.muted()
+                            font.family: Theme.body
+                            font.pixelSize: 11
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
+                    }
+
                     // Listings: the price, how often, the seller's state, how old.
                     // A click shows the listed item as the trade site does (MN,
                     // 2026-11-15: "anklicken können und dann sehen ... die werte").
@@ -532,7 +576,8 @@ Panel {
                                 Text {
                                     x: 14
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: 92
+                                    width: 88
+                                    elide: Text.ElideRight
                                     text: win.amount(listing.modelData.amount) + " " + win.currencyName(listing.modelData.currency)
                                     color: listing.modelData.currency === "divine" ? Theme.accentLight : Theme.text()
                                     font.family: Theme.display
@@ -540,10 +585,22 @@ Panel {
                                     font.weight: Font.Bold
                                     style: Theme.textStyle(); styleColor: Theme.shadow
                                 }
+                                // The price in exalted or divine orbs by poe.ninja's rates.
                                 Text {
-                                    x: 110
+                                    x: 104
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: 34
+                                    width: 62
+                                    elide: Text.ElideRight
+                                    text: listing.modelData.norm ? "≈ " + win.amount(listing.modelData.norm.amount) + " " + win.currencyName(listing.modelData.norm.currency) : ""
+                                    color: Theme.muted()
+                                    font.family: Theme.body
+                                    font.pixelSize: 11
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Text {
+                                    x: 168
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 28
                                     text: listing.modelData.times > 1 ? "×" + listing.modelData.times : (listing.modelData.stack > 1 ? listing.modelData.stack + "×" : "")
                                     color: Theme.muted()
                                     font.family: Theme.body
@@ -551,9 +608,9 @@ Panel {
                                     style: Theme.textStyle(); styleColor: Theme.shadow
                                 }
                                 Text {
-                                    x: 148
+                                    x: 198
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width - 148 - 96
+                                    width: parent.width - 198 - 96
                                     elide: Text.ElideRight
                                     text: listing.modelData.account + (listing.modelData.itemLevel ? " · ilvl " + listing.modelData.itemLevel : "")
                                     color: listing.modelData.mine ? Theme.accent : Theme.textSoft()
@@ -642,9 +699,20 @@ Panel {
                                         style: Theme.textStyle(); styleColor: Theme.shadow
                                     }
                                     Text {
-                                        x: 110
+                                        x: 104
                                         anchors.verticalCenter: parent.verticalCenter
-                                        width: parent.width - 110 - 84
+                                        width: 62
+                                        elide: Text.ElideRight
+                                        text: modelData.norm ? "≈ " + win.amount(modelData.norm.amount) + " " + win.currencyName(modelData.norm.currency) : ""
+                                        color: Theme.muted()
+                                        font.family: Theme.body
+                                        font.pixelSize: 11
+                                        style: Theme.textStyle(); styleColor: Theme.shadow
+                                    }
+                                    Text {
+                                        x: 172
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width - 172 - 84
                                         elide: Text.ElideRight
                                         text: modelData.stock + " in stock · " + modelData.account
                                         color: modelData.mine ? Theme.accent : Theme.textSoft()

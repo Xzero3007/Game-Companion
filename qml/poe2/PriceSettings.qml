@@ -47,6 +47,14 @@ Column {
     }
     PriceChoices {
         width: ps.width
+        label: "poe.ninja prices"
+        hint: "Asks poe.ninja for the league's currency prices (once in 30 minutes, when an item is checked): each listing's price in exalted or divine orbs, and a currency's own price."
+        options: [{ id: true, name: "On" }, { id: false, name: "Off" }]
+        current: ps.p.ninja !== false
+        onChosen: (v) => ps.choose("ninja", v)
+    }
+    PriceChoices {
+        width: ps.width
         label: "Listings"
         options: [{ id: "securable", name: "Instant buyout" }, { id: "available", name: "In person" }, { id: "any", name: "Both" }]
         current: ps.p.listingType || "securable"

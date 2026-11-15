@@ -3554,9 +3554,9 @@ var EE2 = (() => {
         const retry = () => {
           retries++;
           pendingRequest = null;
-          return load2();
+          return load3();
         };
-        const load2 = () => {
+        const load3 = () => {
           let thisRequest;
           return pendingRequest || (thisRequest = pendingRequest = loader().catch(err2 => {
             err2 = err2 instanceof Error ? err2 : new Error(String(err2));
@@ -3582,7 +3582,7 @@ var EE2 = (() => {
         };
         return defineComponent({
           name: "AsyncComponentWrapper",
-          __asyncLoader: load2,
+          __asyncLoader: load3,
           get __asyncResolved() {
             return resolvedComp;
           },
@@ -3597,7 +3597,7 @@ var EE2 = (() => {
               /* do not throw in dev if user provided error component */);
             };
             if (suspensible && instance.suspense || isInSSRComponentSetup) {
-              return load2().then(comp => {
+              return load3().then(comp => {
                 return () => createInnerComp(comp, instance);
               }).catch(err2 => {
                 onError(err2);
@@ -3623,7 +3623,7 @@ var EE2 = (() => {
                 }
               }, timeout);
             }
-            load2().then(() => {
+            load3().then(() => {
               loaded2.value = true;
               if (instance.parent && isKeepAlive(instance.parent.vnode)) {
                 queueJob(instance.parent.update);
@@ -7309,6 +7309,8 @@ var EE2 = (() => {
     languageOf: () => languageOf,
     leagues: () => leagues,
     looksLikeItem: () => looksLikeItem,
+    ninjaNorm: () => ninjaNorm,
+    ninjaRead: () => ninjaRead,
     search: () => search,
     setFilter: () => setFilter,
     setPrefs: () => setPrefs,
@@ -8047,7 +8049,7 @@ var EE2 = (() => {
         return outItemData;
       });
     }
-    function load2(force = false) {
+    function load3(force = false) {
       return __async(this, null, function* () {
         if (!force && (
         // don't update more that this frequently
@@ -8091,7 +8093,7 @@ var EE2 = (() => {
       lastInterestTime = Date.now();
     }
     setInterval(() => {
-      load2();
+      load3();
     }, RETRY_INTERVAL_MS);
     return {
       isLoading,
@@ -8100,7 +8102,7 @@ var EE2 = (() => {
       tradeItemData: (0, import_vue2.readonly)(itemData),
       tradeStatData: (0, import_vue2.readonly)(statData),
       tradeStatDataSet: (0, import_vue2.readonly)(statDataSet),
-      load: load2
+      load: load3
     };
   });
 
@@ -17319,7 +17321,7 @@ var EE2 = (() => {
         isPopular: !isPrivateLeague(leagueId) && Boolean(listed == null ? void 0 : listed.isPopular)
       };
     });
-    function load2() {
+    function load3() {
       return __async(this, null, function* () {
         var _a2;
         isLoading.value = true;
@@ -17358,7 +17360,7 @@ var EE2 = (() => {
       selectedId,
       selected,
       list: (0, import_vue6.readonly)(tradeLeagues),
-      load: load2
+      load: load3
     };
   });
   function isPrivateLeague(id) {
@@ -17406,6 +17408,105 @@ var EE2 = (() => {
     };
   }
 
+  // tools/poe2-ee2/ninja.ts
+  init_timers();
+  init_host();
+  var KEEP_MS = 30 * 60 * 1e3;
+  var RETRY_MS = 4 * 60 * 1e3;
+  var table2 = null;
+  var asking = null;
+  var askedLeague = "";
+  var failedAt = 0;
+  var lastError = "";
+  function readOverview(league, text) {
+    const d = JSON.parse(text);
+    const rates = d && d.core && d.core.rates || {};
+    const t3 = {
+      league,
+      at: Date.now(),
+      exalted: Number(rates.exalted) || 0,
+      chaos: Number(rates.chaos) || 0,
+      byId: {},
+      byName: {}
+    };
+    const names = {};
+    const items = d && d.items || [];
+    for (let i = 0; i < items.length; i++) if (items[i] && items[i].id) names[items[i].id] = String(items[i].name || "");
+    const lines2 = d && d.lines || [];
+    for (let i = 0; i < lines2.length; i++) {
+      const l = lines2[i];
+      if (!l || !l.id || typeof l.primaryValue !== "number") continue;
+      const change = l.sparkline && typeof l.sparkline.totalChange === "number" ? l.sparkline.totalChange : null;
+      t3.byId[l.id] = {
+        div: l.primaryValue,
+        change,
+        name: names[l.id] || ""
+      };
+      if (names[l.id]) t3.byName[names[l.id]] = l.id;
+    }
+    if (!t3.byId.divine) t3.byId.divine = {
+      div: 1,
+      change: null,
+      name: "Divine Orb"
+    };
+    if (!t3.exalted || !Object.keys(t3.byId).length) throw new Error("poe.ninja sent no prices");
+    return t3;
+  }
+  function load(league) {
+    const now = Date.now();
+    if (table2 && table2.league === league && now - table2.at < KEEP_MS) return Promise.resolve(table2);
+    if (asking && askedLeague === league) return asking;
+    if (askedLeague === league && now - failedAt < RETRY_MS) return Promise.resolve(table2 && table2.league === league ? table2 : null);
+    askedLeague = league;
+    const url = "https://poe.ninja/poe2/api/economy/exchange/current/overview?league=" + encodeURIComponent(league) + "&type=Currency";
+    asking = host.request(url, "GET", "").then(r => {
+      if (r.status !== 200) throw new Error("poe.ninja answered " + r.status);
+      table2 = readOverview(league, r.body);
+      lastError = "";
+      return table2;
+    }).catch(e => {
+      failedAt = Date.now();
+      lastError = String(e && e.message || e);
+      host.log("poe.ninja: " + lastError);
+      return table2 && table2.league === league ? table2 : null;
+    }).then(t3 => {
+      asking = null;
+      return t3;
+    });
+    return asking;
+  }
+  function known(league) {
+    return table2 && table2.league === league ? table2 : null;
+  }
+  function normalised(t3, amount, currency) {
+    if (!t3 || !(amount > 0)) return null;
+    const v = t3.byId[currency];
+    if (!v) return null;
+    const div = amount * v.div;
+    const out = div >= 1 ? {
+      amount: div,
+      currency: "divine"
+    } : {
+      amount: div * t3.exalted,
+      currency: "exalted"
+    };
+    return out.currency === currency ? null : out;
+  }
+  function priceOf(t3, name) {
+    if (!t3) return null;
+    const id = t3.byName[name];
+    const v = id ? t3.byId[id] : null;
+    if (!v) return null;
+    return {
+      id,
+      div: v.div,
+      exalted: v.div * t3.exalted,
+      chaos: v.div * t3.chaos,
+      change: v.change,
+      league: t3.league
+    };
+  }
+
   // tools/poe2-ee2/entry.ts
   var LANGUAGES = [{
     lang: "en",
@@ -17426,8 +17527,10 @@ var EE2 = (() => {
     currency: "",
     collapseListings: "app",
     showSeller: "account",
-    accountName: ""
+    accountName: "",
+    ninja: true
   };
+  var ninjaNow = null;
   function setPrefs(p) {
     for (const k in p) if (p[k] !== void 0 && k in prefs) prefs[k] = p[k];
     const w = AppConfig("price-check");
@@ -17438,6 +17541,8 @@ var EE2 = (() => {
     AppConfig().accountName = prefs.accountName;
   }
   var leaguesLoaded = false;
+  var ninjaRead = readOverview;
+  var ninjaNorm = normalised;
   function setup(h) {
     setHost(h);
   }
@@ -17473,7 +17578,7 @@ var EE2 = (() => {
   function looksLikeItem(text) {
     return languageOf(text) !== "" && String(text).indexOf("--------") > 0;
   }
-  function load(lang) {
+  function load2(lang) {
     return __async(this, null, function* () {
       if (loaded === lang) return;
       setLanguage(lang);
@@ -17511,7 +17616,7 @@ var EE2 = (() => {
       if (!lang) return {
         error: "not_an_item"
       };
-      yield load(lang);
+      yield load2(lang);
       const lg = yield leagues(league);
       if (!lg.selected) return {
         error: "leagues",
@@ -17537,6 +17642,7 @@ var EE2 = (() => {
         presets,
         run: 0
       };
+      if (prefs.ninja) load(lg.selected);
       const f = preset(current).filters;
       if (api(current) === "bulk") f.trade.listingType = "online";
       if (prefs.fillMax) {
@@ -17652,6 +17758,7 @@ var EE2 = (() => {
       })),
       api: api(c),
       atOnce: searchesAtOnce(it),
+      ninja: prefs.ninja ? priceOf(known(p.filters.trade.league), it.info.refName) : null,
       filters,
       stats: p.stats.map((s, i) => __spreadValues({
         index: i,
@@ -18036,8 +18143,10 @@ var EE2 = (() => {
     };
   }
   function trade(r) {
+    const norm = normalised(ninjaNow, r.priceAmount, r.priceCurrency);
     return {
       id: r.id,
+      norm,
       item: shownItem(r.displayItem),
       amount: r.priceAmount,
       currency: r.priceCurrency,
@@ -18063,6 +18172,9 @@ var EE2 = (() => {
       const run = ++c.run;
       const p = preset(c);
       const kind = api(c);
+      ninjaNow = prefs.ninja ? yield load(p.filters.trade.league) : null;
+      if (run !== c.run || current !== c) return null;
+      const ninja = priceOf(ninjaNow, c.item.info.refName);
       if (kind === "bulk") {
         try {
           const have = ["exalted", "divine"];
@@ -18078,11 +18190,13 @@ var EE2 = (() => {
           const out2 = {
             kind,
             done: true,
+            ninja,
             groups: res.filter(g => g).map(g => ({
               have: g.haveTag,
               total: g.total,
               listed: g.listed.map(r => ({
                 rate: r.itemAmount ? r.exchangeAmount / r.itemAmount : 0,
+                norm: normalised(ninjaNow, r.itemAmount ? r.exchangeAmount / r.itemAmount : 0, g.haveTag),
                 exchangeAmount: r.exchangeAmount,
                 itemAmount: r.itemAmount,
                 stock: r.stock,
@@ -18112,6 +18226,7 @@ var EE2 = (() => {
         done,
         error,
         total,
+        ninja,
         listed: grouped(fetched).map(trade)
       });
       try {

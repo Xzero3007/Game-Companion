@@ -189,6 +189,10 @@ impl qobject::Poe2 {
 /// `/api/trade2/fetch/…` → `fetch`.
 pub(crate) fn endpoint(url: &str) -> String {
     let path = url.split(['?', '#']).next().unwrap_or("");
+    if let Some(rest) = path.strip_prefix(crate::poe2::NINJA_API) {
+        let part: String = rest.split('/').next().unwrap_or("").chars().filter(|c| c.is_ascii_alphanumeric()).take(20).collect();
+        return format!("ninja {part}");
+    }
     let after = path.split("/api/trade2/").nth(1).unwrap_or("");
     let part = after.split('/').next().unwrap_or("");
     if part.is_empty() { "other".into() } else { part.chars().filter(|c| c.is_ascii_alphanumeric()).take(20).collect() }
@@ -201,5 +205,6 @@ mod log_tests {
         assert_eq!(super::endpoint("https://www.pathofexile.com/api/trade2/fetch/abc,def?query=x"), "fetch");
         assert_eq!(super::endpoint("https://www.pathofexile.com/api/trade2/search/Rise%20of"), "search");
         assert_eq!(super::endpoint("https://example.com/"), "other");
+        assert_eq!(super::endpoint("https://poe.ninja/poe2/api/economy/exchange/current/overview?league=X"), "ninja exchange");
     }
 }

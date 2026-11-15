@@ -11,8 +11,14 @@ function run(EE2, host, items, log, done) {
     // The trade site's real limit headers (several windows per rule).
     var limits = function (n) { return { "x-rate-limit-policy": "trade-search-request-limit", "x-rate-limit-rules": "Ip", "x-rate-limit-ip": "8:1:60,15:2:300,60:300:1800", "x-rate-limit-ip-state": n + ":1:0," + n + ":2:0," + n + ":300:0" } }
     var searches = 0
+    // poe.ninja's currency overview, shaped as its answer (made-up prices).
+    var ninja = { core: { items: [], rates: { exalted: 500, chaos: 7 }, primary: "divine", secondary: "chaos" },
+        lines: [{ id: "divine", primaryValue: 1 }, { id: "exalted", primaryValue: 0.002, sparkline: { totalChange: 5.5, data: [] } },
+            { id: "chaos", primaryValue: 0.14, sparkline: { totalChange: 30, data: [] } }, { id: "annul", primaryValue: 0.4, sparkline: { totalChange: -2.5, data: [] } }],
+        items: [{ id: "divine", name: "Divine Orb" }, { id: "exalted", name: "Exalted Orb" }, { id: "chaos", name: "Chaos Orb" }, { id: "annul", name: "Orb of Annulment" }] }
     host.request = function (url, method, body) {
         answers.push(url)
+        if (url.indexOf("https://poe.ninja/poe2/api/economy/exchange/current/overview?league=Standard&type=Currency") === 0) return Promise.resolve({ status: 200, headers: {}, body: JSON.stringify(ninja) })
         if (url.indexOf("/data/leagues") >= 0) return Promise.resolve({ status: 200, headers: {}, body: JSON.stringify({ result: [{ id: "Standard", text: "Standard" }, { id: "Hardcore", text: "Hardcore" }, { id: "Rise of the Abyssal", text: "Rise of the Abyssal" }] }) })
         if (url.indexOf("/data/stats") >= 0 || url.indexOf("/data/items") >= 0) return Promise.resolve({ status: 200, headers: {}, body: JSON.stringify({ result: [] }) })
         if (url.indexOf("/search/") >= 0) return Promise.resolve({ status: 200, headers: limits(++searches), body: JSON.stringify({ id: "q1", total: 2, result: ["a", "b"] }) })
@@ -57,6 +63,15 @@ function run(EE2, host, items, log, done) {
             if (!lines.some(function (l) { return l.text === "+32 to Spirit" && l.tier === "P2" })) failed.push("listed item: explicit with tier")
             if (!lines.some(function (l) { return l.text.indexOf("Item Level: 80") === 0 })) failed.push("listed item: item level")
             if (!lines.some(function (l) { return l.text === "+57 to Accuracy Rating" })) failed.push("listed item: implicit")
+            // poe.ninja: 3 ex stays, 1 divine stays; nothing to convert. A chaos price would.
+            var t = EE2.ninjaRead("Standard", JSON.stringify(ninja))
+            log("ninja: " + t.exalted + " ex per div, annul " + t.byId.annul.div + " div")
+            if (!r.listed.every(function (l) { return l.norm === null })) failed.push("ninja: converted a price in its own currency")
+            var n1 = EE2.ninjaNorm(t, 4, "chaos"), n2 = EE2.ninjaNorm(t, 600, "exalted"), n3 = EE2.ninjaNorm(t, 2, "mirror")
+            log("ninja: 4 chaos = " + JSON.stringify(n1) + ", 600 ex = " + JSON.stringify(n2))
+            if (!n1 || n1.currency !== "exalted" || Math.abs(n1.amount - 280) > 0.01) failed.push("ninja: 4 chaos")
+            if (!n2 || n2.currency !== "divine" || Math.abs(n2.amount - 1.2) > 0.01) failed.push("ninja: 600 ex")
+            if (n3 !== null) failed.push("ninja: an unknown currency")
             // Again after the limits' windows passed (their handles leave the stack).
             return new Promise(function (res) { host.timer(4000, res) }).then(function () { return EE2.check(items.UniqueItem, "Standard") }).then(function () { return EE2.search(function () { }) })
         }).then(function (r) {
@@ -67,6 +82,14 @@ function run(EE2, host, items, log, done) {
             var q = link.split("?q=")[1]
             if (link.indexOf("https://www.pathofexile.com/trade2/search/poe2/Standard?q=") !== 0 || !q || !JSON.parse(decodeURIComponent(q)).query)
                 failed.push("trade link: " + link.slice(0, 120))
+            return EE2.check("Item Class: Stackable Currency\nRarity: Currency\nOrb of Annulment\n--------\nStack Size: 3/20\n--------\nRemoves a random modifier from an item\n--------\nRight click this item then left click a magic or rare item to apply it.\n", "Standard")
+        }).then(function (v) {
+            log("annul: " + v.name + " · api " + v.api + " · ninja " + JSON.stringify(v.ninja))
+            if (!v.ninja || v.ninja.div !== 0.4 || v.ninja.exalted !== 200 || v.ninja.change !== -2.5) failed.push("ninja: no price for Orb of Annulment")
+            return EE2.search(function () { })
+        }).then(function (r) {
+            log("annul search: " + JSON.stringify(r).slice(0, 400))
+            if (!r.ninja) failed.push("ninja: not in the exchange's result")
             return EE2.check(items.UncutSkillGem, "Standard")
         }).then(function (v) {
             log("gem: " + v.name + " · api " + v.api)
