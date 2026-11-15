@@ -1037,3 +1037,36 @@ taken over, no second Brave, the watcher saw it itself), `restart.sh`
   scripts go to /mnt/project-files/game-companion/arch-test/.
 - Before a release: idle CPU 0 ticks (scratchpad cpu.sh pattern: utime +
   stime from /proc/<pid>/stat over 10 s).
+
+## Branch `claude/project-thread-arn9fm` (from beta): PoE 2 session tracker
+
+MN, 2026-11-15 ("dieselbe Art Session-Tracker wie bei AION 2", plan in the
+project folder `poe2-session-plan.md`; no GGG API, no network). Part 1:
+
+- `src/poe2_log.rs` + `src/poe2_log_object.rs` (`Poe2Log` singleton): finds
+  `logs/Client.txt` (running PoE 2's cwd or program folder via /proc, Steam
+  libraries, Wine prefixes in ~/Games; `GC_POE2_LOG`, or the path typed in
+  the panel), follows it in a thread once a second while PoE 2 runs (starts
+  at the end, only events of the last 3 min before the watch), and hands
+  QML `heard(events)`: `area` ("Generating level N area "Id" with seed S"),
+  `named` ("[SCENE] Set Source [X]" / ": You have entered X."), `level`
+  (": Name (Class) is now level N", German too), `death` (the own
+  character's only), `afk`. Chat, whispers, trade and server lines are never
+  matched (tests `chat_and_whispers_are_never_taken`). Files:
+  ~/.local/share/game-companion/poe2/session/ (current, history, prefs).
+- `qml/poe2/sessionkit.js` (`node tools/poe2-session-test.js`): areas by id
+  (Map…, Hideout…, …town, G1_/C_G1_/P1_ campaign), time per kind and act,
+  maps (same seed = same map through a portal), deaths, levels; a session
+  ends after a pause (AFK or game closed) longer than 30 min or 1 h
+  (MN's choice) or at midnight (`cutAt`, `carryOn`).
+- `SessionStore.qml` (Main), `SessionPanel.qml` (panel `poe2-session`,
+  game row button SESSION, right-click switches the window),
+  `SessionWindow.qml` (one line over the game). Plugin `poe2.session`.
+  Redraws on events and once a minute while shown and PoE 2 runs.
+  `GC_DEMO=session`.
+- Part 2 (planned, after poe.ninja is in the price check): "+ Session" in
+  the price window and a currency list, worth via poe.ninja. Stash reading
+  is not possible for PoE 2 (GGG: account stashes PoE 1 only); to be
+  talked over with MN once everything else is done (BACKLOG L1b).
+- To check on the real game: the exact Client.txt lines of PoE 2 (area ids,
+  "[SCENE]" lines, German texts), and that AFK turns on by itself.
