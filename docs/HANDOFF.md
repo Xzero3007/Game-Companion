@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.57 beta (2026-11-14): #129 PoE 2: league under settings, min and max both kept, Evasion in the trade link, session currency chips, WHERE tile (entry below).
 - 0.8.56 beta (2026-11-14): #119 DPS meter closes when AION 2 ends (entry below).
 - 0.8.55 beta (2026-11-14): #126 PoE 2 session part 2: loot by hand, + Session in the price check, worth from poe.ninja (entry below).
 - 0.8.54 beta (2026-11-14): #123 PoE 2 session tracker part 1: reads Client.txt (entry below).
@@ -1035,6 +1036,14 @@ nach". PoE 2 1.0 comes in December: everything must work by then.
     kinds (fragments, runes, essences …) need their `type` names, unknown
     here (poe.ninja is blocked in the sandbox and on the bench: MN ran the
     curls for leagues and Currency).
+  - Fourth round (MN's test of 0.8.55): the league moved into the price
+    check's settings (the window's dropdown opened under the chips);
+    min and max no longer clear each other (`setStat` "keep"); the trade
+    site link ticks its filter groups (`disabled: false`; Evasion Rating's
+    max showed under unticked Equipment Filters); folded mod rows say
+    "searched under VALUES/TOTALS"; the session's "Add currency" opens in
+    place; the WHERE tile shows the area as its value. Drops by the loot
+    filter's sound: MN declined for now ("die töne spinnen schon mal").
   - Next: best tier with its range (needs PoE 2 mod data whose licence
     allows it; RePoE's data is GGG's); not poeprices.info until it knows
     PoE 2.

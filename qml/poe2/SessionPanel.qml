@@ -53,6 +53,7 @@ Panel {
         for (const id in v.loot.cur) if (known.indexOf(id) < 0) rows.push({ id: id, name: v.loot.names[id] || id })
         return rows
     }
+    property bool adding: false
     readonly property var addOptions: {
         if (!store || !store.rates) return []
         const have = curRows.map((r) => r.id)
@@ -105,6 +106,8 @@ Panel {
         property string value
         property string sub: ""
         property color tint: Theme.text()
+        /// A word rather than a number (the area's name): smaller, cut to fit.
+        property bool wordy: false
         width: (tiles.width - tiles.spacing * 2) / 3
         height: 52
         color: Qt.rgba(1, 1, 1, 0.03)
@@ -119,8 +122,10 @@ Panel {
                 Text {
                     text: tile.value
                     color: tile.tint
+                    width: tile.wordy ? Math.min(implicitWidth, tile.width - 20) : implicitWidth
+                    elide: Text.ElideRight
                     font.family: Theme.display
-                    font.pixelSize: 20
+                    font.pixelSize: tile.wordy ? 15 : 20
                     font.weight: Font.Bold
                     style: Theme.textStyle(); styleColor: Theme.shadow
                 }
@@ -199,9 +204,10 @@ Panel {
                 value: panel.v && panel.v.char ? (panel.v.char.to > panel.v.char.from ? panel.v.char.from + " → " + panel.v.char.to : String(panel.v.char.to)) : "–"
             }
             Tile {
-                label: panel.v && panel.v.current ? "In map now" : "Where"
-                value: panel.v && panel.v.current ? SK.span(panel.v.current.time) : panel.v && panel.v.area ? "" : "–"
-                sub: panel.v && panel.v.area ? panel.v.area.name : ""
+                // MN, 0.8.55: an empty value let the area's name slide over the label.
+                label: panel.v && panel.v.current ? "In map · " + SK.span(panel.v.current.time) : "Where"
+                value: panel.v && panel.v.area ? panel.v.area.name : "–"
+                wordy: true
             }
         }
 
@@ -319,26 +325,39 @@ Panel {
                 }
             }
         }
-        Item {
+        // More currency: a list that opens in place (MN, 0.8.55: the dropdown
+        // here opened past the panel's end and could not be used).
+        Column {
             width: parent.width
-            height: 32
-            z: 6
+            spacing: 6
             visible: panel.pastStart === 0
-            Dropdown {
+            Chip {
                 id: addCur
                 visible: panel.addOptions.length > 1
-                width: Math.min(parent.width, 300)
-                label: "Add currency"
-                options: panel.addOptions
-                current: ""
-                onChosen: (id) => {
-                    const r = panel.store.rates.byId[id]
-                    if (id) panel.store.addCurrency(id, r ? r.name : id, 1)
+                text: panel.adding ? "Add currency ▴" : "Add currency ▾"
+                on: panel.adding
+                onClicked: panel.adding = !panel.adding
+            }
+            Flow {
+                width: parent.width
+                spacing: 4
+                visible: addCur.visible && panel.adding
+                Repeater {
+                    model: panel.adding ? panel.addOptions.slice(1) : []
+                    delegate: Chip {
+                        required property var modelData
+                        text: modelData.name
+                        onClicked: {
+                            // Closing the list destroys this chip: add first.
+                            const id = modelData.id, name = modelData.name, p = panel
+                            p.store.addCurrency(id, name || id, 1)
+                            p.adding = false
+                        }
+                    }
                 }
             }
             Small {
                 visible: !addCur.visible
-                anchors.verticalCenter: parent.verticalCenter
                 width: parent.width
                 wrapMode: Text.WordWrap
                 elide: Text.ElideNone
