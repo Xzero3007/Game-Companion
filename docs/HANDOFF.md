@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.57 beta (2026-11-14): #129 PoE 2: league under settings, min and max both kept, Evasion in the trade link, session currency chips, WHERE tile (entry below).
 - 0.8.56 beta (2026-11-14): #119 DPS meter closes when AION 2 ends (entry below).
 - 0.8.55 beta (2026-11-14): #126 PoE 2 session part 2: loot by hand, + Session in the price check, worth from poe.ninja (entry below).
 - 0.8.54 beta (2026-11-14): #123 PoE 2 session tracker part 1: reads Client.txt (entry below).
