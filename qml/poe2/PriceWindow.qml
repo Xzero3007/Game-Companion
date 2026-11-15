@@ -212,22 +212,25 @@ Panel {
             style: Theme.textStyle(); styleColor: Theme.shadow
         }
 
-        // The league the trade site is asked for.
-        // The league, and the settings (⚙).
+        // The league the trade site is asked for (chosen in the settings, ⚙;
+        // MN, 0.8.55: the dropdown here opened under the chips), and ⚙.
         Item {
             width: parent.width
-            height: Math.max(leagueBox.height, 30)
+            height: 30
             visible: win.store !== null
-            Dropdown {
-                id: leagueBox
+            Text {
                 anchors.left: parent.left
                 anchors.right: gear.left
                 anchors.rightMargin: 8
-                visible: win.store && win.store.leagues.length > 0
-                label: "League"
-                options: win.store ? win.store.leagues.map(function (l) { return { id: l.id, name: l.text } }) : []
-                current: win.store ? win.store.league : ""
-                onChosen: (id) => win.store.chooseLeague(id)
+                anchors.verticalCenter: parent.verticalCenter
+                elide: Text.ElideRight
+                text: win.store && win.store.league ? "LEAGUE  " + win.store.league : ""
+                color: Theme.muted()
+                font.family: Theme.display
+                font.pixelSize: 11
+                font.weight: Font.Bold
+                font.letterSpacing: 1
+                style: Theme.textStyle(); styleColor: Theme.shadow
             }
             IconButton {
                 id: gear
@@ -376,7 +379,7 @@ Panel {
                                         anchors.verticalCenter: parent.verticalCenter
                                         wrapMode: Text.WordWrap
                                         text: row.md
-                                            ? win.modText(row.md) + (row.md.folded ? "  <font color=\"#8d8996\">(" + (row.md.folded === "totals" ? "in the totals" : "in the item's values") + ")</font>" : "")
+                                            ? win.modText(row.md) + (row.md.folded ? "  <font color=\"#8d8996\">(" + (row.md.folded === "totals" ? "searched under TOTALS" : "searched under VALUES") + ")</font>" : "")
                                             : win.lineText(row.st) + (row.st.hidden ? "  <font color=\"#8d8996\">(" + row.st.hidden + ")</font>" : "")
                                         textFormat: Text.StyledText
                                         color: row.off ? Theme.muted() : Theme.text()
