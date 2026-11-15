@@ -402,6 +402,48 @@ mod tests {
 
     /// The kit runs in QuickJS: an item is read, a search runs against
     /// made-up trade answers (as tools/poe2-ee2/test/run.js under Node).
+    /// The kit's output for a test: kept whole, and each line's id sent on
+    /// when it is a reply or an error.
+    struct Lines {
+        seen: std::sync::mpsc::Sender<u64>,
+        text: String,
+        part: String,
+    }
+
+    impl Write for Lines {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.part.push_str(&String::from_utf8_lossy(b));
+            while let Some(end) = self.part.find('\n') {
+                let line: String = self.part.drain(..=end).collect();
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) {
+                    if v["kind"] == "reply" || v["kind"] == "error" {
+                        if let Some(id) = v["id"].as_u64() {
+                            let _ = self.seen.send(id);
+                        }
+                    }
+                }
+                self.text.push_str(&line);
+            }
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Waits up to 60 s for the answer to call `id` (the assertions then
+    /// say what is missing).
+    fn wait_for(answers: &std::sync::mpsc::Receiver<u64>, id: u64) {
+        let until = std::time::Instant::now() + Duration::from_secs(60);
+        while let Some(left) = until.checked_duration_since(std::time::Instant::now()) {
+            match answers.recv_timeout(left) {
+                Ok(n) if n == id => return,
+                Ok(_) => {}
+                Err(_) => return,
+            }
+        }
+    }
+
     #[test]
     fn kit_runs_in_quickjs() {
         let item = "Item Class: Bows\nRarity: Rare\nOblivion Strike\nRider Bow\n--------\nPhysical Damage: 36-61\nCritical Hit Chance: 5.00%\nAttacks per Second: 1.20\n--------\nRequires: Level 51, 103 (augmented) Dex\n--------\nItem Level: 80\n--------\n+57 to Accuracy Rating\n15% increased Light Radius\n";
@@ -426,19 +468,22 @@ mod tests {
             };
             Ok(crate::poe2::Answer { status: 200, headers: serde_json::Map::new(), body })
         });
-        // stdin stays open until the search answered: feed lines, then wait.
+        // Each line goes in once the one before answered; stdin closes after
+        // the search's answer (fixed sleeps were too short under a full,
+        // parallel `cargo test`: QA, 0.8.48).
         let (mut w, r) = std::os::unix::net::UnixStream::pair().unwrap();
-        let closer = std::thread::spawn(move || {
-            for l in lines {
+        let (seen, answers) = std::sync::mpsc::channel();
+        let feeder = std::thread::spawn(move || {
+            for (n, l) in lines.into_iter().enumerate() {
                 std::io::Write::write_all(&mut w, l.as_bytes()).unwrap();
-                std::thread::sleep(Duration::from_secs(2));
+                wait_for(&answers, n as u64 + 1);
             }
-            std::thread::sleep(Duration::from_secs(3));
             drop(w);
         });
-        let mut out = Vec::new();
+        let mut out = Lines { seen, text: String::new(), part: String::new() };
         run_with(std::io::BufReader::new(r), &mut out, None, requester, "").unwrap();
-        closer.join().unwrap();
+        feeder.join().unwrap();
+        let out = out.text.into_bytes();
         let text = String::from_utf8(out).unwrap();
         let replies: Vec<serde_json::Value> = text.lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
         let reply = |id: u64| replies.iter().rev().find(|v| v["id"] == id && v["kind"] == "reply").cloned();
@@ -461,15 +506,16 @@ mod tests {
             "{script}\nrun(EE2, __gcHost, {items}, function (t) {{ __gcOut({{ id: 0, kind: \"log\", value: String(t) }}); }}, function (ok) {{ __gcOut({{ id: 0, kind: \"reply\", value: ok }}); }});"
         );
         let (w, r) = std::os::unix::net::UnixStream::pair().unwrap();
+        let (seen, answers) = std::sync::mpsc::channel();
         let closer = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_secs(12));
+            wait_for(&answers, 0);
             drop(w);
         });
-        let mut out = Vec::new();
+        let mut out = Lines { seen, text: String::new(), part: String::new() };
         let none = std::sync::Arc::new(|_m: &str, _u: &str, _b: &str| Err::<crate::poe2::Answer, String>("run.js answers".into()));
         run_with(std::io::BufReader::new(r), &mut out, None, none, &extra).unwrap();
         closer.join().unwrap();
-        let text = String::from_utf8(out).unwrap();
+        let text = out.text;
         assert!(text.contains(r#"{"id":0,"kind":"reply","value":true}"#), "{text}");
     }
 }
