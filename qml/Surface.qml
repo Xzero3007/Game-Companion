@@ -130,9 +130,11 @@ Window {
     // side), never when it opens by itself or on unlocking.
     function input() { Qt.callLater(applyInput) }
     function applyInput() {
-        const open = !Companion.locked && clickable
+        // Spectacle's selection open (Print): every click is its own.
+        const shot = Apps.screenshot
+        const open = !Companion.locked && clickable && !shot
         const rects = []
-        if (!open && lockItem && lockItem.visible) {
+        if (!open && !shot && lockItem && lockItem.visible) {
             rects.push(lockItem.mapToItem(surface.contentItem, 0, 0, lockItem.width, lockItem.height))
         }
         nativeWindow.setInput(surface, open, rects)
@@ -141,6 +143,10 @@ Window {
     Connections {
         target: Companion
         function onLockedChanged() { surface.input() }
+    }
+    Connections {
+        target: Apps
+        function onScreenshotChanged() { surface.input() }
     }
     // Another screen (picked, or KDE's primary changed): placed there anew.
     Connections {

@@ -32,6 +32,9 @@ pub mod qobject {
         /// {"name","running","shown","starting","windows","program",
         /// "opacity","withGame","closeOnQuit","command","why"}}}`.
         #[qproperty(QString, state)]
+        /// Spectacle's selection is open (Print): the parts stand still and
+        /// take no clicks.
+        #[qproperty(bool, screenshot)]
         type Apps = super::AppsRust;
 
         /// Connects to KWin and starts watching (once, from Main).
@@ -109,6 +112,7 @@ type Job = Box<dyn FnOnce(&Kwin) + Send>;
 
 pub struct AppsRust {
     state: QString,
+    screenshot: bool,
     apps: HashMap<&'static str, AppState>,
     /// The last normal window with the focus that is no app's (the game).
     other: String,
@@ -126,6 +130,8 @@ impl Default for AppsRust {
         let demo = std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "apps"));
         let mut me = Self {
             state: QString::default(),
+            // GC_DEMO=…,shot: as if Spectacle's selection were open.
+            screenshot: std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "shot")),
             apps: APPS.iter().map(|a| (a.id, AppState::default())).collect(),
             other: String::new(),
             other_win: None,
@@ -399,6 +405,10 @@ impl qobject::Apps {
                         });
                     }
                 }
+            }
+            Event::Shot(on) => {
+                self.as_mut().set_screenshot(on);
+                return;
             }
             Event::Active(None) | Event::Ready => {}
         }

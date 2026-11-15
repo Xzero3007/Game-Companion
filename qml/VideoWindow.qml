@@ -231,7 +231,9 @@ Item {
     Timer {
         interval: 1000
         repeat: true
-        running: win.active && win.item.kind !== "file" && !video.paused
+        // Not while Spectacle's selection holds the picture still: no
+        // position comes then, and that is no stall.
+        running: win.active && win.item.kind !== "file" && !video.paused && !Apps.screenshot
             && (video.state === "playing" || video.state === "buffering" || video.state === "loading")
         onRunningChanged: { win.stillFor = 0; win.lastPosition = video.position; win.nowMs = Date.now() }
         onTriggered: {
@@ -588,7 +590,9 @@ Item {
             MpvVideo {
                 opacity: win.videoOpacity
                 visible: drawable
-                frozen: !!win.Window.window && win.Window.window.settling === true
+                // Still while a part is grabbed, and while Spectacle's
+                // selection lies over the frozen screen (Print).
+                frozen: Apps.screenshot || (!!win.Window.window && win.Window.window.settling === true)
                 hwdec: Streams.hwdec
                 levelling: Streams.evenLoudness
                 // Jellyfin: the home network's server, nothing else.
