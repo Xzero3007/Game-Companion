@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.51 beta (2026-11-14): #116 Next video: the shown list goes along, ⏭, UP NEXT, AUTOPLAY, close the player when nothing follows (entry below).
 - 0.8.50 beta (2026-11-14): #114 (+ #113) Print/Spectacle: videos stand still and parts let clicks through while its selection is open; more YouTube dates via yt-dlp; kit tests without fixed sleeps (entry below).
 - 0.8.49 beta (2026-11-14): #110 YouTube: dates from the channels' feeds for searches, Trending, History and playlists; SORT button; wider unsubscribe menu (entry below).
 - 0.8.48 beta (2026-11-14): #107 PoE 2: the price check's kit runs in QuickJS in its own process; a crash there no longer takes Game Companion down; the saved league is kept (entry below).
@@ -768,6 +769,17 @@ and emotes. The person tests these.
 Open, low priority (MN, 0.8.49, "nicht soooo schlimm"): dragging a video
 window while it plays still stutters a little (the grab freeze fixed the
 stretched frame, not the move itself).
+
+Next video (MN, 2026-11-15, "passt"): a YouTube video started from any
+list has ⏭ and "UP NEXT ▾" (the next five of the list as it was shown)
+and an AUTOPLAY switch (off by default; on, a 5 s "NEXT:" note, then the
+next one). Settings → Streams → Videos "Close the player when nothing
+follows" (off by default) closes a video window at the end, mpv with it.
+Checked under xvfb with a 3 s clip: the window closed, mpv's threads went
+(29 → 27 as before playing); off, it stays. Not checked online: YouTube's
+own end and AUTOPLAY into the next video (the sandbox reaches no YouTube).
+Possible follow-up from QA (0.8.50 review): `gcShot` could also check
+`w.layer === 9` (overlay) so a full-screen Spectacle editor never counts.
 
 ## Branch `claude/project-thread-pv2u8z` (from beta): Boss panel (A5)
 

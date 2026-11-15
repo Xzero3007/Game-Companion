@@ -88,17 +88,46 @@ Item {
         running: win.active && !!win.item && win.item.kind === "youtube" && video.state === "playing" && !video.paused
         onTriggered: win.keepPosition(false)
     }
-    /// The next in a playlist played through, or null.
-    readonly property var nextInQueue: {
-        if (!item || !item.queue) return null
-        const i = item.index + 1
-        if (i < item.queue.length) return { at: i, v: item.queue[i] }
-        return item.loop && item.queue.length > 0 ? { at: 0, v: item.queue[0] } : null
+    /// What comes next: in a playlist played through (`through`), or in
+    /// the list the video was started from; null at the list's end.
+    readonly property var nextInQueue: upNext.length > 0 ? upNext[0] : null
+    /// The next five, as { at, v }: the player's UP NEXT.
+    readonly property var upNext: {
+        if (!item || item.kind !== "youtube" || !item.queue) return []
+        const q = item.queue
+        // Looped, the list starts again after its end (a list of one: itself).
+        if (item.loop && q.length === 1) return [{ at: 0, v: q[0] }]
+        const last = item.loop ? q.length - 1 : q.length - 1 - item.index
+        const out = []
+        for (let k = 1; k <= last && out.length < 5; k++) {
+            const i = (item.index + k) % q.length
+            out.push({ at: i, v: q[i] })
+        }
+        return out
+    }
+    /// The YouTube video at a place in the list it came from.
+    function queued(at) {
+        const v = item.queue[at]
+        return { kind: "youtube", id: v.id, title: v.title, name: v.channel, video: v, queue: item.queue, index: at,
+                 through: !!item.through, loop: !!item.loop, playlist: item.playlist || "" }
+    }
+    function playAt(at) {
+        if (!item || !item.queue || at < 0 || at >= item.queue.length) return
+        play(queued(at))
     }
     function playNext() {
         const n = nextInQueue
-        if (!n) return
-        play({ kind: "youtube", id: n.v.id, title: n.v.title, name: n.v.channel, video: n.v, queue: item.queue, index: n.at, loop: item.loop, playlist: item.playlist })
+        if (n) playAt(n.at)
+    }
+    /// The end of a video, a stream or an episode: what follows, or the
+    /// window closes if Settings says so ("Close the player when nothing
+    /// follows").
+    function nothingFollows() {
+        // Not inside the player's own signal: closing lets the player go.
+        if (Streams.closeAtEnd && video.state === "ended") Qt.callLater(win.closeIfEnded)
+    }
+    function closeIfEnded() {
+        if (Streams.closeAtEnd && active && video.state === "ended" && nextNote.length === 0) stop()
     }
     Connections {
         target: !win.jelly ? video : null
@@ -110,9 +139,22 @@ Item {
                 win.load(win.seekable ? Math.max(0, video.position) : 0)
                 return
             }
-            if (video.state === "ended" && win.item && win.item.kind === "youtube") {
+            if (video.state !== "ended" || !win.item) return
+            if (win.item.kind === "youtube") {
                 Library.record(win.videoJson(), video.duration, video.duration, true)
-                if (win.nextInQueue) win.playNext()
+                const n = win.nextInQueue
+                // A playlist played through goes on at once; from any other
+                // list, AUTOPLAY first says what comes and waits 5 s.
+                if (n && win.item.through) win.playNext()
+                else if (n && Streams.autoplay) {
+                    win.nextItem = win.queued(n.at)
+                    win.nextNote = "NEXT: " + (n.v.title || "")
+                    nextTimer.restart()
+                } else {
+                    win.nothingFollows()
+                }
+            } else {
+                win.nothingFollows()
             }
         }
         function onPausedChanged() { if (video.paused) win.keepPosition(true) }
@@ -325,14 +367,16 @@ Item {
             win.jfSegs = JSON.parse(list)
         }
         function onNextFound(slot, after, next) {
-            if (slot !== win.slot || !win.item || win.item.id !== after || next.length === 0) return
+            if (slot !== win.slot || !win.item || win.item.id !== after) return
+            // No next episode or track after the end: nothing follows.
+            if (next.length === 0) { win.nothingFollows(); return }
             const it = JSON.parse(next)
             // The album's next (or previous) track: at once.
             if (it.type === "Audio") {
                 win.play({ kind: "jellyfin", id: it.id, title: it.name, name: it.sub, item: it, start: 0 })
                 return
             }
-            win.nextItem = it
+            win.nextItem = { kind: "jellyfin", id: it.id, title: it.name, name: it.sub, item: it, start: 0 }
             win.nextNote = "NEXT: " + (it.code ? it.code + " · " : "") + it.name
             nextTimer.restart()
         }
@@ -343,7 +387,8 @@ Item {
         onTriggered: {
             const it = win.nextItem
             win.nextNote = ""
-            if (it) win.play({ kind: "jellyfin", id: it.id, title: it.name, name: it.sub, item: it, start: 0 })
+            win.nextItem = null
+            if (it) win.play(it)
         }
     }
     function jfReport(kind) {
@@ -427,6 +472,7 @@ Item {
                 const it = win.item.item
                 if (Jellyfin.autoNext && it && it.type === "Episode" && it.seriesId) Jellyfin.findNext(win.slot, it.seriesId, win.item.id)
                 else if (it && it.type === "Audio" && it.albumId) Jellyfin.findTrack(win.slot, it.albumId, win.item.id, 1)
+                else win.nothingFollows()
             }
         }
         function onPausedChanged() { if (win.jf.started) win.jfReport("progress") }
@@ -665,7 +711,7 @@ Item {
         enabled: !Companion.locked
     }
     readonly property bool barsWanted: pointerOn.hovered || qualityPicker.open || opacityPicker.open || audioPicker.open || subtitlePicker.open
-        || speedPicker.open || chapterPicker.open || playlistPicker.open
+        || speedPicker.open || chapterPicker.open || playlistPicker.open || upNextPicker.open
     onBarsWantedChanged: if (!barsWanted) barsLinger.restart()
     Timer { id: barsLinger; interval: 700 }
 
@@ -684,9 +730,10 @@ Item {
     }
     readonly property bool showBars: !Companion.locked && (barsWanted || barsLinger.running || nativeWindow.demo.indexOf("video") >= 0)
     onShowBarsChanged: if (!showBars) closePickers()
+    function openUpNext() { closePickers(); upNextPicker.open = true }
     function closePickers() {
         qualityPicker.open = false; opacityPicker.open = false; audioPicker.open = false; subtitlePicker.open = false
-        speedPicker.open = false; chapterPicker.open = false; playlistPicker.open = false
+        speedPicker.open = false; chapterPicker.open = false; playlistPicker.open = false; upNextPicker.open = false
     }
     /// The chapter at a time ("" none).
     function chapterAt(t) {
@@ -903,6 +950,7 @@ Item {
             SeekButton { back: true; visible: !win.music && video.duration > 0 }
             SeekButton { back: false; visible: !win.music && video.duration > 0 }
             IconButton {
+                id: nextButton
                 visible: !!win.nextInQueue
                 anchors.verticalCenter: parent.verticalCenter
                 icon: "next"
@@ -911,10 +959,56 @@ Item {
                 tip: win.nextInQueue ? "Next: " + win.nextInQueue.v.title : ""
                 onClicked: win.playNext()
             }
+            // The next videos of the list it came from; a click plays one.
+            TrackButton {
+                id: upNextButton
+                visible: win.upNext.length > 0
+                text: win.width >= 560 ? "UP NEXT" : ""
+                picker: upNextPicker
+            }
+            // YouTube: the next video follows by itself at the end (also the
+            // first row of UP NEXT, where the bar has no room for it).
+            Item {
+                id: autoplayButton
+                visible: win.upNext.length > 0 && !win.item.through && win.width >= 640
+                anchors.verticalCenter: parent.verticalCenter
+                width: autoRow.implicitWidth + 12
+                height: 26
+                Row {
+                    id: autoRow
+                    anchors.centerIn: parent
+                    spacing: 5
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 6
+                        height: 6
+                        color: Streams.autoplay ? Theme.accent : Theme.dim()
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "AUTOPLAY"
+                        color: Streams.autoplay ? Theme.accent : autoMouse.containsMouse ? Theme.text() : Theme.muted()
+                        font.family: Theme.display
+                        font.pixelSize: 12
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1
+                    }
+                }
+                MouseArea {
+                    id: autoMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Streams.saveAutoplay(!Streams.autoplay)
+                }
+                Accessible.role: Accessible.CheckBox
+                Accessible.checked: Streams.autoplay
+                Accessible.name: "Autoplay: the next video follows at the end"
+            }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
                 // Small, the time line's own label says it.
-                visible: video.duration > 0 && win.width >= 470
+                visible: video.duration > 0 && win.width >= (win.upNext.length > 0 ? 760 : 470)
                 text: win.clock(timeLine.dragging ? timeLine.at : video.position) + " / " + win.clock(video.duration)
                 color: timeLine.dragging ? Theme.accent : Theme.muted()
                 font.family: Theme.body
@@ -922,7 +1016,8 @@ Item {
             }
         }
         Item {
-            visible: win.seekable && video.duration > 0
+            // Narrow, with UP NEXT beside the time buttons, there is no room for it.
+            visible: win.seekable && video.duration > 0 && (win.upNext.length === 0 || win.width >= 520)
             anchors.right: opacityItem.left
             anchors.verticalCenter: parent.verticalCenter
             width: speedText.implicitWidth + 12
@@ -1071,7 +1166,7 @@ Item {
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
             id: trackText
             anchors.centerIn: parent
-            text: parent.text + " ▾"
+            text: parent.text.length > 0 ? parent.text + " ▾" : "▾"
             color: parent.picker.open ? Theme.accent : trackMouse.containsMouse ? Theme.text() : Theme.muted()
             font.family: Theme.display
             font.pixelSize: 12
@@ -1086,7 +1181,8 @@ Item {
             onClicked: { const o = !parent.picker.open; win.closePickers(); parent.picker.open = o }
         }
         Accessible.role: Accessible.ComboBox
-        Accessible.name: text === "SOUND" ? "Sound track" : text === "PLAYLIST" ? "Add to playlist" : text === "SUBS" ? "Subtitles" : text
+        Accessible.name: text === "SOUND" ? "Sound track" : text === "PLAYLIST" ? "Add to playlist" : text === "SUBS" ? "Subtitles"
+            : picker === upNextPicker ? "Up next" : text
     }
 
     component SeekButton: Item {
@@ -1233,6 +1329,19 @@ Item {
                 else Library.addTo(pid, json)
             }
         }
+    }
+    Picker {
+        id: upNextPicker
+        // Over its button, placed when it opens.
+        x: open ? Math.max(4, Math.min(win.width - width - 4, upNextButton.mapToItem(win, 0, 0).x)) : 4
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 40
+        width: Math.min(340, win.width - 8)
+        maxHeight: win.height - 80
+        options: !open ? [] : (win.item.through ? [] : [{ id: "autoplay", name: "■ AUTOPLAY " + (Streams.autoplay ? "ON" : "OFF") }])
+            .concat(win.upNext.map((n) => ({ id: String(n.at), name: (n.v.title || n.v.id) + (n.v.channel ? " · " + n.v.channel : "") })))
+        current: Streams.autoplay ? "autoplay" : ""
+        onChosen: (id) => id === "autoplay" ? Streams.saveAutoplay(!Streams.autoplay) : win.playAt(Number(id))
     }
     Picker {
         id: speedPicker

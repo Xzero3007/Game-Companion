@@ -186,6 +186,12 @@ pub struct StreamsSettings {
     pub video_boost: u8,
     /// Quiet and loud passages of videos evened out (mpv's dynaudnorm).
     pub even_loudness: bool,
+    /// YouTube: the next video in the list it was started from plays by
+    /// itself at the end (the player's AUTOPLAY switch; MN, 2026-11-15).
+    pub autoplay: bool,
+    /// A video window closes at the end when nothing follows (Settings →
+    /// Streams → Videos; MN, 2026-11-15).
+    pub close_at_end: bool,
     /// The lists as tiles side by side (true) or as rows.
     pub grid: bool,
     /// How much of each video window shows, in percent (50 to 100), by slot.
@@ -274,6 +280,8 @@ impl Default for StreamsSettings {
             volume: 70,
             video_boost: 0,
             even_loudness: false,
+            autoplay: false,
+            close_at_end: false,
             grid: true,
             video_opacity: BTreeMap::new(),
             sponsorblock: Default::default(),

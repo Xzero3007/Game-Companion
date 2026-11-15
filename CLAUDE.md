@@ -314,7 +314,20 @@ learnt, so nothing has to be asked or worked out again.
   channel", "Channel into group" did nothing). With no group yet, "Channel
   into group" opens the name field at once (`startGroup`). The star beside a
   video or channel subscribes at once and asks before unsubscribing
-  (`starChannel`, menu kind `unsub`; MN, 0.8.43).
+  (`starChannel`, menu kind `unsub`; MN, 0.8.43). A YouTube video
+  started from a list takes the shown list along (`playVideo`: `queue`,
+  `index`; `through` only for a playlist or "Play all", which go on at
+  once): the player's ⏭, "UP NEXT ▾" (`upNext`, the next five; its first
+  row and, from 640 px, the bar's AUTOPLAY switch `Streams.autoplay`,
+  settings `streams.autoplay`, default off) and, with AUTOPLAY on, the
+  5 s "NEXT:" note (`nextItem`, shared with Jellyfin's next episode).
+  Settings → Streams → Videos "Close the player when nothing follows"
+  (`Streams.closeAtEnd`, `close_at_end`, default off): `nothingFollows`
+  → `closeIfEnded` (via `Qt.callLater`, never inside the player's own
+  signal) → `stop()`, which lets mpv go as the close button does; for
+  YouTube, Twitch and Jellyfin (after no next episode or track came).
+  Narrow windows: below 520 px with UP NEXT the speed button hides
+  (MN, 2026-11-15). `GC_DEMO=video,upnext[,upnextlist|,nextnote],unlocked`.
   Searches asked in another language than English (`youtube:lang=`) come
   without dates (yt-dlp reads English time texts only): `dates_later`
   asks the feeds of up to 24 channels in the list not asked for 15 minutes,
