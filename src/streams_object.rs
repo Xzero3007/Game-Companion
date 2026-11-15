@@ -816,7 +816,19 @@ fn plan_feeds(ids: &[String], cache: &serde_json::Map<String, Value>, now: u64, 
 }
 
 fn cached_videos(ids: &[String], cache: &serde_json::Map<String, Value>) -> Vec<Value> {
-    ids.iter().filter_map(|id| cache.get(id)?["videos"].as_array().cloned()).flatten().collect()
+    ids.iter()
+        .filter_map(|id| {
+            let mut videos = cache.get(id)?["videos"].as_array().cloned()?;
+            // Stored before 0.8.41: a feed's id without its "UC".
+            for v in &mut videos {
+                if !v["channelId"].as_str().is_some_and(streams::valid_channel_id) {
+                    v["channelId"] = json!(id);
+                }
+            }
+            Some(videos)
+        })
+        .flatten()
+        .collect()
 }
 
 /// A channel's stored videos with the new ones of its feed: newest first,
@@ -1116,7 +1128,7 @@ impl StreamsRust {
             ("Raid boss walkthrough", "channel_name", 1865.0), ("First look at the new region", "third_channel", 3730.0)]
             .iter()
             .enumerate()
-            .map(|(i, (t, c, d))| json!({ "id": format!("demo000000{i}"), "title": t, "channel": c, "duration": d, "views": 0, "live": false,
+            .map(|(i, (t, c, d))| json!({ "id": format!("demo000000{i}"), "title": t, "channel": c, "channelId": format!("UCdemo{:0>18}", c.len()), "duration": d, "views": 0, "live": false,
                 "published": format!("2026-11-1{}T08:00:00Z", 2 - i.min(2)), "picture": "" }))
             .collect();
         self.twitch = q(&Value::Array(twitch).to_string());
@@ -1399,7 +1411,7 @@ impl qobject::Streams {
                     streams::youtube_trending_page(&part, &words, &st.video_languages, page)
                 }
                 // The feed gave the newest 15; then the videos tab, 30 at a time.
-                "channel" => streams::youtube_channel_range(text.trim(), 16 + (page - 1) * 30, 15 + page * 30),
+                "channel" => streams::youtube_channel_range(&streams::full_channel_id(&text), 16 + (page - 1) * 30, 15 + page * 30),
                 // More of the subscriptions already loaded (60 a page).
                 _ => {
                     let ids: Vec<String> = all_channels(&st)
@@ -1528,9 +1540,10 @@ impl qobject::Streams {
                         streams::youtube_search_with(&text, &streams::search_param(&f.sort, &f.date, &f.length), 30, lang)
                     }
                     "channel" => {
-                        let list = streams::youtube_channel_newest(text.trim(), 15)?;
+                        let channel = streams::full_channel_id(&text);
+                        let list = streams::youtube_channel_newest(&channel, 15)?;
                         if list.iter().any(|v| v["duration"].as_f64().unwrap_or(0.0) <= 0.0) {
-                            channel_lengths_later(text.trim().to_string(), request, thread.clone());
+                            channel_lengths_later(channel, request, thread.clone());
                         }
                         Ok(list)
                     }
@@ -1688,7 +1701,7 @@ impl qobject::Streams {
     }
 
     fn toggle_channel(mut self: Pin<&mut Self>, id: &QString, name: &QString) {
-        let id = id.to_string();
+        let id = streams::full_channel_id(&id.to_string());
         if !streams::valid_channel_id(&id) {
             return;
         }
@@ -1991,7 +2004,7 @@ impl qobject::Streams {
     }
 
     fn toggle_hidden_channel(self: Pin<&mut Self>, id: &QString, name: &QString) {
-        let (id, name) = (id.to_string(), name.to_string().trim().chars().filter(|c| !c.is_control()).take(100).collect::<String>());
+        let (id, name) = (streams::full_channel_id(&id.to_string()), name.to_string().trim().chars().filter(|c| !c.is_control()).take(100).collect::<String>());
         if !streams::valid_channel_id(&id) && (!id.is_empty() || name.is_empty()) {
             return;
         }
@@ -2030,7 +2043,7 @@ impl qobject::Streams {
     }
 
     fn toggle_channel_group(mut self: Pin<&mut Self>, id: &QString, group: &QString) {
-        let id = id.to_string();
+        let id = streams::full_channel_id(&id.to_string());
         let group: String = group.to_string().trim().chars().filter(|c| !c.is_control()).take(40).collect();
         if !streams::valid_channel_id(&id) || group.is_empty() {
             return;

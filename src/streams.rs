@@ -52,6 +52,18 @@ pub fn valid_channel_id(id: &str) -> bool {
     id.len() == 24 && id.starts_with("UC") && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
+/// A channel id as YouTube's feeds now give it at their top: without its
+/// "UC" (MN, 0.8.40: "Go to channel" said "not a YouTube channel"). Gives
+/// the full id, or the text as it was.
+pub fn full_channel_id(id: &str) -> String {
+    let id = id.trim();
+    if !valid_channel_id(id) && id.len() == 22 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        format!("UC{id}")
+    } else {
+        id.to_string()
+    }
+}
+
 /// The address mpv plays: a Twitch channel's page or a YouTube video's.
 pub fn stream_url(kind: &str, id: &str) -> Result<String, String> {
     match kind {
@@ -832,7 +844,7 @@ fn xml_unescape(s: &str) -> String {
 /// A channel's public feed (Atom) as videos, newest first.
 pub fn parse_feed(xml: &str) -> Vec<Value> {
     let channel = xml_text(xml, "author").and_then(|a| xml_text(a, "name")).map(xml_unescape).unwrap_or_default();
-    let channel_id = xml_text(xml, "yt:channelId").unwrap_or("").to_string();
+    let channel_id = full_channel_id(xml_text(xml, "yt:channelId").unwrap_or(""));
     xml.split("<entry>")
         .skip(1)
         .filter_map(|entry| {
@@ -841,6 +853,8 @@ pub fn parse_feed(xml: &str) -> Vec<Value> {
                 return None;
             }
             let short = entry.contains("/shorts/");
+            // An entry's own id where it has one (it keeps its "UC").
+            let channel_id = xml_text(entry, "yt:channelId").map(full_channel_id).filter(|c| valid_channel_id(c)).unwrap_or_else(|| channel_id.clone());
             Some(json!({
                 "id": id,
                 "short": short,
@@ -1182,7 +1196,14 @@ pub fn youtube_feed(channel: &str) -> Result<Vec<Value>, String> {
     let mut config = curl_base();
     config.push_str(&format!("url = \"https://www.youtube.com/feeds/videos.xml?channel_id={channel}\"\n"));
     let bytes = curl(&config, Duration::from_secs(25)).map_err(|e| format!("YouTube: {e}"))?;
-    Ok(parse_feed(&String::from_utf8_lossy(&bytes)))
+    let mut list = parse_feed(&String::from_utf8_lossy(&bytes));
+    // The channel asked for is the one that answered.
+    for v in &mut list {
+        if !v["channelId"].as_str().is_some_and(valid_channel_id) {
+            v["channelId"] = json!(channel);
+        }
+    }
+    Ok(list)
 }
 
 /// The twitch.tv `auth-token` as pasted (with or without "OAuth ").
@@ -1325,6 +1346,18 @@ pub fn indian_script(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn channel_ids_in_full() {
+        assert_eq!(super::full_channel_id("Xa4hXRHFYlbg_3A5Vh1Jbw"), "UCXa4hXRHFYlbg_3A5Vh1Jbw");
+        assert_eq!(super::full_channel_id("UCXa4hXRHFYlbg_3A5Vh1Jbw"), "UCXa4hXRHFYlbg_3A5Vh1Jbw");
+        assert_eq!(super::full_channel_id("not one"), "not one");
+        // The feed's top gives the id without "UC"; an entry's own id wins.
+        let xml = "<feed><yt:channelId>Xa4hXRHFYlbg_3A5Vh1Jbw</yt:channelId><author><name>A</name></author>\
+            <entry><yt:videoId>dQw4w9WgXcQ</yt:videoId><title>T</title><published>2026-11-14T08:00:00+00:00</published></entry></feed>";
+        let v = super::parse_feed(xml);
+        assert_eq!(v[0]["channelId"], "UCXa4hXRHFYlbg_3A5Vh1Jbw");
+    }
+
     #[test]
     fn rough_dates_from_ytdlp() {
         let all = serde_json::json!({ "entries": [

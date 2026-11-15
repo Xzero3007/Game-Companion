@@ -166,6 +166,7 @@ Item {
         // visionOS player got none.
         video.ytdlOptions = item.kind === "youtube" && !anyPlayer ? "extractor-args=youtube:player_client=visionos" : ""
         moved = false
+        noPictureFor = 0
         video.play(src.url, src.format, start || 0)
     }
     // Screenshots (GC_DEMO=jellyvideo): an episode with its tracks, in its intro.
@@ -224,6 +225,8 @@ Item {
     // YouTube serves a video only once its ad would have run; mpv waits that
     // long (it says so, video.heldUntil) and the watchdog waits with it.
     property real nowMs: 0
+    /// Seconds a YouTube video played with sound and no picture.
+    property int noPictureFor: 0
     readonly property int heldFor: video.heldUntil > 0 ? Math.max(0, Math.ceil((video.heldUntil - nowMs) / 1000)) : 0
     Timer {
         interval: 1000
@@ -245,6 +248,18 @@ Item {
                 win.stillFor = 0
                 win.reconnecting = false
                 if (++win.goodFor >= 30) win.tries = 0
+                // YouTube plays on but only its sound: the visionOS player's
+                // video part didn't open (MN, 0.8.40: sound, no picture;
+                // Twitch fine). Again as the player yt-dlp chooses.
+                const tube = win.item && win.item.kind === "youtube"
+                if (tube && !win.anyPlayer && win.moved && video.drawable && !video.hasPicture) {
+                    if (++win.noPictureFor >= 3) {
+                        win.anyPlayer = true
+                        win.load(Math.max(0, video.position))
+                    }
+                } else {
+                    win.noPictureFor = 0
+                }
                 return
             }
             win.goodFor = 0
@@ -612,6 +627,7 @@ Item {
         property real heldUntil: 0
         property string why: ""
         property string ytdlOptions: ""
+        property bool hasPicture: true
         function play(url, format, start, header) { return false }
         function setTrack(kind, id) {}
         function addSubtitle(url) {}
