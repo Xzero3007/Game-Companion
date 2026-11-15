@@ -95,7 +95,16 @@ EE2.setup(__gcHost);
 const DEMO: &str = r#"
 __gcHost.request = function (url) {
     var listing = function (i, amount, currency, account, hours, online) {
-        return { id: "r" + i, listing: { indexed: new Date(Date.now() - hours * 3600000).toISOString(), price: { type: "~price", amount: amount, currency: currency }, account: { name: account, lastCharacterName: account, online: online ? { league: "Standard" } : null } }, item: { ilvl: 79 + (i % 3), properties: [] } };
+        return { id: "r" + i, listing: { indexed: new Date(Date.now() - hours * 3600000).toISOString(), price: { type: "~price", amount: amount, currency: currency }, account: { name: account, lastCharacterName: account, online: online ? { league: "Standard" } : null } }, item: { ilvl: 79 + (i % 3), rarity: "Rare", frameType: 2, name: ["Grim Bane", "Storm Song", "Dread Thirst"][i % 3], typeLine: "Rider Bow", identified: true, corrupted: i === 3 ? true : undefined,
+            properties: [{ name: "Physical Damage", values: [["36-61", 0]], displayMode: 0, type: 9 }, { name: "Critical Hit Chance", values: [["5.00%", 0]], displayMode: 0, type: 12 }, { name: "Attacks per Second", values: [["1.20", 0]], displayMode: 0, type: 13 }],
+            requirements: [{ name: "Level", values: [["51", 0]], displayMode: 0 }, { name: "Dex", values: [["103", 0]], displayMode: 1 }],
+            extended: { dps: 58.2, pdps: 58.2, edps: 0, mods: {}, hashes: {} },
+            implicitMods: [{ description: "+" + (50 + i) + " to Accuracy Rating", hash: "i1", mods: [] }],
+            explicitMods: [
+                { description: (60 + i * 3) + "% increased Physical Damage", hash: "e1", mods: [{ tier: "P" + (2 + i % 3) }] },
+                { description: "Adds 5 to 9 Fire Damage", hash: "e2", mods: [{ tier: "P5" }] },
+                { description: "+" + (2 + i % 2) + " to Level of all Projectile Skills", hash: "e3", mods: [{ tier: "S1" }] },
+                { description: (14 + i) + "% increased Attack Speed", hash: "e4", mods: [{ tier: "S3" }] }] } };
     };
     var body = "{}";
     if (url.indexOf("/data/leagues") >= 0) body = JSON.stringify({ result: [{ id: "Standard", text: "Standard" }, { id: "Hardcore", text: "Hardcore" }, { id: "Rise of the Abyssal", text: "Rise of the Abyssal" }, { id: "HC Rise of the Abyssal", text: "Hardcore Rise of the Abyssal" }] });

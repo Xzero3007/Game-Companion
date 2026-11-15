@@ -79,6 +79,7 @@ fn main() {
         QmlFile::from("qml/poe2/PriceSettings.qml"),
         QmlFile::from("qml/poe2/PriceChoices.qml"),
         QmlFile::from("qml/poe2/RangeField.qml"),
+        QmlFile::from("qml/poe2/ListedItem.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();

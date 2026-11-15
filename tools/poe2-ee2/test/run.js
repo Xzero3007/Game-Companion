@@ -22,7 +22,7 @@ function run(EE2, host, items, log, done) {
     }
     EE2.setup(host)
     function listing(id, amount, currency, account) {
-        return { id: id, gone: false, listing: { indexed: new Date(Date.now() - 3600000).toISOString(), price: { type: "~price", amount: amount, currency: currency }, account: { name: account, lastCharacterName: account + "C", online: { league: "Standard" } } }, item: { ilvl: 80, frameType: 2, name: "", typeLine: "Test", properties: [] } }
+        return { id: id, gone: false, listing: { indexed: new Date(Date.now() - 3600000).toISOString(), price: { type: "~price", amount: amount, currency: currency }, account: { name: account, lastCharacterName: account + "C", online: { league: "Standard" } } }, item: { ilvl: 80, frameType: 2, rarity: "Rare", name: "Gale Song", typeLine: "Test", identified: true, properties: [], requirements: [{ name: "Level", values: [["51", 0]], displayMode: 0 }, { name: "Dex", values: [["103", 1]], displayMode: 1 }], implicitMods: ["+57 to Accuracy Rating"], explicitMods: [{ description: "+32 to Spirit", hash: "h1", mods: [{ tier: "P2" }] }, { description: "15% increased Light Radius", hash: "h2", mods: [{ tier: "S5" }] }], extended: { mods: {}, hashes: {} } } }
     }
     var names = Object.keys(items), failed = [], i = 0
     function next() {
@@ -49,6 +49,14 @@ function run(EE2, host, items, log, done) {
         }).then(function (r) {
             log("search: " + (r.error ? "error " + r.error : r.total + " total, " + r.listed.map(function (l) { return l.amount + " " + l.currency + " " + l.account + " " + l.age }).join("; ")))
             if (r.error) failed.push("search: " + r.error)
+            // Each listing carries its item as the trade site shows it.
+            var shown = r.listed && r.listed[0] && r.listed[0].item
+            log("listed item: " + JSON.stringify(shown))
+            var lines = shown ? [].concat.apply([], shown.blocks.map(function (b) { return b.lines })) : []
+            if (!shown || shown.title.join(" ") !== "Gale Song Test") failed.push("listed item: title")
+            if (!lines.some(function (l) { return l.text === "+32 to Spirit" && l.tier === "P2" })) failed.push("listed item: explicit with tier")
+            if (!lines.some(function (l) { return l.text.indexOf("Item Level: 80") === 0 })) failed.push("listed item: item level")
+            if (!lines.some(function (l) { return l.text === "+57 to Accuracy Rating" })) failed.push("listed item: implicit")
             // Again after the limits' windows passed (their handles leave the stack).
             return new Promise(function (res) { host.timer(4000, res) }).then(function () { return EE2.check(items.UniqueItem, "Standard") }).then(function () { return EE2.search(function () { }) })
         }).then(function (r) {

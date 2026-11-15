@@ -415,8 +415,56 @@ export function setPreset(id: string) {
   return view();
 }
 
+// The trade site's colour numbers (EE2's TradeNumberColors) as names.
+const LINE_COLOURS: Record<number, string> = {
+  1: "augmented", 2: "unmet", 3: "physical", 4: "fire", 5: "cold", 6: "lightning", 7: "chaos",
+  8: "unique", 25: "skill", 8729: "enchant", 8730: "fractured", 8731: "desecrated",
+  8732: "sanctified", 8733: "mutated",
+};
+
+/**
+ * A listed item as the trade site shows it (EE2's DisplayItem, made by
+ * its parseFetchResult): title, then blocks of lines (values, requirements,
+ * granted skills, enchants, runes, implicits, fractured, explicits …),
+ * each line's text with its tier where the site gave one.
+ */
+function shownItem(d: any) {
+  if (!d) return null;
+  const t = useI18n().t;
+  const line = (l: any) => {
+    const value = l.value === undefined || l.value === null ? "" : String(l.value);
+    let text = String(l.text || "");
+    if (text.indexOf("item.") === 0) {
+      text = t(text, [value]);
+      // "Critical Hit Chance: {0}%" with the site's "5.00%".
+      text = text.split("%%").join("%");
+    }
+    else if (text.indexOf("{0}") >= 0) text = text.split("{0}").join(value);
+    else if (value !== "") text = text + value;
+    return { text: text.trim(), tier: l.tier ? String(l.tier) : "", colour: LINE_COLOURS[l.color] || "" };
+  };
+  const keys = [
+    "nameBlock", "itemProps", "grantSkill", "enchantMods", "runeMods", "implicitMods",
+    "fracturedMods", "explicitMods", "desecratedMods", "mutatedMods", "veiledMods", "itemTags",
+  ];
+  const blocks: any[] = [];
+  for (let k = 0; k < keys.length; k++) {
+    const list = d[keys[k]];
+    if (!list || !list.length) continue;
+    const lines = list.map(line);
+    // EE2 leaves the requirements' "Requires" to its page.
+    if (keys[k] === "itemProps") {
+      for (let n = 0; n < list.length; n++) if (String(list[n].text || "").indexOf("item.") !== 0) lines[n].text = "Requires " + lines[n].text;
+    }
+    blocks.push({ kind: keys[k], lines });
+  }
+  return { title: d.title || [], rarity: d.rarity || "", blocks };
+}
+
 function trade(r: any) {
   return {
+    id: r.id,
+    item: shownItem(r.displayItem),
     amount: r.priceAmount,
     currency: r.priceCurrency,
     times: r.listedTimes || 1,

@@ -30,6 +30,13 @@ Panel {
     /// The item's own mods are listed (advanced copy): ranges sit in the text.
     readonly property bool modsShown: v !== null && (v.mods || []).length > 0
     property bool showSettings: false
+    /// The listing whose item is shown (its id), "" for none.
+    property string openListing: ""
+    onRChanged: {
+        if (!r || !r.listed || !r.listed.some(function (l) { return l.id === openListing })) openListing = ""
+        // GC_DEMO=price,results,listing: the second listing's item shown.
+        if (store && store.demo.indexOf("listing") >= 0 && r && r.listed && r.listed.length > 1) openListing = r.listed[1].id
+    }
     onVChanged: if (!v) showHidden = false
     readonly property bool tiersShown: store && store.showTiers && v !== null && ((v.mods || []).some(function (m) { return m.tier !== null }) || v.stats.some(function (s) { return s.tier !== null || s.low !== null }))
 
@@ -507,55 +514,93 @@ Panel {
                     Item { width: 1; height: 8 }
 
                     // Listings: the price, how often, the seller's state, how old.
+                    // A click shows the listed item as the trade site does (MN,
+                    // 2026-11-15: "anklicken können und dann sehen ... die werte").
                     Repeater {
                         model: win.r && win.r.kind === "trade" && !win.showSettings ? win.r.listed : []
-                        delegate: Item {
+                        delegate: Column {
+                            id: listing
                             required property var modelData
+                            required property int index
+                            readonly property bool open: win.openListing !== "" && win.openListing === (modelData.id || String(index))
                             width: pageColumn.width
-                            height: 24
-                            Rectangle { x: 0; anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; color: win.statusColour(modelData.status) }
-                            Text {
-                                x: 14
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 92
-                                text: win.amount(modelData.amount) + " " + win.currencyName(modelData.currency)
-                                color: modelData.currency === "divine" ? Theme.accentLight : Theme.text()
-                                font.family: Theme.display
-                                font.pixelSize: 14
-                                font.weight: Font.Bold
-                                style: Theme.textStyle(); styleColor: Theme.shadow
+                            Item {
+                                width: parent.width
+                                height: 24
+                                Rectangle { anchors.fill: parent; color: Theme.accent; opacity: listing.open ? 0.08 : rowMouse.containsMouse ? 0.05 : 0 }
+                                Rectangle { x: 0; anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; color: win.statusColour(listing.modelData.status) }
+                                Text {
+                                    x: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 92
+                                    text: win.amount(listing.modelData.amount) + " " + win.currencyName(listing.modelData.currency)
+                                    color: listing.modelData.currency === "divine" ? Theme.accentLight : Theme.text()
+                                    font.family: Theme.display
+                                    font.pixelSize: 14
+                                    font.weight: Font.Bold
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Text {
+                                    x: 110
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 34
+                                    text: listing.modelData.times > 1 ? "×" + listing.modelData.times : (listing.modelData.stack > 1 ? listing.modelData.stack + "×" : "")
+                                    color: Theme.muted()
+                                    font.family: Theme.body
+                                    font.pixelSize: 11
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Text {
+                                    x: 148
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - 148 - 96
+                                    elide: Text.ElideRight
+                                    text: listing.modelData.account + (listing.modelData.itemLevel ? " · ilvl " + listing.modelData.itemLevel : "")
+                                    color: listing.modelData.mine ? Theme.accent : Theme.textSoft()
+                                    font.family: Theme.body
+                                    font.pixelSize: 11
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Text {
+                                    anchors.right: openMark.left
+                                    anchors.rightMargin: 6
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: listing.modelData.age
+                                    color: Theme.dim()
+                                    font.family: Theme.body
+                                    font.pixelSize: 11
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Text {
+                                    id: openMark
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 10
+                                    horizontalAlignment: Text.AlignRight
+                                    text: listing.modelData.item ? (listing.open ? "▴" : "▾") : ""
+                                    color: listing.open ? Theme.accent : Theme.dim()
+                                    font.family: Theme.body
+                                    font.pixelSize: 10
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine; visible: !listing.open }
+                                MouseArea {
+                                    id: rowMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    enabled: !!listing.modelData.item
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: win.openListing = listing.open ? "" : (listing.modelData.id || String(listing.index))
+                                }
                             }
-                            Text {
-                                x: 110
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 34
-                                text: modelData.times > 1 ? "×" + modelData.times : (modelData.stack > 1 ? modelData.stack + "×" : "")
-                                color: Theme.muted()
-                                font.family: Theme.body
-                                font.pixelSize: 11
-                                style: Theme.textStyle(); styleColor: Theme.shadow
+                            // The listed item: name, values, requirements, then its mods
+                            // block by block, each mod's tier on the right.
+                            Loader {
+                                active: listing.open && !!listing.modelData.item
+                                width: parent.width
+                                visible: active
+                                sourceComponent: ListedItem { item: listing.modelData.item; note: listing.modelData.corrupted ? "Corrupted" : "" }
                             }
-                            Text {
-                                x: 148
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width - 148 - 84
-                                elide: Text.ElideRight
-                                text: modelData.account + (modelData.itemLevel ? " · ilvl " + modelData.itemLevel : "")
-                                color: modelData.mine ? Theme.accent : Theme.textSoft()
-                                font.family: Theme.body
-                                font.pixelSize: 11
-                                style: Theme.textStyle(); styleColor: Theme.shadow
-                            }
-                            Text {
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.age
-                                color: Theme.dim()
-                                font.family: Theme.body
-                                font.pixelSize: 11
-                                style: Theme.textStyle(); styleColor: Theme.shadow
-                            }
-                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
                         }
                     }
 

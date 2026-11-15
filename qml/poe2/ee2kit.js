@@ -17983,8 +17983,62 @@ var EE2 = (() => {
     if (current && current.presets.presets.some(p => p.id === id)) current.presets.active = id;
     return view();
   }
+  var LINE_COLOURS = {
+    1: "augmented",
+    2: "unmet",
+    3: "physical",
+    4: "fire",
+    5: "cold",
+    6: "lightning",
+    7: "chaos",
+    8: "unique",
+    25: "skill",
+    8729: "enchant",
+    8730: "fractured",
+    8731: "desecrated",
+    8732: "sanctified",
+    8733: "mutated"
+  };
+  function shownItem(d) {
+    if (!d) return null;
+    const t3 = useI18n().t;
+    const line2 = l => {
+      const value = l.value === void 0 || l.value === null ? "" : String(l.value);
+      let text = String(l.text || "");
+      if (text.indexOf("item.") === 0) {
+        text = t3(text, [value]);
+        text = text.split("%%").join("%");
+      } else if (text.indexOf("{0}") >= 0) text = text.split("{0}").join(value);else if (value !== "") text = text + value;
+      return {
+        text: text.trim(),
+        tier: l.tier ? String(l.tier) : "",
+        colour: LINE_COLOURS[l.color] || ""
+      };
+    };
+    const keys = ["nameBlock", "itemProps", "grantSkill", "enchantMods", "runeMods", "implicitMods", "fracturedMods", "explicitMods", "desecratedMods", "mutatedMods", "veiledMods", "itemTags"];
+    const blocks = [];
+    for (let k = 0; k < keys.length; k++) {
+      const list = d[keys[k]];
+      if (!list || !list.length) continue;
+      const lines2 = list.map(line2);
+      if (keys[k] === "itemProps") {
+        for (let n = 0; n < list.length; n++) if (String(list[n].text || "").indexOf("item.") !== 0) lines2[n].text = "Requires " + lines2[n].text;
+      }
+      blocks.push({
+        kind: keys[k],
+        lines: lines2
+      });
+    }
+    return {
+      title: d.title || [],
+      rarity: d.rarity || "",
+      blocks
+    };
+  }
   function trade(r) {
     return {
+      id: r.id,
+      item: shownItem(r.displayItem),
       amount: r.priceAmount,
       currency: r.priceCurrency,
       times: r.listedTimes || 1,
