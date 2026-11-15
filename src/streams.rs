@@ -661,12 +661,6 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
-/// YouTube's search through yt-dlp: the first 20 videos, newest uploads
-/// first if asked (YouTube's results page sorted by upload date).
-pub fn youtube_search(text: &str, newest: bool, lang: &str) -> Result<Vec<Value>, String> {
-    youtube_search_with(text, if newest { "CAI%3D" } else { "" }, 20, lang)
-}
-
 /// The video languages one can choose (YouTube's own codes), with the word
 /// that makes a search find videos in that language ("" none needed).
 pub const VIDEO_LANGUAGES: [(&str, &str); 8] =
@@ -1564,7 +1558,7 @@ mod tests {
         let cards = twitch_cards(&twitch(&twitch_query("live", &json!("Just Chatting")).unwrap(), None).unwrap());
         assert!(!cards.is_empty(), "no live streams");
         assert!(cards[0]["live"].as_bool().unwrap());
-        let found = youtube_search("aion 2", true, "").unwrap();
+        let found = youtube_search_with("aion 2", "CAI%3D", 20, "").unwrap();
         assert!(!found.is_empty());
         let channel = found.iter().find_map(|v| v["channelId"].as_str().filter(|c| valid_channel_id(c))).unwrap().to_string();
         assert!(!youtube_feed(&channel).unwrap().is_empty());
