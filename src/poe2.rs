@@ -90,8 +90,24 @@ static TURN: Mutex<()> = Mutex::new(());
 
 const SPLIT: &str = "\n\u{1}gc-poe2-split\u{1}";
 
+/// Percent-encodes what a browser would before asking: spaces and other
+/// bytes not allowed in an address (a league's name such as "Runes of Aldur"
+/// comes from EE2 unencoded; Electron's fetch encoded it, curl does not).
+pub fn encode_address(url: &str) -> String {
+    let mut out = String::with_capacity(url.len());
+    for b in url.bytes() {
+        if b <= b' ' || b >= 0x7f || b"\"<>\\^`{|}".contains(&b) {
+            out.push_str(&format!("%{b:02X}"));
+        } else {
+            out.push(b as char);
+        }
+    }
+    out
+}
+
 /// Asks the trade site (GET, or POST with a JSON body).
 pub fn request(method: &str, url: &str, body: &str) -> Result<Answer, String> {
+    let url = &encode_address(url);
     if !allowed(url) {
         return Err("not the trade site's API".into());
     }
@@ -150,6 +166,8 @@ fn curl_config(method: &str, url: &str, body: &str) -> String {
         c.push_str(&format!("data-binary = {}\n", curl_quote(body)));
     }
     c.push_str(&format!("write-out = {}\n", curl_quote(&format!("{SPLIT}%{{http_code}} %{{header_json}}"))));
+    // No [] or {} ranges: the address is taken as it is.
+    c.push_str("globoff\n");
     c.push_str(&format!("url = {}\n", curl_quote(url)));
     c
 }
@@ -258,6 +276,13 @@ mod tests {
         assert!(!allowed("https://poe.ninja/api/trade2/search/x"));
         assert!(!allowed("https://www.pathofexile.com/api/trade2/search/x#y"));
         assert!(!allowed("https://www.pathofexile.com/api/trade2/search/a b"));
+        // A league with spaces, as EE2 writes it, is encoded first (MN, 0.8.42:
+        // "Runes of Aldur" was refused).
+        let league = encode_address("https://www.pathofexile.com/api/trade2/search/poe2/Runes of Aldur");
+        assert_eq!(league, "https://www.pathofexile.com/api/trade2/search/poe2/Runes%20of%20Aldur");
+        assert!(allowed(&league));
+        assert_eq!(encode_address("a\"b{c}ä"), "a%22b%7Bc%7D%C3%A4");
+        assert!(!allowed(&encode_address("https://www.pathofexile.com/api/trade2/search/../x")));
     }
 
     #[test]
