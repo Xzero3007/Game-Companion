@@ -1,6 +1,7 @@
 #include "mpvvideo.h"
 
 #include <QtCore/QByteArray>
+#include <QtCore/QDateTime>
 #include <QtCore/QMetaObject>
 #include <QtGui/QOpenGLContext>
 #include <QtOpenGL/QOpenGLFramebufferObject>
@@ -9,6 +10,7 @@
 #include <QtQuick/QQuickOpenGLUtils>
 #include <QtQuick/QSGRendererInterface>
 #include <QtCore/QPointer>
+#include <QtCore/QRegularExpression>
 
 #include <clocale>
 #include <dlfcn.h>
@@ -307,8 +309,10 @@ bool MpvVideo::ensureStarted()
     }
     // mpv's warnings and errors (yt-dlp's among them, through mpv's ytdl
     // hook): a video that doesn't play says why (as the meter's patch 0057).
+    // "info" for the ytdl hook's wait (YouTube holds a video back for its
+    // ad); only warnings and errors count as why a video fails.
     if (mpv().request_log_messages) {
-        mpv().request_log_messages(m_mpv, "warn");
+        mpv().request_log_messages(m_mpv, "info");
     }
     mpv().observe_property(m_mpv, 0, "pause", MPV_FORMAT_FLAG);
     mpv().observe_property(m_mpv, 0, "mute", MPV_FORMAT_FLAG);
@@ -343,6 +347,15 @@ void MpvVideo::setState(const QString &state, const QString &error)
 const char *MpvVideo::levellingFilter(bool on)
 {
     return on ? "lavfi=[dynaudnorm=f=250:g=15]" : "";
+}
+
+void MpvVideo::setHeldUntil(qint64 at)
+{
+    if (m_heldUntil == at) {
+        return;
+    }
+    m_heldUntil = at;
+    emit heldChanged();
 }
 
 void MpvVideo::setMpv(const char *name, const QString &value)
@@ -392,15 +405,17 @@ bool MpvVideo::loadPending()
     const QString &format = p.format;
     const double start = p.start;
     setMpv("ytdl-format", format.isEmpty() ? QStringLiteral("bestvideo[height<=?1080]+bestaudio/best") : format);
-    // YouTube hands out a stream's address a few seconds before it serves
-    // it: mpv asked at once, got 403 and played nothing. ffmpeg connects
-    // again, for YouTube alone (on Twitch's live segments it stalled the
-    // picture), as the meter's patch 0058.
+    // YouTube hands out a stream's address before it serves it (a few
+    // seconds, or as long as the ad it would show first): mpv asked at once,
+    // got 403 and played nothing. ffmpeg connects again, for YouTube alone
+    // (on Twitch's live segments it stalled the picture), as the meter's
+    // patch 0058; for up to about a minute (waits of 1, 3, 7, 15 and 31 s),
+    // for an mpv older than 0.42, whose ytdl hook doesn't wait by itself.
     const bool youtube = url.startsWith(QLatin1String("https://www.youtube.com/"));
     // The home network's server: straight there, never through a proxy
     // (an empty http_proxy wins over the environment's).
     setMpv("stream-lavf-o", m_local ? QStringLiteral("http_proxy=")
-                           : youtube ? QStringLiteral("reconnect=1,reconnect_on_http_error=4xx,reconnect_delay_max=10")
+                           : youtube ? QStringLiteral("reconnect=1,reconnect_on_http_error=4xx,reconnect_delay_max=40")
                                      : QString());
     // Each video's own header: emptied with "clr" (a plain set to "" leaves
     // one empty field), then the one field added whole, commas and all.
@@ -551,6 +566,16 @@ void MpvVideo::readEvents()
                 break;
             }
             const bool fromYtdl = msg->prefix && QByteArray(msg->prefix).contains("ytdl");
+            if (msg->log_level > MPV_LOG_LEVEL_WARN) {
+                // "Waiting 23.00 seconds for the stream to become available..."
+                static const QRegularExpression wait(QStringLiteral("^Waiting ([0-9.]+) seconds for the stream"));
+                const QRegularExpressionMatch m = fromYtdl ? wait.match(line) : QRegularExpressionMatch();
+                if (m.hasMatch()) {
+                    const double seconds = m.captured(1).toDouble();
+                    setHeldUntil(QDateTime::currentMSecsSinceEpoch() + qint64(seconds * 1000));
+                }
+                break;
+            }
             // yt-dlp's ERROR line wins (its "youtube-dl failed" after it says
             // less), then any of its lines, then mpv's own.
             const bool hadError = m_why.contains(QLatin1String("ERROR:"));
@@ -563,6 +588,7 @@ void MpvVideo::readEvents()
         }
         case MPV_EVENT_START_FILE:
             m_why.clear();
+            setHeldUntil(0);
             setState(QStringLiteral("loading"));
             break;
         case MPV_EVENT_FILE_LOADED:

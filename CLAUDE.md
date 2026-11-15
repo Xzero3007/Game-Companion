@@ -271,7 +271,13 @@ learnt, so nothing has to be asked or worked out again.
   `forward`). Videos: a watchdog reloads at the same spot after 4 s
   without progress (20 s loading, three tries); full screen fills the
   scene (z 100, Esc); SponsorBlock in `src/sponsorblock.rs`, segments by
-  `Streams.loadSegments`. Under xvfb (llvmpipe) a large video shows
+  `Streams.loadSegments`. YouTube serves a stream only once the ad it
+  would show first has run (yt-dlp's `available_at`, the ad's length; MN,
+  0.8.33: "Stuck" after three reloads): mpv 0.42's ytdl hook waits and logs
+  "Waiting N seconds…" (log level info, `MpvVideo.heldUntil`), the watchdog
+  waits with it and shows a countdown; for older mpv ffmpeg knocks again
+  for about a minute (`reconnect_delay_max=40`) and loading may take 65 s.
+  Under xvfb (llvmpipe) a large video shows
   stripes after some seconds (also without resizing): most likely a
   software-GL artifact; to be checked on the person's GPU. `GC_SCREENSHOT_DELAY` sets the screenshot's moment.
 - Jellyfin (`src/jellyfin.rs`, `src/jellyfin_object.rs`, the `Jellyfin`
