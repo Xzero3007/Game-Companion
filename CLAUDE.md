@@ -412,7 +412,13 @@ learnt, so nothing has to be asked or worked out again.
   name (object `/io/github/xzero3007/GameCompanion/Apps`; calls from
   anyone but KWin's owner are ignored); each action is a one-off script
   (`command_script`: loaded, run, says "Done", unloaded) run on the
-  `apps-kwin` worker thread. Show: unminimise, keepAbove, opacity, place
+  `apps-kwin` worker thread. Every load ends with `/Scripting start`:
+  KWin numbers a new script by how many it holds, so after another script
+  went the number's D-Bus path can be another script's, and `run` there
+  never ran ours (MN, 0.8.37: watcher loaded, no windows reported, every
+  press started Brave again; `arch-test/apps/holes.sh`). With no window
+  known, a press first asks KWin (`scan_body`, `look_then_start`) and loads
+  the watcher again if it missed one; so does a game start. Show: unminimise, keepAbove, opacity, place
   on the overlay's screen (`nativeWindow.screenName`, place relative to it,
   kept when moved by hand), focus. Hide: minimise, focus back to the last
   other window. KWin 6.8 (Arch bench, 2026-11-14): a real full-screen game

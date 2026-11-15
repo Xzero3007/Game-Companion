@@ -271,6 +271,22 @@ gcSend("ready", "{{}}");
         )
 }
 
+/// Reports every window of the apps with `keys` as the watcher would (a
+/// look of its own when the watcher may have missed them).
+pub fn scan_body(keys: &[&str]) -> String {
+    let keys: Vec<String> = keys.iter().map(|k| k.to_lowercase()).collect();
+    format!(
+        r#"var keys = {keys}, a = workspace.windowList();
+for (var i = 0; i < a.length; i++) {{
+    var w = a[i];
+    if (!w.normalWindow || w.transient) continue;
+    var k = (String(w.desktopFileName || "") + " " + String(w.resourceClass || "")).toLowerCase();
+    for (var j = 0; j < keys.length; j++) if (k.indexOf(keys[j]) >= 0) {{ callDBus(GC_BUS, GC_PATH, GC_IFACE, "Event", "window", gcInfo(w)); break; }}
+}}"#,
+        keys = js(keys)
+    )
+}
+
 /// A one-off script: `body` runs with `gcFind(id)` and `gcOutput(name)`,
 /// then it says it is done.
 pub fn command_script(bus: &str, token: &str, body: &str) -> String {
@@ -508,9 +524,16 @@ impl Kwin {
         if id < 0 {
             return Err(zbus::Error::Failure(format!("KWin did not load {name}")));
         }
+        // KWin numbers a new script by how many it holds, so once another
+        // script went, the number (and its D-Bus path) can be one still in
+        // use: `run` there reaches that other script, and ours never ran
+        // (MN, 0.8.37: the watcher loaded but told nothing). `start` runs
+        // every loaded script that is not running yet, ours included.
         let path = format!("/Scripting/Script{id}");
-        let script = zbus::blocking::Proxy::new(&self.conn, "org.kde.KWin", path.as_str(), "org.kde.kwin.Script")?;
-        let () = script.call("run", &())?;
+        if let Ok(script) = zbus::blocking::Proxy::new(&self.conn, "org.kde.KWin", path.as_str(), "org.kde.kwin.Script") {
+            let _: zbus::Result<()> = script.call("run", &());
+        }
+        let () = scripting.call("start", &())?;
         Ok(())
     }
 
@@ -528,6 +551,13 @@ impl Kwin {
         let result = self.load(&file, WATCHER);
         let _ = std::fs::remove_file(&file);
         result
+    }
+
+    /// Asks KWin for the apps' windows now (`scan_body`); they come as
+    /// window events before this returns.
+    pub fn scan(&self, keys: &[&str]) -> zbus::Result<()> {
+        self.find_kwin()?;
+        self.run(&scan_body(keys))
     }
 
     pub fn stop_watching(&self) {
@@ -700,6 +730,8 @@ mod tests {
         let u = unfull_body("{g}");
         assert!(u.contains(r#"gcFind("{g}")"#) && u.contains("w.fullScreen = false") && u.contains("w.noBorder = true"));
         assert!(refull_body("{g}").contains("w.fullScreen = true"));
+        let s = command_script(":1.42", "7-2", &scan_body(&["Brave"]));
+        assert!(s.contains(r#"var keys = ["brave"]"#) && s.contains(r#""Event", "window", gcInfo(w)"#));
     }
 
     #[test]
