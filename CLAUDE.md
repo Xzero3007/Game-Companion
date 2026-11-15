@@ -277,6 +277,15 @@ learnt, so nothing has to be asked or worked out again.
   "Waiting N seconds…" (log level info, `MpvVideo.heldUntil`), the watchdog
   waits with it and shows a countdown; for older mpv ffmpeg knocks again
   for about a minute (`reconnect_delay_max=40`) and loading may take 65 s.
+  mpv opens YouTube's separate streams after FILE_LOADED (EDL
+  `delay_open`): until a video first moves on (`VideoWindow.moved`) the
+  watchdog keeps the loading allowance (0.8.36 on MN's mpv 0.41: reloaded
+  after 4 s, fetching a new ad wait each time). yt-dlp asks as the visionOS
+  player first (`MpvVideo.ytdlOptions` → `ytdl-raw-options`
+  `extractor-args=youtube:player_client=visionos`; MN's test: tv_samsung got
+  a 6 to 15 s ad, visionos none); after a failure or a stall it lets yt-dlp
+  choose (`anyPlayer`). "Stuck" names mpv's or yt-dlp's last warning
+  (`MpvVideo.why`).
   Under xvfb (llvmpipe) a large video shows
   stripes after some seconds (also without resizing): most likely a
   software-GL artifact; to be checked on the person's GPU. `GC_SCREENSHOT_DELAY` sets the screenshot's moment.
@@ -351,7 +360,7 @@ learnt, so nothing has to be asked or worked out again.
   ways tried (`TWITCH_WAY`, e.g. the directory query's refusal); why a page failed shows under the
   list, `twitchMoreNote`;
   YouTube pages too: `load_more_youtube`, yt-dlp `--playlist-items`,
-  subscriptions 60 a page from the kept 300; each channel's feed gives its newest 15, a feed that fails is asked once more after 3 s, the rest shows as "N channels didn't answer", MN 0.8.33; each channel's last feed is kept in ~/.cache/game-companion/youtube-feeds.json: shown at once, not asked again within 15 minutes, kept when its feed fails, ↻ asks all, `FEEDS_FORCED`; some channels' feeds answer 404 for good (Level1Techs): yt-dlp looks at their videos tab instead, `youtube_channel_newest`, in Subscriptions at most 12 channels, 5 videos each, without dates), channel pictures (0.8.4:
+  subscriptions 60 a page from the kept 300; each channel's feed gives its newest 15, a feed that fails is asked once more after 3 s, the rest shows as "N channels didn't answer", MN 0.8.33; every video a channel's feed brought is stored in ~/.cache/game-companion/youtube-feeds.json, up to 50 per channel (`merge_videos`; MN 0.8.36: a list that grows, only the new ones fetched): Subscriptions shows the stored list at once and asks only channels not asked for 15 minutes, in the background (`update_feeds`, `SUBS_UPDATING`, applied if `SUBS_REQUEST` is still the latest request, "looking for new ones…"), a channel that fails keeps its videos, ↻ asks all, `FEEDS_FORCED`; some channels' feeds answer 404 for good (Level1Techs): yt-dlp looks at their videos tab instead, `youtube_channel_newest`, in Subscriptions at most 12 channels, 5 videos each, without dates), channel pictures (0.8.4:
   once per channel, FreeTube's profiles file first, else yt-dlp
   `--playlist-items 0` on the channel page, `streams::channel_picture`;
   settings `channel_pictures`, the `channelPictures` property, shown

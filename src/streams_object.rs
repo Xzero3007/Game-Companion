@@ -819,6 +819,67 @@ fn cached_videos(ids: &[String], cache: &serde_json::Map<String, Value>) -> Vec<
     ids.iter().filter_map(|id| cache.get(id)?["videos"].as_array().cloned()).flatten().collect()
 }
 
+/// A channel's stored videos with the new ones of its feed: newest first,
+/// each video once, at most 50 (the feed holds only its newest 15).
+fn merge_videos(new: Vec<Value>, old: Option<&Value>) -> Vec<Value> {
+    let mut all = new;
+    for v in old.and_then(Value::as_array).into_iter().flatten() {
+        if !all.iter().any(|x| x["id"] == v["id"]) {
+            all.push(v.clone());
+        }
+    }
+    all.sort_by(|a, b| b["published"].as_str().cmp(&a["published"].as_str()));
+    all.truncate(50);
+    all
+}
+
+/// Asks the `ask` channels for new videos, stores them with what was there
+/// (`merge_videos`), and gives the stored videos of all `ids`, how many
+/// channels didn't answer, and why. `progress` hears how many channels are
+/// done and the list so far.
+fn update_feeds(ids: &[String], ask: Vec<String>, now: u64, progress: impl Fn(usize, Vec<Value>)) -> (Vec<Value>, usize, Option<String>) {
+    let before = read_feed_cache();
+    let rest: Vec<String> = ids.iter().filter(|id| !ask.contains(id)).cloned().collect();
+    let base = cached_videos(&rest, &before);
+    let skip = rest.len();
+    let (got, failed, why) = fetch_feeds(ask, |done, so_far| {
+        let mut list = base.clone();
+        list.extend(so_far.iter().cloned());
+        progress(skip + done, list);
+    });
+    // Read again: another look may have stored something meanwhile.
+    let mut cache = read_feed_cache();
+    if !got.is_empty() {
+        for (id, videos) in got {
+            let merged = merge_videos(videos, cache.get(&id).map(|e| &e["videos"]));
+            cache.insert(id, json!({ "at": now, "videos": merged }));
+        }
+        write_feed_cache(&mut cache, now);
+    }
+    // A channel that didn't answer keeps its stored videos.
+    (cached_videos(ids, &cache), failed.len(), why)
+}
+
+/// "60 videos · 3 hidden · 2 channels didn't answer · looking for new ones…"
+fn subscriptions_message(n: usize, hidden: usize, missing: usize, updating: bool) -> String {
+    let mut m = format!("{n} videos");
+    if hidden > 0 {
+        m += &format!(" · {hidden} hidden");
+    }
+    if missing > 0 {
+        m += &format!(" · {missing} {} didn't answer", if missing == 1 { "channel" } else { "channels" });
+    }
+    if updating {
+        m += " · looking for new ones…";
+    }
+    m
+}
+
+/// The latest subscriptions request, which a look in the background may
+/// still fill; whether such a look runs.
+static SUBS_REQUEST: AtomicU64 = AtomicU64::new(0);
+static SUBS_UPDATING: AtomicBool = AtomicBool::new(false);
+
 /// Set by ↻ (`forget`): the next subscriptions ask every channel again.
 static FEEDS_FORCED: AtomicBool = AtomicBool::new(false);
 
@@ -1299,8 +1360,10 @@ impl qobject::Streams {
         std::thread::spawn(move || {
             // Searches ask in the first chosen language.
             let lang = st.video_languages.first().map(String::as_str).unwrap_or("");
-            // Subscriptions: how many channels' feeds didn't answer.
+            // Subscriptions: how many channels' feeds didn't answer, and
+            // whether new videos are being looked for in the background.
             let mut missing = 0;
+            let mut updating = false;
             let result = (|| -> Result<Vec<Value>, String> {
                 match view.as_str() {
                     "game" => streams::youtube_search(&st.game.youtube, true, lang),
@@ -1328,16 +1391,57 @@ impl qobject::Streams {
                             });
                         }
                         ids.truncate(MAX_CHANNELS);
-                        if let Some((kept, gone)) = kept_subscriptions(&ids) {
-                            missing = gone;
-                            return Ok(kept);
+                        SUBS_REQUEST.store(request, Ordering::Relaxed);
+                        let force = FEEDS_FORCED.swap(false, Ordering::Relaxed);
+                        if !force {
+                            if let Some((kept, gone)) = kept_subscriptions(&ids) {
+                                missing = gone;
+                                return Ok(kept);
+                            }
                         }
                         let now = unix_now();
-                        let mut cache = read_feed_cache();
-                        let force = FEEDS_FORCED.swap(false, Ordering::Relaxed);
-                        let (fresh, ask) = plan_feeds(&ids, &cache, now, KEEP_SUBSCRIPTIONS.as_secs(), force);
+                        let cache = read_feed_cache();
+                        let (_, ask) = plan_feeds(&ids, &cache, now, KEEP_SUBSCRIPTIONS.as_secs(), force);
+                        let stored = newest_of(cached_videos(&ids, &cache), 300);
+                        if ask.is_empty() {
+                            keep_subscriptions(&ids, &stored, 0);
+                            return Ok(stored);
+                        }
+                        if !stored.is_empty() {
+                            // What's stored shows now; only new videos are
+                            // asked for, in the background (MN: no reloading
+                            // on every visit), and come in at the top.
+                            keep_subscriptions(&ids, &stored, 0);
+                            updating = true;
+                            if !SUBS_UPDATING.swap(true, Ordering::Relaxed) {
+                                let (ids, st, thread, text) = (ids.clone(), st.clone(), thread.clone(), text.clone());
+                                std::thread::spawn(move || {
+                                    let (all, gone, _) = update_feeds(&ids, ask, now, |_, _| {});
+                                    SUBS_UPDATING.store(false, Ordering::Relaxed);
+                                    let all = newest_of(all, 300);
+                                    keep_subscriptions(&ids, &all, gone);
+                                    let (mut list, hidden) = filter_videos(all, &st);
+                                    let more = list.len() > 60;
+                                    list.truncate(60);
+                                    let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
+                                        if obj.rust().youtube_request != SUBS_REQUEST.load(Ordering::Relaxed) {
+                                            return;
+                                        }
+                                        let message = subscriptions_message(list.len(), hidden, gone, false);
+                                        obj.as_mut().rust_mut().youtube_more = more.then(|| ("subscriptions".to_string(), text, 1));
+                                        obj.as_mut().set_youtube_has_more(more);
+                                        obj.as_mut().set_youtube(q(&Value::Array(list).to_string()));
+                                        obj.as_mut().set_youtube_state(q("ready"));
+                                        obj.set_youtube_message(q(&message));
+                                    });
+                                });
+                            }
+                            return Ok(stored);
+                        }
+                        // Nothing stored yet: what came so far shows while
+                        // the rest loads.
                         let total = ids.len();
-                        let show = |done: usize, list: Vec<Value>| {
+                        let (all, gone, why) = update_feeds(&ids, ask, now, |done, list| {
                             let (list, _) = filter_videos(newest(list), &st);
                             let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
                                 if obj.rust().youtube_request != request {
@@ -1346,41 +1450,13 @@ impl qobject::Streams {
                                 obj.as_mut().set_youtube(q(&Value::Array(list).to_string()));
                                 obj.set_youtube_message(q(&format!("{done} of {total} channels")));
                             });
-                        };
-                        // What's kept on disk shows while the rest loads.
-                        let earlier = cached_videos(&ids, &cache);
-                        if !ask.is_empty() && !earlier.is_empty() {
-                            show(fresh.len(), earlier);
-                        }
-                        let from_cache = cached_videos(&fresh, &cache);
-                        let (got, failed, why) = if ask.is_empty() {
-                            (Vec::new(), Vec::new(), None)
-                        } else {
-                            let base = from_cache.clone();
-                            let skip = fresh.len();
-                            fetch_feeds(ask, |done, so_far| {
-                                let mut list = base.clone();
-                                list.extend(so_far.iter().cloned());
-                                show(skip + done, list);
-                            })
-                        };
-                        let mut all = from_cache;
-                        let changed = !got.is_empty();
-                        for (id, videos) in got {
-                            all.extend(videos.iter().cloned());
-                            cache.insert(id, json!({ "at": now, "videos": videos }));
-                        }
-                        // A channel that didn't answer keeps its last videos.
-                        all.extend(cached_videos(&failed, &cache));
-                        if changed {
-                            write_feed_cache(&mut cache, now);
-                        }
+                        });
                         if all.is_empty() {
                             return Err(why.unwrap_or_else(|| "Nothing new.".into()));
                         }
                         // Kept before leaving anything out: a changed filter
                         // needs no new fetch.
-                        missing = failed.len();
+                        missing = gone;
                         let all = newest_of(all, 300);
                         keep_subscriptions(&ids, &all, missing);
                         Ok(all)
@@ -1403,10 +1479,7 @@ impl qobject::Streams {
                 match result {
                     Ok((videos, gone, _)) => {
                         let n = videos.len();
-                        let mut message = if gone > 0 { format!("{n} videos · {gone} hidden") } else { format!("{n} videos") };
-                        if missing > 0 {
-                            message += &format!(" · {missing} {} didn't answer", if missing == 1 { "channel" } else { "channels" });
-                        }
+                        let message = subscriptions_message(n, gone, missing, updating);
                         obj.as_mut().set_youtube(q(&Value::Array(videos).to_string()));
                         obj.as_mut().set_youtube_state(q("ready"));
                         obj.set_youtube_message(q(&message));
@@ -2158,5 +2231,22 @@ mod tests {
         assert_eq!(ask.len(), 3);
         assert_eq!(cached_videos(&ids, &cache).len(), 3);
         assert_eq!(cached_videos(&["UCc".to_string()], &cache).len(), 0);
+    }
+
+    #[test]
+    fn stored_videos_grow() {
+        let old = json!([{ "id": "b", "published": "2026-11-10" }, { "id": "a", "published": "2026-11-01" }]);
+        let new = vec![json!({ "id": "c", "published": "2026-11-14" }), json!({ "id": "b", "published": "2026-11-10" })];
+        let merged = merge_videos(new, Some(&old));
+        let ids: Vec<&str> = merged.iter().filter_map(|v| v["id"].as_str()).collect();
+        assert_eq!(ids, ["c", "b", "a"]);
+        let many: Vec<Value> = (0..80).map(|i| json!({ "id": format!("v{i:02}"), "published": format!("2026-10-{:02}", i % 28 + 1) })).collect();
+        assert_eq!(merge_videos(many, None).len(), 50);
+    }
+
+    #[test]
+    fn subscriptions_messages() {
+        assert_eq!(subscriptions_message(60, 0, 0, false), "60 videos");
+        assert_eq!(subscriptions_message(60, 3, 1, true), "60 videos · 3 hidden · 1 channel didn't answer · looking for new ones…");
     }
 }
