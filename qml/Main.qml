@@ -144,6 +144,14 @@ Overlay {
         if (demo.indexOf("streams") >= 0) streamsOpen = true
         if (demo.indexOf("video") >= 0) twitchVideo.item = { kind: "twitch", id: "streamer_one", name: "streamer_one", game: "AION 2", title: "" }
         if (demo.indexOf("jellyvideo") >= 0) jellyfinVideo.demo()
+        if (demo.indexOf("upnext") >= 0) {
+            // The YouTube player started from a list: NEXT, UP NEXT, AUTOPLAY.
+            const q = [1, 2, 3, 4, 5, 6, 7].map((n) => ({ id: "demovideo0" + n, title: ["Patch notes explained", "Season start guide", "Top 10 builds",
+                "Boss guide: Ludra", "Crafting for beginners", "Market tips", "Weekly news"][n - 1], channel: "Channel " + n }))
+            youtubeVideo.item = { kind: "youtube", id: q[0].id, title: q[0].title, name: q[0].channel, video: q[0], queue: q, index: 0, through: false, loop: false, playlist: "" }
+            if (demo.indexOf("upnextlist") >= 0) Qt.callLater(youtubeVideo.openUpNext)
+            if (demo.indexOf("nextnote") >= 0) { youtubeVideo.nextItem = youtubeVideo.queued(1); youtubeVideo.nextNote = "NEXT: " + q[1].title }
+        }
         if (nativeWindow.testVideo.length > 0) Qt.callLater(() => twitchVideo.playFile(nativeWindow.testVideo))
         if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
         Streams.begin()

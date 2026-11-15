@@ -62,6 +62,10 @@ pub mod qobject {
         #[qproperty(i32, video_boost)]
         /// Videos' quiet and loud passages evened out.
         #[qproperty(bool, even_loudness)]
+        /// YouTube: the next video in the list plays by itself at the end.
+        #[qproperty(bool, autoplay)]
+        /// A video window closes at the end when nothing follows.
+        #[qproperty(bool, close_at_end)]
         /// YouTube lists: what is left out. JSON `{"shorts", "watched",
         /// "channels": [{id, name}], "words": [..]}`.
         #[qproperty(QString, filters)]
@@ -169,6 +173,14 @@ pub mod qobject {
         /// Settings → Streams → Videos "Even out loudness".
         #[qinvokable]
         fn save_even_loudness(self: Pin<&mut Streams>, on: bool);
+
+        /// The YouTube player's AUTOPLAY switch.
+        #[qinvokable]
+        fn save_autoplay(self: Pin<&mut Streams>, on: bool);
+
+        /// Settings → Streams → Videos "Close the player when nothing follows".
+        #[qinvokable]
+        fn save_close_at_end(self: Pin<&mut Streams>, on: bool);
 
         /// How much of a video window shows, in percent (50 to 100).
         #[qinvokable]
@@ -331,6 +343,8 @@ pub struct StreamsRust {
     hwdec: bool,
     video_boost: i32,
     even_loudness: bool,
+    autoplay: bool,
+    close_at_end: bool,
     filters: QString,
     groups: QString,
     group: QString,
@@ -1274,6 +1288,8 @@ impl Default for StreamsRust {
             hwdec: s.hwdec,
             video_boost: i32::from(s.video_boost),
             even_loudness: s.even_loudness,
+            autoplay: s.autoplay,
+            close_at_end: s.close_at_end,
             filters: q(&filters_json(&s)),
             groups: q(&groups_json(&s)),
             group: q(&s.group),
@@ -2077,6 +2093,16 @@ impl qobject::Streams {
     fn save_even_loudness(self: Pin<&mut Self>, on: bool) {
         settings::change(|s| s.streams.even_loudness = on);
         self.set_even_loudness(on);
+    }
+
+    fn save_autoplay(self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.streams.autoplay = on);
+        self.set_autoplay(on);
+    }
+
+    fn save_close_at_end(self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.streams.close_at_end = on);
+        self.set_close_at_end(on);
     }
 
     fn save_hwdec(self: Pin<&mut Self>, on: bool) {

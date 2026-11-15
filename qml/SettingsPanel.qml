@@ -1283,6 +1283,13 @@ Panel {
                         onToggled: Streams.saveEvenLoudness(!Streams.evenLoudness)
                     }
                     Hint { text: "Quiet videos and quiet passages get louder, loud ones softer, as they play: one stream sounds much like the next. Costs mpv a little processor time. Changes take hold at once." }
+                    OnOff {
+                        width: parent.width
+                        text: "Close the player when nothing follows"
+                        on: Streams.closeAtEnd
+                        onToggled: Streams.saveCloseAtEnd(!Streams.closeAtEnd)
+                    }
+                    Hint { text: "On: a video window closes by itself at the end of a video, a past broadcast, an episode or a stream, unless something follows (the next in a playlist played through, AUTOPLAY's next video, Jellyfin's next episode). Closing ends its mpv, as the close button does." }
                     }
                 }
 

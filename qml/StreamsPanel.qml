@@ -312,10 +312,21 @@ Panel {
         return (m >= 60 ? Math.floor(m / 60) + " h " + (m % 60) + " min" : m + " min") + " left"
     }
     /// Plays a YouTube video; inside a playlist (or a list played through)
-    /// the rest follows.
-    function playVideo(v, queue, index) {
+    /// the rest follows at once (`through`). Started from any other list,
+    /// the videos after it in the shown order are what comes next: the
+    /// player's NEXT and UP NEXT, and with AUTOPLAY on they follow too.
+    function playVideo(v, queue, index, through) {
+        let q = queue || null
+        let at = index || 0
+        if (!q) {
+            q = youtubeShown.filter((x) => !!x.id && (!x.live || x.id === v.id))
+            at = q.findIndex((x) => x.id === v.id)
+            if (at < 0) { q = null; at = 0 }
+        }
+        const all = through !== false && !!queue
         panel.playRequested({ kind: "youtube", id: v.id, title: v.title, name: v.channel, video: v,
-                              queue: queue || null, index: index || 0, loop: loopList, playlist: arg && ytView === "playlist" ? arg.id : "" })
+                              queue: q, index: at, through: all, loop: all && loopList,
+                              playlist: arg && ytView === "playlist" ? arg.id : "" })
     }
     property bool loopList: false
     function playAll(shuffle) {
