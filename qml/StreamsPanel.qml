@@ -365,6 +365,7 @@ Panel {
         if (kind === "playlist") {
             return [{ id: "rename", name: "Rename" }, { id: "quick", name: w.quick ? "✓ Bookmark list" : "Make bookmark list" }, { id: "delete", name: "Delete…" }]
         }
+        if (kind === "unsub") return [{ id: "unsub", name: "Unsubscribe from " + (w.name || "this channel") }, { id: "keep", name: "Keep subscription" }]
         if (kind === "filter") return w.options
         return []
     }
@@ -415,11 +416,19 @@ Panel {
             if (id === "rename") { renaming = true; renameField.text = w.name; renameField.focusInput() }
             else if (id === "quick") Library.makeQuick(w.id)
             else if (id === "delete") deleting = true
+        } else if (menuKind === "unsub") {
+            if (id === "unsub") Streams.toggleChannel(w.id, w.name)
         } else if (menuKind === "filter") {
             w.choose(id)
         }
     }
     property Item menuButton: null
+    /// The star beside a video or channel: subscribes at once, asks before
+    /// unsubscribing (MN: one click took a channel off every tile).
+    function starChannel(button, id, name) {
+        if (channels.some((c) => c.id === id && !c.freetube)) openMenu(button, "unsub", { id: id, name: name || "" })
+        else Streams.toggleChannel(id, name || "")
+    }
     property var groupFor: null
     /// Names a new group for a video's channel (subscribed on Add).
     function startGroup(w) {
@@ -1457,6 +1466,7 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
                 BookmarkButton { video: row.modelData; mark: row.mark; width: 30; height: 34 }
                 IconButton {
+                    id: rowStar
                     visible: !!row.modelData.channelId
                     width: 30
                     height: 34
@@ -1465,7 +1475,7 @@ Panel {
                     filled: row.kept
                     color: row.kept ? Theme.accent : Theme.dim()
                     tip: row.kept ? "Unsubscribe from " + row.modelData.channel : "Subscribe to " + row.modelData.channel
-                    onClicked: Streams.toggleChannel(panel.chanId(row.modelData), row.modelData.channel)
+                    onClicked: panel.starChannel(rowStar, panel.chanId(row.modelData), row.modelData.channel)
                 }
                 IconButton { id: rowMore; width: 26; height: 34; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Playlists, channel, groups, watched, hide"
                     onClicked: panel.openMenu(rowMore, "video", row.modelData) }
@@ -1530,6 +1540,7 @@ Panel {
                 anchors.rightMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
                 IconButton {
+                    id: chStar
                     width: 32
                     height: 34
                     icon: "star"
@@ -1537,7 +1548,7 @@ Panel {
                     filled: !row.modelData.freetube
                     color: row.modelData.freetube ? Theme.dim() : Theme.accent
                     tip: row.modelData.freetube ? "Subscribe here (not only in FreeTube)" : "Unsubscribe"
-                    onClicked: Streams.toggleChannel(row.modelData.id, row.modelData.name)
+                    onClicked: panel.starChannel(chStar, row.modelData.id, row.modelData.name)
                 }
                 IconButton { id: chMore; width: 26; height: 34; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Groups, hide"
                     onClicked: panel.openMenu(chMore, "channel", row.modelData) }
@@ -1782,6 +1793,7 @@ Panel {
                 anchors.rightMargin: -6
                 y: -6
                 IconButton {
+                    id: tileStarButton
                     visible: !!tile.modelData.channelId
                     width: visible ? 26 : 0
                     height: 30
@@ -1790,7 +1802,7 @@ Panel {
                     filled: tile.kept
                     color: tile.kept ? Theme.accent : Theme.dim()
                     tip: tile.kept ? "Unsubscribe from " + tile.modelData.channel : "Subscribe to " + tile.modelData.channel
-                    onClicked: Streams.toggleChannel(panel.chanId(tile.modelData), tile.modelData.channel)
+                    onClicked: panel.starChannel(tileStarButton, panel.chanId(tile.modelData), tile.modelData.channel)
                 }
                 IconButton { id: tileMore; width: 24; height: 30; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Playlists, channel, groups, watched, hide"
                     onClicked: panel.openMenu(tileMore, "video", tile.modelData) }

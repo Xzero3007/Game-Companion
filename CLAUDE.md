@@ -296,7 +296,9 @@ learnt, so nothing has to be asked or worked out again.
   an entry's own id and the asked channel win, stored videos are mended in
   `cached_videos` (MN, 0.8.40: "Go to channel" said "not a YouTube
   channel", "Channel into group" did nothing). With no group yet, "Channel
-  into group" opens the name field at once (`startGroup`).
+  into group" opens the name field at once (`startGroup`). The star beside a
+  video or channel subscribes at once and asks before unsubscribing
+  (`starChannel`, menu kind `unsub`; MN, 0.8.43).
   Lists keep their place when their array is replaced (load more, the
   background subscriptions look, lengths coming in; MN 0.8.37: jumped to
   the top): `StreamsPanel.listModel` is set by `swapList` from
