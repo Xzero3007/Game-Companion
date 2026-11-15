@@ -45,6 +45,20 @@ pub mod qobject {
         #[qinvokable]
         fn set_pref(self: Pin<&mut Poe2>, key: &QString, value: &QString);
 
+        /// Sends one command line to the price check's kit, which runs in
+        /// its own process (`--poe2-kit`, QuickJS); started when needed.
+        /// Its lines come back as `kit_said`, its end as `kit_gone`.
+        #[qinvokable]
+        fn kit_call(self: Pin<&mut Poe2>, line: &QString) -> bool;
+
+        /// A line from the kit (JSON: id, kind, value).
+        #[qsignal]
+        fn kit_said(self: Pin<&mut Poe2>, line: QString);
+
+        /// The kit's process ended (crashed or stopped); the next call starts it again.
+        #[qsignal]
+        fn kit_gone(self: Pin<&mut Poe2>, why: QString);
+
         /// Looks at copied items or stops (the watcher starts on first use).
         #[qinvokable]
         fn watch(self: Pin<&mut Poe2>, on: bool);
@@ -97,6 +111,24 @@ impl qobject::Poe2 {
         });
     }
 
+    fn kit_call(self: Pin<&mut Self>, line: &QString) -> bool {
+        let said = self.qt_thread();
+        let gone = self.qt_thread();
+        let result = crate::poe2_kit::send(
+            &line.to_string(),
+            move |l| {
+                let _ = said.queue(move |obj: Pin<&mut qobject::Poe2>| obj.kit_said(QString::from(&l)));
+            },
+            move |why| {
+                let _ = gone.queue(move |obj: Pin<&mut qobject::Poe2>| obj.kit_gone(QString::from(&why)));
+            },
+        );
+        if let Err(e) = &result {
+            eprintln!("game-companion: {e}");
+        }
+        result.is_ok()
+    }
+
     fn data_file(&self, name: &QString) -> QString {
         QString::from(&crate::poe2::data_file(&name.to_string()))
     }
@@ -146,7 +178,7 @@ impl qobject::Poe2 {
 
 /// The trade site's endpoint for the log, without leagues, ids or queries:
 /// `/api/trade2/fetch/…` → `fetch`.
-fn endpoint(url: &str) -> String {
+pub(crate) fn endpoint(url: &str) -> String {
     let path = url.split(['?', '#']).next().unwrap_or("");
     let after = path.split("/api/trade2/").nth(1).unwrap_or("");
     let part = after.split('/').next().unwrap_or("");

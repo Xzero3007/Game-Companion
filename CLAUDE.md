@@ -667,7 +667,16 @@ learnt, so nothing has to be asked or worked out again.
   $XDG_RUNTIME_DIR) and the XFixes clipboard watcher on XWayland (the
   person's own Ctrl+C in the game; nothing is sent to the game).
   `qml/poe2/PriceStore.qml` + `PriceWindow.qml`, plugin `poe2.price`, only
-  while PoE 2 runs. Tests: `node tools/poe2-ee2/test/run.js`, the ignored
+  while PoE 2 runs. The kit does **not** run in Qt's JavaScript (Arch's Qt
+  6.12 crashed in it, JIT and interpreter; MN 0.8.44, reproduced by QA):
+  `src/poe2_kit.rs` runs it in QuickJS (rquickjs) in a child process
+  (`/proc/self/exe --poe2-kit`, JSON lines on stdin/stdout,
+  PR_SET_PDEATHSIG from the Qt thread, ends when stdin closes or the
+  parent goes, `poe2_kit::stop` on quit); `PriceStore.kit(fn, args)` gives
+  a promise; if the child dies only the price check starts again
+  (`kitGone`). GC_DEMO=price answers inside the child (`DEMO`). The kit is
+  still built without array iterators (Babel pass in build.mjs). Tests:
+  `cargo test poe2_kit` (an item, a search, EE2's 27 samples in QuickJS). Tests: `node tools/poe2-ee2/test/run.js`, the ignored
   `copied_items_are_seen` under xvfb-run with xclip. `GC_DEMO=price[,results]`.
   Path of Building is the third app (`pob`, `AppDef.args` "poe2",
   `AppDef.game` "poe2"; bar button while PoE 2 or PoB runs).
