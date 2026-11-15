@@ -349,6 +349,13 @@ function ago(at, now) {
     if (m < 48 * 60) return Math.round(m / 60) + "h ago"
     return Math.round(m / 1440) + "d ago"
 }
+/// A big count in few letters, for the table's narrow cells: 1M, 950k.
+function compact(v) {
+    const n = Math.round(v), a = Math.abs(n)
+    if (a >= 1000000) return String(Math.round(n / 100000) / 10) + "M"
+    if (a >= 10000) return Math.round(n / 1000) + "k"
+    return grouped(n)
+}
 function grouped(v) {
     const n = Math.round(v)
     let t = String(Math.abs(n)), o = ""
