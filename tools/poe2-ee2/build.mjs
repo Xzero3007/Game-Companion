@@ -1,7 +1,9 @@
 // Builds Game Companion's PoE 2 price check from an Exiled Exchange 2
 // checkout (github.com/Kvan7/Exiled-Exchange-2, MIT):
 //
-//   (cd <EE2>/renderer && npm install --ignore-scripts)
+//   (cd <EE2>/renderer && npm install --ignore-scripts &&
+//    npm install --no-save --ignore-scripts @babel/core@7.26.0 \
+//      @babel/plugin-transform-spread@7.25.9 @babel/plugin-transform-destructuring@7.25.9)
 //   node tools/poe2-ee2/build.mjs <EE2 checkout>
 //
 // Writes qml/poe2/ee2kit.js (EE2's parser, filters and trade requests in
@@ -167,6 +169,30 @@ const result = await esbuild.build({
 });
 
 let code = result.outputFiles[0].text;
+// No array iterators in Qt's JavaScript (MN's 0.8.43 crashed in
+// newArrayIteratorObject): for-of over arrays as index loops
+// (no-iterators.cjs), spread and array destructuring through Babel's
+// helpers, which copy arrays by index. Babel comes from the EE2 checkout
+// (npm install --no-save @babel/core @babel/plugin-transform-spread
+// @babel/plugin-transform-destructuring) or from $GC_BABEL_DIR.
+{
+  const babelRequire = createRequire(path.join(process.env.GC_BABEL_DIR || renderer, "package.json"));
+  const babel = babelRequire("@babel/core");
+  const done = babel.transformSync(code, {
+    babelrc: false,
+    configFile: false,
+    compact: false,
+    sourceType: "script",
+    plugins: [
+      path.join(here, "no-iterators.cjs"),
+      babelRequire.resolve("@babel/plugin-transform-destructuring"),
+      babelRequire.resolve("@babel/plugin-transform-spread"),
+    ],
+  });
+  code = done.code;
+  const left = (code.match(/\bfor\s*\((?:const|let|var)?[^;()]*\sof\s/g) || []).length;
+  console.log(`for-of loops left for non-arrays: ${left}`);
+}
 // The methods newer than Qt's JavaScript that EE2 calls.
 const polyfills = fs.readFileSync(path.join(here, "polyfills.js"), "utf8");
 const header = `.pragma library

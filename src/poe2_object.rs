@@ -110,10 +110,15 @@ impl qobject::Poe2 {
             self.as_mut().rust_mut().started = true;
             let flag = self.rust().on.clone();
             let thread = self.qt_thread();
+            let told = self.qt_thread();
             let result = crate::poe2::watch_clipboard(
                 move || flag.load(Ordering::Relaxed),
                 move |text| {
                     let _ = thread.queue(move |obj: Pin<&mut qobject::Poe2>| obj.copied(QString::from(&text)));
+                },
+                move |why| {
+                    let why = why.unwrap_or_default();
+                    let _ = told.queue(move |obj: Pin<&mut qobject::Poe2>| obj.set_watch_error(QString::from(&why)));
                 },
             );
             if let Err(why) = result {
