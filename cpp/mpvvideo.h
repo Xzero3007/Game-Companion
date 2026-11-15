@@ -54,9 +54,9 @@ class MpvVideo : public QQuickFramebufferObject
     /// yt-dlp's own options for the next video (mpv's ytdl-raw-options,
     /// "key=value,..."), "" none.
     Q_PROPERTY(QString ytdlOptions READ ytdlOptions WRITE setYtdlOptions NOTIFY ytdlOptionsChanged)
-    /// No new frame is drawn while true (its window changes size: a frame
-    /// drawn meanwhile showed stretched over the screen, MN); the last one
-    /// missed comes when it ends.
+    /// No new frame is drawn and the position holds still while true (its
+    /// window changes size: a frame drawn meanwhile showed the whole window
+    /// stretched over the screen, MN); what was missed comes when it ends.
     Q_PROPERTY(bool frozen READ frozen WRITE setFrozen NOTIFY frozenChanged)
 
 public:
@@ -180,6 +180,7 @@ private:
     double m_speed = 1.0;
     bool m_frozen = false;
     bool m_missed = false;
+    bool m_positionMissed = false;
 };
 
 /// Registers MpvVideo for QML.
