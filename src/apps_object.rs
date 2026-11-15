@@ -66,6 +66,10 @@ pub mod qobject {
         #[qinvokable]
         fn set_close_on_quit(self: Pin<&mut Apps>, id: &QString, on: bool);
 
+        /// "Stay over a full-screen game" on or off.
+        #[qinvokable]
+        fn set_over_full(self: Pin<&mut Apps>, on: bool);
+
         /// Forgets the place over the game (the next show uses the first one).
         #[qinvokable]
         fn forget_place(self: Pin<&mut Apps>, id: &QString);
@@ -107,6 +111,10 @@ pub struct AppsRust {
     apps: HashMap<&'static str, AppState>,
     /// The last normal window with the focus that is no app's (the game).
     other: String,
+    other_win: Option<Win>,
+    /// How often the game took its full screen back since the last show
+    /// (it gives up after a few and the apps are minimised as before).
+    refulls: u32,
     available: bool,
     work: Option<Sender<Job>>,
     demo: bool,
@@ -119,6 +127,8 @@ impl Default for AppsRust {
             state: QString::default(),
             apps: APPS.iter().map(|a| (a.id, AppState::default())).collect(),
             other: String::new(),
+            other_win: None,
+            refulls: 0,
             available: false,
             work: None,
             demo,
@@ -169,7 +179,8 @@ impl AppsRust {
                 }),
             );
         }
-        json!({ "available": self.available, "apps": Value::Object(apps) }).to_string()
+        let over_full = crate::settings::read(|s| s.apps_over_full);
+        json!({ "available": self.available, "overFull": over_full, "apps": Value::Object(apps) }).to_string()
     }
 }
 
@@ -188,6 +199,15 @@ fn save_choice(id: &str, f: impl FnOnce(&mut apps::AppChoice)) {
 
 impl qobject::Apps {
     fn refresh(mut self: Pin<&mut Self>) {
+        // No app shown any more: the game gets its full screen back.
+        if self.rust().apps.values().all(|s| s.shown.is_empty()) {
+            if let Some(id) = apps::runtime(|r| r.unfull.take()) {
+                self.as_mut().rust_mut().refulls = 0;
+                self.kwin(move |k| {
+                    let _ = k.run(&apps::refull_body(&id));
+                });
+            }
+        }
         let json = self.rust().state_json();
         self.as_mut().set_state(QString::from(&json));
     }
@@ -197,6 +217,32 @@ impl qobject::Apps {
         if let Some(work) = &self.rust().work {
             let _ = work.send(Box::new(job));
         }
+    }
+
+    /// Whether an app is shown on screen `out` ("" = any).
+    fn shown_on(&self, out: &str) -> bool {
+        self.rust().apps.values().any(|s| !s.shown.is_empty() && s.windows.iter().any(|w| w.id == s.shown && (out.is_empty() || w.out == out)))
+    }
+
+    /// Keeps the shown apps over a game in full screen by taking its
+    /// full-screen mark off (`apps`); false when that is off or the game
+    /// keeps taking it back.
+    fn keep_over(mut self: Pin<&mut Self>, game: &Win) -> bool {
+        if !crate::settings::read(|s| s.apps_over_full) || self.rust().refulls >= 5 {
+            return false;
+        }
+        if apps::runtime(|r| r.unfull.as_deref() == Some(game.id.as_str())) {
+            self.as_mut().rust_mut().refulls += 1;
+        }
+        let id = game.id.clone();
+        apps::runtime(|r| r.unfull = Some(id.clone()));
+        if let Some(w) = self.as_mut().rust_mut().other_win.as_mut().filter(|w| w.id == id) {
+            w.full = false;
+        }
+        self.kwin(move |k| {
+            let _ = k.run(&apps::unfull_body(&id));
+        });
+        true
     }
 
     fn begin(mut self: Pin<&mut Self>) {
@@ -282,7 +328,12 @@ impl qobject::Apps {
                         s.shown.clear();
                     }
                 }
-                apps::runtime(|r| r.before.remove(&id));
+                apps::runtime(|r| {
+                    r.before.remove(&id);
+                    if r.unfull.as_deref() == Some(id.as_str()) {
+                        r.unfull = None;
+                    }
+                });
             }
             // Game Companion's own parts (KWin lists them as normal windows).
             Event::Active(Some(win)) if win.pid == std::process::id() as i32 => {}
@@ -292,10 +343,13 @@ impl qobject::Apps {
                     rust.apps.get_mut(app.id).expect("every app has a state").chosen = win.id;
                 } else {
                     self.as_mut().rust_mut().other = win.id.clone();
+                    self.as_mut().rust_mut().other_win = Some(win.clone());
                     // A game in real full screen took the focus: it lies over
-                    // every normal window on its screen now, so the apps
-                    // shown there go (KWin 6.8, see `apps`).
-                    if win.full {
+                    // every normal window on its screen now (KWin 6.8, see
+                    // `apps`). It loses its full-screen mark, or the apps
+                    // shown there go.
+                    let kept = win.full && self.shown_on(&win.out) && self.as_mut().keep_over(&win);
+                    if win.full && !kept {
                         let hide: Vec<String> = {
                             let mut rust = self.as_mut().rust_mut();
                             let mut list = Vec::new();
@@ -312,6 +366,30 @@ impl qobject::Apps {
                                 let _ = k.run(&apps::hide_body(&id, ""));
                             });
                         }
+                    }
+                }
+            }
+            // The game took its full screen back while an app is shown.
+            Event::Full(win) if win.pid == std::process::id() as i32 || owner(&win).is_some() => {}
+            Event::Full(win) => {
+                if self.rust().other == win.id {
+                    self.as_mut().rust_mut().other_win = Some(win.clone());
+                }
+                if self.shown_on(&win.out) && !self.as_mut().keep_over(&win) {
+                    let hide: Vec<String> = {
+                        let mut rust = self.as_mut().rust_mut();
+                        let mut list = Vec::new();
+                        for s in rust.apps.values_mut() {
+                            if s.windows.iter().any(|w| w.id == s.shown && w.out == win.out) {
+                                list.push(std::mem::take(&mut s.shown));
+                            }
+                        }
+                        list
+                    };
+                    for id in hide {
+                        self.kwin(move |k| {
+                            let _ = k.run(&apps::hide_body(&id, ""));
+                        });
                     }
                 }
             }
@@ -347,6 +425,13 @@ impl qobject::Apps {
         self.kwin(move |k| {
             let _ = k.run(&body);
         });
+        // A game in full screen on that screen: its mark goes now, so that
+        // clicking into it later keeps the app on top.
+        self.as_mut().rust_mut().refulls = 0;
+        let game = self.rust().other_win.clone().filter(|g| g.full && (output.is_empty() || g.out == output));
+        if let Some(game) = game {
+            self.as_mut().keep_over(&game);
+        }
     }
 
     fn toggle(mut self: Pin<&mut Self>, id: &QString, output: &QString) {
@@ -511,6 +596,20 @@ impl qobject::Apps {
     fn set_close_on_quit(self: Pin<&mut Self>, id: &QString, on: bool) {
         let Some(app) = find(&id.to_string()) else { return };
         save_choice(app.id, |c| c.close_on_quit = on);
+        self.refresh();
+    }
+
+    fn set_over_full(mut self: Pin<&mut Self>, on: bool) {
+        crate::settings::change(|s| s.apps_over_full = on);
+        if !on {
+            // Back to full screen now; the next click into it minimises the apps.
+            if let Some(id) = apps::runtime(|r| r.unfull.take()) {
+                self.kwin(move |k| {
+                    let _ = k.run(&apps::refull_body(&id));
+                });
+            }
+        }
+        self.as_mut().rust_mut().refulls = 0;
         self.refresh();
     }
 

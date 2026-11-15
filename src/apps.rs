@@ -13,12 +13,17 @@
 //!
 //! Found on KWin 6.8 (Arch test bench, 2026-11-14): a window kept above
 //! stays over a borderless game window, but a game in real full screen that
-//! has the focus lies over every normal window, kept above or not. So
-//! showing gives the app the focus, and when a full-screen game on the same
-//! screen takes the focus back, the app is minimised (it would be hidden
-//! behind the game anyway).
+//! has the focus lies over every normal window, kept above or not (Proton
+//! marks a game's "borderless" window as full screen too). So while an app
+//! is shown over such a game, the game's window loses its full-screen mark:
+//! same size, no border, nothing changes for the game, and the app stays on
+//! top (MN, 2026-11-14; "Stay over a full-screen game", settings
+//! `apps_over_full`). When no app is shown any more, the game gets the mark
+//! back. With that off, a full-screen game taking the focus minimises the
+//! apps on its screen (they would be hidden behind it anyway).
 //!
-//! Nothing here leaves the computer, and nothing touches a game's window.
+//! Nothing here leaves the computer. Of a game's window only its full-screen
+//! mark is ever changed, through KWin, and given back.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -177,6 +182,8 @@ pub enum Event {
     Removed(String),
     /// Another window took the focus (None: no normal window has it).
     Active(Option<Win>),
+    /// A window that is no app's went full screen.
+    Full(Win),
     /// The watcher has reported every window there was.
     Ready,
 }
@@ -189,6 +196,7 @@ pub fn parse_event(kind: &str, data: &str) -> Option<Event> {
             Some(Event::Removed(v.get("id")?.as_str()?.to_string()))
         }
         "active" => Some(Event::Active(serde_json::from_str::<Win>(data).ok().filter(|w| !w.id.is_empty()))),
+        "full" => serde_json::from_str::<Win>(data).ok().filter(|w| !w.id.is_empty()).map(Event::Full),
         "ready" => Some(Event::Ready),
         _ => None,
     }
@@ -239,7 +247,11 @@ function gcWatched(w) {{
     return false;
 }}
 function gcHook(w) {{
-    if (!gcWatched(w)) return;
+    if (!gcWatched(w)) {{
+        // Any other window going full screen (a game taking its mark back).
+        if (w && w.normalWindow) w.fullScreenChanged.connect(function () {{ if (w.fullScreen) gcSend("full", gcInfo(w)); }});
+        return;
+    }}
     gcSend("window", gcInfo(w));
     w.frameGeometryChanged.connect(function () {{ if (!w.move && !w.resize) gcSend("window", gcInfo(w)); }});
     w.interactiveMoveResizeFinished.connect(function () {{ gcSend("window", gcInfo(w)); }});
@@ -323,6 +335,33 @@ var f = {focus} ? gcFind({focus}) : null;
 if (f && !f.minimized) workspace.activeWindow = f;"#,
         id = js(id),
         focus = js(focus)
+    )
+}
+
+/// Takes the full-screen mark off a game's window so that a window kept
+/// above stays over it: the same size on its screen, no border.
+pub fn unfull_body(id: &str) -> String {
+    format!(
+        r#"var w = gcFind({id});
+if (w && w.fullScreen) {{
+    var g = w.output.geometry;
+    w.fullScreen = false;
+    w.noBorder = true;
+    w.frameGeometry = {{ x: g.x, y: g.y, width: g.width, height: g.height }};
+}}"#,
+        id = js(id)
+    )
+}
+
+/// Gives a game's window its full-screen mark back.
+pub fn refull_body(id: &str) -> String {
+    format!(
+        r#"var w = gcFind({id});
+if (w && !w.fullScreen) {{
+    w.noBorder = false;
+    w.fullScreen = true;
+}}"#,
+        id = js(id)
     )
 }
 
@@ -545,6 +584,8 @@ pub struct Runtime {
     pub started: HashMap<&'static str, (i32, u64)>,
     /// Windows Game Companion moved: window id → how they were.
     pub before: BTreeMap<String, Before>,
+    /// The game window whose full-screen mark was taken off (`unfull_body`).
+    pub unfull: Option<String>,
 }
 
 pub static RUNTIME: Mutex<Option<Runtime>> = Mutex::new(None);
@@ -554,10 +595,13 @@ pub fn runtime<R>(f: impl FnOnce(&mut Runtime) -> R) -> R {
     f(guard.get_or_insert_with(Runtime::default))
 }
 
-/// Puts every moved window back as it was.
+/// Puts every moved window back as it was, and a game its full screen.
 pub fn restore_all() {
-    let (kwin, before) = runtime(|r| (r.kwin.clone(), std::mem::take(&mut r.before)));
+    let (kwin, before, unfull) = runtime(|r| (r.kwin.clone(), std::mem::take(&mut r.before), r.unfull.take()));
     let Some(kwin) = kwin else { return };
+    if let Some(id) = unfull {
+        let _ = kwin.run(&refull_body(&id));
+    }
     for (id, b) in before {
         let _ = kwin.run(&restore_body(&id, &b));
     }
@@ -627,6 +671,9 @@ mod tests {
         assert_eq!(parse_event("removed", r#"{"id":"{a}"}"#), Some(Event::Removed("{a}".into())));
         assert_eq!(parse_event("active", "{}"), Some(Event::Active(None)));
         assert_eq!(parse_event("ready", "{}"), Some(Event::Ready));
+        let e = parse_event("full", r#"{"id":"{g}","cls":"aion2.exe","normal":true,"full":true,"out":"DP-2"}"#);
+        let Some(Event::Full(g)) = e else { panic!("{e:?}") };
+        assert!(g.full && g.out == "DP-2");
         assert_eq!(parse_event("window", "{}"), None);
         assert_eq!(parse_event("other", "{}"), None);
     }
@@ -649,6 +696,10 @@ mod tests {
         let b = Before { x: 1, y: 2, w: 30, h: 40, above: false, opacity: 0.0, min: true };
         let r = restore_body("{a}", &b);
         assert!(r.contains("w.opacity = 1;") && r.contains("width: 100") && r.contains("w.minimized = true"));
+        assert!(w.contains(r#"gcSend("full", gcInfo(w))"#));
+        let u = unfull_body("{g}");
+        assert!(u.contains(r#"gcFind("{g}")"#) && u.contains("w.fullScreen = false") && u.contains("w.noBorder = true"));
+        assert!(refull_body("{g}").contains("w.fullScreen = true"));
     }
 
     #[test]

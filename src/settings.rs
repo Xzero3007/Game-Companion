@@ -80,6 +80,9 @@ pub struct Settings {
     /// Brave and Legcord over the game (Settings → Apps), by the app's id
     /// (`apps::APPS`); one not listed takes the defaults.
     pub apps: BTreeMap<String, crate::apps::AppChoice>,
+    /// Brave and Legcord stay over a game in full screen: while one is shown,
+    /// the game's window loses its full-screen mark (same size, no border).
+    pub apps_over_full: bool,
     /// The voice overlay's choices (Settings → Apps → Legcord), as QML
     /// keeps them (`qml/VoiceOverlay.qml`); empty takes the defaults.
     pub voice: serde_json::Map<String, serde_json::Value>,
@@ -419,6 +422,7 @@ impl Default for Settings {
             plugins: BTreeMap::new(),
             packages: BTreeMap::new(),
             apps: BTreeMap::new(),
+            apps_over_full: true,
             voice: serde_json::Map::new(),
         }
     }

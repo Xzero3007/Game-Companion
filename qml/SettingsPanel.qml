@@ -292,10 +292,19 @@ Panel {
                     spacing: 10
                     readonly property var state: JSON.parse(Apps.state)
                     Hint { text: "Brave and Legcord stay your own programs, with all their extensions and settings. Their button in the bar (or the shortcut) puts the real window over the game, with the focus, where you left it last time; pressing again minimises it and gives the focus back to the game. Move and resize it by its own edges while it is shown: Game Companion keeps the place. When the game ends, it goes back where and how it was." }
+                    OnOff {
+                        visible: appsPage.state.available === true
+                        width: parent.width
+                        text: "Stay over a full-screen game"
+                        on: appsPage.state.overFull !== false
+                        onToggled: Apps.setOverFull(appsPage.state.overFull === false)
+                    }
                     Hint {
-                        text: appsPage.state.available
-                            ? "A game in real full screen covers every window while it has the focus: clicking into such a game minimises the app. A borderless game window does not, and the app stays over it."
-                            : "Needs KDE Plasma (KWin) on Wayland: here the buttons only start the programs."
+                        text: !appsPage.state.available
+                            ? "Needs KDE Plasma (KWin) on Wayland: here the buttons only start the programs."
+                            : appsPage.state.overFull !== false
+                            ? "A game in full screen (Proton marks \"borderless\" as full screen too) would cover every window once you click into it. While an app is shown, the game's window loses its full-screen mark instead: same size, no border, and the app stays on top. Variable refresh rate (VRR) set to \"Automatic\" pauses meanwhile. When the app goes, the game is full screen again."
+                            : "A game in full screen covers every window while it has the focus: clicking into it minimises the app. A borderless game window does not, and the app stays over it."
                         color: appsPage.state.available ? Theme.dim() : Theme.red
                     }
                     Repeater {
