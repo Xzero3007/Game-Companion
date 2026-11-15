@@ -286,6 +286,24 @@ learnt, so nothing has to be asked or worked out again.
   a 6 to 15 s ad, visionos none); after a failure or a stall it lets yt-dlp
   choose (`anyPlayer`). "Stuck" names mpv's or yt-dlp's last warning
   (`MpvVideo.why`).
+  Lists keep their place when their array is replaced (load more, the
+  background subscriptions look, lengths coming in; MN 0.8.37: jumped to
+  the top): `StreamsPanel.listModel` is set by `swapList` from
+  `listWanted`, which finds the first row seen in the new array by
+  `itemKey` when `listKey` (tab, view, arg, channel, search) is the same.
+  Lengths: feeds have none, so `lengths_later` → `fill_lengths` asks yt-dlp
+  for each stored channel's videos tab (15, 3 at once, 40 channels a time)
+  when its newest video changed since (`lengths_for` in the feed cache);
+  the channel view fills its own (`channel_lengths_later`). Dates: yt-dlp
+  flat lists ask `youtubetab:approximate_date` (English time texts only),
+  marked `rough`; `apply_known` takes the feed cache's exact dates and
+  lengths. `ago(iso, rough)`: within a week how long ago, then the date (a
+  rough one stays "3 weeks ago"). `VideoByline.qml`: channel name opens
+  the channel (also ⋯ "Go to channel", "Channel into group ▸", which
+  subscribes first); the GROUPS row shows in Subscriptions and Channels
+  even without groups, saying how to make one. A playing video draws no
+  frame while its surface changes size for a grab (`Surface.settling`,
+  150 ms; `MpvVideo.frozen`): MN saw it flash stretched over the screen.
   Under xvfb (llvmpipe) a large video shows
   stripes after some seconds (also without resizing): most likely a
   software-GL artifact; to be checked on the person's GPU. `GC_SCREENSHOT_DELAY` sets the screenshot's moment.
