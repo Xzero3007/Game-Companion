@@ -351,7 +351,7 @@ learnt, so nothing has to be asked or worked out again.
   ways tried (`TWITCH_WAY`, e.g. the directory query's refusal); why a page failed shows under the
   list, `twitchMoreNote`;
   YouTube pages too: `load_more_youtube`, yt-dlp `--playlist-items`,
-  subscriptions 60 a page from the kept 300; each channel's feed gives its newest 15, a feed that fails is asked once more after 3 s, the rest shows as "N channels didn't answer", MN 0.8.33; each channel's last feed is kept in ~/.cache/game-companion/youtube-feeds.json: shown at once, not asked again within 15 minutes, kept when its feed fails, ↻ asks all, `FEEDS_FORCED`), channel pictures (0.8.4:
+  subscriptions 60 a page from the kept 300; each channel's feed gives its newest 15, a feed that fails is asked once more after 3 s, the rest shows as "N channels didn't answer", MN 0.8.33; each channel's last feed is kept in ~/.cache/game-companion/youtube-feeds.json: shown at once, not asked again within 15 minutes, kept when its feed fails, ↻ asks all, `FEEDS_FORCED`; some channels' feeds answer 404 for good (Level1Techs): yt-dlp looks at their videos tab instead, `youtube_channel_newest`, in Subscriptions at most 12 channels, 5 videos each, without dates), channel pictures (0.8.4:
   once per channel, FreeTube's profiles file first, else yt-dlp
   `--playlist-items 0` on the channel page, `streams::channel_picture`;
   settings `channel_pictures`, the `channelPictures` property, shown

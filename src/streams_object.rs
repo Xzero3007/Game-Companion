@@ -699,11 +699,29 @@ fn fetch_feeds(ids: Vec<String>, progress: impl Fn(usize, &[Value])) -> Feeds {
         return (got, failed, why);
     }
     std::thread::sleep(Duration::from_secs(3));
-    let (more, still, again) = fetch_feeds_once(failed, |_, _| {});
+    let (more, mut still, again) = fetch_feeds_once(failed, |_, _| {});
     got.extend(more);
     if again.is_some() {
         why = again;
     }
+    // Some channels' feeds answer 404 for good: yt-dlp looks at their videos
+    // tab instead (slower, no dates), a few at once, at most 12 channels.
+    let tries: Vec<String> = still.iter().take(12).cloned().collect();
+    let found: Vec<(String, Vec<Value>)> = std::thread::scope(|scope| {
+        tries
+            .chunks(3)
+            .flat_map(|three| {
+                let jobs: Vec<_> = three
+                    .iter()
+                    .map(|id| scope.spawn(move || (id.clone(), streams::youtube_channel_range(id, 1, 5))))
+                    .collect();
+                jobs.into_iter().filter_map(|j| j.join().ok()).collect::<Vec<_>>()
+            })
+            .filter_map(|(id, r)| r.ok().filter(|v| !v.is_empty()).map(|v| (id, v)))
+            .collect()
+    });
+    still.retain(|id| !found.iter().any(|(f, _)| f == id));
+    got.extend(found);
     (got, still, why)
 }
 
@@ -1290,7 +1308,7 @@ impl qobject::Streams {
                         let f = &st.search;
                         streams::youtube_search_with(&text, &streams::search_param(&f.sort, &f.date, &f.length), 30, lang)
                     }
-                    "channel" => streams::youtube_feed(text.trim()),
+                    "channel" => streams::youtube_channel_newest(text.trim(), 15),
                     "trending" => {
                         let part = if streams::TREND_SECTIONS.contains(&text.as_str()) { text.clone() } else { st.trend_section.clone() };
                         let words = st.trend_words.get(&part).cloned().unwrap_or_else(|| streams::trend_words(&part));
