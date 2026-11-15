@@ -28,6 +28,13 @@ const LANGS = ["en", "de"];
 // Patches for Qt's JavaScript: regular expressions it cannot read
 // (look-behind, named groups). Each must match exactly once.
 const PATCHES = {
+  // A plain array instead of Vue's shallowReactive one: under Qt's engine
+  // the proxied array lost entries after splice (MN, 0.8.40: "Cannot read
+  // property 'releasedAt' of undefined" on the first real search). Nothing
+  // shows the stack, so it needs no reactivity.
+  "src/web/price-check/trade/RateLimiter.ts": [
+    ["stack = shallowReactive<ResourceHandle[]>([]);", "stack: ResourceHandle[] = [];"],
+  ],
   // Look-behind: the character in front is captured instead (group 1) and
   // given back by the replacement.
   "src/parser/stat-translations.ts": [
