@@ -76,13 +76,13 @@ fn main() {
         QmlFile::from("qml/aion2/FarmWindow.qml"),
         QmlFile::from("qml/poe2/PriceStore.qml"),
         QmlFile::from("qml/poe2/PriceWindow.qml"),
-        QmlFile::from("qml/poe2/SessionStore.qml"),
-        QmlFile::from("qml/poe2/SessionPanel.qml"),
-        QmlFile::from("qml/poe2/SessionWindow.qml"),
         QmlFile::from("qml/poe2/PriceSettings.qml"),
         QmlFile::from("qml/poe2/PriceChoices.qml"),
         QmlFile::from("qml/poe2/RangeField.qml"),
         QmlFile::from("qml/poe2/ListedItem.qml"),
+        QmlFile::from("qml/poe2/SessionStore.qml"),
+        QmlFile::from("qml/poe2/SessionPanel.qml"),
+        QmlFile::from("qml/poe2/SessionWindow.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();
