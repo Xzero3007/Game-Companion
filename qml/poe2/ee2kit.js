@@ -51,6 +51,16 @@
     def(Set.prototype, "isDisjointFrom", function (o) { var ok = true; this.forEach(function (x) { if (o.has(x)) ok = false }); return ok })
 })()
 
+function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
+function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t.return && (u = t.return(), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
+function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
+function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
+function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
+function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
+function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
+function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
 var EE2 = (() => {
   var __create = Object.create;
   var __defProp = Object.defineProperty;
@@ -63,19 +73,26 @@ var EE2 = (() => {
   var __hasOwnProp = Object.prototype.hasOwnProperty;
   var __propIsEnum = Object.prototype.propertyIsEnumerable;
   var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-  var __typeError = (msg) => {
+  var __typeError = msg => {
     throw TypeError(msg);
   };
-  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value
+  }) : obj[key] = value;
   var __spreadValues = (a, b) => {
-    for (var prop in b || (b = {}))
-      if (__hasOwnProp.call(b, prop))
-        __defNormalProp(a, prop, b[prop]);
-    if (__getOwnPropSymbols)
-      for (var prop of __getOwnPropSymbols(b)) {
-        if (__propIsEnum.call(b, prop))
-          __defNormalProp(a, prop, b[prop]);
+    for (var prop in b || (b = {})) if (__hasOwnProp.call(b, prop)) __defNormalProp(a, prop, b[prop]);
+    if (__getOwnPropSymbols) {
+      const _a4 = __getOwnPropSymbols(b);
+      if (Array.isArray(_a4)) for (let _i2 = 0; _i2 < _a4.length; _i2++) {
+        var prop = _a4[_i2];
+        if (__propIsEnum.call(b, prop)) __defNormalProp(a, prop, b[prop]);
+      } else for (var prop of _a4) {
+        if (__propIsEnum.call(b, prop)) __defNormalProp(a, prop, b[prop]);
       }
+    }
     return a;
   };
   var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
@@ -83,63 +100,83 @@ var EE2 = (() => {
     return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
   };
   var __commonJS = (cb, mod) => function __require() {
-    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = {
+      exports: {}
+    }).exports, mod), mod.exports;
   };
   var __export = (target, all) => {
-    for (var name in all)
-      __defProp(target, name, { get: all[name], enumerable: true });
+    for (var name in all) __defProp(target, name, {
+      get: all[name],
+      enumerable: true
+    });
   };
   var __copyProps = (to, from, except, desc) => {
     if (from && typeof from === "object" || typeof from === "function") {
-      for (let key of __getOwnPropNames(from))
-        if (!__hasOwnProp.call(to, key) && key !== except)
-          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+      {
+        const _a5 = __getOwnPropNames(from);
+        if (Array.isArray(_a5)) for (let _i3 = 0; _i3 < _a5.length; _i3++) {
+          let key = _a5[_i3];
+          if (!__hasOwnProp.call(to, key) && key !== except) __defProp(to, key, {
+            get: () => from[key],
+            enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
+          });
+        } else for (let key of _a5) if (!__hasOwnProp.call(to, key) && key !== except) __defProp(to, key, {
+          get: () => from[key],
+          enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
+        });
+      }
     }
     return to;
   };
   var __reExport = (target, mod, secondTarget) => (__copyProps(target, mod, "default"), secondTarget && __copyProps(secondTarget, mod, "default"));
   var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-    // If the importer is in node compatibility mode or this is not an ESM
-    // file that has been converted to a CommonJS file using a Babel-
-    // compatible transform (i.e. "__esModule" has not been set), then set
-    // "default" to the CommonJS "module.exports" for node compatibility.
-    isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-    mod
-  ));
-  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", {
+    value: mod,
+    enumerable: true
+  }) : target, mod));
+  var __toCommonJS = mod => __copyProps(__defProp({}, "__esModule", {
+    value: true
+  }), mod);
   var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
   var __async = (__this, __arguments, generator) => {
     return new Promise((resolve, reject) => {
-      var fulfilled = (value) => {
+      var fulfilled = value => {
         try {
           step(generator.next(value));
         } catch (e) {
           reject(e);
         }
       };
-      var rejected = (value) => {
+      var rejected = value => {
         try {
           step(generator.throw(value));
         } catch (e) {
           reject(e);
         }
       };
-      var step = (x) => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
+      var step = x => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
       step((generator = generator.apply(__this, __arguments)).next());
     });
   };
-  var __await = function(promise, isYieldStar) {
+  var __await = function (promise, isYieldStar) {
     this[0] = promise;
     this[1] = isYieldStar;
   };
-  var __yieldStar = (value) => {
-    var obj = value[__knownSymbol("asyncIterator")], isAwait = false, method, it = {};
+  var __yieldStar = value => {
+    var obj = value[__knownSymbol("asyncIterator")],
+      isAwait = false,
+      method,
+      it = {};
     if (obj == null) {
       obj = value[__knownSymbol("iterator")]();
-      method = (k) => it[k] = (x) => obj[k](x);
+      method = k => it[k] = x => obj[k](x);
     } else {
       obj = obj.call(value);
-      method = (k) => it[k] = (v) => {
+      method = k => it[k] = v => {
         if (isAwait) {
           isAwait = false;
           if (k === "throw") throw v;
@@ -148,7 +185,7 @@ var EE2 = (() => {
         isAwait = true;
         return {
           done: false,
-          value: new __await(new Promise((resolve) => {
+          value: new __await(new Promise(resolve => {
             var x = obj[k](v);
             if (!(x instanceof Object)) __typeError("Object expected");
             resolve(x);
@@ -156,7 +193,7 @@ var EE2 = (() => {
         };
       };
     }
-    return it[__knownSymbol("iterator")] = () => it, method("next"), "throw" in obj ? method("throw") : it.throw = (x) => {
+    return it[__knownSymbol("iterator")] = () => it, method("next"), "throw" in obj ? method("throw") : it.throw = x => {
       throw x;
     }, "return" in obj && method("return"), it;
   };
@@ -172,11 +209,9 @@ var EE2 = (() => {
       host = {
         request: () => Promise.reject(new Error("no host")),
         timer: () => 0,
-        cancel: () => {
-        },
+        cancel: () => {},
         readData: () => "",
-        log: () => {
-        }
+        log: () => {}
       };
     }
   });
@@ -190,9 +225,16 @@ var EE2 = (() => {
         c = 65536 + (c - 55296 << 10) + (text.charCodeAt(++i) - 56320);
       }
       const bytes = c < 128 ? [c] : c < 2048 ? [192 | c >> 6, 128 | c & 63] : c < 65536 ? [224 | c >> 12, 128 | c >> 6 & 63, 128 | c & 63] : [240 | c >> 18, 128 | c >> 12 & 63, 128 | c >> 6 & 63, 128 | c & 63];
-      for (const b of bytes) {
-        hash ^= b;
-        hash = Math.imul(hash, 16777619) >>> 0;
+      {
+        const _a6 = bytes;
+        if (Array.isArray(_a6)) for (let _i4 = 0; _i4 < _a6.length; _i4++) {
+          const b = _a6[_i4];
+          hash ^= b;
+          hash = Math.imul(hash, 16777619) >>> 0;
+        } else for (const b of _a6) {
+          hash ^= b;
+          hash = Math.imul(hash, 16777619) >>> 0;
+        }
       }
     }
     return hash >>> 0;
@@ -228,9 +270,16 @@ var EE2 = (() => {
       lines(ndjson, (s, start) => rows.push([fnv1a(s.ref), start]));
     } else if (name === "stats-matcher.index.bin") {
       lines(ndjson, (s, start) => {
-        for (const m of s.matchers) {
-          rows.push([fnv1a(m.string), start]);
-          if (m.advanced) rows.push([fnv1a(m.advanced), start]);
+        {
+          const _a7 = s.matchers;
+          if (Array.isArray(_a7)) for (let _i5 = 0; _i5 < _a7.length; _i5++) {
+            const m = _a7[_i5];
+            rows.push([fnv1a(m.string), start]);
+            if (m.advanced) rows.push([fnv1a(m.advanced), start]);
+          } else for (const m of _a7) {
+            rows.push([fnv1a(m.string), start]);
+            if (m.advanced) rows.push([fnv1a(m.advanced), start]);
+          }
         }
       });
     } else {
@@ -322,12 +371,16 @@ var EE2 = (() => {
     "tools/poe2-ee2/shims/timers.ts"() {
       init_host();
       init_indexes();
-      performance = { now: () => Date.now(), mark() {
-      }, measure() {
-      } };
+      performance = {
+        now: () => Date.now(),
+        mark() {},
+        measure() {}
+      };
       AbortController = class {
         constructor() {
-          __publicField(this, "signal", { aborted: false });
+          __publicField(this, "signal", {
+            aborted: false
+          });
         }
         abort() {
           this.signal.aborted = true;
@@ -403,12 +456,12 @@ var EE2 = (() => {
     toTypeString: () => toTypeString
   });
   function makeMap(str, expectsLowerCase) {
-    const map = /* @__PURE__ */ Object.create(null);
+    const map = /* @__PURE__ */Object.create(null);
     const list = str.split(",");
     for (let i = 0; i < list.length; i++) {
       map[list[i]] = true;
     }
-    return expectsLowerCase ? (val) => !!map[val.toLowerCase()] : (val) => !!map[val];
+    return expectsLowerCase ? val => !!map[val.toLowerCase()] : val => !!map[val];
   }
   function generateCodeFrame(source, start = 0, end = source.length) {
     let lines2 = source.split(/(\r?\n)/);
@@ -420,8 +473,7 @@ var EE2 = (() => {
       count += lines2[i].length + (newlineSequences[i] && newlineSequences[i].length || 0);
       if (count >= start) {
         for (let j = i - range; j <= i + range || end > count; j++) {
-          if (j < 0 || j >= lines2.length)
-            continue;
+          if (j < 0 || j >= lines2.length) continue;
           const line = j + 1;
           res.push(`${line}${" ".repeat(Math.max(3 - String(line).length, 0))}|  ${lines2[j]}`);
           const lineLength = lines2[j].length;
@@ -477,7 +529,7 @@ var EE2 = (() => {
   }
   function parseStringStyle(cssText) {
     const ret = {};
-    cssText.split(listDelimiterRE).forEach((item) => {
+    cssText.split(listDelimiterRE).forEach(item => {
       if (item) {
         const tmp = item.split(propertyDelimiterRE);
         tmp.length > 1 && (ret[tmp[0].trim()] = tmp[1].trim());
@@ -520,9 +572,9 @@ var EE2 = (() => {
     return res.trim();
   }
   function normalizeProps(props) {
-    if (!props)
-      return null;
-    let { class: klass, style } = props;
+    if (!props) return null;
+    let klass = props.class,
+      style = props.style;
     if (klass && !isString(klass)) {
       props.class = normalizeClass(klass);
     }
@@ -573,8 +625,7 @@ var EE2 = (() => {
     return src.replace(commentStripRE, "");
   }
   function looseCompareArrays(a, b) {
-    if (a.length !== b.length)
-      return false;
+    if (a.length !== b.length) return false;
     let equal = true;
     for (let i = 0; equal && i < a.length; i++) {
       equal = looseEqual(a[i], b[i]);
@@ -582,8 +633,7 @@ var EE2 = (() => {
     return equal;
   }
   function looseEqual(a, b) {
-    if (a === b)
-      return true;
+    if (a === b) return true;
     let aValidType = isDate(a);
     let bValidType = isDate(b);
     if (aValidType || bValidType) {
@@ -621,7 +671,7 @@ var EE2 = (() => {
     return String(a) === String(b);
   }
   function looseIndexOf(arr, val) {
-    return arr.findIndex((item) => looseEqual(item, val));
+    return arr.findIndex(item => looseEqual(item, val));
   }
   function genPropsAccessExp(name) {
     return identRE.test(name) ? `__props.${name}` : `__props[${JSON.stringify(name)}]`;
@@ -631,83 +681,49 @@ var EE2 = (() => {
     "../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/node_modules/@vue/shared/dist/shared.esm-bundler.js"() {
       init_timers();
       PatchFlagNames = {
-        [
-          1
-          /* TEXT */
-        ]: `TEXT`,
-        [
-          2
-          /* CLASS */
-        ]: `CLASS`,
-        [
-          4
-          /* STYLE */
-        ]: `STYLE`,
-        [
-          8
-          /* PROPS */
-        ]: `PROPS`,
-        [
-          16
-          /* FULL_PROPS */
-        ]: `FULL_PROPS`,
-        [
-          32
-          /* HYDRATE_EVENTS */
-        ]: `HYDRATE_EVENTS`,
-        [
-          64
-          /* STABLE_FRAGMENT */
-        ]: `STABLE_FRAGMENT`,
-        [
-          128
-          /* KEYED_FRAGMENT */
-        ]: `KEYED_FRAGMENT`,
-        [
-          256
-          /* UNKEYED_FRAGMENT */
-        ]: `UNKEYED_FRAGMENT`,
-        [
-          512
-          /* NEED_PATCH */
-        ]: `NEED_PATCH`,
-        [
-          1024
-          /* DYNAMIC_SLOTS */
-        ]: `DYNAMIC_SLOTS`,
-        [
-          2048
-          /* DEV_ROOT_FRAGMENT */
-        ]: `DEV_ROOT_FRAGMENT`,
-        [
-          -1
-          /* HOISTED */
-        ]: `HOISTED`,
-        [
-          -2
-          /* BAIL */
-        ]: `BAIL`
+        [1
+        /* TEXT */]: `TEXT`,
+        [2
+        /* CLASS */]: `CLASS`,
+        [4
+        /* STYLE */]: `STYLE`,
+        [8
+        /* PROPS */]: `PROPS`,
+        [16
+        /* FULL_PROPS */]: `FULL_PROPS`,
+        [32
+        /* HYDRATE_EVENTS */]: `HYDRATE_EVENTS`,
+        [64
+        /* STABLE_FRAGMENT */]: `STABLE_FRAGMENT`,
+        [128
+        /* KEYED_FRAGMENT */]: `KEYED_FRAGMENT`,
+        [256
+        /* UNKEYED_FRAGMENT */]: `UNKEYED_FRAGMENT`,
+        [512
+        /* NEED_PATCH */]: `NEED_PATCH`,
+        [1024
+        /* DYNAMIC_SLOTS */]: `DYNAMIC_SLOTS`,
+        [2048
+        /* DEV_ROOT_FRAGMENT */]: `DEV_ROOT_FRAGMENT`,
+        [-1
+        /* HOISTED */]: `HOISTED`,
+        [-2
+        /* BAIL */]: `BAIL`
       };
       slotFlagsText = {
-        [
-          1
-          /* STABLE */
-        ]: "STABLE",
-        [
-          2
-          /* DYNAMIC */
-        ]: "DYNAMIC",
-        [
-          3
-          /* FORWARDED */
-        ]: "FORWARDED"
+        [1
+        /* STABLE */]: "STABLE",
+        [2
+        /* DYNAMIC */]: "DYNAMIC",
+        [3
+        /* FORWARDED */]: "FORWARDED"
       };
       GLOBALS_WHITE_LISTED = "Infinity,undefined,NaN,isFinite,isNaN,parseFloat,parseInt,decodeURI,decodeURIComponent,encodeURI,encodeURIComponent,Math,Number,Date,Array,Object,Boolean,String,RegExp,Map,Set,JSON,Intl,BigInt";
-      isGloballyWhitelisted = /* @__PURE__ */ makeMap(GLOBALS_WHITE_LISTED);
+      isGloballyWhitelisted = /* @__PURE__ */makeMap(GLOBALS_WHITE_LISTED);
       range = 2;
       specialBooleanAttrs = `itemscope,allowfullscreen,formnovalidate,ismap,nomodule,novalidate,readonly`;
-      isSpecialBooleanAttr = /* @__PURE__ */ makeMap(specialBooleanAttrs);
-      isBooleanAttr = /* @__PURE__ */ makeMap(specialBooleanAttrs + `,async,autofocus,autoplay,controls,default,defer,disabled,hidden,loop,open,required,reversed,scoped,seamless,checked,muted,multiple,selected`);
+      isSpecialBooleanAttr = /* @__PURE__ */makeMap(specialBooleanAttrs);
+      isBooleanAttr = /* @__PURE__ */makeMap(specialBooleanAttrs + `,async,autofocus,autoplay,controls,default,defer,disabled,hidden,loop,open,required,reversed,scoped,seamless,checked,muted,multiple,selected`);
       unsafeAttrCharRE = /[>/="'\u0009\u000a\u000c\u0020]/;
       attrValidationCache = {};
       propsToAttrMap = {
@@ -716,20 +732,20 @@ var EE2 = (() => {
         htmlFor: "for",
         httpEquiv: "http-equiv"
       };
-      isNoUnitNumericStyleProp = /* @__PURE__ */ makeMap(`animation-iteration-count,border-image-outset,border-image-slice,border-image-width,box-flex,box-flex-group,box-ordinal-group,column-count,columns,flex,flex-grow,flex-positive,flex-shrink,flex-negative,flex-order,grid-row,grid-row-end,grid-row-span,grid-row-start,grid-column,grid-column-end,grid-column-span,grid-column-start,font-weight,line-clamp,line-height,opacity,order,orphans,tab-size,widows,z-index,zoom,fill-opacity,flood-opacity,stop-opacity,stroke-dasharray,stroke-dashoffset,stroke-miterlimit,stroke-opacity,stroke-width`);
-      isKnownHtmlAttr = /* @__PURE__ */ makeMap(`accept,accept-charset,accesskey,action,align,allow,alt,async,autocapitalize,autocomplete,autofocus,autoplay,background,bgcolor,border,buffered,capture,challenge,charset,checked,cite,class,code,codebase,color,cols,colspan,content,contenteditable,contextmenu,controls,coords,crossorigin,csp,data,datetime,decoding,default,defer,dir,dirname,disabled,download,draggable,dropzone,enctype,enterkeyhint,for,form,formaction,formenctype,formmethod,formnovalidate,formtarget,headers,height,hidden,high,href,hreflang,http-equiv,icon,id,importance,integrity,ismap,itemprop,keytype,kind,label,lang,language,loading,list,loop,low,manifest,max,maxlength,minlength,media,min,multiple,muted,name,novalidate,open,optimum,pattern,ping,placeholder,poster,preload,radiogroup,readonly,referrerpolicy,rel,required,reversed,rows,rowspan,sandbox,scope,scoped,selected,shape,size,sizes,slot,span,spellcheck,src,srcdoc,srclang,srcset,start,step,style,summary,tabindex,target,title,translate,type,usemap,value,width,wrap`);
-      isKnownSvgAttr = /* @__PURE__ */ makeMap(`xmlns,accent-height,accumulate,additive,alignment-baseline,alphabetic,amplitude,arabic-form,ascent,attributeName,attributeType,azimuth,baseFrequency,baseline-shift,baseProfile,bbox,begin,bias,by,calcMode,cap-height,class,clip,clipPathUnits,clip-path,clip-rule,color,color-interpolation,color-interpolation-filters,color-profile,color-rendering,contentScriptType,contentStyleType,crossorigin,cursor,cx,cy,d,decelerate,descent,diffuseConstant,direction,display,divisor,dominant-baseline,dur,dx,dy,edgeMode,elevation,enable-background,end,exponent,fill,fill-opacity,fill-rule,filter,filterRes,filterUnits,flood-color,flood-opacity,font-family,font-size,font-size-adjust,font-stretch,font-style,font-variant,font-weight,format,from,fr,fx,fy,g1,g2,glyph-name,glyph-orientation-horizontal,glyph-orientation-vertical,glyphRef,gradientTransform,gradientUnits,hanging,height,href,hreflang,horiz-adv-x,horiz-origin-x,id,ideographic,image-rendering,in,in2,intercept,k,k1,k2,k3,k4,kernelMatrix,kernelUnitLength,kerning,keyPoints,keySplines,keyTimes,lang,lengthAdjust,letter-spacing,lighting-color,limitingConeAngle,local,marker-end,marker-mid,marker-start,markerHeight,markerUnits,markerWidth,mask,maskContentUnits,maskUnits,mathematical,max,media,method,min,mode,name,numOctaves,offset,opacity,operator,order,orient,orientation,origin,overflow,overline-position,overline-thickness,panose-1,paint-order,path,pathLength,patternContentUnits,patternTransform,patternUnits,ping,pointer-events,points,pointsAtX,pointsAtY,pointsAtZ,preserveAlpha,preserveAspectRatio,primitiveUnits,r,radius,referrerPolicy,refX,refY,rel,rendering-intent,repeatCount,repeatDur,requiredExtensions,requiredFeatures,restart,result,rotate,rx,ry,scale,seed,shape-rendering,slope,spacing,specularConstant,specularExponent,speed,spreadMethod,startOffset,stdDeviation,stemh,stemv,stitchTiles,stop-color,stop-opacity,strikethrough-position,strikethrough-thickness,string,stroke,stroke-dasharray,stroke-dashoffset,stroke-linecap,stroke-linejoin,stroke-miterlimit,stroke-opacity,stroke-width,style,surfaceScale,systemLanguage,tabindex,tableValues,target,targetX,targetY,text-anchor,text-decoration,text-rendering,textLength,to,transform,transform-origin,type,u1,u2,underline-position,underline-thickness,unicode,unicode-bidi,unicode-range,units-per-em,v-alphabetic,v-hanging,v-ideographic,v-mathematical,values,vector-effect,version,vert-adv-y,vert-origin-x,vert-origin-y,viewBox,viewTarget,visibility,width,widths,word-spacing,writing-mode,x,x-height,x1,x2,xChannelSelector,xlink:actuate,xlink:arcrole,xlink:href,xlink:role,xlink:show,xlink:title,xlink:type,xml:base,xml:lang,xml:space,y,y1,y2,yChannelSelector,z,zoomAndPan`);
+      isNoUnitNumericStyleProp = /* @__PURE__ */makeMap(`animation-iteration-count,border-image-outset,border-image-slice,border-image-width,box-flex,box-flex-group,box-ordinal-group,column-count,columns,flex,flex-grow,flex-positive,flex-shrink,flex-negative,flex-order,grid-row,grid-row-end,grid-row-span,grid-row-start,grid-column,grid-column-end,grid-column-span,grid-column-start,font-weight,line-clamp,line-height,opacity,order,orphans,tab-size,widows,z-index,zoom,fill-opacity,flood-opacity,stop-opacity,stroke-dasharray,stroke-dashoffset,stroke-miterlimit,stroke-opacity,stroke-width`);
+      isKnownHtmlAttr = /* @__PURE__ */makeMap(`accept,accept-charset,accesskey,action,align,allow,alt,async,autocapitalize,autocomplete,autofocus,autoplay,background,bgcolor,border,buffered,capture,challenge,charset,checked,cite,class,code,codebase,color,cols,colspan,content,contenteditable,contextmenu,controls,coords,crossorigin,csp,data,datetime,decoding,default,defer,dir,dirname,disabled,download,draggable,dropzone,enctype,enterkeyhint,for,form,formaction,formenctype,formmethod,formnovalidate,formtarget,headers,height,hidden,high,href,hreflang,http-equiv,icon,id,importance,integrity,ismap,itemprop,keytype,kind,label,lang,language,loading,list,loop,low,manifest,max,maxlength,minlength,media,min,multiple,muted,name,novalidate,open,optimum,pattern,ping,placeholder,poster,preload,radiogroup,readonly,referrerpolicy,rel,required,reversed,rows,rowspan,sandbox,scope,scoped,selected,shape,size,sizes,slot,span,spellcheck,src,srcdoc,srclang,srcset,start,step,style,summary,tabindex,target,title,translate,type,usemap,value,width,wrap`);
+      isKnownSvgAttr = /* @__PURE__ */makeMap(`xmlns,accent-height,accumulate,additive,alignment-baseline,alphabetic,amplitude,arabic-form,ascent,attributeName,attributeType,azimuth,baseFrequency,baseline-shift,baseProfile,bbox,begin,bias,by,calcMode,cap-height,class,clip,clipPathUnits,clip-path,clip-rule,color,color-interpolation,color-interpolation-filters,color-profile,color-rendering,contentScriptType,contentStyleType,crossorigin,cursor,cx,cy,d,decelerate,descent,diffuseConstant,direction,display,divisor,dominant-baseline,dur,dx,dy,edgeMode,elevation,enable-background,end,exponent,fill,fill-opacity,fill-rule,filter,filterRes,filterUnits,flood-color,flood-opacity,font-family,font-size,font-size-adjust,font-stretch,font-style,font-variant,font-weight,format,from,fr,fx,fy,g1,g2,glyph-name,glyph-orientation-horizontal,glyph-orientation-vertical,glyphRef,gradientTransform,gradientUnits,hanging,height,href,hreflang,horiz-adv-x,horiz-origin-x,id,ideographic,image-rendering,in,in2,intercept,k,k1,k2,k3,k4,kernelMatrix,kernelUnitLength,kerning,keyPoints,keySplines,keyTimes,lang,lengthAdjust,letter-spacing,lighting-color,limitingConeAngle,local,marker-end,marker-mid,marker-start,markerHeight,markerUnits,markerWidth,mask,maskContentUnits,maskUnits,mathematical,max,media,method,min,mode,name,numOctaves,offset,opacity,operator,order,orient,orientation,origin,overflow,overline-position,overline-thickness,panose-1,paint-order,path,pathLength,patternContentUnits,patternTransform,patternUnits,ping,pointer-events,points,pointsAtX,pointsAtY,pointsAtZ,preserveAlpha,preserveAspectRatio,primitiveUnits,r,radius,referrerPolicy,refX,refY,rel,rendering-intent,repeatCount,repeatDur,requiredExtensions,requiredFeatures,restart,result,rotate,rx,ry,scale,seed,shape-rendering,slope,spacing,specularConstant,specularExponent,speed,spreadMethod,startOffset,stdDeviation,stemh,stemv,stitchTiles,stop-color,stop-opacity,strikethrough-position,strikethrough-thickness,string,stroke,stroke-dasharray,stroke-dashoffset,stroke-linecap,stroke-linejoin,stroke-miterlimit,stroke-opacity,stroke-width,style,surfaceScale,systemLanguage,tabindex,tableValues,target,targetX,targetY,text-anchor,text-decoration,text-rendering,textLength,to,transform,transform-origin,type,u1,u2,underline-position,underline-thickness,unicode,unicode-bidi,unicode-range,units-per-em,v-alphabetic,v-hanging,v-ideographic,v-mathematical,values,vector-effect,version,vert-adv-y,vert-origin-x,vert-origin-y,viewBox,viewTarget,visibility,width,widths,word-spacing,writing-mode,x,x-height,x1,x2,xChannelSelector,xlink:actuate,xlink:arcrole,xlink:href,xlink:role,xlink:show,xlink:title,xlink:type,xml:base,xml:lang,xml:space,y,y1,y2,yChannelSelector,z,zoomAndPan`);
       listDelimiterRE = /;(?![^(]*\))/g;
       propertyDelimiterRE = /:(.+)/;
       HTML_TAGS = "html,body,base,head,link,meta,style,title,address,article,aside,footer,header,h1,h2,h3,h4,h5,h6,nav,section,div,dd,dl,dt,figcaption,figure,picture,hr,img,li,main,ol,p,pre,ul,a,b,abbr,bdi,bdo,br,cite,code,data,dfn,em,i,kbd,mark,q,rp,rt,ruby,s,samp,small,span,strong,sub,sup,time,u,var,wbr,area,audio,map,track,video,embed,object,param,source,canvas,script,noscript,del,ins,caption,col,colgroup,table,thead,tbody,td,th,tr,button,datalist,fieldset,form,input,label,legend,meter,optgroup,option,output,progress,select,textarea,details,dialog,menu,summary,template,blockquote,iframe,tfoot";
       SVG_TAGS = "svg,animate,animateMotion,animateTransform,circle,clipPath,color-profile,defs,desc,discard,ellipse,feBlend,feColorMatrix,feComponentTransfer,feComposite,feConvolveMatrix,feDiffuseLighting,feDisplacementMap,feDistanceLight,feDropShadow,feFlood,feFuncA,feFuncB,feFuncG,feFuncR,feGaussianBlur,feImage,feMerge,feMergeNode,feMorphology,feOffset,fePointLight,feSpecularLighting,feSpotLight,feTile,feTurbulence,filter,foreignObject,g,hatch,hatchpath,image,line,linearGradient,marker,mask,mesh,meshgradient,meshpatch,meshrow,metadata,mpath,path,pattern,polygon,polyline,radialGradient,rect,set,solidcolor,stop,switch,symbol,text,textPath,title,tspan,unknown,use,view";
       VOID_TAGS = "area,base,br,col,embed,hr,img,input,link,meta,param,source,track,wbr";
-      isHTMLTag = /* @__PURE__ */ makeMap(HTML_TAGS);
-      isSVGTag = /* @__PURE__ */ makeMap(SVG_TAGS);
-      isVoidTag = /* @__PURE__ */ makeMap(VOID_TAGS);
+      isHTMLTag = /* @__PURE__ */makeMap(HTML_TAGS);
+      isSVGTag = /* @__PURE__ */makeMap(SVG_TAGS);
+      isVoidTag = /* @__PURE__ */makeMap(VOID_TAGS);
       escapeRE = /["'&<>]/;
       commentStripRE = /^-?>|<!--|-->|--!>|<!-$/g;
-      toDisplayString = (val) => {
+      toDisplayString = val => {
         return isString(val) ? val : val == null ? "" : isArray(val) || isObject(val) && (val.toString === objectToString || !isFunction(val.toString)) ? JSON.stringify(val, replacer, 2) : String(val);
       };
       replacer = (_key, val) => {
@@ -737,14 +753,14 @@ var EE2 = (() => {
           return replacer(_key, val.value);
         } else if (isMap(val)) {
           return {
-            [`Map(${val.size})`]: [...val.entries()].reduce((entries, [key, val2]) => {
+            [`Map(${val.size})`]: _toConsumableArray(val.entries()).reduce((entries, [key, val2]) => {
               entries[`${key} =>`] = val2;
               return entries;
             }, {})
           };
         } else if (isSet(val)) {
           return {
-            [`Set(${val.size})`]: [...val.values()]
+            [`Set(${val.size})`]: _toConsumableArray(val.values())
           };
         } else if (isObject(val) && !isArray(val) && !isPlainObject(val)) {
           return String(val);
@@ -753,12 +769,11 @@ var EE2 = (() => {
       };
       EMPTY_OBJ = false ? Object.freeze({}) : {};
       EMPTY_ARR = false ? Object.freeze([]) : [];
-      NOOP = () => {
-      };
+      NOOP = () => {};
       NO = () => false;
       onRE = /^on[^a-z]/;
-      isOn = (key) => onRE.test(key);
-      isModelListener = (key) => key.startsWith("onUpdate:");
+      isOn = key => onRE.test(key);
+      isModelListener = key => key.startsWith("onUpdate:");
       extend = Object.assign;
       remove = (arr, el) => {
         const i = arr.indexOf(el);
@@ -769,43 +784,42 @@ var EE2 = (() => {
       hasOwnProperty = Object.prototype.hasOwnProperty;
       hasOwn = (val, key) => hasOwnProperty.call(val, key);
       isArray = Array.isArray;
-      isMap = (val) => toTypeString(val) === "[object Map]";
-      isSet = (val) => toTypeString(val) === "[object Set]";
-      isDate = (val) => toTypeString(val) === "[object Date]";
-      isFunction = (val) => typeof val === "function";
-      isString = (val) => typeof val === "string";
-      isSymbol = (val) => typeof val === "symbol";
-      isObject = (val) => val !== null && typeof val === "object";
-      isPromise = (val) => {
+      isMap = val => toTypeString(val) === "[object Map]";
+      isSet = val => toTypeString(val) === "[object Set]";
+      isDate = val => toTypeString(val) === "[object Date]";
+      isFunction = val => typeof val === "function";
+      isString = val => typeof val === "string";
+      isSymbol = val => typeof val === "symbol";
+      isObject = val => val !== null && typeof val === "object";
+      isPromise = val => {
         return isObject(val) && isFunction(val.then) && isFunction(val.catch);
       };
       objectToString = Object.prototype.toString;
-      toTypeString = (value) => objectToString.call(value);
-      toRawType = (value) => {
+      toTypeString = value => objectToString.call(value);
+      toRawType = value => {
         return toTypeString(value).slice(8, -1);
       };
-      isPlainObject = (val) => toTypeString(val) === "[object Object]";
-      isIntegerKey = (key) => isString(key) && key !== "NaN" && key[0] !== "-" && "" + parseInt(key, 10) === key;
-      isReservedProp = /* @__PURE__ */ makeMap(
-        // the leading comma is intentional so empty string "" is also included
-        ",key,ref,ref_for,ref_key,onVnodeBeforeMount,onVnodeMounted,onVnodeBeforeUpdate,onVnodeUpdated,onVnodeBeforeUnmount,onVnodeUnmounted"
-      );
-      isBuiltInDirective = /* @__PURE__ */ makeMap("bind,cloak,else-if,else,for,html,if,model,on,once,pre,show,slot,text,memo");
-      cacheStringFunction = (fn) => {
-        const cache3 = /* @__PURE__ */ Object.create(null);
-        return (str) => {
+      isPlainObject = val => toTypeString(val) === "[object Object]";
+      isIntegerKey = key => isString(key) && key !== "NaN" && key[0] !== "-" && "" + parseInt(key, 10) === key;
+      isReservedProp = /* @__PURE__ */makeMap(
+      // the leading comma is intentional so empty string "" is also included
+      ",key,ref,ref_for,ref_key,onVnodeBeforeMount,onVnodeMounted,onVnodeBeforeUpdate,onVnodeUpdated,onVnodeBeforeUnmount,onVnodeUnmounted");
+      isBuiltInDirective = /* @__PURE__ */makeMap("bind,cloak,else-if,else,for,html,if,model,on,once,pre,show,slot,text,memo");
+      cacheStringFunction = fn => {
+        const cache3 = /* @__PURE__ */Object.create(null);
+        return str => {
           const hit = cache3[str];
           return hit || (cache3[str] = fn(str));
         };
       };
       camelizeRE = /-(\w)/g;
-      camelize = cacheStringFunction((str) => {
+      camelize = cacheStringFunction(str => {
         return str.replace(camelizeRE, (_, c) => c ? c.toUpperCase() : "");
       });
       hyphenateRE = /\B([A-Z])/g;
-      hyphenate = cacheStringFunction((str) => str.replace(hyphenateRE, "-$1").toLowerCase());
-      capitalize = cacheStringFunction((str) => str.charAt(0).toUpperCase() + str.slice(1));
-      toHandlerKey = cacheStringFunction((str) => str ? `on${capitalize(str)}` : ``);
+      hyphenate = cacheStringFunction(str => str.replace(hyphenateRE, "-$1").toLowerCase());
+      capitalize = cacheStringFunction(str => str.charAt(0).toUpperCase() + str.slice(1));
+      toHandlerKey = cacheStringFunction(str => str ? `on${capitalize(str)}` : ``);
       hasChanged = (value, oldValue) => !Object.is(value, oldValue);
       invokeArrayFns = (fns, arg) => {
         for (let i = 0; i < fns.length; i++) {
@@ -819,7 +833,7 @@ var EE2 = (() => {
           value
         });
       };
-      toNumber = (val) => {
+      toNumber = val => {
         const n = parseFloat(val);
         return isNaN(n) ? val : n;
       };
@@ -887,7 +901,7 @@ var EE2 = (() => {
     }
   }
   function cleanupEffect(effect2) {
-    const { deps } = effect2;
+    const deps = effect2.deps;
     if (deps.length) {
       for (let i = 0; i < deps.length; i++) {
         deps[i].delete(effect2);
@@ -902,8 +916,7 @@ var EE2 = (() => {
     const _effect = new ReactiveEffect(fn);
     if (options) {
       extend(_effect, options);
-      if (options.scope)
-        recordEffectScope(_effect, options.scope);
+      if (options.scope) recordEffectScope(_effect, options.scope);
     }
     if (!options || !options.lazy) {
       _effect.run();
@@ -931,13 +944,18 @@ var EE2 = (() => {
     if (shouldTrack && activeEffect) {
       let depsMap = targetMap.get(target);
       if (!depsMap) {
-        targetMap.set(target, depsMap = /* @__PURE__ */ new Map());
+        targetMap.set(target, depsMap = /* @__PURE__ */new Map());
       }
       let dep = depsMap.get(key);
       if (!dep) {
         depsMap.set(key, dep = createDep());
       }
-      const eventInfo = false ? { effect: activeEffect, target, type, key } : void 0;
+      const eventInfo = false ? {
+        effect: activeEffect,
+        target,
+        type,
+        key
+      } : void 0;
       trackEffects(dep, eventInfo);
     }
   }
@@ -955,7 +973,9 @@ var EE2 = (() => {
       dep.add(activeEffect);
       activeEffect.deps.push(dep);
       if (false) {
-        activeEffect.onTrack(Object.assign({ effect: activeEffect }, debuggerEventExtraInfo));
+        activeEffect.onTrack(Object.assign({
+          effect: activeEffect
+        }, debuggerEventExtraInfo));
       }
     }
   }
@@ -966,7 +986,7 @@ var EE2 = (() => {
     }
     let deps = [];
     if (type === "clear") {
-      deps = [...depsMap.values()];
+      deps = _toConsumableArray(depsMap.values());
     } else if (key === "length" && isArray(target)) {
       depsMap.forEach((dep, key2) => {
         if (key2 === "length" || key2 >= newValue) {
@@ -1003,7 +1023,14 @@ var EE2 = (() => {
           break;
       }
     }
-    const eventInfo = false ? { target, type, key, newValue, oldValue, oldTarget } : void 0;
+    const eventInfo = false ? {
+      target,
+      type,
+      key,
+      newValue,
+      oldValue,
+      oldTarget
+    } : void 0;
     if (deps.length === 1) {
       if (deps[0]) {
         if (false) {
@@ -1014,9 +1041,17 @@ var EE2 = (() => {
       }
     } else {
       const effects = [];
-      for (const dep of deps) {
-        if (dep) {
-          effects.push(...dep);
+      {
+        const _a8 = deps;
+        if (Array.isArray(_a8)) for (let _i6 = 0; _i6 < _a8.length; _i6++) {
+          const dep = _a8[_i6];
+          if (dep) {
+            effects.push.apply(effects, _toConsumableArray(dep));
+          }
+        } else for (const dep of _a8) {
+          if (dep) {
+            effects.push.apply(effects, _toConsumableArray(dep));
+          }
         }
       }
       if (false) {
@@ -1027,22 +1062,40 @@ var EE2 = (() => {
     }
   }
   function triggerEffects(dep, debuggerEventExtraInfo) {
-    const effects = isArray(dep) ? dep : [...dep];
-    for (const effect2 of effects) {
-      if (effect2.computed) {
-        triggerEffect(effect2, debuggerEventExtraInfo);
+    const effects = isArray(dep) ? dep : _toConsumableArray(dep);
+    {
+      const _a9 = effects;
+      if (Array.isArray(_a9)) for (let _i7 = 0; _i7 < _a9.length; _i7++) {
+        const effect2 = _a9[_i7];
+        if (effect2.computed) {
+          triggerEffect(effect2, debuggerEventExtraInfo);
+        }
+      } else for (const effect2 of _a9) {
+        if (effect2.computed) {
+          triggerEffect(effect2, debuggerEventExtraInfo);
+        }
       }
     }
-    for (const effect2 of effects) {
-      if (!effect2.computed) {
-        triggerEffect(effect2, debuggerEventExtraInfo);
+    {
+      const _a0 = effects;
+      if (Array.isArray(_a0)) for (let _i8 = 0; _i8 < _a0.length; _i8++) {
+        const effect2 = _a0[_i8];
+        if (!effect2.computed) {
+          triggerEffect(effect2, debuggerEventExtraInfo);
+        }
+      } else for (const effect2 of _a0) {
+        if (!effect2.computed) {
+          triggerEffect(effect2, debuggerEventExtraInfo);
+        }
       }
     }
   }
   function triggerEffect(effect2, debuggerEventExtraInfo) {
     if (effect2 !== activeEffect || effect2.allowRecurse) {
       if (false) {
-        effect2.onTrigger(extend({ effect: effect2 }, debuggerEventExtraInfo));
+        effect2.onTrigger(extend({
+          effect: effect2
+        }, debuggerEventExtraInfo));
       }
       if (effect2.scheduler) {
         effect2.scheduler();
@@ -1053,22 +1106,22 @@ var EE2 = (() => {
   }
   function createArrayInstrumentations() {
     const instrumentations = {};
-    ["includes", "indexOf", "lastIndexOf"].forEach((key) => {
-      instrumentations[key] = function(...args) {
+    ["includes", "indexOf", "lastIndexOf"].forEach(key => {
+      instrumentations[key] = function (...args) {
         const arr = toRaw(this);
         for (let i = 0, l = this.length; i < l; i++) {
           track(arr, "get", i + "");
         }
-        const res = arr[key](...args);
+        const res = arr[key].apply(arr, args);
         if (res === -1 || res === false) {
-          return arr[key](...args.map(toRaw));
+          return arr[key].apply(arr, _toConsumableArray(args.map(toRaw)));
         } else {
           return res;
         }
       };
     });
-    ["push", "pop", "shift", "unshift", "splice"].forEach((key) => {
-      instrumentations[key] = function(...args) {
+    ["push", "pop", "shift", "unshift", "splice"].forEach(key => {
+      instrumentations[key] = function (...args) {
         pauseTracking();
         const res = toRaw(this)[key].apply(this, args);
         resetTracking();
@@ -1160,10 +1213,8 @@ var EE2 = (() => {
     return Reflect.ownKeys(target);
   }
   function get$1(target, key, isReadonly2 = false, isShallow2 = false) {
-    target = target[
-      "__v_raw"
-      /* RAW */
-    ];
+    target = target["__v_raw"
+    /* RAW */];
     const rawTarget = toRaw(target);
     const rawKey = toRaw(key);
     if (!isReadonly2) {
@@ -1172,7 +1223,8 @@ var EE2 = (() => {
       }
       track(rawTarget, "get", rawKey);
     }
-    const { has: has2 } = getProto(rawTarget);
+    const _getProto = getProto(rawTarget),
+      has2 = _getProto.has;
     const wrap = isShallow2 ? toShallow : isReadonly2 ? toReadonly : toReactive;
     if (has2.call(rawTarget, key)) {
       return wrap(target.get(key));
@@ -1183,10 +1235,8 @@ var EE2 = (() => {
     }
   }
   function has$1(key, isReadonly2 = false) {
-    const target = this[
-      "__v_raw"
-      /* RAW */
-    ];
+    const target = this["__v_raw"
+    /* RAW */];
     const rawTarget = toRaw(target);
     const rawKey = toRaw(key);
     if (!isReadonly2) {
@@ -1198,10 +1248,8 @@ var EE2 = (() => {
     return key === rawKey ? target.has(key) : target.has(key) || target.has(rawKey);
   }
   function size(target, isReadonly2 = false) {
-    target = target[
-      "__v_raw"
-      /* RAW */
-    ];
+    target = target["__v_raw"
+    /* RAW */];
     !isReadonly2 && track(toRaw(target), "iterate", ITERATE_KEY);
     return Reflect.get(target, "size", target);
   }
@@ -1219,7 +1267,9 @@ var EE2 = (() => {
   function set$1(key, value) {
     value = toRaw(value);
     const target = toRaw(this);
-    const { has: has2, get: get2 } = getProto(target);
+    const _getProto2 = getProto(target),
+      has2 = _getProto2.has,
+      get2 = _getProto2.get;
     let hadKey = has2.call(target, key);
     if (!hadKey) {
       key = toRaw(key);
@@ -1238,7 +1288,9 @@ var EE2 = (() => {
   }
   function deleteEntry(key) {
     const target = toRaw(this);
-    const { has: has2, get: get2 } = getProto(target);
+    const _getProto3 = getProto(target),
+      has2 = _getProto3.has,
+      get2 = _getProto3.get;
     let hadKey = has2.call(target, key);
     if (!hadKey) {
       key = toRaw(key);
@@ -1266,10 +1318,8 @@ var EE2 = (() => {
   function createForEach(isReadonly2, isShallow2) {
     return function forEach(callback, thisArg) {
       const observed = this;
-      const target = observed[
-        "__v_raw"
-        /* RAW */
-      ];
+      const target = observed["__v_raw"
+      /* RAW */];
       const rawTarget = toRaw(target);
       const wrap = isShallow2 ? toShallow : isReadonly2 ? toReadonly : toReactive;
       !isReadonly2 && track(rawTarget, "iterate", ITERATE_KEY);
@@ -1279,23 +1329,26 @@ var EE2 = (() => {
     };
   }
   function createIterableMethod(method, isReadonly2, isShallow2) {
-    return function(...args) {
-      const target = this[
-        "__v_raw"
-        /* RAW */
-      ];
+    return function (...args) {
+      const target = this["__v_raw"
+      /* RAW */];
       const rawTarget = toRaw(target);
       const targetIsMap = isMap(rawTarget);
       const isPair = method === "entries" || method === Symbol.iterator && targetIsMap;
       const isKeyOnly = method === "keys" && targetIsMap;
-      const innerIterator = target[method](...args);
+      const innerIterator = target[method].apply(target, args);
       const wrap = isShallow2 ? toShallow : isReadonly2 ? toReadonly : toReactive;
       !isReadonly2 && track(rawTarget, "iterate", isKeyOnly ? MAP_KEY_ITERATE_KEY : ITERATE_KEY);
       return {
         // iterator protocol
         next() {
-          const { value, done } = innerIterator.next();
-          return done ? { value, done } : {
+          const _innerIterator$next = innerIterator.next(),
+            value = _innerIterator$next.value,
+            done = _innerIterator$next.done;
+          return done ? {
+            value,
+            done
+          } : {
             value: isPair ? [wrap(value[0]), wrap(value[1])] : wrap(value),
             done
           };
@@ -1308,7 +1361,7 @@ var EE2 = (() => {
     };
   }
   function createReadonlyMethod(type) {
-    return function(...args) {
+    return function (...args) {
       if (false) {
         const key = args[0] ? `on key "${args[0]}" ` : ``;
         console.warn(`${capitalize(type)} operation ${key}failed: target is readonly.`, toRaw(this));
@@ -1355,22 +1408,14 @@ var EE2 = (() => {
       has(key) {
         return has$1.call(this, key, true);
       },
-      add: createReadonlyMethod(
-        "add"
-        /* ADD */
-      ),
-      set: createReadonlyMethod(
-        "set"
-        /* SET */
-      ),
-      delete: createReadonlyMethod(
-        "delete"
-        /* DELETE */
-      ),
-      clear: createReadonlyMethod(
-        "clear"
-        /* CLEAR */
-      ),
+      add: createReadonlyMethod("add"
+      /* ADD */),
+      set: createReadonlyMethod("set"
+      /* SET */),
+      delete: createReadonlyMethod("delete"
+      /* DELETE */),
+      clear: createReadonlyMethod("clear"
+      /* CLEAR */),
       forEach: createForEach(true, false)
     };
     const shallowReadonlyInstrumentations2 = {
@@ -1383,37 +1428,24 @@ var EE2 = (() => {
       has(key) {
         return has$1.call(this, key, true);
       },
-      add: createReadonlyMethod(
-        "add"
-        /* ADD */
-      ),
-      set: createReadonlyMethod(
-        "set"
-        /* SET */
-      ),
-      delete: createReadonlyMethod(
-        "delete"
-        /* DELETE */
-      ),
-      clear: createReadonlyMethod(
-        "clear"
-        /* CLEAR */
-      ),
+      add: createReadonlyMethod("add"
+      /* ADD */),
+      set: createReadonlyMethod("set"
+      /* SET */),
+      delete: createReadonlyMethod("delete"
+      /* DELETE */),
+      clear: createReadonlyMethod("clear"
+      /* CLEAR */),
       forEach: createForEach(true, true)
     };
     const iteratorMethods = ["keys", "values", "entries", Symbol.iterator];
-    iteratorMethods.forEach((method) => {
+    iteratorMethods.forEach(method => {
       mutableInstrumentations2[method] = createIterableMethod(method, false, false);
       readonlyInstrumentations2[method] = createIterableMethod(method, true, false);
       shallowInstrumentations2[method] = createIterableMethod(method, false, true);
       shallowReadonlyInstrumentations2[method] = createIterableMethod(method, true, true);
     });
-    return [
-      mutableInstrumentations2,
-      readonlyInstrumentations2,
-      shallowInstrumentations2,
-      shallowReadonlyInstrumentations2
-    ];
+    return [mutableInstrumentations2, readonlyInstrumentations2, shallowInstrumentations2, shallowReadonlyInstrumentations2];
   }
   function createInstrumentationGetter(isReadonly2, shallow) {
     const instrumentations = shallow ? isReadonly2 ? shallowReadonlyInstrumentations : shallowInstrumentations : isReadonly2 ? readonlyInstrumentations : mutableInstrumentations;
@@ -1443,10 +1475,8 @@ var EE2 = (() => {
     }
   }
   function getTargetType(value) {
-    return value[
-      "__v_skip"
-      /* SKIP */
-    ] || !Object.isExtensible(value) ? 0 : targetTypeMap(toRawType(value));
+    return value["__v_skip"
+    /* SKIP */] || !Object.isExtensible(value) ? 0 : targetTypeMap(toRawType(value));
   }
   function reactive(target) {
     if (isReadonly(target)) {
@@ -1470,13 +1500,9 @@ var EE2 = (() => {
       }
       return target;
     }
-    if (target[
-      "__v_raw"
-      /* RAW */
-    ] && !(isReadonly2 && target[
-      "__v_isReactive"
-      /* IS_REACTIVE */
-    ])) {
+    if (target["__v_raw"
+    /* RAW */] && !(isReadonly2 && target["__v_isReactive"
+    /* IS_REACTIVE */])) {
       return target;
     }
     const existingProxy = proxyMap.get(target);
@@ -1493,36 +1519,26 @@ var EE2 = (() => {
   }
   function isReactive(value) {
     if (isReadonly(value)) {
-      return isReactive(value[
-        "__v_raw"
-        /* RAW */
-      ]);
+      return isReactive(value["__v_raw"
+      /* RAW */]);
     }
-    return !!(value && value[
-      "__v_isReactive"
-      /* IS_REACTIVE */
-    ]);
+    return !!(value && value["__v_isReactive"
+    /* IS_REACTIVE */]);
   }
   function isReadonly(value) {
-    return !!(value && value[
-      "__v_isReadonly"
-      /* IS_READONLY */
-    ]);
+    return !!(value && value["__v_isReadonly"
+    /* IS_READONLY */]);
   }
   function isShallow(value) {
-    return !!(value && value[
-      "__v_isShallow"
-      /* IS_SHALLOW */
-    ]);
+    return !!(value && value["__v_isShallow"
+    /* IS_SHALLOW */]);
   }
   function isProxy(value) {
     return isReactive(value) || isReadonly(value);
   }
   function toRaw(observed) {
-    const raw = observed && observed[
-      "__v_raw"
-      /* RAW */
-    ];
+    const raw = observed && observed["__v_raw"
+    /* RAW */];
     return raw ? toRaw(raw) : observed;
   }
   function markRaw(value) {
@@ -1689,23 +1705,25 @@ var EE2 = (() => {
           }
         }
       };
-      createDep = (effects) => {
+      createDep = effects => {
         const dep = new Set(effects);
         dep.w = 0;
         dep.n = 0;
         return dep;
       };
-      wasTracked = (dep) => (dep.w & trackOpBit) > 0;
-      newTracked = (dep) => (dep.n & trackOpBit) > 0;
-      initDepMarkers = ({ deps }) => {
+      wasTracked = dep => (dep.w & trackOpBit) > 0;
+      newTracked = dep => (dep.n & trackOpBit) > 0;
+      initDepMarkers = ({
+        deps
+      }) => {
         if (deps.length) {
           for (let i = 0; i < deps.length; i++) {
             deps[i].w |= trackOpBit;
           }
         }
       };
-      finalizeDepMarkers = (effect2) => {
-        const { deps } = effect2;
+      finalizeDepMarkers = effect2 => {
+        const deps = effect2.deps;
         if (deps.length) {
           let ptr = 0;
           for (let i = 0; i < deps.length; i++) {
@@ -1721,7 +1739,7 @@ var EE2 = (() => {
           deps.length = ptr;
         }
       };
-      targetMap = /* @__PURE__ */ new WeakMap();
+      targetMap = /* @__PURE__ */new WeakMap();
       effectTrackDepth = 0;
       trackOpBit = 1;
       maxMarkerBits = 30;
@@ -1786,17 +1804,15 @@ var EE2 = (() => {
       };
       shouldTrack = true;
       trackStack = [];
-      isNonTrackableKeys = /* @__PURE__ */ makeMap(`__proto__,__v_isRef,__isVue`);
-      builtInSymbols = new Set(
-        /* @__PURE__ */ Object.getOwnPropertyNames(Symbol).filter((key) => key !== "arguments" && key !== "caller").map((key) => Symbol[key]).filter(isSymbol)
-      );
-      get = /* @__PURE__ */ createGetter();
-      shallowGet = /* @__PURE__ */ createGetter(false, true);
-      readonlyGet = /* @__PURE__ */ createGetter(true);
-      shallowReadonlyGet = /* @__PURE__ */ createGetter(true, true);
-      arrayInstrumentations = /* @__PURE__ */ createArrayInstrumentations();
-      set = /* @__PURE__ */ createSetter();
-      shallowSet = /* @__PURE__ */ createSetter(true);
+      isNonTrackableKeys = /* @__PURE__ */makeMap(`__proto__,__v_isRef,__isVue`);
+      builtInSymbols = new Set(/* @__PURE__ */Object.getOwnPropertyNames(Symbol).filter(key => key !== "arguments" && key !== "caller").map(key => Symbol[key]).filter(isSymbol));
+      get = /* @__PURE__ */createGetter();
+      shallowGet = /* @__PURE__ */createGetter(false, true);
+      readonlyGet = /* @__PURE__ */createGetter(true);
+      shallowReadonlyGet = /* @__PURE__ */createGetter(true, true);
+      arrayInstrumentations = /* @__PURE__ */createArrayInstrumentations();
+      set = /* @__PURE__ */createSetter();
+      shallowSet = /* @__PURE__ */createSetter(true);
       mutableHandlers = {
         get,
         set,
@@ -1819,34 +1835,39 @@ var EE2 = (() => {
           return true;
         }
       };
-      shallowReactiveHandlers = /* @__PURE__ */ extend({}, mutableHandlers, {
+      shallowReactiveHandlers = /* @__PURE__ */extend({}, mutableHandlers, {
         get: shallowGet,
         set: shallowSet
       });
-      shallowReadonlyHandlers = /* @__PURE__ */ extend({}, readonlyHandlers, {
+      shallowReadonlyHandlers = /* @__PURE__ */extend({}, readonlyHandlers, {
         get: shallowReadonlyGet
       });
-      toShallow = (value) => value;
-      getProto = (v) => Reflect.getPrototypeOf(v);
-      [mutableInstrumentations, readonlyInstrumentations, shallowInstrumentations, shallowReadonlyInstrumentations] = /* @__PURE__ */ createInstrumentations();
+      toShallow = value => value;
+      getProto = v => Reflect.getPrototypeOf(v);
+      var _createInstrumentatio = /* @__PURE__ */createInstrumentations();
+      var _createInstrumentatio2 = _slicedToArray(_createInstrumentatio, 4);
+      mutableInstrumentations = _createInstrumentatio2[0];
+      readonlyInstrumentations = _createInstrumentatio2[1];
+      shallowInstrumentations = _createInstrumentatio2[2];
+      shallowReadonlyInstrumentations = _createInstrumentatio2[3];
       mutableCollectionHandlers = {
-        get: /* @__PURE__ */ createInstrumentationGetter(false, false)
+        get: /* @__PURE__ */createInstrumentationGetter(false, false)
       };
       shallowCollectionHandlers = {
-        get: /* @__PURE__ */ createInstrumentationGetter(false, true)
+        get: /* @__PURE__ */createInstrumentationGetter(false, true)
       };
       readonlyCollectionHandlers = {
-        get: /* @__PURE__ */ createInstrumentationGetter(true, false)
+        get: /* @__PURE__ */createInstrumentationGetter(true, false)
       };
       shallowReadonlyCollectionHandlers = {
-        get: /* @__PURE__ */ createInstrumentationGetter(true, true)
+        get: /* @__PURE__ */createInstrumentationGetter(true, true)
       };
-      reactiveMap = /* @__PURE__ */ new WeakMap();
-      shallowReactiveMap = /* @__PURE__ */ new WeakMap();
-      readonlyMap = /* @__PURE__ */ new WeakMap();
-      shallowReadonlyMap = /* @__PURE__ */ new WeakMap();
-      toReactive = (value) => isObject(value) ? reactive(value) : value;
-      toReadonly = (value) => isObject(value) ? readonly(value) : value;
+      reactiveMap = /* @__PURE__ */new WeakMap();
+      shallowReactiveMap = /* @__PURE__ */new WeakMap();
+      readonlyMap = /* @__PURE__ */new WeakMap();
+      shallowReadonlyMap = /* @__PURE__ */new WeakMap();
+      toReactive = value => isObject(value) ? reactive(value) : value;
+      toReadonly = value => isObject(value) ? readonly(value) : value;
       RefImpl = class {
         constructor(value, __v_isShallow) {
           this.__v_isShallow = __v_isShallow;
@@ -1884,7 +1905,9 @@ var EE2 = (() => {
         constructor(factory) {
           this.dep = void 0;
           this.__v_isRef = true;
-          const { get: get2, set: set3 } = factory(() => trackRefValue(this), () => triggerRefValue(this));
+          const _factory = factory(() => trackRefValue(this), () => triggerRefValue(this)),
+            get2 = _factory.get,
+            set3 = _factory.set;
           this._get = get2;
           this._set = set3;
         }
@@ -1924,10 +1947,8 @@ var EE2 = (() => {
           });
           this.effect.computed = this;
           this.effect.active = this._cacheable = !isSSR;
-          this[
-            "__v_isReadonly"
-            /* IS_READONLY */
-          ] = isReadonly2;
+          this["__v_isReadonly"
+          /* IS_READONLY */] = isReadonly2;
         }
         get value() {
           const self2 = toRaw(this);
@@ -1942,10 +1963,10 @@ var EE2 = (() => {
           this._setter(newValue);
         }
       };
-      tick = /* @__PURE__ */ Promise.resolve();
+      tick = /* @__PURE__ */Promise.resolve();
       queue = [];
       queued = false;
-      scheduler = (fn) => {
+      scheduler = fn => {
         queue.push(fn);
         if (!queued) {
           queued = true;
@@ -1968,7 +1989,7 @@ var EE2 = (() => {
           let compareTarget;
           let hasCompareTarget = false;
           let scheduled = false;
-          this.effect = new ReactiveEffect(getter, (computedTrigger) => {
+          this.effect = new ReactiveEffect(getter, computedTrigger => {
             if (this.dep) {
               if (computedTrigger) {
                 compareTarget = this._value;
@@ -1984,12 +2005,19 @@ var EE2 = (() => {
                   scheduled = false;
                 });
               }
-              for (const e of this.dep) {
-                if (e.computed instanceof _DeferredComputedRefImpl) {
-                  e.scheduler(
-                    true
-                    /* computedTrigger */
-                  );
+              {
+                const _a1 = this.dep;
+                if (Array.isArray(_a1)) for (let _i9 = 0; _i9 < _a1.length; _i9++) {
+                  const e = _a1[_i9];
+                  if (e.computed instanceof _DeferredComputedRefImpl) {
+                    e.scheduler(true
+                    /* computedTrigger */);
+                  }
+                } else for (const e of _a1) {
+                  if (e.computed instanceof _DeferredComputedRefImpl) {
+                    e.scheduler(true
+                    /* computedTrigger */);
+                  }
                 }
               }
             }
@@ -2017,8 +2045,11 @@ var EE2 = (() => {
   var require_runtime_core_cjs_prod = __commonJS({
     "../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/node_modules/@vue/runtime-core/dist/runtime-core.cjs.prod.js"(exports) {
       "use strict";
+
       init_timers();
-      Object.defineProperty(exports, "__esModule", { value: true });
+      Object.defineProperty(exports, "__esModule", {
+        value: true
+      });
       var reactivity = (init_reactivity_esm_bundler(), __toCommonJS(reactivity_esm_bundler_exports));
       var shared = (init_shared_esm_bundler(), __toCommonJS(shared_esm_bundler_exports));
       var stack = [];
@@ -2028,20 +2059,19 @@ var EE2 = (() => {
         const appWarnHandler = instance && instance.appContext.config.warnHandler;
         const trace = getComponentTrace();
         if (appWarnHandler) {
-          callWithErrorHandling(appWarnHandler, instance, 11, [
-            msg + args.join(""),
-            instance && instance.proxy,
-            trace.map(({ vnode }) => `at <${formatComponentName(instance, vnode.type)}>`).join("\n"),
-            trace
-          ]);
+          callWithErrorHandling(appWarnHandler, instance, 11, [msg + args.join(""), instance && instance.proxy, trace.map(({
+            vnode
+          }) => `at <${formatComponentName(instance, vnode.type)}>`).join("\n"), trace]);
         } else {
-          const warnArgs = [`[Vue warn]: ${msg}`, ...args];
-          if (trace.length && // avoid spamming console during tests
+          var _console;
+          const warnArgs = [`[Vue warn]: ${msg}`].concat(args);
+          if (trace.length &&
+          // avoid spamming console during tests
           true) {
-            warnArgs.push(`
-`, ...formatTrace(trace));
+            warnArgs.push.apply(warnArgs, [`
+`].concat(_toConsumableArray(formatTrace(trace))));
           }
-          console.warn(...warnArgs);
+          (_console = console).warn.apply(_console, _toConsumableArray(warnArgs));
         }
         reactivity.resetTracking();
       }
@@ -2069,23 +2099,26 @@ var EE2 = (() => {
       function formatTrace(trace) {
         const logs = [];
         trace.forEach((entry, i) => {
-          logs.push(...i === 0 ? [] : [`
-`], ...formatTraceEntry(entry));
+          logs.push.apply(logs, _toConsumableArray(i === 0 ? [] : [`
+`]).concat(_toConsumableArray(formatTraceEntry(entry))));
         });
         return logs;
       }
-      function formatTraceEntry({ vnode, recurseCount }) {
+      function formatTraceEntry({
+        vnode,
+        recurseCount
+      }) {
         const postfix = recurseCount > 0 ? `... (${recurseCount} recursive calls)` : ``;
         const isRoot = vnode.component ? vnode.component.parent == null : false;
         const open = ` at <${formatComponentName(vnode.component, vnode.type, isRoot)}`;
         const close = `>` + postfix;
-        return vnode.props ? [open, ...formatProps(vnode.props), close] : [open + close];
+        return vnode.props ? [open].concat(_toConsumableArray(formatProps(vnode.props)), [close]) : [open + close];
       }
       function formatProps(props) {
         const res = [];
         const keys = Object.keys(props);
-        keys.slice(0, 3).forEach((key) => {
-          res.push(...formatProp(key, props[key]));
+        keys.slice(0, 3).forEach(key => {
+          res.push.apply(res, _toConsumableArray(formatProp(key, props[key])));
         });
         if (keys.length > 3) {
           res.push(` ...`);
@@ -2111,7 +2144,7 @@ var EE2 = (() => {
       function callWithErrorHandling(fn, instance, type, args) {
         let res;
         try {
-          res = args ? fn(...args) : fn();
+          res = args ? fn.apply(void 0, _toConsumableArray(args)) : fn();
         } catch (err2) {
           handleError(err2, instance, type);
         }
@@ -2121,7 +2154,7 @@ var EE2 = (() => {
         if (shared.isFunction(fn)) {
           const res = callWithErrorHandling(fn, instance, type, args);
           if (res && shared.isPromise(res)) {
-            res.catch((err2) => {
+            res.catch(err2 => {
               handleError(err2, instance, type);
             });
           }
@@ -2173,7 +2206,7 @@ var EE2 = (() => {
       var pendingPostFlushCbs = [];
       var activePostFlushCbs = null;
       var postFlushIndex = 0;
-      var resolvedPromise = /* @__PURE__ */ Promise.resolve();
+      var resolvedPromise = /* @__PURE__ */Promise.resolve();
       var currentFlushPromise = null;
       var currentPreFlushParentJob = null;
       function nextTick2(fn) {
@@ -2218,7 +2251,7 @@ var EE2 = (() => {
             pendingQueue.push(cb);
           }
         } else {
-          pendingQueue.push(...cb);
+          pendingQueue.push.apply(pendingQueue, _toConsumableArray(cb));
         }
         queueFlush();
       }
@@ -2231,7 +2264,7 @@ var EE2 = (() => {
       function flushPreFlushCbs(seen, parentJob = null) {
         if (pendingPreFlushCbs.length) {
           currentPreFlushParentJob = parentJob;
-          activePreFlushCbs = [...new Set(pendingPreFlushCbs)];
+          activePreFlushCbs = _toConsumableArray(new Set(pendingPreFlushCbs));
           pendingPreFlushCbs.length = 0;
           for (preFlushIndex = 0; preFlushIndex < activePreFlushCbs.length; preFlushIndex++) {
             activePreFlushCbs[preFlushIndex]();
@@ -2245,10 +2278,11 @@ var EE2 = (() => {
       function flushPostFlushCbs(seen) {
         flushPreFlushCbs();
         if (pendingPostFlushCbs.length) {
-          const deduped = [...new Set(pendingPostFlushCbs)];
+          const deduped = _toConsumableArray(new Set(pendingPostFlushCbs));
           pendingPostFlushCbs.length = 0;
           if (activePostFlushCbs) {
-            activePostFlushCbs.push(...deduped);
+            var _activePostFlushCbs;
+            (_activePostFlushCbs = activePostFlushCbs).push.apply(_activePostFlushCbs, _toConsumableArray(deduped));
             return;
           }
           activePostFlushCbs = deduped;
@@ -2260,7 +2294,7 @@ var EE2 = (() => {
           postFlushIndex = 0;
         }
       }
-      var getId = (job) => job.id == null ? Infinity : job.id;
+      var getId = job => job.id == null ? Infinity : job.id;
       function flushJobs(seen) {
         isFlushPending = false;
         isFlushing = true;
@@ -2272,12 +2306,8 @@ var EE2 = (() => {
             const job = queue2[flushIndex];
             if (job && job.active !== false) {
               if (false) ;
-              callWithErrorHandling(
-                job,
-                null,
-                14
-                /* SCHEDULER */
-              );
+              callWithErrorHandling(job, null, 14
+              /* SCHEDULER */);
             }
           }
         } finally {
@@ -2297,18 +2327,25 @@ var EE2 = (() => {
         exports.devtools = hook;
         if (exports.devtools) {
           exports.devtools.enabled = true;
-          buffer.forEach(({ event, args }) => exports.devtools.emit(event, ...args));
+          buffer.forEach(({
+            event,
+            args
+          }) => {
+            var _exports$devtools;
+            return (_exports$devtools = exports.devtools).emit.apply(_exports$devtools, [event].concat(_toConsumableArray(args)));
+          });
           buffer = [];
         } else if (
-          // handle late devtools injection - only do this if we are in an actual
-          // browser environment to avoid the timer handle stalling test runner exit
-          // (#4815)
-          typeof window !== "undefined" && // some envs mock window but not fully
-          window.HTMLElement && // also exclude jsdom
-          !((_b = (_a2 = window.navigator) === null || _a2 === void 0 ? void 0 : _a2.userAgent) === null || _b === void 0 ? void 0 : _b.includes("jsdom"))
-        ) {
+        // handle late devtools injection - only do this if we are in an actual
+        // browser environment to avoid the timer handle stalling test runner exit
+        // (#4815)
+        typeof window !== "undefined" &&
+        // some envs mock window but not fully
+        window.HTMLElement &&
+        // also exclude jsdom
+        !((_b = (_a2 = window.navigator) === null || _a2 === void 0 ? void 0 : _a2.userAgent) === null || _b === void 0 ? void 0 : _b.includes("jsdom"))) {
           const replay = target.__VUE_DEVTOOLS_HOOK_REPLAY__ = target.__VUE_DEVTOOLS_HOOK_REPLAY__ || [];
-          replay.push((newHook) => {
+          replay.push(newHook => {
             setDevtoolsHook(newHook, target);
           });
           setTimeout(() => {
@@ -2322,24 +2359,26 @@ var EE2 = (() => {
         }
       }
       function emit(instance, event, ...rawArgs) {
-        if (instance.isUnmounted)
-          return;
+        if (instance.isUnmounted) return;
         const props = instance.vnode.props || shared.EMPTY_OBJ;
         let args = rawArgs;
         const isModelListener2 = event.startsWith("update:");
         const modelArg = isModelListener2 && event.slice(7);
         if (modelArg && modelArg in props) {
           const modifiersKey = `${modelArg === "modelValue" ? "model" : modelArg}Modifiers`;
-          const { number, trim } = props[modifiersKey] || shared.EMPTY_OBJ;
+          const _ref = props[modifiersKey] || shared.EMPTY_OBJ,
+            number = _ref.number,
+            trim = _ref.trim;
           if (trim) {
-            args = rawArgs.map((a) => a.trim());
+            args = rawArgs.map(a => a.trim());
           }
           if (number) {
             args = rawArgs.map(shared.toNumber);
           }
         }
         let handlerName;
-        let handler = props[handlerName = shared.toHandlerKey(event)] || // also try camelCase event handler (#2249)
+        let handler = props[handlerName = shared.toHandlerKey(event)] ||
+        // also try camelCase event handler (#2249)
         props[handlerName = shared.toHandlerKey(shared.camelize(event))];
         if (!handler && isModelListener2) {
           handler = props[handlerName = shared.toHandlerKey(shared.hyphenate(event))];
@@ -2368,7 +2407,7 @@ var EE2 = (() => {
         let normalized = {};
         let hasExtends = false;
         if (!shared.isFunction(comp)) {
-          const extendEmits = (raw2) => {
+          const extendEmits = raw2 => {
             const normalizedFromExtend = normalizeEmitsOptions(raw2, appContext, true);
             if (normalizedFromExtend) {
               hasExtends = true;
@@ -2390,7 +2429,7 @@ var EE2 = (() => {
           return null;
         }
         if (shared.isArray(raw)) {
-          raw.forEach((key) => normalized[key] = null);
+          raw.forEach(key => normalized[key] = null);
         } else {
           shared.extend(normalized, raw);
         }
@@ -2418,10 +2457,9 @@ var EE2 = (() => {
       function popScopeId() {
         currentScopeId = null;
       }
-      var withScopeId = (_id) => withCtx;
+      var withScopeId = _id => withCtx;
       function withCtx(fn, ctx = currentRenderingInstance, isNonScopedSlot) {
-        if (!ctx)
-          return fn;
+        if (!ctx) return fn;
         if (fn._n) {
           return fn;
         }
@@ -2430,7 +2468,7 @@ var EE2 = (() => {
             setBlockTracking(-1);
           }
           const prevInstance = setCurrentRenderingInstance(ctx);
-          const res = fn(...args);
+          const res = fn.apply(void 0, args);
           setCurrentRenderingInstance(prevInstance);
           if (renderFnWithContext._d) {
             setBlockTracking(1);
@@ -2443,7 +2481,22 @@ var EE2 = (() => {
         return renderFnWithContext;
       }
       function renderComponentRoot(instance) {
-        const { type: Component, vnode, proxy, withProxy, props, propsOptions: [propsOptions], slots, attrs, emit: emit2, render, renderCache, data, setupState, ctx, inheritAttrs } = instance;
+        const Component = instance.type,
+          vnode = instance.vnode,
+          proxy = instance.proxy,
+          withProxy = instance.withProxy,
+          props = instance.props,
+          _instance$propsOption = _slicedToArray(instance.propsOptions, 1),
+          propsOptions = _instance$propsOption[0],
+          slots = instance.slots,
+          attrs = instance.attrs,
+          emit2 = instance.emit,
+          render = instance.render,
+          renderCache = instance.renderCache,
+          data = instance.data,
+          setupState = instance.setupState,
+          ctx = instance.ctx,
+          inheritAttrs = instance.inheritAttrs;
         let result;
         let fallthroughAttrs;
         const prev = setCurrentRenderingInstance(instance);
@@ -2462,27 +2515,25 @@ var EE2 = (() => {
               },
               slots,
               emit: emit2
-            } : { attrs, slots, emit: emit2 }) : render2(
-              props,
-              null
-              /* we know it doesn't need it */
-            ));
+            } : {
+              attrs,
+              slots,
+              emit: emit2
+            }) : render2(props, null
+            /* we know it doesn't need it */));
             fallthroughAttrs = Component.props ? attrs : getFunctionalFallthrough(attrs);
           }
         } catch (err2) {
           blockStack.length = 0;
-          handleError(
-            err2,
-            instance,
-            1
-            /* RENDER_FUNCTION */
-          );
+          handleError(err2, instance, 1
+          /* RENDER_FUNCTION */);
           result = createVNode(Comment);
         }
         let root = result;
         if (fallthroughAttrs && inheritAttrs !== false) {
           const keys = Object.keys(fallthroughAttrs);
-          const { shapeFlag } = root;
+          const _root = root,
+            shapeFlag = _root.shapeFlag;
           if (keys.length) {
             if (shapeFlag & (1 | 6)) {
               if (propsOptions && keys.some(shared.isModelListener)) {
@@ -2523,7 +2574,7 @@ var EE2 = (() => {
         }
         return singleRoot;
       }
-      var getFunctionalFallthrough = (attrs) => {
+      var getFunctionalFallthrough = attrs => {
         let res;
         for (const key in attrs) {
           if (key === "class" || key === "style" || shared.isOn(key)) {
@@ -2542,8 +2593,12 @@ var EE2 = (() => {
         return res;
       };
       function shouldUpdateComponent(prevVNode, nextVNode, optimized) {
-        const { props: prevProps, children: prevChildren, component } = prevVNode;
-        const { props: nextProps, children: nextChildren, patchFlag } = nextVNode;
+        const prevProps = prevVNode.props,
+          prevChildren = prevVNode.children,
+          component = prevVNode.component;
+        const nextProps = nextVNode.props,
+          nextChildren = nextVNode.children,
+          patchFlag = nextVNode.patchFlag;
         const emits = component.emitsOptions;
         if (nextVNode.dirs || nextVNode.transition) {
           return true;
@@ -2598,13 +2653,16 @@ var EE2 = (() => {
         }
         return false;
       }
-      function updateHOCHostEl({ vnode, parent }, el) {
+      function updateHOCHostEl({
+        vnode,
+        parent
+      }, el) {
         while (parent && parent.subTree === vnode) {
           (vnode = parent.vnode).el = el;
           parent = parent.parent;
         }
       }
-      var isSuspense = (type) => type.__isSuspense;
+      var isSuspense = type => type.__isSuspense;
       var SuspenseImpl = {
         name: "Suspense",
         // In order to make Suspense tree-shakable, we need to avoid importing it
@@ -2631,36 +2689,38 @@ var EE2 = (() => {
         }
       }
       function mountSuspense(vnode, container, anchor, parentComponent, parentSuspense, isSVG, slotScopeIds, optimized, rendererInternals) {
-        const { p: patch, o: { createElement } } = rendererInternals;
+        const patch = rendererInternals.p,
+          createElement = rendererInternals.o.createElement;
         const hiddenContainer = createElement("div");
         const suspense = vnode.suspense = createSuspenseBoundary(vnode, parentSuspense, parentComponent, container, hiddenContainer, anchor, isSVG, slotScopeIds, optimized, rendererInternals);
         patch(null, suspense.pendingBranch = vnode.ssContent, hiddenContainer, null, parentComponent, suspense, isSVG, slotScopeIds);
         if (suspense.deps > 0) {
           triggerEvent(vnode, "onPending");
           triggerEvent(vnode, "onFallback");
-          patch(
-            null,
-            vnode.ssFallback,
-            container,
-            anchor,
-            parentComponent,
-            null,
-            // fallback tree will not have suspense context
-            isSVG,
-            slotScopeIds
-          );
+          patch(null, vnode.ssFallback, container, anchor, parentComponent, null,
+          // fallback tree will not have suspense context
+          isSVG, slotScopeIds);
           setActiveBranch(suspense, vnode.ssFallback);
         } else {
           suspense.resolve();
         }
       }
-      function patchSuspense(n1, n2, container, anchor, parentComponent, isSVG, slotScopeIds, optimized, { p: patch, um: unmount, o: { createElement } }) {
+      function patchSuspense(n1, n2, container, anchor, parentComponent, isSVG, slotScopeIds, optimized, {
+        p: patch,
+        um: unmount,
+        o: {
+          createElement
+        }
+      }) {
         const suspense = n2.suspense = n1.suspense;
         suspense.vnode = n2;
         n2.el = n1.el;
         const newBranch = n2.ssContent;
         const newFallback = n2.ssFallback;
-        const { activeBranch, pendingBranch, isInFallback, isHydrating } = suspense;
+        const activeBranch = suspense.activeBranch,
+          pendingBranch = suspense.pendingBranch,
+          isInFallback = suspense.isInFallback,
+          isHydrating = suspense.isHydrating;
         if (pendingBranch) {
           suspense.pendingBranch = newBranch;
           if (isSameVNodeType(newBranch, pendingBranch)) {
@@ -2668,18 +2728,9 @@ var EE2 = (() => {
             if (suspense.deps <= 0) {
               suspense.resolve();
             } else if (isInFallback) {
-              patch(
-                activeBranch,
-                newFallback,
-                container,
-                anchor,
-                parentComponent,
-                null,
-                // fallback tree will not have suspense context
-                isSVG,
-                slotScopeIds,
-                optimized
-              );
+              patch(activeBranch, newFallback, container, anchor, parentComponent, null,
+              // fallback tree will not have suspense context
+              isSVG, slotScopeIds, optimized);
               setActiveBranch(suspense, newFallback);
             }
           } else {
@@ -2698,18 +2749,9 @@ var EE2 = (() => {
               if (suspense.deps <= 0) {
                 suspense.resolve();
               } else {
-                patch(
-                  activeBranch,
-                  newFallback,
-                  container,
-                  anchor,
-                  parentComponent,
-                  null,
-                  // fallback tree will not have suspense context
-                  isSVG,
-                  slotScopeIds,
-                  optimized
-                );
+                patch(activeBranch, newFallback, container, anchor, parentComponent, null,
+                // fallback tree will not have suspense context
+                isSVG, slotScopeIds, optimized);
                 setActiveBranch(suspense, newFallback);
               }
             } else if (activeBranch && isSameVNodeType(newBranch, activeBranch)) {
@@ -2734,7 +2776,8 @@ var EE2 = (() => {
             if (suspense.deps <= 0) {
               suspense.resolve();
             } else {
-              const { timeout, pendingId } = suspense;
+              const timeout = suspense.timeout,
+                pendingId = suspense.pendingId;
               if (timeout > 0) {
                 setTimeout(() => {
                   if (suspense.pendingId === pendingId) {
@@ -2749,7 +2792,13 @@ var EE2 = (() => {
         }
       }
       function createSuspenseBoundary(vnode, parent, parentComponent, container, hiddenContainer, anchor, isSVG, slotScopeIds, optimized, rendererInternals, isHydrating = false) {
-        const { p: patch, m: move, um: unmount, n: next, o: { parentNode, remove: remove2 } } = rendererInternals;
+        const patch = rendererInternals.p,
+          move = rendererInternals.m,
+          unmount = rendererInternals.um,
+          next = rendererInternals.n,
+          _rendererInternals$o = rendererInternals.o,
+          parentNode = _rendererInternals$o.parentNode,
+          remove2 = _rendererInternals$o.remove;
         const timeout = shared.toNumber(vnode.props && vnode.props.timeout);
         const suspense = {
           vnode,
@@ -2769,7 +2818,13 @@ var EE2 = (() => {
           isUnmounted: false,
           effects: [],
           resolve(resume = false) {
-            const { vnode: vnode2, activeBranch, pendingBranch, pendingId, effects, parentComponent: parentComponent2, container: container2 } = suspense;
+            const vnode2 = suspense.vnode,
+              activeBranch = suspense.activeBranch,
+              pendingBranch = suspense.pendingBranch,
+              pendingId = suspense.pendingId,
+              effects = suspense.effects,
+              parentComponent2 = suspense.parentComponent,
+              container2 = suspense.container;
             if (suspense.isHydrating) {
               suspense.isHydrating = false;
             } else if (!resume) {
@@ -2777,29 +2832,19 @@ var EE2 = (() => {
               if (delayEnter) {
                 activeBranch.transition.afterLeave = () => {
                   if (pendingId === suspense.pendingId) {
-                    move(
-                      pendingBranch,
-                      container2,
-                      anchor2,
-                      0
-                      /* ENTER */
-                    );
+                    move(pendingBranch, container2, anchor2, 0
+                    /* ENTER */);
                   }
                 };
               }
-              let { anchor: anchor2 } = suspense;
+              let anchor2 = suspense.anchor;
               if (activeBranch) {
                 anchor2 = next(activeBranch);
                 unmount(activeBranch, parentComponent2, suspense, true);
               }
               if (!delayEnter) {
-                move(
-                  pendingBranch,
-                  container2,
-                  anchor2,
-                  0
-                  /* ENTER */
-                );
+                move(pendingBranch, container2, anchor2, 0
+                /* ENTER */);
               }
             }
             setActiveBranch(suspense, pendingBranch);
@@ -2809,7 +2854,8 @@ var EE2 = (() => {
             let hasUnresolvedAncestor = false;
             while (parent2) {
               if (parent2.pendingBranch) {
-                parent2.effects.push(...effects);
+                var _parent2$effects;
+                (_parent2$effects = parent2.effects).push.apply(_parent2$effects, _toConsumableArray(effects));
                 hasUnresolvedAncestor = true;
                 break;
               }
@@ -2825,25 +2871,20 @@ var EE2 = (() => {
             if (!suspense.pendingBranch) {
               return;
             }
-            const { vnode: vnode2, activeBranch, parentComponent: parentComponent2, container: container2, isSVG: isSVG2 } = suspense;
+            const vnode2 = suspense.vnode,
+              activeBranch = suspense.activeBranch,
+              parentComponent2 = suspense.parentComponent,
+              container2 = suspense.container,
+              isSVG2 = suspense.isSVG;
             triggerEvent(vnode2, "onFallback");
             const anchor2 = next(activeBranch);
             const mountFallback = () => {
               if (!suspense.isInFallback) {
                 return;
               }
-              patch(
-                null,
-                fallbackVNode,
-                container2,
-                anchor2,
-                parentComponent2,
-                null,
-                // fallback tree will not have suspense context
-                isSVG2,
-                slotScopeIds,
-                optimized
-              );
+              patch(null, fallbackVNode, container2, anchor2, parentComponent2, null,
+              // fallback tree will not have suspense context
+              isSVG2, slotScopeIds, optimized);
               setActiveBranch(suspense, fallbackVNode);
             };
             const delayEnter = fallbackVNode.transition && fallbackVNode.transition.mode === "out-in";
@@ -2851,13 +2892,10 @@ var EE2 = (() => {
               activeBranch.transition.afterLeave = mountFallback;
             }
             suspense.isInFallback = true;
-            unmount(
-              activeBranch,
-              parentComponent2,
-              null,
-              // no suspense so unmount hooks fire now
-              true
-              // shouldRemove
+            unmount(activeBranch, parentComponent2, null,
+            // no suspense so unmount hooks fire now
+            true
+            // shouldRemove
             );
             if (!delayEnter) {
               mountFallback();
@@ -2876,38 +2914,28 @@ var EE2 = (() => {
               suspense.deps++;
             }
             const hydratedEl = instance.vnode.el;
-            instance.asyncDep.catch((err2) => {
-              handleError(
-                err2,
-                instance,
-                0
-                /* SETUP_FUNCTION */
-              );
-            }).then((asyncSetupResult) => {
+            instance.asyncDep.catch(err2 => {
+              handleError(err2, instance, 0
+              /* SETUP_FUNCTION */);
+            }).then(asyncSetupResult => {
               if (instance.isUnmounted || suspense.isUnmounted || suspense.pendingId !== instance.suspenseId) {
                 return;
               }
               instance.asyncResolved = true;
-              const { vnode: vnode2 } = instance;
+              const vnode2 = instance.vnode;
               handleSetupResult(instance, asyncSetupResult, false);
               if (hydratedEl) {
                 vnode2.el = hydratedEl;
               }
               const placeholder = !hydratedEl && instance.subTree.el;
-              setupRenderEffect(
-                instance,
-                vnode2,
-                // component may have been moved before resolve.
-                // if this is not a hydration, instance.subTree will be the comment
-                // placeholder.
-                parentNode(hydratedEl || instance.subTree.el),
-                // anchor will not be used if this is hydration, so only need to
-                // consider the comment placeholder case.
-                hydratedEl ? null : next(instance.subTree),
-                suspense,
-                isSVG,
-                optimized
-              );
+              setupRenderEffect(instance, vnode2,
+              // component may have been moved before resolve.
+              // if this is not a hydration, instance.subTree will be the comment
+              // placeholder.
+              parentNode(hydratedEl || instance.subTree.el),
+              // anchor will not be used if this is hydration, so only need to
+              // consider the comment placeholder case.
+              hydratedEl ? null : next(instance.subTree), suspense, isSVG, optimized);
               if (placeholder) {
                 remove2(placeholder);
               }
@@ -2930,20 +2958,8 @@ var EE2 = (() => {
         return suspense;
       }
       function hydrateSuspense(node, vnode, parentComponent, parentSuspense, isSVG, slotScopeIds, optimized, rendererInternals, hydrateNode) {
-        const suspense = vnode.suspense = createSuspenseBoundary(
-          vnode,
-          parentSuspense,
-          parentComponent,
-          node.parentNode,
-          document.createElement("div"),
-          null,
-          isSVG,
-          slotScopeIds,
-          optimized,
-          rendererInternals,
-          true
-          /* hydrating */
-        );
+        const suspense = vnode.suspense = createSuspenseBoundary(vnode, parentSuspense, parentComponent, node.parentNode, document.createElement("div"), null, isSVG, slotScopeIds, optimized, rendererInternals, true
+        /* hydrating */);
         const result = hydrateNode(node, suspense.pendingBranch = vnode.ssContent, parentComponent, suspense, slotScopeIds, optimized);
         if (suspense.deps === 0) {
           suspense.resolve();
@@ -2951,7 +2967,8 @@ var EE2 = (() => {
         return result;
       }
       function normalizeSuspenseChildren(vnode) {
-        const { shapeFlag, children } = vnode;
+        const shapeFlag = vnode.shapeFlag,
+          children = vnode.children;
         const isSlotChildren = shapeFlag & 32;
         vnode.ssContent = normalizeSuspenseSlot(isSlotChildren ? children.default : children);
         vnode.ssFallback = isSlotChildren ? normalizeSuspenseSlot(children.fallback) : createVNode(Comment);
@@ -2977,14 +2994,15 @@ var EE2 = (() => {
         }
         s = normalizeVNode(s);
         if (block && !s.dynamicChildren) {
-          s.dynamicChildren = block.filter((c) => c !== s);
+          s.dynamicChildren = block.filter(c => c !== s);
         }
         return s;
       }
       function queueEffectWithSuspense(fn, suspense) {
         if (suspense && suspense.pendingBranch) {
           if (shared.isArray(fn)) {
-            suspense.effects.push(...fn);
+            var _suspense$effects;
+            (_suspense$effects = suspense.effects).push.apply(_suspense$effects, _toConsumableArray(fn));
           } else {
             suspense.effects.push(fn);
           }
@@ -2994,7 +3012,8 @@ var EE2 = (() => {
       }
       function setActiveBranch(suspense, branch) {
         suspense.activeBranch = branch;
-        const { vnode, parentComponent } = suspense;
+        const vnode = suspense.vnode,
+          parentComponent = suspense.parentComponent;
         const el = vnode.el = branch.el;
         if (parentComponent && parentComponent.subTree === vnode) {
           parentComponent.vnode.el = el;
@@ -3002,8 +3021,7 @@ var EE2 = (() => {
         }
       }
       function provide2(key, value) {
-        if (!currentInstance) ;
-        else {
+        if (!currentInstance) ;else {
           let provides = currentInstance.provides;
           const parentProvides = currentInstance.parent && currentInstance.parent.provides;
           if (parentProvides === provides) {
@@ -3027,16 +3045,26 @@ var EE2 = (() => {
         return doWatch(effect2, null, options);
       }
       function watchPostEffect(effect2, options) {
-        return doWatch(effect2, null, { flush: "post" });
+        return doWatch(effect2, null, {
+          flush: "post"
+        });
       }
       function watchSyncEffect(effect2, options) {
-        return doWatch(effect2, null, { flush: "sync" });
+        return doWatch(effect2, null, {
+          flush: "sync"
+        });
       }
       var INITIAL_WATCHER_VALUE = {};
       function watch2(source, cb, options) {
         return doWatch(source, cb, options);
       }
-      function doWatch(source, cb, { immediate, deep, flush: flush2, onTrack, onTrigger } = shared.EMPTY_OBJ) {
+      function doWatch(source, cb, {
+        immediate,
+        deep,
+        flush: flush2,
+        onTrack,
+        onTrigger
+      } = shared.EMPTY_OBJ) {
         const instance = currentInstance;
         let getter;
         let forceTrigger = false;
@@ -3049,29 +3077,21 @@ var EE2 = (() => {
           deep = true;
         } else if (shared.isArray(source)) {
           isMultiSource = true;
-          forceTrigger = source.some((s) => reactivity.isReactive(s) || reactivity.isShallow(s));
-          getter = () => source.map((s) => {
+          forceTrigger = source.some(s => reactivity.isReactive(s) || reactivity.isShallow(s));
+          getter = () => source.map(s => {
             if (reactivity.isRef(s)) {
               return s.value;
             } else if (reactivity.isReactive(s)) {
               return traverse(s);
             } else if (shared.isFunction(s)) {
-              return callWithErrorHandling(
-                s,
-                instance,
-                2
-                /* WATCH_GETTER */
-              );
+              return callWithErrorHandling(s, instance, 2
+              /* WATCH_GETTER */);
             } else ;
           });
         } else if (shared.isFunction(source)) {
           if (cb) {
-            getter = () => callWithErrorHandling(
-              source,
-              instance,
-              2
-              /* WATCH_GETTER */
-            );
+            getter = () => callWithErrorHandling(source, instance, 2
+            /* WATCH_GETTER */);
           } else {
             getter = () => {
               if (instance && instance.isUnmounted) {
@@ -3091,14 +3111,10 @@ var EE2 = (() => {
           getter = () => traverse(baseGetter());
         }
         let cleanup;
-        let onCleanup = (fn) => {
+        let onCleanup = fn => {
           cleanup = effect2.onStop = () => {
-            callWithErrorHandling(
-              fn,
-              instance,
-              4
-              /* WATCH_CLEANUP */
-            );
+            callWithErrorHandling(fn, instance, 4
+            /* WATCH_CLEANUP */);
           };
         };
         if (isInSSRComponentSetup) {
@@ -3106,11 +3122,7 @@ var EE2 = (() => {
           if (!cb) {
             getter();
           } else if (immediate) {
-            callWithAsyncErrorHandling(cb, instance, 3, [
-              getter(),
-              isMultiSource ? [] : void 0,
-              onCleanup
-            ]);
+            callWithAsyncErrorHandling(cb, instance, 3, [getter(), isMultiSource ? [] : void 0, onCleanup]);
           }
           return shared.NOOP;
         }
@@ -3125,12 +3137,9 @@ var EE2 = (() => {
               if (cleanup) {
                 cleanup();
               }
-              callWithAsyncErrorHandling(cb, instance, 3, [
-                newValue,
-                // pass undefined as the old value when it's changed for the first time
-                oldValue === INITIAL_WATCHER_VALUE ? void 0 : oldValue,
-                onCleanup
-              ]);
+              callWithAsyncErrorHandling(cb, instance, 3, [newValue,
+              // pass undefined as the old value when it's changed for the first time
+              oldValue === INITIAL_WATCHER_VALUE ? void 0 : oldValue, onCleanup]);
               oldValue = newValue;
             }
           } else {
@@ -3196,13 +3205,11 @@ var EE2 = (() => {
         };
       }
       function traverse(value, seen) {
-        if (!shared.isObject(value) || value[
-          "__v_skip"
-          /* SKIP */
-        ]) {
+        if (!shared.isObject(value) || value["__v_skip"
+        /* SKIP */]) {
           return value;
         }
-        seen = seen || /* @__PURE__ */ new Set();
+        seen = seen || /* @__PURE__ */new Set();
         if (seen.has(value)) {
           return value;
         }
@@ -3214,7 +3221,7 @@ var EE2 = (() => {
             traverse(value[i], seen);
           }
         } else if (shared.isSet(value) || shared.isMap(value)) {
-          value.forEach((v) => {
+          value.forEach(v => {
             traverse(v, seen);
           });
         } else if (shared.isPlainObject(value)) {
@@ -3229,7 +3236,7 @@ var EE2 = (() => {
           isMounted: false,
           isLeaving: false,
           isUnmounting: false,
-          leavingVNodes: /* @__PURE__ */ new Map()
+          leavingVNodes: /* @__PURE__ */new Map()
         };
         onMounted2(() => {
           state.isMounted = true;
@@ -3262,7 +3269,9 @@ var EE2 = (() => {
           onAfterAppear: TransitionHookValidator,
           onAppearCancelled: TransitionHookValidator
         },
-        setup(props, { slots }) {
+        setup(props, {
+          slots
+        }) {
           const instance = getCurrentInstance2();
           const state = useTransitionState();
           let prevTransitionKey;
@@ -3273,15 +3282,24 @@ var EE2 = (() => {
             }
             let child = children[0];
             if (children.length > 1) {
-              for (const c of children) {
-                if (c.type !== Comment) {
-                  child = c;
-                  break;
+              {
+                const _a10 = children;
+                if (Array.isArray(_a10)) for (let _i0 = 0; _i0 < _a10.length; _i0++) {
+                  const c = _a10[_i0];
+                  if (c.type !== Comment) {
+                    child = c;
+                    break;
+                  }
+                } else for (const c of _a10) {
+                  if (c.type !== Comment) {
+                    child = c;
+                    break;
+                  }
                 }
               }
             }
             const rawProps = reactivity.toRaw(props);
-            const { mode } = rawProps;
+            const mode = rawProps.mode;
             if (state.isLeaving) {
               return emptyPlaceholder(child);
             }
@@ -3294,7 +3312,7 @@ var EE2 = (() => {
             const oldChild = instance.subTree;
             const oldInnerChild = oldChild && getKeepAliveChild(oldChild);
             let transitionKeyChanged = false;
-            const { getTransitionKey } = innerChild.type;
+            const getTransitionKey = innerChild.type.getTransitionKey;
             if (getTransitionKey) {
               const key = getTransitionKey();
               if (prevTransitionKey === void 0) {
@@ -3333,16 +3351,31 @@ var EE2 = (() => {
       };
       var BaseTransition = BaseTransitionImpl;
       function getLeavingNodesForType(state, vnode) {
-        const { leavingVNodes } = state;
+        const leavingVNodes = state.leavingVNodes;
         let leavingVNodesCache = leavingVNodes.get(vnode.type);
         if (!leavingVNodesCache) {
-          leavingVNodesCache = /* @__PURE__ */ Object.create(null);
+          leavingVNodesCache = /* @__PURE__ */Object.create(null);
           leavingVNodes.set(vnode.type, leavingVNodesCache);
         }
         return leavingVNodesCache;
       }
       function resolveTransitionHooks(vnode, props, state, instance) {
-        const { appear, mode, persisted = false, onBeforeEnter, onEnter, onAfterEnter, onEnterCancelled, onBeforeLeave, onLeave, onAfterLeave, onLeaveCancelled, onBeforeAppear, onAppear, onAfterAppear, onAppearCancelled } = props;
+        const appear = props.appear,
+          mode = props.mode,
+          _props$persisted = props.persisted,
+          persisted = _props$persisted === void 0 ? false : _props$persisted,
+          onBeforeEnter = props.onBeforeEnter,
+          onEnter = props.onEnter,
+          onAfterEnter = props.onAfterEnter,
+          onEnterCancelled = props.onEnterCancelled,
+          onBeforeLeave = props.onBeforeLeave,
+          onLeave = props.onLeave,
+          onAfterLeave = props.onAfterLeave,
+          onLeaveCancelled = props.onLeaveCancelled,
+          onBeforeAppear = props.onBeforeAppear,
+          onAppear = props.onAppear,
+          onAfterAppear = props.onAfterAppear,
+          onAppearCancelled = props.onAppearCancelled;
         const key = String(vnode.key);
         const leavingVNodesCache = getLeavingNodesForType(state, vnode);
         const callHook2 = (hook, args) => {
@@ -3352,8 +3385,7 @@ var EE2 = (() => {
           const done = args[1];
           callHook2(hook, args);
           if (shared.isArray(hook)) {
-            if (hook.every((hook2) => hook2.length <= 1))
-              done();
+            if (hook.every(hook2 => hook2.length <= 1)) done();
           } else if (hook.length <= 1) {
             done();
           }
@@ -3371,10 +3403,8 @@ var EE2 = (() => {
               }
             }
             if (el._leaveCb) {
-              el._leaveCb(
-                true
-                /* cancelled */
-              );
+              el._leaveCb(true
+              /* cancelled */);
             }
             const leavingVNode = leavingVNodesCache[key];
             if (leavingVNode && isSameVNodeType(vnode, leavingVNode) && leavingVNode.el._leaveCb) {
@@ -3396,9 +3426,8 @@ var EE2 = (() => {
               }
             }
             let called = false;
-            const done = el._enterCb = (cancelled) => {
-              if (called)
-                return;
+            const done = el._enterCb = cancelled => {
+              if (called) return;
               called = true;
               if (cancelled) {
                 callHook2(cancelHook, [el]);
@@ -3419,19 +3448,16 @@ var EE2 = (() => {
           leave(el, remove2) {
             const key2 = String(vnode.key);
             if (el._enterCb) {
-              el._enterCb(
-                true
-                /* cancelled */
-              );
+              el._enterCb(true
+              /* cancelled */);
             }
             if (state.isUnmounting) {
               return remove2();
             }
             callHook2(onBeforeLeave, [el]);
             let called = false;
-            const done = el._leaveCb = (cancelled) => {
-              if (called)
-                return;
+            const done = el._leaveCb = cancelled => {
+              if (called) return;
               called = true;
               remove2();
               if (cancelled) {
@@ -3484,11 +3510,12 @@ var EE2 = (() => {
           let child = children[i];
           const key = parentKey == null ? child.key : String(parentKey) + String(child.key != null ? child.key : i);
           if (child.type === Fragment) {
-            if (child.patchFlag & 128)
-              keyedFragmentCount++;
+            if (child.patchFlag & 128) keyedFragmentCount++;
             ret = ret.concat(getTransitionRawChildren(child.children, keepComment, key));
           } else if (keepComment || child.type !== Comment) {
-            ret.push(key != null ? cloneVNode(child, { key }) : child);
+            ret.push(key != null ? cloneVNode(child, {
+              key
+            }) : child);
           }
         }
         if (keyedFragmentCount > 1) {
@@ -3499,23 +3526,28 @@ var EE2 = (() => {
         return ret;
       }
       function defineComponent(options) {
-        return shared.isFunction(options) ? { setup: options, name: options.name } : options;
+        return shared.isFunction(options) ? {
+          setup: options,
+          name: options.name
+        } : options;
       }
-      var isAsyncWrapper = (i) => !!i.type.__asyncLoader;
+      var isAsyncWrapper = i => !!i.type.__asyncLoader;
       function defineAsyncComponent(source) {
         if (shared.isFunction(source)) {
-          source = { loader: source };
+          source = {
+            loader: source
+          };
         }
-        const {
-          loader,
-          loadingComponent,
-          errorComponent,
-          delay = 200,
-          timeout,
-          // undefined = never times out
-          suspensible = true,
-          onError: userOnError
-        } = source;
+        const _source = source,
+          loader = _source.loader,
+          loadingComponent = _source.loadingComponent,
+          errorComponent = _source.errorComponent,
+          _source$delay = _source.delay,
+          delay = _source$delay === void 0 ? 200 : _source$delay,
+          timeout = _source.timeout,
+          _source$suspensible = _source.suspensible,
+          suspensible = _source$suspensible === void 0 ? true : _source$suspensible,
+          userOnError = _source.onError;
         let pendingRequest = null;
         let resolvedComp;
         let retries = 0;
@@ -3526,7 +3558,7 @@ var EE2 = (() => {
         };
         const load2 = () => {
           let thisRequest;
-          return pendingRequest || (thisRequest = pendingRequest = loader().catch((err2) => {
+          return pendingRequest || (thisRequest = pendingRequest = loader().catch(err2 => {
             err2 = err2 instanceof Error ? err2 : new Error(String(err2));
             if (userOnError) {
               return new Promise((resolve2, reject) => {
@@ -3537,7 +3569,7 @@ var EE2 = (() => {
             } else {
               throw err2;
             }
-          }).then((comp) => {
+          }).then(comp => {
             if (thisRequest !== pendingRequest && pendingRequest) {
               return pendingRequest;
             }
@@ -3559,20 +3591,15 @@ var EE2 = (() => {
             if (resolvedComp) {
               return () => createInnerComp(resolvedComp, instance);
             }
-            const onError = (err2) => {
+            const onError = err2 => {
               pendingRequest = null;
-              handleError(
-                err2,
-                instance,
-                13,
-                !errorComponent
-                /* do not throw in dev if user provided error component */
-              );
+              handleError(err2, instance, 13, !errorComponent
+              /* do not throw in dev if user provided error component */);
             };
             if (suspensible && instance.suspense || isInSSRComponentSetup) {
-              return load2().then((comp) => {
+              return load2().then(comp => {
                 return () => createInnerComp(comp, instance);
-              }).catch((err2) => {
+              }).catch(err2 => {
                 onError(err2);
                 return () => errorComponent ? createVNode(errorComponent, {
                   error: err2
@@ -3601,7 +3628,7 @@ var EE2 = (() => {
               if (instance.parent && isKeepAlive(instance.parent.vnode)) {
                 queueJob(instance.parent.update);
               }
-            }).catch((err2) => {
+            }).catch(err2 => {
               onError(err2);
               error.value = err2;
             });
@@ -3619,12 +3646,20 @@ var EE2 = (() => {
           }
         });
       }
-      function createInnerComp(comp, { vnode: { ref: ref3, props, children, shapeFlag }, parent }) {
+      function createInnerComp(comp, {
+        vnode: {
+          ref: ref3,
+          props,
+          children,
+          shapeFlag
+        },
+        parent
+      }) {
         const vnode = createVNode(comp, props, children);
         vnode.ref = ref3;
         return vnode;
       }
-      var isKeepAlive = (vnode) => vnode.type.__isKeepAlive;
+      var isKeepAlive = vnode => vnode.type.__isKeepAlive;
       var KeepAliveImpl = {
         name: `KeepAlive`,
         // Marker for special handling inside the renderer. We are not using a ===
@@ -3636,7 +3671,9 @@ var EE2 = (() => {
           exclude: [String, RegExp, Array],
           max: [String, Number]
         },
-        setup(props, { slots }) {
+        setup(props, {
+          slots
+        }) {
           const instance = getCurrentInstance2();
           const sharedContext = instance.ctx;
           if (!sharedContext.renderer) {
@@ -3645,11 +3682,15 @@ var EE2 = (() => {
               return children && children.length === 1 ? children[0] : children;
             };
           }
-          const cache3 = /* @__PURE__ */ new Map();
-          const keys = /* @__PURE__ */ new Set();
+          const cache3 = /* @__PURE__ */new Map();
+          const keys = /* @__PURE__ */new Set();
           let current2 = null;
           const parentSuspense = instance.suspense;
-          const { renderer: { p: patch, m: move, um: _unmount, o: { createElement } } } = sharedContext;
+          const _sharedContext$render = sharedContext.renderer,
+            patch = _sharedContext$render.p,
+            move = _sharedContext$render.m,
+            _unmount = _sharedContext$render.um,
+            createElement = _sharedContext$render.o.createElement;
           const storageContainer = createElement("div");
           sharedContext.activate = (vnode, container, anchor, isSVG, optimized) => {
             const instance2 = vnode.component;
@@ -3666,7 +3707,7 @@ var EE2 = (() => {
               }
             }, parentSuspense);
           };
-          sharedContext.deactivate = (vnode) => {
+          sharedContext.deactivate = vnode => {
             const instance2 = vnode.component;
             move(vnode, storageContainer, null, 1, parentSuspense);
             queuePostRenderEffect(() => {
@@ -3702,15 +3743,15 @@ var EE2 = (() => {
             cache3.delete(key);
             keys.delete(key);
           }
-          watch2(
-            () => [props.include, props.exclude],
-            ([include, exclude]) => {
-              include && pruneCache((name) => matches(include, name));
-              exclude && pruneCache((name) => !matches(exclude, name));
-            },
-            // prune post-render after `current` has been updated
-            { flush: "post", deep: true }
-          );
+          watch2(() => [props.include, props.exclude], ([include, exclude]) => {
+            include && pruneCache(name => matches(include, name));
+            exclude && pruneCache(name => !matches(exclude, name));
+          },
+          // prune post-render after `current` has been updated
+          {
+            flush: "post",
+            deep: true
+          });
           let pendingCacheKey = null;
           const cacheSubtree = () => {
             if (pendingCacheKey != null) {
@@ -3720,8 +3761,9 @@ var EE2 = (() => {
           onMounted2(cacheSubtree);
           onUpdated(cacheSubtree);
           onBeforeUnmount2(() => {
-            cache3.forEach((cached) => {
-              const { subTree, suspense } = instance;
+            cache3.forEach(cached => {
+              const subTree = instance.subTree,
+                suspense = instance.suspense;
               const vnode = getInnerChild(subTree);
               if (cached.type === vnode.type) {
                 resetShapeFlag(vnode);
@@ -3749,7 +3791,9 @@ var EE2 = (() => {
             let vnode = getInnerChild(rawVNode);
             const comp = vnode.type;
             const name = getComponentName(isAsyncWrapper(vnode) ? vnode.type.__asyncResolved || {} : comp);
-            const { include, exclude, max } = props;
+            const include = props.include,
+              exclude = props.exclude,
+              max = props.max;
             if (include && (!name || !matches(include, name)) || exclude && name && matches(exclude, name)) {
               current2 = vnode;
               return rawVNode;
@@ -3787,7 +3831,7 @@ var EE2 = (() => {
       var KeepAlive = KeepAliveImpl;
       function matches(pattern, name) {
         if (shared.isArray(pattern)) {
-          return pattern.some((p) => matches(p, name));
+          return pattern.some(p => matches(p, name));
         } else if (shared.isString(pattern)) {
           return pattern.split(",").includes(name);
         } else if (pattern.test) {
@@ -3824,13 +3868,8 @@ var EE2 = (() => {
         }
       }
       function injectToKeepAliveRoot(hook, type, target, keepAliveRoot) {
-        const injected = injectHook(
-          type,
-          hook,
-          keepAliveRoot,
-          true
-          /* prepend */
-        );
+        const injected = injectHook(type, hook, keepAliveRoot, true
+        /* prepend */);
         onUnmounted2(() => {
           shared.remove(keepAliveRoot[type], injected);
         }, target);
@@ -3870,46 +3909,27 @@ var EE2 = (() => {
           return wrappedHook;
         }
       }
-      var createHook = (lifecycle) => (hook, target = currentInstance) => (
-        // post-create lifecycle registrations are noops during SSR (except for serverPrefetch)
-        (!isInSSRComponentSetup || lifecycle === "sp") && injectHook(lifecycle, hook, target)
-      );
-      var onBeforeMount2 = createHook(
-        "bm"
-        /* BEFORE_MOUNT */
-      );
-      var onMounted2 = createHook(
-        "m"
-        /* MOUNTED */
-      );
-      var onBeforeUpdate = createHook(
-        "bu"
-        /* BEFORE_UPDATE */
-      );
-      var onUpdated = createHook(
-        "u"
-        /* UPDATED */
-      );
-      var onBeforeUnmount2 = createHook(
-        "bum"
-        /* BEFORE_UNMOUNT */
-      );
-      var onUnmounted2 = createHook(
-        "um"
-        /* UNMOUNTED */
-      );
-      var onServerPrefetch = createHook(
-        "sp"
-        /* SERVER_PREFETCH */
-      );
-      var onRenderTriggered = createHook(
-        "rtg"
-        /* RENDER_TRIGGERED */
-      );
-      var onRenderTracked = createHook(
-        "rtc"
-        /* RENDER_TRACKED */
-      );
+      var createHook = lifecycle => (hook, target = currentInstance) =>
+      // post-create lifecycle registrations are noops during SSR (except for serverPrefetch)
+      (!isInSSRComponentSetup || lifecycle === "sp") && injectHook(lifecycle, hook, target);
+      var onBeforeMount2 = createHook("bm"
+      /* BEFORE_MOUNT */);
+      var onMounted2 = createHook("m"
+      /* MOUNTED */);
+      var onBeforeUpdate = createHook("bu"
+      /* BEFORE_UPDATE */);
+      var onUpdated = createHook("u"
+      /* UPDATED */);
+      var onBeforeUnmount2 = createHook("bum"
+      /* BEFORE_UNMOUNT */);
+      var onUnmounted2 = createHook("um"
+      /* UNMOUNTED */);
+      var onServerPrefetch = createHook("sp"
+      /* SERVER_PREFETCH */);
+      var onRenderTriggered = createHook("rtg"
+      /* RENDER_TRIGGERED */);
+      var onRenderTracked = createHook("rtc"
+      /* RENDER_TRACKED */);
       function onErrorCaptured(hook, target = currentInstance) {
         injectHook("ec", hook, target);
       }
@@ -3921,7 +3941,12 @@ var EE2 = (() => {
         const instance = getExposeProxy(internalInstance) || internalInstance.proxy;
         const bindings = vnode.dirs || (vnode.dirs = []);
         for (let i = 0; i < directives.length; i++) {
-          let [dir, value, arg, modifiers = shared.EMPTY_OBJ] = directives[i];
+          let _directives$i = _slicedToArray(directives[i], 4),
+            dir = _directives$i[0],
+            value = _directives$i[1],
+            arg = _directives$i[2],
+            _directives$i$ = _directives$i[3],
+            modifiers = _directives$i$ === void 0 ? shared.EMPTY_OBJ : _directives$i$;
           if (shared.isFunction(dir)) {
             dir = {
               mounted: dir,
@@ -3953,12 +3978,7 @@ var EE2 = (() => {
           let hook = binding.dir[name];
           if (hook) {
             reactivity.pauseTracking();
-            callWithAsyncErrorHandling(hook, instance, 8, [
-              vnode.el,
-              binding,
-              vnode,
-              prevVNode
-            ]);
+            callWithAsyncErrorHandling(hook, instance, 8, [vnode.el, binding, vnode, prevVNode]);
             reactivity.resetTracking();
           }
         }
@@ -3984,21 +4004,18 @@ var EE2 = (() => {
         if (instance) {
           const Component = instance.type;
           if (type === COMPONENTS) {
-            const selfName = getComponentName(
-              Component,
-              false
-              /* do not include inferred name to avoid breaking existing code */
-            );
+            const selfName = getComponentName(Component, false
+            /* do not include inferred name to avoid breaking existing code */);
             if (selfName && (selfName === name || selfName === shared.camelize(name) || selfName === shared.capitalize(shared.camelize(name)))) {
               return Component;
             }
           }
-          const res = (
-            // local registration
-            // check instance[type] first which is resolved for options API
-            resolve(instance[type] || Component[type], name) || // global registration
-            resolve(instance.appContext[type], name)
-          );
+          const res =
+          // local registration
+          // check instance[type] first which is resolved for options API
+          resolve(instance[type] || Component[type], name) ||
+          // global registration
+          resolve(instance.appContext[type], name);
           if (!res && maybeSelfReference) {
             return Component;
           }
@@ -4055,7 +4072,9 @@ var EE2 = (() => {
       }
       function renderSlot(slots, name, props = {}, fallback, noSlotted) {
         if (currentRenderingInstance.isCE || currentRenderingInstance.parent && isAsyncWrapper(currentRenderingInstance.parent) && currentRenderingInstance.parent.isCE) {
-          return createVNode("slot", name === "default" ? null : { name }, fallback && fallback());
+          return createVNode("slot", name === "default" ? null : {
+            name
+          }, fallback && fallback());
         }
         let slot = slots[name];
         if (slot && slot._c) {
@@ -4063,13 +4082,10 @@ var EE2 = (() => {
         }
         openBlock();
         const validSlotContent = slot && ensureValidVNode(slot(props));
-        const rendered = createBlock(
-          Fragment,
-          { key: props.key || `_${name}` },
-          validSlotContent || (fallback ? fallback() : []),
-          validSlotContent && slots._ === 1 ? 64 : -2
-          /* BAIL */
-        );
+        const rendered = createBlock(Fragment, {
+          key: props.key || `_${name}`
+        }, validSlotContent || (fallback ? fallback() : []), validSlotContent && slots._ === 1 ? 64 : -2
+        /* BAIL */);
         if (!noSlotted && rendered.scopeId) {
           rendered.slotScopeIds = [rendered.scopeId + "-s"];
         }
@@ -4079,13 +4095,10 @@ var EE2 = (() => {
         return rendered;
       }
       function ensureValidVNode(vnodes) {
-        return vnodes.some((child) => {
-          if (!isVNode(child))
-            return true;
-          if (child.type === Comment)
-            return false;
-          if (child.type === Fragment && !ensureValidVNode(child.children))
-            return false;
+        return vnodes.some(child => {
+          if (!isVNode(child)) return true;
+          if (child.type === Comment) return false;
+          if (child.type === Fragment && !ensureValidVNode(child.children)) return false;
           return true;
         }) ? vnodes : null;
       }
@@ -4096,36 +4109,42 @@ var EE2 = (() => {
         }
         return ret;
       }
-      var getPublicInstance = (i) => {
-        if (!i)
-          return null;
-        if (isStatefulComponent(i))
-          return getExposeProxy(i) || i.proxy;
+      var getPublicInstance = i => {
+        if (!i) return null;
+        if (isStatefulComponent(i)) return getExposeProxy(i) || i.proxy;
         return getPublicInstance(i.parent);
       };
-      var publicPropertiesMap = (
-        // Move PURE marker to new line to workaround compiler discarding it
-        // due to type annotation
-        /* @__PURE__ */ shared.extend(/* @__PURE__ */ Object.create(null), {
-          $: (i) => i,
-          $el: (i) => i.vnode.el,
-          $data: (i) => i.data,
-          $props: (i) => i.props,
-          $attrs: (i) => i.attrs,
-          $slots: (i) => i.slots,
-          $refs: (i) => i.refs,
-          $parent: (i) => getPublicInstance(i.parent),
-          $root: (i) => getPublicInstance(i.root),
-          $emit: (i) => i.emit,
-          $options: (i) => resolveMergedOptions(i),
-          $forceUpdate: (i) => i.f || (i.f = () => queueJob(i.update)),
-          $nextTick: (i) => i.n || (i.n = nextTick2.bind(i.proxy)),
-          $watch: (i) => instanceWatch.bind(i)
-        })
-      );
+      var publicPropertiesMap =
+      // Move PURE marker to new line to workaround compiler discarding it
+      // due to type annotation
+      /* @__PURE__ */
+      shared.extend(/* @__PURE__ */Object.create(null), {
+        $: i => i,
+        $el: i => i.vnode.el,
+        $data: i => i.data,
+        $props: i => i.props,
+        $attrs: i => i.attrs,
+        $slots: i => i.slots,
+        $refs: i => i.refs,
+        $parent: i => getPublicInstance(i.parent),
+        $root: i => getPublicInstance(i.root),
+        $emit: i => i.emit,
+        $options: i => resolveMergedOptions(i),
+        $forceUpdate: i => i.f || (i.f = () => queueJob(i.update)),
+        $nextTick: i => i.n || (i.n = nextTick2.bind(i.proxy)),
+        $watch: i => instanceWatch.bind(i)
+      });
       var PublicInstanceProxyHandlers = {
-        get({ _: instance }, key) {
-          const { ctx, setupState, data, props, accessCache, type, appContext } = instance;
+        get({
+          _: instance
+        }, key) {
+          const ctx = instance.ctx,
+            setupState = instance.setupState,
+            data = instance.data,
+            props = instance.props,
+            accessCache = instance.accessCache,
+            type = instance.type,
+            appContext = instance.appContext;
           let normalizedProps;
           if (key[0] !== "$") {
             const n = accessCache[key];
@@ -4147,10 +4166,9 @@ var EE2 = (() => {
               accessCache[key] = 2;
               return data[key];
             } else if (
-              // only cache other properties when instance has declared (thus stable)
-              // props
-              (normalizedProps = instance.propsOptions[0]) && shared.hasOwn(normalizedProps, key)
-            ) {
+            // only cache other properties when instance has declared (thus stable)
+            // props
+            (normalizedProps = instance.propsOptions[0]) && shared.hasOwn(normalizedProps, key)) {
               accessCache[key] = 3;
               return props[key];
             } else if (ctx !== shared.EMPTY_OBJ && shared.hasOwn(ctx, key)) {
@@ -4168,24 +4186,26 @@ var EE2 = (() => {
             }
             return publicGetter(instance);
           } else if (
-            // css module (injected by vue-loader)
-            (cssModule = type.__cssModules) && (cssModule = cssModule[key])
-          ) {
+          // css module (injected by vue-loader)
+          (cssModule = type.__cssModules) && (cssModule = cssModule[key])) {
             return cssModule;
           } else if (ctx !== shared.EMPTY_OBJ && shared.hasOwn(ctx, key)) {
             accessCache[key] = 4;
             return ctx[key];
           } else if (
-            // global properties
-            globalProperties = appContext.config.globalProperties, shared.hasOwn(globalProperties, key)
-          ) {
+          // global properties
+          globalProperties = appContext.config.globalProperties, shared.hasOwn(globalProperties, key)) {
             {
               return globalProperties[key];
             }
           } else ;
         },
-        set({ _: instance }, key, value) {
-          const { data, setupState, ctx } = instance;
+        set({
+          _: instance
+        }, key, value) {
+          const data = instance.data,
+            setupState = instance.setupState,
+            ctx = instance.ctx;
           if (setupState !== shared.EMPTY_OBJ && shared.hasOwn(setupState, key)) {
             setupState[key] = value;
             return true;
@@ -4204,7 +4224,16 @@ var EE2 = (() => {
           }
           return true;
         },
-        has({ _: { data, setupState, accessCache, ctx, appContext, propsOptions } }, key) {
+        has({
+          _: {
+            data,
+            setupState,
+            accessCache,
+            ctx,
+            appContext,
+            propsOptions
+          }
+        }, key) {
           let normalizedProps;
           return !!accessCache[key] || data !== shared.EMPTY_OBJ && shared.hasOwn(data, key) || setupState !== shared.EMPTY_OBJ && shared.hasOwn(setupState, key) || (normalizedProps = propsOptions[0]) && shared.hasOwn(normalizedProps, key) || shared.hasOwn(ctx, key) || shared.hasOwn(publicPropertiesMap, key) || shared.hasOwn(appContext.config.globalProperties, key);
         },
@@ -4217,7 +4246,7 @@ var EE2 = (() => {
           return Reflect.defineProperty(target, key, descriptor);
         }
       };
-      var RuntimeCompiledPublicInstanceProxyHandlers = /* @__PURE__ */ shared.extend({}, PublicInstanceProxyHandlers, {
+      var RuntimeCompiledPublicInstanceProxyHandlers = /* @__PURE__ */shared.extend({}, PublicInstanceProxyHandlers, {
         get(target, key) {
           if (key === Symbol.unscopables) {
             return;
@@ -4236,46 +4265,36 @@ var EE2 = (() => {
         const ctx = instance.ctx;
         shouldCacheAccess = false;
         if (options.beforeCreate) {
-          callHook(
-            options.beforeCreate,
-            instance,
-            "bc"
-            /* BEFORE_CREATE */
-          );
+          callHook(options.beforeCreate, instance, "bc"
+          /* BEFORE_CREATE */);
         }
-        const {
-          // state
-          data: dataOptions,
-          computed: computedOptions,
-          methods,
-          watch: watchOptions,
-          provide: provideOptions,
-          inject: injectOptions,
-          // lifecycle
-          created,
-          beforeMount,
-          mounted,
-          beforeUpdate,
-          updated,
-          activated,
-          deactivated,
-          beforeDestroy,
-          beforeUnmount,
-          destroyed,
-          unmounted,
-          render,
-          renderTracked,
-          renderTriggered,
-          errorCaptured,
-          serverPrefetch,
-          // public API
-          expose,
-          inheritAttrs,
-          // assets
-          components,
-          directives,
-          filters
-        } = options;
+        const dataOptions = options.data,
+          computedOptions = options.computed,
+          methods = options.methods,
+          watchOptions = options.watch,
+          provideOptions = options.provide,
+          injectOptions = options.inject,
+          created = options.created,
+          beforeMount = options.beforeMount,
+          mounted = options.mounted,
+          beforeUpdate = options.beforeUpdate,
+          updated = options.updated,
+          activated = options.activated,
+          deactivated = options.deactivated,
+          beforeDestroy = options.beforeDestroy,
+          beforeUnmount = options.beforeUnmount,
+          destroyed = options.destroyed,
+          unmounted = options.unmounted,
+          render = options.render,
+          renderTracked = options.renderTracked,
+          renderTriggered = options.renderTriggered,
+          errorCaptured = options.errorCaptured,
+          serverPrefetch = options.serverPrefetch,
+          expose = options.expose,
+          inheritAttrs = options.inheritAttrs,
+          components = options.components,
+          directives = options.directives,
+          filters = options.filters;
         const checkDuplicateProperties = null;
         if (injectOptions) {
           resolveInjections(injectOptions, ctx, checkDuplicateProperties, instance.appContext.config.unwrapInjectedRef);
@@ -4292,8 +4311,7 @@ var EE2 = (() => {
         }
         if (dataOptions) {
           const data = dataOptions.call(publicThis, publicThis);
-          if (!shared.isObject(data)) ;
-          else {
+          if (!shared.isObject(data)) ;else {
             instance.data = reactivity.reactive(data);
           }
         }
@@ -4311,7 +4329,7 @@ var EE2 = (() => {
               enumerable: true,
               configurable: true,
               get: () => c.value,
-              set: (v) => c.value = v
+              set: v => c.value = v
             });
           }
         }
@@ -4322,21 +4340,17 @@ var EE2 = (() => {
         }
         if (provideOptions) {
           const provides = shared.isFunction(provideOptions) ? provideOptions.call(publicThis) : provideOptions;
-          Reflect.ownKeys(provides).forEach((key) => {
+          Reflect.ownKeys(provides).forEach(key => {
             provide2(key, provides[key]);
           });
         }
         if (created) {
-          callHook(
-            created,
-            instance,
-            "c"
-            /* CREATED */
-          );
+          callHook(created, instance, "c"
+          /* CREATED */);
         }
         function registerLifecycleHook(register, hook) {
           if (shared.isArray(hook)) {
-            hook.forEach((_hook) => register(_hook.bind(publicThis)));
+            hook.forEach(_hook => register(_hook.bind(publicThis)));
           } else if (hook) {
             register(hook.bind(publicThis));
           }
@@ -4356,10 +4370,10 @@ var EE2 = (() => {
         if (shared.isArray(expose)) {
           if (expose.length) {
             const exposed = instance.exposed || (instance.exposed = {});
-            expose.forEach((key) => {
+            expose.forEach(key => {
               Object.defineProperty(exposed, key, {
                 get: () => publicThis[key],
-                set: (val) => publicThis[key] = val
+                set: val => publicThis[key] = val
               });
             });
           } else if (!instance.exposed) {
@@ -4372,10 +4386,8 @@ var EE2 = (() => {
         if (inheritAttrs != null) {
           instance.inheritAttrs = inheritAttrs;
         }
-        if (components)
-          instance.components = components;
-        if (directives)
-          instance.directives = directives;
+        if (components) instance.components = components;
+        if (directives) instance.directives = directives;
       }
       function resolveInjections(injectOptions, ctx, checkDuplicateProperties = shared.NOOP, unwrapRef = false) {
         if (shared.isArray(injectOptions)) {
@@ -4386,12 +4398,8 @@ var EE2 = (() => {
           let injected;
           if (shared.isObject(opt)) {
             if ("default" in opt) {
-              injected = inject2(
-                opt.from || key,
-                opt.default,
-                true
-                /* treat default function as factory */
-              );
+              injected = inject2(opt.from || key, opt.default, true
+              /* treat default function as factory */);
             } else {
               injected = inject2(opt.from || key);
             }
@@ -4404,7 +4412,7 @@ var EE2 = (() => {
                 enumerable: true,
                 configurable: true,
                 get: () => injected.value,
-                set: (v) => injected.value = v
+                set: v => injected.value = v
               });
             } else {
               ctx[key] = injected;
@@ -4415,7 +4423,7 @@ var EE2 = (() => {
         }
       }
       function callHook(hook, instance, type) {
-        callWithAsyncErrorHandling(shared.isArray(hook) ? hook.map((h2) => h2.bind(instance.proxy)) : hook.bind(instance.proxy), instance, type);
+        callWithAsyncErrorHandling(shared.isArray(hook) ? hook.map(h2 => h2.bind(instance.proxy)) : hook.bind(instance.proxy), instance, type);
       }
       function createWatcher(raw, ctx, publicThis, key) {
         const getter = key.includes(".") ? createPathGetter(publicThis, key) : () => publicThis[key];
@@ -4428,7 +4436,7 @@ var EE2 = (() => {
           watch2(getter, raw.bind(publicThis));
         } else if (shared.isObject(raw)) {
           if (shared.isArray(raw)) {
-            raw.forEach((r) => createWatcher(r, ctx, publicThis, key));
+            raw.forEach(r => createWatcher(r, ctx, publicThis, key));
           } else {
             const handler = shared.isFunction(raw.handler) ? raw.handler.bind(publicThis) : ctx[raw.handler];
             if (shared.isFunction(handler)) {
@@ -4439,8 +4447,12 @@ var EE2 = (() => {
       }
       function resolveMergedOptions(instance) {
         const base = instance.type;
-        const { mixins, extends: extendsOptions } = base;
-        const { mixins: globalMixins, optionsCache: cache3, config: { optionMergeStrategies } } = instance.appContext;
+        const mixins = base.mixins,
+          extendsOptions = base.extends;
+        const _instance$appContext = instance.appContext,
+          globalMixins = _instance$appContext.mixins,
+          cache3 = _instance$appContext.optionsCache,
+          optionMergeStrategies = _instance$appContext.config.optionMergeStrategies;
         const cached = cache3.get(base);
         let resolved;
         if (cached) {
@@ -4452,7 +4464,7 @@ var EE2 = (() => {
         } else {
           resolved = {};
           if (globalMixins.length) {
-            globalMixins.forEach((m) => mergeOptions(resolved, m, optionMergeStrategies, true));
+            globalMixins.forEach(m => mergeOptions(resolved, m, optionMergeStrategies, true));
           }
           mergeOptions(resolved, base, optionMergeStrategies);
         }
@@ -4460,16 +4472,16 @@ var EE2 = (() => {
         return resolved;
       }
       function mergeOptions(to, from, strats, asMixin = false) {
-        const { mixins, extends: extendsOptions } = from;
+        const mixins = from.mixins,
+          extendsOptions = from.extends;
         if (extendsOptions) {
           mergeOptions(to, extendsOptions, strats, true);
         }
         if (mixins) {
-          mixins.forEach((m) => mergeOptions(to, m, strats, true));
+          mixins.forEach(m => mergeOptions(to, m, strats, true));
         }
         for (const key in from) {
-          if (asMixin && key === "expose") ;
-          else {
+          if (asMixin && key === "expose") ;else {
             const strat = internalOptionMergeStrats[key] || strats && strats[key];
             to[key] = strat ? strat(to[key], from[key]) : from[key];
           }
@@ -4532,17 +4544,15 @@ var EE2 = (() => {
         return raw;
       }
       function mergeAsArray(to, from) {
-        return to ? [...new Set([].concat(to, from))] : from;
+        return to ? _toConsumableArray(new Set([].concat(to, from))) : from;
       }
       function mergeObjectOptions(to, from) {
-        return to ? shared.extend(shared.extend(/* @__PURE__ */ Object.create(null), to), from) : from;
+        return to ? shared.extend(shared.extend(/* @__PURE__ */Object.create(null), to), from) : from;
       }
       function mergeWatchOptions(to, from) {
-        if (!to)
-          return from;
-        if (!from)
-          return to;
-        const merged = shared.extend(/* @__PURE__ */ Object.create(null), to);
+        if (!to) return from;
+        if (!from) return to;
+        const merged = shared.extend(/* @__PURE__ */Object.create(null), to);
         for (const key in from) {
           merged[key] = mergeAsArray(to[key], from[key]);
         }
@@ -4552,7 +4562,7 @@ var EE2 = (() => {
         const props = {};
         const attrs = {};
         shared.def(attrs, InternalObjectKey, 1);
-        instance.propsDefaults = /* @__PURE__ */ Object.create(null);
+        instance.propsDefaults = /* @__PURE__ */Object.create(null);
         setFullProps(instance, rawProps, props, attrs);
         for (const key in instance.propsOptions[0]) {
           if (!(key in props)) {
@@ -4571,16 +4581,18 @@ var EE2 = (() => {
         instance.attrs = attrs;
       }
       function updateProps(instance, rawProps, rawPrevProps, optimized) {
-        const { props, attrs, vnode: { patchFlag } } = instance;
+        const props = instance.props,
+          attrs = instance.attrs,
+          patchFlag = instance.vnode.patchFlag;
         const rawCurrentProps = reactivity.toRaw(props);
-        const [options] = instance.propsOptions;
+        const _instance$propsOption2 = _slicedToArray(instance.propsOptions, 1),
+          options = _instance$propsOption2[0];
         let hasAttrsChanged = false;
         if (
-          // always force full diff in dev
-          // - #1942 if hmr is enabled with sfc component
-          // - vite#872 non-sfc component used by sfc component
-          (optimized || patchFlag > 0) && !(patchFlag & 16)
-        ) {
+        // always force full diff in dev
+        // - #1942 if hmr is enabled with sfc component
+        // - vite#872 non-sfc component used by sfc component
+        (optimized || patchFlag > 0) && !(patchFlag & 16)) {
           if (patchFlag & 8) {
             const propsToUpdate = instance.vnode.dynamicProps;
             for (let i = 0; i < propsToUpdate.length; i++) {
@@ -4597,15 +4609,8 @@ var EE2 = (() => {
                   }
                 } else {
                   const camelizedKey = shared.camelize(key);
-                  props[camelizedKey] = resolvePropValue(
-                    options,
-                    rawCurrentProps,
-                    camelizedKey,
-                    value,
-                    instance,
-                    false
-                    /* isAbsent */
-                  );
+                  props[camelizedKey] = resolvePropValue(options, rawCurrentProps, camelizedKey, value, instance, false
+                  /* isAbsent */);
                 }
               } else {
                 if (value !== attrs[key]) {
@@ -4621,23 +4626,20 @@ var EE2 = (() => {
           }
           let kebabKey;
           for (const key in rawCurrentProps) {
-            if (!rawProps || // for camelCase
-            !shared.hasOwn(rawProps, key) && // it's possible the original props was passed in as kebab-case
+            if (!rawProps ||
+            // for camelCase
+            !shared.hasOwn(rawProps, key) && (
+            // it's possible the original props was passed in as kebab-case
             // and converted to camelCase (#955)
-            ((kebabKey = shared.hyphenate(key)) === key || !shared.hasOwn(rawProps, kebabKey))) {
+            (kebabKey = shared.hyphenate(key)) === key || !shared.hasOwn(rawProps, kebabKey))) {
               if (options) {
-                if (rawPrevProps && // for camelCase
-                (rawPrevProps[key] !== void 0 || // for kebab-case
+                if (rawPrevProps && (
+                // for camelCase
+                rawPrevProps[key] !== void 0 ||
+                // for kebab-case
                 rawPrevProps[kebabKey] !== void 0)) {
-                  props[key] = resolvePropValue(
-                    options,
-                    rawCurrentProps,
-                    key,
-                    void 0,
-                    instance,
-                    true
-                    /* isAbsent */
-                  );
+                  props[key] = resolvePropValue(options, rawCurrentProps, key, void 0, instance, true
+                  /* isAbsent */);
                 }
               } else {
                 delete props[key];
@@ -4658,7 +4660,9 @@ var EE2 = (() => {
         }
       }
       function setFullProps(instance, rawProps, props, attrs) {
-        const [options, needCastKeys] = instance.propsOptions;
+        const _instance$propsOption3 = _slicedToArray(instance.propsOptions, 2),
+          options = _instance$propsOption3[0],
+          needCastKeys = _instance$propsOption3[1];
         let hasAttrsChanged = false;
         let rawCastValues;
         if (rawProps) {
@@ -4699,7 +4703,7 @@ var EE2 = (() => {
           if (hasDefault && value === void 0) {
             const defaultValue = opt.default;
             if (opt.type !== Function && shared.isFunction(defaultValue)) {
-              const { propsDefaults } = instance;
+              const propsDefaults = instance.propsDefaults;
               if (key in propsDefaults) {
                 value = propsDefaults[key];
               } else {
@@ -4711,16 +4715,12 @@ var EE2 = (() => {
               value = defaultValue;
             }
           }
-          if (opt[
-            0
-            /* shouldCast */
-          ]) {
+          if (opt[0
+          /* shouldCast */]) {
             if (isAbsent && !hasDefault) {
               value = false;
-            } else if (opt[
-              1
-              /* shouldCastTrue */
-            ] && (value === "" || value === shared.hyphenate(key))) {
+            } else if (opt[1
+            /* shouldCastTrue */] && (value === "" || value === shared.hyphenate(key))) {
               value = true;
             }
           }
@@ -4738,12 +4738,14 @@ var EE2 = (() => {
         const needCastKeys = [];
         let hasExtends = false;
         if (!shared.isFunction(comp)) {
-          const extendProps = (raw2) => {
+          const extendProps = raw2 => {
             hasExtends = true;
-            const [props, keys] = normalizePropsOptions(raw2, appContext, true);
+            const _normalizePropsOption = normalizePropsOptions(raw2, appContext, true),
+              _normalizePropsOption2 = _slicedToArray(_normalizePropsOption, 2),
+              props = _normalizePropsOption2[0],
+              keys = _normalizePropsOption2[1];
             shared.extend(normalized, props);
-            if (keys)
-              needCastKeys.push(...keys);
+            if (keys) needCastKeys.push.apply(needCastKeys, _toConsumableArray(keys));
           };
           if (!asMixin && appContext.mixins.length) {
             appContext.mixins.forEach(extendProps);
@@ -4771,18 +4773,16 @@ var EE2 = (() => {
             const normalizedKey = shared.camelize(key);
             if (validatePropName(normalizedKey)) {
               const opt = raw[key];
-              const prop = normalized[normalizedKey] = shared.isArray(opt) || shared.isFunction(opt) ? { type: opt } : opt;
+              const prop = normalized[normalizedKey] = shared.isArray(opt) || shared.isFunction(opt) ? {
+                type: opt
+              } : opt;
               if (prop) {
                 const booleanIndex = getTypeIndex(Boolean, prop.type);
                 const stringIndex = getTypeIndex(String, prop.type);
-                prop[
-                  0
-                  /* shouldCast */
-                ] = booleanIndex > -1;
-                prop[
-                  1
-                  /* shouldCastTrue */
-                ] = stringIndex < 0 || booleanIndex < stringIndex;
+                prop[0
+                /* shouldCast */] = booleanIndex > -1;
+                prop[1
+                /* shouldCastTrue */] = stringIndex < 0 || booleanIndex < stringIndex;
                 if (booleanIndex > -1 || shared.hasOwn(prop, "default")) {
                   needCastKeys.push(normalizedKey);
                 }
@@ -4809,20 +4809,20 @@ var EE2 = (() => {
       }
       function getTypeIndex(type, expectedTypes) {
         if (shared.isArray(expectedTypes)) {
-          return expectedTypes.findIndex((t3) => isSameType(t3, type));
+          return expectedTypes.findIndex(t3 => isSameType(t3, type));
         } else if (shared.isFunction(expectedTypes)) {
           return isSameType(expectedTypes, type) ? 0 : -1;
         }
         return -1;
       }
-      var isInternalKey = (key) => key[0] === "_" || key === "$stable";
-      var normalizeSlotValue = (value) => shared.isArray(value) ? value.map(normalizeVNode) : [normalizeVNode(value)];
+      var isInternalKey = key => key[0] === "_" || key === "$stable";
+      var normalizeSlotValue = value => shared.isArray(value) ? value.map(normalizeVNode) : [normalizeVNode(value)];
       var normalizeSlot = (key, rawSlot, ctx) => {
         if (rawSlot._n) {
           return rawSlot;
         }
         const normalized = withCtx((...args) => {
-          return normalizeSlotValue(rawSlot(...args));
+          return normalizeSlotValue(rawSlot.apply(void 0, args));
         }, ctx);
         normalized._c = false;
         return normalized;
@@ -4830,8 +4830,7 @@ var EE2 = (() => {
       var normalizeObjectSlots = (rawSlots, slots, instance) => {
         const ctx = rawSlots._ctx;
         for (const key in rawSlots) {
-          if (isInternalKey(key))
-            continue;
+          if (isInternalKey(key)) continue;
           const value = rawSlots[key];
           if (shared.isFunction(value)) {
             slots[key] = normalizeSlot(key, value, ctx);
@@ -4863,7 +4862,8 @@ var EE2 = (() => {
         shared.def(instance.slots, InternalObjectKey, 1);
       };
       var updateSlots = (instance, children, optimized) => {
-        const { vnode, slots } = instance;
+        const vnode = instance.vnode,
+          slots = instance.slots;
         let needDeletionCheck = true;
         let deletionComparisonTarget = shared.EMPTY_OBJ;
         if (vnode.shapeFlag & 32) {
@@ -4884,7 +4884,9 @@ var EE2 = (() => {
           deletionComparisonTarget = children;
         } else if (children) {
           normalizeVNodeSlots(instance, children);
-          deletionComparisonTarget = { default: 1 };
+          deletionComparisonTarget = {
+            default: 1
+          };
         }
         if (needDeletionCheck) {
           for (const key in slots) {
@@ -4909,10 +4911,10 @@ var EE2 = (() => {
           mixins: [],
           components: {},
           directives: {},
-          provides: /* @__PURE__ */ Object.create(null),
-          optionsCache: /* @__PURE__ */ new WeakMap(),
-          propsCache: /* @__PURE__ */ new WeakMap(),
-          emitsCache: /* @__PURE__ */ new WeakMap()
+          provides: /* @__PURE__ */Object.create(null),
+          optionsCache: /* @__PURE__ */new WeakMap(),
+          propsCache: /* @__PURE__ */new WeakMap(),
+          emitsCache: /* @__PURE__ */new WeakMap()
         };
       }
       var uid = 0;
@@ -4925,7 +4927,7 @@ var EE2 = (() => {
             rootProps = null;
           }
           const context = createAppContext();
-          const installedPlugins = /* @__PURE__ */ new Set();
+          const installedPlugins = /* @__PURE__ */new Set();
           let isMounted = false;
           const app = context.app = {
             _uid: uid++,
@@ -4938,16 +4940,14 @@ var EE2 = (() => {
             get config() {
               return context.config;
             },
-            set config(v) {
-            },
+            set config(v) {},
             use(plugin, ...options) {
-              if (installedPlugins.has(plugin)) ;
-              else if (plugin && shared.isFunction(plugin.install)) {
+              if (installedPlugins.has(plugin)) ;else if (plugin && shared.isFunction(plugin.install)) {
                 installedPlugins.add(plugin);
-                plugin.install(app, ...options);
+                plugin.install.apply(plugin, [app].concat(options));
               } else if (shared.isFunction(plugin)) {
                 installedPlugins.add(plugin);
-                plugin(app, ...options);
+                plugin.apply(void 0, [app].concat(options));
               } else ;
               return app;
             },
@@ -5012,7 +5012,8 @@ var EE2 = (() => {
         }
         const refValue = vnode.shapeFlag & 4 ? getExposeProxy(vnode.component) || vnode.component.proxy : vnode.el;
         const value = isUnmount ? null : refValue;
-        const { i: owner, r: ref3 } = rawRef;
+        const owner = rawRef.i,
+          ref3 = rawRef.r;
         const oldRef = oldRawRef && oldRawRef.r;
         const refs = owner.refs === shared.EMPTY_OBJ ? owner.refs = {} : owner.refs;
         const setupState = owner.setupState;
@@ -5046,8 +5047,7 @@ var EE2 = (() => {
                       }
                     } else {
                       ref3.value = [refValue];
-                      if (rawRef.k)
-                        refs[rawRef.k] = ref3.value;
+                      if (rawRef.k) refs[rawRef.k] = ref3.value;
                     }
                   } else if (!existing.includes(refValue)) {
                     existing.push(refValue);
@@ -5060,8 +5060,7 @@ var EE2 = (() => {
                 }
               } else if (_isRef) {
                 ref3.value = value;
-                if (rawRef.k)
-                  refs[rawRef.k] = value;
+                if (rawRef.k) refs[rawRef.k] = value;
               } else ;
             };
             if (value) {
@@ -5074,10 +5073,19 @@ var EE2 = (() => {
         }
       }
       var hasMismatch = false;
-      var isSVGContainer = (container) => /svg/.test(container.namespaceURI) && container.tagName !== "foreignObject";
-      var isComment = (node) => node.nodeType === 8;
+      var isSVGContainer = container => /svg/.test(container.namespaceURI) && container.tagName !== "foreignObject";
+      var isComment = node => node.nodeType === 8;
       function createHydrationFunctions(rendererInternals) {
-        const { mt: mountComponent, p: patch, o: { patchProp, createText, nextSibling, parentNode, remove: remove2, insert, createComment } } = rendererInternals;
+        const mountComponent = rendererInternals.mt,
+          patch = rendererInternals.p,
+          _rendererInternals$o2 = rendererInternals.o,
+          patchProp = _rendererInternals$o2.patchProp,
+          createText = _rendererInternals$o2.createText,
+          nextSibling = _rendererInternals$o2.nextSibling,
+          parentNode = _rendererInternals$o2.parentNode,
+          remove2 = _rendererInternals$o2.remove,
+          insert = _rendererInternals$o2.insert,
+          createComment = _rendererInternals$o2.createComment;
         const hydrate = (vnode, container) => {
           if (!container.hasChildNodes()) {
             patch(null, vnode, container);
@@ -5096,7 +5104,10 @@ var EE2 = (() => {
         const hydrateNode = (node, vnode, parentComponent, parentSuspense, slotScopeIds, optimized = false) => {
           const isFragmentStart = isComment(node) && node.data === "[";
           const onMismatch = () => handleMismatch(node, vnode, parentComponent, parentSuspense, slotScopeIds, isFragmentStart);
-          const { type, ref: ref3, shapeFlag, patchFlag } = vnode;
+          const type = vnode.type,
+            ref3 = vnode.ref,
+            shapeFlag = vnode.shapeFlag,
+            patchFlag = vnode.patchFlag;
           const domType = node.nodeType;
           vnode.el = node;
           if (patchFlag === -2) {
@@ -5135,8 +5146,7 @@ var EE2 = (() => {
                 nextNode = node;
                 const needToAdoptContent = !vnode.children.length;
                 for (let i = 0; i < vnode.staticCount; i++) {
-                  if (needToAdoptContent)
-                    vnode.children += nextNode.nodeType === 1 ? nextNode.outerHTML : nextNode.data;
+                  if (needToAdoptContent) vnode.children += nextNode.nodeType === 1 ? nextNode.outerHTML : nextNode.data;
                   if (i === vnode.staticCount - 1) {
                     vnode.anchor = nextNode;
                   }
@@ -5195,7 +5205,11 @@ var EE2 = (() => {
         };
         const hydrateElement = (el, vnode, parentComponent, parentSuspense, slotScopeIds, optimized) => {
           optimized = optimized || !!vnode.dynamicChildren;
-          const { type, props, patchFlag, shapeFlag, dirs } = vnode;
+          const type = vnode.type,
+            props = vnode.props,
+            patchFlag = vnode.patchFlag,
+            shapeFlag = vnode.shapeFlag,
+            dirs = vnode.dirs;
           const forcePatchValue = type === "input" && dirs || type === "option";
           if (forcePatchValue || patchFlag !== -1) {
             if (dirs) {
@@ -5225,7 +5239,8 @@ var EE2 = (() => {
                 dirs && invokeDirectiveHook(vnode, null, parentComponent, "mounted");
               }, parentSuspense);
             }
-            if (shapeFlag & 16 && // skip if element has innerHTML / textContent
+            if (shapeFlag & 16 &&
+            // skip if element has innerHTML / textContent
             !(props && (props.innerHTML || props.textContent))) {
               let next = hydrateChildren(el.firstChild, vnode, el, parentComponent, parentSuspense, slotScopeIds, optimized);
               while (next) {
@@ -5261,7 +5276,7 @@ var EE2 = (() => {
           return node;
         };
         const hydrateFragment = (node, vnode, parentComponent, parentSuspense, slotScopeIds, optimized) => {
-          const { slotScopeIds: fragmentSlotScopeIds } = vnode;
+          const fragmentSlotScopeIds = vnode.slotScopeIds;
           if (fragmentSlotScopeIds) {
             slotScopeIds = slotScopeIds ? slotScopeIds.concat(fragmentSlotScopeIds) : fragmentSlotScopeIds;
           }
@@ -5295,13 +5310,12 @@ var EE2 = (() => {
           patch(null, vnode, container, next, parentComponent, parentSuspense, isSVGContainer(container), slotScopeIds);
           return next;
         };
-        const locateClosingAsyncAnchor = (node) => {
+        const locateClosingAsyncAnchor = node => {
           let match = 0;
           while (node) {
             node = nextSibling(node);
             if (node && isComment(node)) {
-              if (node.data === "[")
-                match++;
+              if (node.data === "[") match++;
               if (node.data === "]") {
                 if (match === 0) {
                   return nextSibling(node);
@@ -5325,7 +5339,20 @@ var EE2 = (() => {
       function baseCreateRenderer(options, createHydrationFns) {
         const target = shared.getGlobalThis();
         target.__VUE__ = true;
-        const { insert: hostInsert, remove: hostRemove, patchProp: hostPatchProp, createElement: hostCreateElement, createText: hostCreateText, createComment: hostCreateComment, setText: hostSetText, setElementText: hostSetElementText, parentNode: hostParentNode, nextSibling: hostNextSibling, setScopeId: hostSetScopeId = shared.NOOP, cloneNode: hostCloneNode, insertStaticContent: hostInsertStaticContent } = options;
+        const hostInsert = options.insert,
+          hostRemove = options.remove,
+          hostPatchProp = options.patchProp,
+          hostCreateElement = options.createElement,
+          hostCreateText = options.createText,
+          hostCreateComment = options.createComment,
+          hostSetText = options.setText,
+          hostSetElementText = options.setElementText,
+          hostParentNode = options.parentNode,
+          hostNextSibling = options.nextSibling,
+          _options$setScopeId = options.setScopeId,
+          hostSetScopeId = _options$setScopeId === void 0 ? shared.NOOP : _options$setScopeId,
+          hostCloneNode = options.cloneNode,
+          hostInsertStaticContent = options.insertStaticContent;
         const patch = (n1, n2, container, anchor = null, parentComponent = null, parentSuspense = null, isSVG = false, slotScopeIds = null, optimized = !!n2.dynamicChildren) => {
           if (n1 === n2) {
             return;
@@ -5339,7 +5366,9 @@ var EE2 = (() => {
             optimized = false;
             n2.dynamicChildren = null;
           }
-          const { type, ref: ref3, shapeFlag } = n2;
+          const type = n2.type,
+            ref3 = n2.ref,
+            shapeFlag = n2.shapeFlag;
           switch (type) {
             case Text:
               processText(n1, n2, container, anchor);
@@ -5388,9 +5417,15 @@ var EE2 = (() => {
           }
         };
         const mountStaticNode = (n2, container, anchor, isSVG) => {
-          [n2.el, n2.anchor] = hostInsertStaticContent(n2.children, container, anchor, isSVG, n2.el, n2.anchor);
+          var _hostInsertStaticCont = hostInsertStaticContent(n2.children, container, anchor, isSVG, n2.el, n2.anchor);
+          var _hostInsertStaticCont2 = _slicedToArray(_hostInsertStaticCont, 2);
+          n2.el = _hostInsertStaticCont2[0];
+          n2.anchor = _hostInsertStaticCont2[1];
         };
-        const moveStaticNode = ({ el, anchor }, container, nextSibling) => {
+        const moveStaticNode = ({
+          el,
+          anchor
+        }, container, nextSibling) => {
           let next;
           while (el && el !== anchor) {
             next = hostNextSibling(el);
@@ -5399,7 +5434,10 @@ var EE2 = (() => {
           }
           hostInsert(anchor, container, nextSibling);
         };
-        const removeStaticNode = ({ el, anchor }) => {
+        const removeStaticNode = ({
+          el,
+          anchor
+        }) => {
           let next;
           while (el && el !== anchor) {
             next = hostNextSibling(el);
@@ -5419,7 +5457,12 @@ var EE2 = (() => {
         const mountElement = (vnode, container, anchor, parentComponent, parentSuspense, isSVG, slotScopeIds, optimized) => {
           let el;
           let vnodeHook;
-          const { type, props, shapeFlag, transition, patchFlag, dirs } = vnode;
+          const type = vnode.type,
+            props = vnode.props,
+            shapeFlag = vnode.shapeFlag,
+            transition = vnode.transition,
+            patchFlag = vnode.patchFlag,
+            dirs = vnode.dirs;
           if (vnode.el && hostCloneNode !== void 0 && patchFlag === -1) {
             el = vnode.el = hostCloneNode(vnode.el);
           } else {
@@ -5488,7 +5531,9 @@ var EE2 = (() => {
         };
         const patchElement = (n1, n2, parentComponent, parentSuspense, isSVG, slotScopeIds, optimized) => {
           const el = n2.el = n1.el;
-          let { patchFlag, dynamicChildren, dirs } = n2;
+          let patchFlag = n2.patchFlag,
+            dynamicChildren = n2.dynamicChildren,
+            dirs = n2.dirs;
           patchFlag |= n1.patchFlag & 16;
           const oldProps = n1.props || shared.EMPTY_OBJ;
           const newProps = n2.props || shared.EMPTY_OBJ;
@@ -5550,28 +5595,28 @@ var EE2 = (() => {
           for (let i = 0; i < newChildren.length; i++) {
             const oldVNode = oldChildren[i];
             const newVNode = newChildren[i];
-            const container = (
-              // oldVNode may be an errored async setup() component inside Suspense
-              // which will not have a mounted element
-              oldVNode.el && // - In the case of a Fragment, we need to provide the actual parent
-              // of the Fragment itself so it can move its children.
-              (oldVNode.type === Fragment || // - In the case of different nodes, there is going to be a replacement
-              // which also requires the correct parent container
-              !isSameVNodeType(oldVNode, newVNode) || // - In the case of a component, it could contain anything.
-              oldVNode.shapeFlag & (6 | 64)) ? hostParentNode(oldVNode.el) : (
-                // In other cases, the parent container is not actually used so we
-                // just pass the block element here to avoid a DOM parentNode call.
-                fallbackContainer
-              )
-            );
+            const container =
+            // oldVNode may be an errored async setup() component inside Suspense
+            // which will not have a mounted element
+            oldVNode.el && (
+            // - In the case of a Fragment, we need to provide the actual parent
+            // of the Fragment itself so it can move its children.
+            oldVNode.type === Fragment ||
+            // - In the case of different nodes, there is going to be a replacement
+            // which also requires the correct parent container
+            !isSameVNodeType(oldVNode, newVNode) ||
+            // - In the case of a component, it could contain anything.
+            oldVNode.shapeFlag & (6 | 64)) ? hostParentNode(oldVNode.el) :
+            // In other cases, the parent container is not actually used so we
+            // just pass the block element here to avoid a DOM parentNode call.
+            fallbackContainer;
             patch(oldVNode, newVNode, container, null, parentComponent, parentSuspense, isSVG, slotScopeIds, true);
           }
         };
         const patchProps = (el, vnode, oldProps, newProps, parentComponent, parentSuspense, isSVG) => {
           if (oldProps !== newProps) {
             for (const key in newProps) {
-              if (shared.isReservedProp(key))
-                continue;
+              if (shared.isReservedProp(key)) continue;
               const next = newProps[key];
               const prev = oldProps[key];
               if (next !== prev && key !== "value") {
@@ -5593,7 +5638,9 @@ var EE2 = (() => {
         const processFragment = (n1, n2, container, anchor, parentComponent, parentSuspense, isSVG, slotScopeIds, optimized) => {
           const fragmentStartAnchor = n2.el = n1 ? n1.el : hostCreateText("");
           const fragmentEndAnchor = n2.anchor = n1 ? n1.anchor : hostCreateText("");
-          let { patchFlag, dynamicChildren, slotScopeIds: fragmentSlotScopeIds } = n2;
+          let patchFlag = n2.patchFlag,
+            dynamicChildren = n2.dynamicChildren,
+            fragmentSlotScopeIds = n2.slotScopeIds;
           if (fragmentSlotScopeIds) {
             slotScopeIds = slotScopeIds ? slotScopeIds.concat(fragmentSlotScopeIds) : fragmentSlotScopeIds;
           }
@@ -5602,23 +5649,19 @@ var EE2 = (() => {
             hostInsert(fragmentEndAnchor, container, anchor);
             mountChildren(n2.children, container, fragmentEndAnchor, parentComponent, parentSuspense, isSVG, slotScopeIds, optimized);
           } else {
-            if (patchFlag > 0 && patchFlag & 64 && dynamicChildren && // #2715 the previous fragment could've been a BAILed one as a result
+            if (patchFlag > 0 && patchFlag & 64 && dynamicChildren &&
+            // #2715 the previous fragment could've been a BAILed one as a result
             // of renderSlot() with no valid children
             n1.dynamicChildren) {
               patchBlockChildren(n1.dynamicChildren, dynamicChildren, container, parentComponent, parentSuspense, isSVG, slotScopeIds);
               if (
-                // #2080 if the stable fragment has a key, it's a <template v-for> that may
-                //  get moved around. Make sure all root level vnodes inherit el.
-                // #2134 or if it's a component root, it may also get moved around
-                // as the component is being moved.
-                n2.key != null || parentComponent && n2 === parentComponent.subTree
-              ) {
-                traverseStaticChildren(
-                  n1,
-                  n2,
-                  true
-                  /* shallow */
-                );
+              // #2080 if the stable fragment has a key, it's a <template v-for> that may
+              //  get moved around. Make sure all root level vnodes inherit el.
+              // #2134 or if it's a component root, it may also get moved around
+              // as the component is being moved.
+              n2.key != null || parentComponent && n2 === parentComponent.subTree) {
+                traverseStaticChildren(n1, n2, true
+                /* shallow */);
               }
             } else {
               patchChildren(n1, n2, container, fragmentEndAnchor, parentComponent, parentSuspense, isSVG, slotScopeIds, optimized);
@@ -5675,8 +5718,12 @@ var EE2 = (() => {
           const componentUpdateFn = () => {
             if (!instance.isMounted) {
               let vnodeHook;
-              const { el, props } = initialVNode;
-              const { bm, m, parent } = instance;
+              const _initialVNode = initialVNode,
+                el = _initialVNode.el,
+                props = _initialVNode.props;
+              const bm = instance.bm,
+                m = instance.m,
+                parent = instance.parent;
               const isAsyncWrapperVNode = isAsyncWrapper(initialVNode);
               toggleRecurse(instance, false);
               if (bm) {
@@ -5693,12 +5740,11 @@ var EE2 = (() => {
                 };
                 if (isAsyncWrapperVNode) {
                   initialVNode.type.__asyncLoader().then(
-                    // note: we are moving the render call into an async callback,
-                    // which means it won't track dependencies - but it's ok because
-                    // a server-rendered async wrapper is already in resolved state
-                    // and it will never need to change.
-                    () => !instance.isUnmounted && hydrateSubTree()
-                  );
+                  // note: we are moving the render call into an async callback,
+                  // which means it won't track dependencies - but it's ok because
+                  // a server-rendered async wrapper is already in resolved state
+                  // and it will never need to change.
+                  () => !instance.isUnmounted && hydrateSubTree());
                 } else {
                   hydrateSubTree();
                 }
@@ -5720,7 +5766,11 @@ var EE2 = (() => {
               instance.isMounted = true;
               initialVNode = container = anchor = null;
             } else {
-              let { next, bu, u, parent, vnode } = instance;
+              let next = instance.next,
+                bu = instance.bu,
+                u = instance.u,
+                parent = instance.parent,
+                vnode = instance.vnode;
               let originNext = next;
               let vnodeHook;
               toggleRecurse(instance, false);
@@ -5740,17 +5790,11 @@ var EE2 = (() => {
               const nextTree = renderComponentRoot(instance);
               const prevTree = instance.subTree;
               instance.subTree = nextTree;
-              patch(
-                prevTree,
-                nextTree,
-                // parent may have changed if it's in a teleport
-                hostParentNode(prevTree.el),
-                // anchor may have changed if it's in a fragment
-                getNextHostNode(prevTree),
-                instance,
-                parentSuspense,
-                isSVG
-              );
+              patch(prevTree, nextTree,
+              // parent may have changed if it's in a teleport
+              hostParentNode(prevTree.el),
+              // anchor may have changed if it's in a fragment
+              getNextHostNode(prevTree), instance, parentSuspense, isSVG);
               next.el = nextTree.el;
               if (originNext === null) {
                 updateHOCHostEl(instance, nextTree.el);
@@ -5763,11 +5807,8 @@ var EE2 = (() => {
               }
             }
           };
-          const effect2 = instance.effect = new reactivity.ReactiveEffect(
-            componentUpdateFn,
-            () => queueJob(update),
-            instance.scope
-            // track it in component's effect scope
+          const effect2 = instance.effect = new reactivity.ReactiveEffect(componentUpdateFn, () => queueJob(update), instance.scope
+          // track it in component's effect scope
           );
           const update = instance.update = () => effect2.run();
           update.id = instance.uid;
@@ -5789,7 +5830,8 @@ var EE2 = (() => {
           const c1 = n1 && n1.children;
           const prevShapeFlag = n1 ? n1.shapeFlag : 0;
           const c2 = n2.children;
-          const { patchFlag, shapeFlag } = n2;
+          const patchFlag = n2.patchFlag,
+            shapeFlag = n2.shapeFlag;
           if (patchFlag > 0) {
             if (patchFlag & 128) {
               patchKeyedChildren(c1, c2, container, anchor, parentComponent, parentSuspense, isSVG, slotScopeIds, optimized);
@@ -5883,7 +5925,7 @@ var EE2 = (() => {
           } else {
             const s1 = i;
             const s2 = i;
-            const keyToNewIndexMap = /* @__PURE__ */ new Map();
+            const keyToNewIndexMap = /* @__PURE__ */new Map();
             for (i = s2; i <= e2; i++) {
               const nextChild = c2[i] = optimized ? cloneIfMounted(c2[i]) : normalizeVNode(c2[i]);
               if (nextChild.key != null) {
@@ -5896,8 +5938,7 @@ var EE2 = (() => {
             let moved = false;
             let maxNewIndexSoFar = 0;
             const newIndexToOldIndexMap = new Array(toBePatched);
-            for (i = 0; i < toBePatched; i++)
-              newIndexToOldIndexMap[i] = 0;
+            for (i = 0; i < toBePatched; i++) newIndexToOldIndexMap[i] = 0;
             for (i = s1; i <= e1; i++) {
               const prevChild = c1[i];
               if (patched >= toBePatched) {
@@ -5938,13 +5979,8 @@ var EE2 = (() => {
                 patch(null, nextChild, container, anchor, parentComponent, parentSuspense, isSVG, slotScopeIds, optimized);
               } else if (moved) {
                 if (j < 0 || i !== increasingNewIndexSequence[j]) {
-                  move(
-                    nextChild,
-                    container,
-                    anchor,
-                    2
-                    /* REORDER */
-                  );
+                  move(nextChild, container, anchor, 2
+                  /* REORDER */);
                 } else {
                   j--;
                 }
@@ -5953,7 +5989,11 @@ var EE2 = (() => {
           }
         };
         const move = (vnode, container, anchor, moveType, parentSuspense = null) => {
-          const { el, type, transition, children, shapeFlag } = vnode;
+          const el = vnode.el,
+            type = vnode.type,
+            transition = vnode.transition,
+            children = vnode.children,
+            shapeFlag = vnode.shapeFlag;
           if (shapeFlag & 6) {
             move(vnode.component.subTree, container, anchor, moveType);
             return;
@@ -5985,7 +6025,9 @@ var EE2 = (() => {
               hostInsert(el, container, anchor);
               queuePostRenderEffect(() => transition.enter(el), parentSuspense);
             } else {
-              const { leave, delayLeave, afterLeave } = transition;
+              const leave = transition.leave,
+                delayLeave = transition.delayLeave,
+                afterLeave = transition.afterLeave;
               const remove3 = () => hostInsert(el, container, anchor);
               const performLeave = () => {
                 leave(el, () => {
@@ -6004,7 +6046,14 @@ var EE2 = (() => {
           }
         };
         const unmount = (vnode, parentComponent, parentSuspense, doRemove = false, optimized = false) => {
-          const { type, props, ref: ref3, children, dynamicChildren, shapeFlag, patchFlag, dirs } = vnode;
+          const type = vnode.type,
+            props = vnode.props,
+            ref3 = vnode.ref,
+            children = vnode.children,
+            dynamicChildren = vnode.dynamicChildren,
+            shapeFlag = vnode.shapeFlag,
+            patchFlag = vnode.patchFlag,
+            dirs = vnode.dirs;
           if (ref3 != null) {
             setRef(ref3, null, parentSuspense, vnode, true);
           }
@@ -6030,8 +6079,9 @@ var EE2 = (() => {
             }
             if (shapeFlag & 64) {
               vnode.type.remove(vnode, parentComponent, parentSuspense, optimized, internals, doRemove);
-            } else if (dynamicChildren && // #1153: fast path should not be taken for non-stable (v-for) fragments
-            (type !== Fragment || patchFlag > 0 && patchFlag & 64)) {
+            } else if (dynamicChildren && (
+            // #1153: fast path should not be taken for non-stable (v-for) fragments
+            type !== Fragment || patchFlag > 0 && patchFlag & 64)) {
               unmountChildren(dynamicChildren, parentComponent, parentSuspense, false, true);
             } else if (type === Fragment && patchFlag & (128 | 256) || !optimized && shapeFlag & 16) {
               unmountChildren(children, parentComponent, parentSuspense);
@@ -6047,8 +6097,11 @@ var EE2 = (() => {
             }, parentSuspense);
           }
         };
-        const remove2 = (vnode) => {
-          const { type, el, anchor, transition } = vnode;
+        const remove2 = vnode => {
+          const type = vnode.type,
+            el = vnode.el,
+            anchor = vnode.anchor,
+            transition = vnode.transition;
           if (type === Fragment) {
             {
               removeFragment(el, anchor);
@@ -6066,7 +6119,8 @@ var EE2 = (() => {
             }
           };
           if (vnode.shapeFlag & 1 && transition && !transition.persisted) {
-            const { leave, delayLeave } = transition;
+            const leave = transition.leave,
+              delayLeave = transition.delayLeave;
             const performLeave = () => leave(el, performRemove);
             if (delayLeave) {
               delayLeave(vnode.el, performRemove, performLeave);
@@ -6087,7 +6141,11 @@ var EE2 = (() => {
           hostRemove(end);
         };
         const unmountComponent = (instance, parentSuspense, doRemove) => {
-          const { bum, scope, update, subTree, um } = instance;
+          const bum = instance.bum,
+            scope = instance.scope,
+            update = instance.update,
+            subTree = instance.subTree,
+            um = instance.um;
           if (bum) {
             shared.invokeArrayFns(bum);
           }
@@ -6114,7 +6172,7 @@ var EE2 = (() => {
             unmount(children[i], parentComponent, parentSuspense, doRemove, optimized);
           }
         };
-        const getNextHostNode = (vnode) => {
+        const getNextHostNode = vnode => {
           if (vnode.shapeFlag & 6) {
             return getNextHostNode(vnode.component.subTree);
           }
@@ -6149,7 +6207,10 @@ var EE2 = (() => {
         let hydrate;
         let hydrateNode;
         if (createHydrationFns) {
-          [hydrate, hydrateNode] = createHydrationFns(internals);
+          var _createHydrationFns = createHydrationFns(internals);
+          var _createHydrationFns2 = _slicedToArray(_createHydrationFns, 2);
+          hydrate = _createHydrationFns2[0];
+          hydrateNode = _createHydrationFns2[1];
         }
         return {
           render,
@@ -6157,7 +6218,10 @@ var EE2 = (() => {
           createApp: createAppAPI(render, hydrate)
         };
       }
-      function toggleRecurse({ effect: effect2, update }, allowed) {
+      function toggleRecurse({
+        effect: effect2,
+        update
+      }, allowed) {
         effect2.allowRecurse = update.allowRecurse = allowed;
       }
       function traverseStaticChildren(n1, n2, shallow = false) {
@@ -6172,8 +6236,7 @@ var EE2 = (() => {
                 c2 = ch2[i] = cloneIfMounted(ch2[i]);
                 c2.el = c1.el;
               }
-              if (!shallow)
-                traverseStaticChildren(c1, c2);
+              if (!shallow) traverseStaticChildren(c1, c2);
             }
           }
         }
@@ -6218,9 +6281,9 @@ var EE2 = (() => {
         }
         return result;
       }
-      var isTeleport = (type) => type.__isTeleport;
-      var isTeleportDisabled = (props) => props && (props.disabled || props.disabled === "");
-      var isTargetSVG = (target) => typeof SVGElement !== "undefined" && target instanceof SVGElement;
+      var isTeleport = type => type.__isTeleport;
+      var isTeleportDisabled = props => props && (props.disabled || props.disabled === "");
+      var isTargetSVG = target => typeof SVGElement !== "undefined" && target instanceof SVGElement;
       var resolveTarget = (props, select) => {
         const targetSelector = props && props.to;
         if (shared.isString(targetSelector)) {
@@ -6237,9 +6300,18 @@ var EE2 = (() => {
       var TeleportImpl = {
         __isTeleport: true,
         process(n1, n2, container, anchor, parentComponent, parentSuspense, isSVG, slotScopeIds, optimized, internals) {
-          const { mc: mountChildren, pc: patchChildren, pbc: patchBlockChildren, o: { insert, querySelector, createText, createComment } } = internals;
+          const mountChildren = internals.mc,
+            patchChildren = internals.pc,
+            patchBlockChildren = internals.pbc,
+            _internals$o = internals.o,
+            insert = _internals$o.insert,
+            querySelector = _internals$o.querySelector,
+            createText = _internals$o.createText,
+            createComment = _internals$o.createComment;
           const disabled = isTeleportDisabled(n2.props);
-          let { shapeFlag, children, dynamicChildren } = n2;
+          let shapeFlag = n2.shapeFlag,
+            children = n2.children,
+            dynamicChildren = n2.dynamicChildren;
           if (n1 == null) {
             const placeholder = n2.el = createText("");
             const mainAnchor = n2.anchor = createText("");
@@ -6278,43 +6350,35 @@ var EE2 = (() => {
             }
             if (disabled) {
               if (!wasDisabled) {
-                moveTeleport(
-                  n2,
-                  container,
-                  mainAnchor,
-                  internals,
-                  1
-                  /* TOGGLE */
-                );
+                moveTeleport(n2, container, mainAnchor, internals, 1
+                /* TOGGLE */);
               }
             } else {
               if ((n2.props && n2.props.to) !== (n1.props && n1.props.to)) {
                 const nextTarget = n2.target = resolveTarget(n2.props, querySelector);
                 if (nextTarget) {
-                  moveTeleport(
-                    n2,
-                    nextTarget,
-                    null,
-                    internals,
-                    0
-                    /* TARGET_CHANGE */
-                  );
+                  moveTeleport(n2, nextTarget, null, internals, 0
+                  /* TARGET_CHANGE */);
                 }
               } else if (wasDisabled) {
-                moveTeleport(
-                  n2,
-                  target,
-                  targetAnchor,
-                  internals,
-                  1
-                  /* TOGGLE */
-                );
+                moveTeleport(n2, target, targetAnchor, internals, 1
+                /* TOGGLE */);
               }
             }
           }
         },
-        remove(vnode, parentComponent, parentSuspense, optimized, { um: unmount, o: { remove: hostRemove } }, doRemove) {
-          const { shapeFlag, children, anchor, targetAnchor, target, props } = vnode;
+        remove(vnode, parentComponent, parentSuspense, optimized, {
+          um: unmount,
+          o: {
+            remove: hostRemove
+          }
+        }, doRemove) {
+          const shapeFlag = vnode.shapeFlag,
+            children = vnode.children,
+            anchor = vnode.anchor,
+            targetAnchor = vnode.targetAnchor,
+            target = vnode.target,
+            props = vnode.props;
           if (target) {
             hostRemove(targetAnchor);
           }
@@ -6331,11 +6395,20 @@ var EE2 = (() => {
         move: moveTeleport,
         hydrate: hydrateTeleport
       };
-      function moveTeleport(vnode, container, parentAnchor, { o: { insert }, m: move }, moveType = 2) {
+      function moveTeleport(vnode, container, parentAnchor, {
+        o: {
+          insert
+        },
+        m: move
+      }, moveType = 2) {
         if (moveType === 0) {
           insert(vnode.targetAnchor, container, parentAnchor);
         }
-        const { el, anchor, shapeFlag, children, props } = vnode;
+        const el = vnode.el,
+          anchor = vnode.anchor,
+          shapeFlag = vnode.shapeFlag,
+          children = vnode.children,
+          props = vnode.props;
         const isReorder = moveType === 2;
         if (isReorder) {
           insert(el, container, parentAnchor);
@@ -6343,13 +6416,8 @@ var EE2 = (() => {
         if (!isReorder || isTeleportDisabled(props)) {
           if (shapeFlag & 16) {
             for (let i = 0; i < children.length; i++) {
-              move(
-                children[i],
-                container,
-                parentAnchor,
-                2
-                /* REORDER */
-              );
+              move(children[i], container, parentAnchor, 2
+              /* REORDER */);
             }
           }
         }
@@ -6357,7 +6425,13 @@ var EE2 = (() => {
           insert(anchor, container, parentAnchor);
         }
       }
-      function hydrateTeleport(node, vnode, parentComponent, parentSuspense, slotScopeIds, optimized, { o: { nextSibling, parentNode, querySelector } }, hydrateChildren) {
+      function hydrateTeleport(node, vnode, parentComponent, parentSuspense, slotScopeIds, optimized, {
+        o: {
+          nextSibling,
+          parentNode,
+          querySelector
+        }
+      }, hydrateChildren) {
         const target = vnode.target = resolveTarget(vnode.props, querySelector);
         if (target) {
           const targetNode = target._lpa || target.firstChild;
@@ -6409,27 +6483,12 @@ var EE2 = (() => {
         return vnode;
       }
       function createElementBlock(type, props, children, patchFlag, dynamicProps, shapeFlag) {
-        return setupBlock(createBaseVNode(
-          type,
-          props,
-          children,
-          patchFlag,
-          dynamicProps,
-          shapeFlag,
-          true
-          /* isBlock */
-        ));
+        return setupBlock(createBaseVNode(type, props, children, patchFlag, dynamicProps, shapeFlag, true
+        /* isBlock */));
       }
       function createBlock(type, props, children, patchFlag, dynamicProps) {
-        return setupBlock(createVNode(
-          type,
-          props,
-          children,
-          patchFlag,
-          dynamicProps,
-          true
-          /* isBlock: prevent a block from tracking itself */
-        ));
+        return setupBlock(createVNode(type, props, children, patchFlag, dynamicProps, true
+        /* isBlock: prevent a block from tracking itself */));
       }
       function isVNode(value) {
         return value ? value.__v_isVNode === true : false;
@@ -6437,12 +6496,22 @@ var EE2 = (() => {
       function isSameVNodeType(n1, n2) {
         return n1.type === n2.type && n1.key === n2.key;
       }
-      function transformVNodeArgs(transformer) {
-      }
+      function transformVNodeArgs(transformer) {}
       var InternalObjectKey = `__vInternal`;
-      var normalizeKey = ({ key }) => key != null ? key : null;
-      var normalizeRef = ({ ref: ref3, ref_key, ref_for }) => {
-        return ref3 != null ? shared.isString(ref3) || reactivity.isRef(ref3) || shared.isFunction(ref3) ? { i: currentRenderingInstance, r: ref3, k: ref_key, f: !!ref_for } : ref3 : null;
+      var normalizeKey = ({
+        key
+      }) => key != null ? key : null;
+      var normalizeRef = ({
+        ref: ref3,
+        ref_key,
+        ref_for
+      }) => {
+        return ref3 != null ? shared.isString(ref3) || reactivity.isRef(ref3) || shared.isFunction(ref3) ? {
+          i: currentRenderingInstance,
+          r: ref3,
+          k: ref_key,
+          f: !!ref_for
+        } : ref3 : null;
       };
       function createBaseVNode(type, props = null, children = null, patchFlag = 0, dynamicProps = null, shapeFlag = type === Fragment ? 0 : 1, isBlockNode = false, needFullChildrenNormalization = false) {
         const vnode = {
@@ -6480,13 +6549,17 @@ var EE2 = (() => {
         } else if (children) {
           vnode.shapeFlag |= shared.isString(children) ? 8 : 16;
         }
-        if (isBlockTreeEnabled > 0 && // avoid a block node from tracking itself
-        !isBlockNode && // has current parent block
-        currentBlock && // presence of a patch flag indicates this node needs patching on updates.
+        if (isBlockTreeEnabled > 0 &&
+        // avoid a block node from tracking itself
+        !isBlockNode &&
+        // has current parent block
+        currentBlock && (
+        // presence of a patch flag indicates this node needs patching on updates.
         // component nodes also should always be patched, because even if the
         // component doesn't need to update, it needs to persist the instance on to
         // the next vnode so that it can be properly unmounted later.
-        (vnode.patchFlag > 0 || shapeFlag & 6) && // the EVENTS flag is only for hydration and if it is the only flag, the
+        vnode.patchFlag > 0 || shapeFlag & 6) &&
+        // the EVENTS flag is only for hydration and if it is the only flag, the
         // vnode should not be considered dynamic due to handler caching.
         vnode.patchFlag !== 32) {
           currentBlock.push(vnode);
@@ -6499,12 +6572,8 @@ var EE2 = (() => {
           type = Comment;
         }
         if (isVNode(type)) {
-          const cloned = cloneVNode(
-            type,
-            props,
-            true
-            /* mergeRef: true */
-          );
+          const cloned = cloneVNode(type, props, true
+          /* mergeRef: true */);
           if (children) {
             normalizeChildren(cloned, children);
           }
@@ -6523,7 +6592,9 @@ var EE2 = (() => {
         }
         if (props) {
           props = guardReactiveProps(props);
-          let { class: klass, style } = props;
+          let _props = props,
+            klass = _props.class,
+            style = _props.style;
           if (klass && !shared.isString(klass)) {
             props.class = shared.normalizeClass(klass);
           }
@@ -6538,12 +6609,14 @@ var EE2 = (() => {
         return createBaseVNode(type, props, children, patchFlag, dynamicProps, shapeFlag, isBlockNode, true);
       }
       function guardReactiveProps(props) {
-        if (!props)
-          return null;
+        if (!props) return null;
         return reactivity.isProxy(props) || InternalObjectKey in props ? shared.extend({}, props) : props;
       }
       function cloneVNode(vnode, extraProps, mergeRef = false) {
-        const { props, ref: ref3, patchFlag, children } = vnode;
+        const props = vnode.props,
+          ref3 = vnode.ref,
+          patchFlag = vnode.patchFlag,
+          children = vnode.children;
         const mergedProps = extraProps ? mergeProps(props || {}, extraProps) : props;
         const cloned = {
           __v_isVNode: true,
@@ -6551,12 +6624,11 @@ var EE2 = (() => {
           type: vnode.type,
           props: mergedProps,
           key: mergedProps && normalizeKey(mergedProps),
-          ref: extraProps && extraProps.ref ? (
-            // #2078 in the case of <component :is="vnode" ref="extra"/>
-            // if the vnode itself already has a ref, cloneVNode will need to merge
-            // the refs so the single vnode can be set on multiple refs
-            mergeRef && ref3 ? shared.isArray(ref3) ? ref3.concat(normalizeRef(extraProps)) : [ref3, normalizeRef(extraProps)] : normalizeRef(extraProps)
-          ) : ref3,
+          ref: extraProps && extraProps.ref ?
+          // #2078 in the case of <component :is="vnode" ref="extra"/>
+          // if the vnode itself already has a ref, cloneVNode will need to merge
+          // the refs so the single vnode can be set on multiple refs
+          mergeRef && ref3 ? shared.isArray(ref3) ? ref3.concat(normalizeRef(extraProps)) : [ref3, normalizeRef(extraProps)] : normalizeRef(extraProps) : ref3,
           scopeId: vnode.scopeId,
           slotScopeIds: vnode.slotScopeIds,
           children,
@@ -6602,12 +6674,9 @@ var EE2 = (() => {
         if (child == null || typeof child === "boolean") {
           return createVNode(Comment);
         } else if (shared.isArray(child)) {
-          return createVNode(
-            Fragment,
-            null,
-            // #3666, avoid reference pollution when reusing vnode
-            child.slice()
-          );
+          return createVNode(Fragment, null,
+          // #3666, avoid reference pollution when reusing vnode
+          child.slice());
         } else if (typeof child === "object") {
           return cloneIfMounted(child);
         } else {
@@ -6619,7 +6688,7 @@ var EE2 = (() => {
       }
       function normalizeChildren(vnode, children) {
         let type = 0;
-        const { shapeFlag } = vnode;
+        const shapeFlag = vnode.shapeFlag;
         if (children == null) {
           children = null;
         } else if (shared.isArray(children)) {
@@ -6648,7 +6717,10 @@ var EE2 = (() => {
             }
           }
         } else if (shared.isFunction(children)) {
-          children = { default: children, _ctx: currentRenderingInstance };
+          children = {
+            default: children,
+            _ctx: currentRenderingInstance
+          };
           type = 32;
         } else {
           children = String(children);
@@ -6687,10 +6759,7 @@ var EE2 = (() => {
         return ret;
       }
       function invokeVNodeHook(hook, instance, vnode, prevVNode = null) {
-        callWithAsyncErrorHandling(hook, instance, 7, [
-          vnode,
-          prevVNode
-        ]);
+        callWithAsyncErrorHandling(hook, instance, 7, [vnode, prevVNode]);
       }
       var emptyAppContext = createAppContext();
       var uid$1 = 0;
@@ -6708,10 +6777,8 @@ var EE2 = (() => {
           subTree: null,
           effect: null,
           update: null,
-          scope: new reactivity.EffectScope(
-            true
-            /* detached */
-          ),
+          scope: new reactivity.EffectScope(true
+          /* detached */),
           render: null,
           proxy: null,
           exposed: null,
@@ -6768,7 +6835,9 @@ var EE2 = (() => {
           sp: null
         };
         {
-          instance.ctx = { _: instance };
+          instance.ctx = {
+            _: instance
+          };
         }
         instance.root = parent ? parent.root : instance;
         instance.emit = emit.bind(null, instance);
@@ -6779,7 +6848,7 @@ var EE2 = (() => {
       }
       var currentInstance = null;
       var getCurrentInstance2 = () => currentInstance || currentRenderingInstance;
-      var setCurrentInstance = (instance) => {
+      var setCurrentInstance = instance => {
         currentInstance = instance;
         instance.scope.on();
       };
@@ -6793,7 +6862,9 @@ var EE2 = (() => {
       var isInSSRComponentSetup = false;
       function setupComponent(instance, isSSR = false) {
         isInSSRComponentSetup = isSSR;
-        const { props, children } = instance.vnode;
+        const _instance$vnode = instance.vnode,
+          props = _instance$vnode.props,
+          children = _instance$vnode.children;
         const isStateful = isStatefulComponent(instance);
         initProps(instance, props, isStateful, isSSR);
         initSlots(instance, children);
@@ -6803,9 +6874,9 @@ var EE2 = (() => {
       }
       function setupStatefulComponent(instance, isSSR) {
         const Component = instance.type;
-        instance.accessCache = /* @__PURE__ */ Object.create(null);
+        instance.accessCache = /* @__PURE__ */Object.create(null);
         instance.proxy = reactivity.markRaw(new Proxy(instance.ctx, PublicInstanceProxyHandlers));
-        const { setup: setup2 } = Component;
+        const setup2 = Component.setup;
         if (setup2) {
           const setupContext = instance.setupContext = setup2.length > 1 ? createSetupContext(instance) : null;
           setCurrentInstance(instance);
@@ -6816,15 +6887,11 @@ var EE2 = (() => {
           if (shared.isPromise(setupResult)) {
             setupResult.then(unsetCurrentInstance, unsetCurrentInstance);
             if (isSSR) {
-              return setupResult.then((resolvedResult) => {
+              return setupResult.then(resolvedResult => {
                 handleSetupResult(instance, resolvedResult, isSSR);
-              }).catch((e) => {
-                handleError(
-                  e,
-                  instance,
-                  0
-                  /* SETUP_FUNCTION */
-                );
+              }).catch(e => {
+                handleError(e, instance, 0
+                /* SETUP_FUNCTION */);
               });
             } else {
               instance.asyncDep = setupResult;
@@ -6852,7 +6919,7 @@ var EE2 = (() => {
       var installWithProxy;
       function registerRuntimeCompiler(_compile) {
         compile = _compile;
-        installWithProxy = (i) => {
+        installWithProxy = i => {
           if (i.render._rc) {
             i.withProxy = new Proxy(i.ctx, RuntimeCompiledPublicInstanceProxyHandlers);
           }
@@ -6865,8 +6932,11 @@ var EE2 = (() => {
           if (!isSSR && compile && !Component.render) {
             const template = Component.template;
             if (template) {
-              const { isCustomElement, compilerOptions } = instance.appContext.config;
-              const { delimiters, compilerOptions: componentCompilerOptions } = Component;
+              const _instance$appContext$ = instance.appContext.config,
+                isCustomElement = _instance$appContext$.isCustomElement,
+                compilerOptions = _instance$appContext$.compilerOptions;
+              const delimiters = Component.delimiters,
+                componentCompilerOptions = Component.compilerOptions;
               const finalCompilerOptions = shared.extend(shared.extend({
                 isCustomElement,
                 delimiters
@@ -6896,7 +6966,7 @@ var EE2 = (() => {
         });
       }
       function createSetupContext(instance) {
-        const expose = (exposed) => {
+        const expose = exposed => {
           instance.exposed = exposed || {};
         };
         let attrs;
@@ -6925,7 +6995,7 @@ var EE2 = (() => {
         }
       }
       var classifyRE = /(?:^|[-_])(\w)/g;
-      var classify = (str) => str.replace(classifyRE, (c) => c.toUpperCase()).replace(/[-_]/g, "");
+      var classify = str => str.replace(classifyRE, c => c.toUpperCase()).replace(/[-_]/g, "");
       function getComponentName(Component, includeInferred = true) {
         return shared.isFunction(Component) ? Component.displayName || Component.name : Component.name || includeInferred && Component.__name;
       }
@@ -6938,7 +7008,7 @@ var EE2 = (() => {
           }
         }
         if (!name && instance && instance.parent) {
-          const inferFromRegistry = (registry) => {
+          const inferFromRegistry = registry => {
             for (const key in registry) {
               if (registry[key] === Component) {
                 return key;
@@ -6961,8 +7031,7 @@ var EE2 = (() => {
       function defineEmits() {
         return null;
       }
-      function defineExpose(exposed) {
-      }
+      function defineExpose(exposed) {}
       function withDefaults(props, defaults) {
         return null;
       }
@@ -6982,12 +7051,17 @@ var EE2 = (() => {
           const opt = props[key];
           if (opt) {
             if (shared.isArray(opt) || shared.isFunction(opt)) {
-              props[key] = { type: opt, default: defaults[key] };
+              props[key] = {
+                type: opt,
+                default: defaults[key]
+              };
             } else {
               opt.default = defaults[key];
             }
           } else if (opt === null) {
-            props[key] = { default: defaults[key] };
+            props[key] = {
+              default: defaults[key]
+            };
           } else ;
         }
         return props;
@@ -7009,7 +7083,7 @@ var EE2 = (() => {
         let awaitable = getAwaitable();
         unsetCurrentInstance();
         if (shared.isPromise(awaitable)) {
-          awaitable = awaitable.catch((e) => {
+          awaitable = awaitable.catch(e => {
             setCurrentInstance(ctx);
             throw e;
           });
@@ -7217,6 +7291,7 @@ var EE2 = (() => {
   var require_runtime_core = __commonJS({
     "../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/node_modules/@vue/runtime-core/index.js"(exports, module) {
       "use strict";
+
       init_timers();
       if (true) {
         module.exports = require_runtime_core_cjs_prod();
@@ -7281,7 +7356,7 @@ var EE2 = (() => {
   });
   function AppConfig(type) {
     if (!type) return config;
-    return config.widgets.find((w) => w.wmType === type);
+    return config.widgets.find(w => w.wmType === type);
   }
   function setLanguage(lang) {
     config.language = lang;
@@ -7665,7 +7740,10 @@ var EE2 = (() => {
   };
 
   // tools/poe2-ee2/shims/client-strings.ts
-  var ALL = { en: client_strings_default, de: client_strings_default2 };
+  var ALL = {
+    en: client_strings_default,
+    de: client_strings_default2
+  };
   function loadClientStrings(lang) {
     return __async(this, null, function* () {
       return ALL[lang] || client_strings_default;
@@ -7696,8 +7774,7 @@ var EE2 = (() => {
   var isVue2 = false;
   var isVue3 = true;
   var Vue2 = void 0;
-  function install() {
-  }
+  function install() {}
   function set2(target, key, val) {
     if (Array.isArray(target)) {
       target.length = Math.max(target.length, key);
@@ -7722,7 +7799,7 @@ var EE2 = (() => {
     const scope = (0, lib_exports.effectScope)(true);
     return (...args) => {
       if (!initialized) {
-        state = scope.run(() => stateFactory(...args));
+        state = scope.run(() => stateFactory.apply(void 0, args));
         initialized = true;
       }
       return state;
@@ -7730,16 +7807,16 @@ var EE2 = (() => {
   }
   var isWorker = typeof WorkerGlobalScope !== "undefined" && globalThis instanceof WorkerGlobalScope;
   function cacheStringFunction2(fn) {
-    const cache3 = /* @__PURE__ */ Object.create(null);
-    return (str) => {
+    const cache3 = /* @__PURE__ */Object.create(null);
+    return str => {
       const hit = cache3[str];
       return hit || (cache3[str] = fn(str));
     };
   }
   var hyphenateRE2 = /\B([A-Z])/g;
-  var hyphenate2 = cacheStringFunction2((str) => str.replace(hyphenateRE2, "-$1").toLowerCase());
+  var hyphenate2 = cacheStringFunction2(str => str.replace(hyphenateRE2, "-$1").toLowerCase());
   var camelizeRE2 = /-(\w)/g;
-  var camelize2 = cacheStringFunction2((str) => {
+  var camelize2 = cacheStringFunction2(str => {
     return str.replace(camelizeRE2, (_, c) => c ? c.toUpperCase() : "");
   });
 
@@ -7759,13 +7836,13 @@ var EE2 = (() => {
       return this.map[k.toLowerCase()] !== void 0;
     }
     [Symbol.iterator]() {
-      return Object.keys(this.map).map((k) => [k, this.map[k]])[Symbol.iterator]();
+      return Object.keys(this.map).map(k => [k, this.map[k]])[Symbol.iterator]();
     }
   };
   var Host = {
     isElectron: false,
     proxy(url, init2) {
-      return host.request("https://" + url, init2 && init2.method ? init2.method : "GET", init2 && init2.body ? init2.body : "").then((r) => ({
+      return host.request("https://" + url, init2 && init2.method ? init2.method : "GET", init2 && init2.body ? init2.body : "").then(r => ({
         ok: r.status >= 200 && r.status < 300,
         status: r.status,
         headers: new Headers2(r.headers || {}),
@@ -7773,10 +7850,8 @@ var EE2 = (() => {
         json: () => Promise.resolve(JSON.parse(r.body))
       }));
     },
-    sendEvent() {
-    },
-    onEvent() {
-    }
+    sendEvent() {},
+    onEvent() {}
   };
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/background/TradeData.ts
@@ -7789,42 +7864,103 @@ var EE2 = (() => {
     let lastInterestTime = 0;
     const isLoading = (0, import_vue2.shallowRef)(false);
     const error = (0, import_vue2.shallowRef)(null);
-    const itemData = (0, import_vue2.shallowRef)(/* @__PURE__ */ new Set([]));
-    const statDataSet = (0, import_vue2.shallowRef)(/* @__PURE__ */ new Set([]));
-    const statData = (0, import_vue2.shallowRef)(
-      /* @__PURE__ */ new Map()
-    );
+    const itemData = (0, import_vue2.shallowRef)(/* @__PURE__ */new Set([]));
+    const statDataSet = (0, import_vue2.shallowRef)(/* @__PURE__ */new Set([]));
+    const statData = (0, import_vue2.shallowRef)(/* @__PURE__ */new Map());
     function loadStatData() {
       return __async(this, null, function* () {
         if (!downloadController) {
           throw new Error("download controller not initialized");
         }
         const response = yield Host.proxy(
-          // don't use `getTradeEndpoint` since we want ref items, not translated
-          `www.pathofexile.com/api/trade2/data/stats`,
-          {
-            signal: downloadController.signal
-          }
-        );
+        // don't use `getTradeEndpoint` since we want ref items, not translated
+        `www.pathofexile.com/api/trade2/data/stats`, {
+          signal: downloadController.signal
+        });
         const resText = yield response.text();
         const tradeStatsProcessingTime = performance.now();
         const rawStatsData = JSON.parse(resText);
-        const outStatData = /* @__PURE__ */ new Map();
-        const statDataSet2 = /* @__PURE__ */ new Set();
-        for (const { id: modType, entries } of rawStatsData.result) {
-          for (const { id: statId, text: matcher } of entries) {
-            let modMap = outStatData.get(matcher);
-            if (!modMap) {
-              modMap = {};
-              outStatData.set(matcher, modMap);
+        const outStatData = /* @__PURE__ */new Map();
+        const statDataSet2 = /* @__PURE__ */new Set();
+        {
+          const _a11 = rawStatsData.result;
+          if (Array.isArray(_a11)) for (let _i1 = 0; _i1 < _a11.length; _i1++) {
+            const _a11$_i = _a11[_i1],
+              modType = _a11$_i.id,
+              entries = _a11$_i.entries;
+            {
+              const _a12 = entries;
+              if (Array.isArray(_a12)) for (let _i10 = 0; _i10 < _a12.length; _i10++) {
+                const _a12$_i = _a12[_i10],
+                  statId = _a12$_i.id,
+                  matcher = _a12$_i.text;
+                let modMap = outStatData.get(matcher);
+                if (!modMap) {
+                  modMap = {};
+                  outStatData.set(matcher, modMap);
+                }
+                let statIds = modMap[modType];
+                if (!statIds) {
+                  statIds = [];
+                  modMap[modType] = statIds;
+                }
+                statDataSet2.add(statId);
+                statIds.push(statId);
+              } else for (const _ref2 of _a12) {
+                const statId = _ref2.id;
+                const matcher = _ref2.text;
+                let modMap = outStatData.get(matcher);
+                if (!modMap) {
+                  modMap = {};
+                  outStatData.set(matcher, modMap);
+                }
+                let statIds = modMap[modType];
+                if (!statIds) {
+                  statIds = [];
+                  modMap[modType] = statIds;
+                }
+                statDataSet2.add(statId);
+                statIds.push(statId);
+              }
             }
-            let statIds = modMap[modType];
-            if (!statIds) {
-              statIds = [];
-              modMap[modType] = statIds;
+          } else for (const _ref3 of _a11) {
+            const modType = _ref3.id;
+            const entries = _ref3.entries;
+            {
+              const _a13 = entries;
+              if (Array.isArray(_a13)) for (let _i11 = 0; _i11 < _a13.length; _i11++) {
+                const _a13$_i = _a13[_i11],
+                  statId = _a13$_i.id,
+                  matcher = _a13$_i.text;
+                let modMap = outStatData.get(matcher);
+                if (!modMap) {
+                  modMap = {};
+                  outStatData.set(matcher, modMap);
+                }
+                let statIds = modMap[modType];
+                if (!statIds) {
+                  statIds = [];
+                  modMap[modType] = statIds;
+                }
+                statDataSet2.add(statId);
+                statIds.push(statId);
+              } else for (const _ref4 of _a13) {
+                const statId = _ref4.id;
+                const matcher = _ref4.text;
+                let modMap = outStatData.get(matcher);
+                if (!modMap) {
+                  modMap = {};
+                  outStatData.set(matcher, modMap);
+                }
+                let statIds = modMap[modType];
+                if (!statIds) {
+                  statIds = [];
+                  modMap[modType] = statIds;
+                }
+                statDataSet2.add(statId);
+                statIds.push(statId);
+              }
             }
-            statDataSet2.add(statId);
-            statIds.push(statId);
           }
         }
         performance.measure("loadStatData", {
@@ -7840,23 +7976,64 @@ var EE2 = (() => {
           throw new Error("download controller not initialized");
         }
         const response = yield Host.proxy(
-          // don't use `getTradeEndpoint` since we want ref items, not translated
-          `www.pathofexile.com/api/trade2/data/items`,
-          {
-            signal: downloadController.signal
-          }
-        );
+        // don't use `getTradeEndpoint` since we want ref items, not translated
+        `www.pathofexile.com/api/trade2/data/items`, {
+          signal: downloadController.signal
+        });
         const resText = yield response.text();
         const tradeItemsProcessingTime = performance.now();
         const rawItemData = JSON.parse(resText);
-        const outItemData = /* @__PURE__ */ new Set();
-        for (const category of rawItemData.result) {
-          for (const { type, text } of category.entries) {
-            if (type) {
-              outItemData.add(type);
+        const outItemData = /* @__PURE__ */new Set();
+        {
+          const _a14 = rawItemData.result;
+          if (Array.isArray(_a14)) for (let _i12 = 0; _i12 < _a14.length; _i12++) {
+            const category = _a14[_i12];
+            {
+              const _a15 = category.entries;
+              if (Array.isArray(_a15)) for (let _i13 = 0; _i13 < _a15.length; _i13++) {
+                const _a15$_i = _a15[_i13],
+                  type = _a15$_i.type,
+                  text = _a15$_i.text;
+                if (type) {
+                  outItemData.add(type);
+                }
+                if (text) {
+                  outItemData.add(text);
+                }
+              } else for (const _ref5 of _a15) {
+                const type = _ref5.type;
+                const text = _ref5.text;
+                if (type) {
+                  outItemData.add(type);
+                }
+                if (text) {
+                  outItemData.add(text);
+                }
+              }
             }
-            if (text) {
-              outItemData.add(text);
+          } else for (const category of _a14) {
+            {
+              const _a16 = category.entries;
+              if (Array.isArray(_a16)) for (let _i14 = 0; _i14 < _a16.length; _i14++) {
+                const _a16$_i = _a16[_i14],
+                  type = _a16$_i.type,
+                  text = _a16$_i.text;
+                if (type) {
+                  outItemData.add(type);
+                }
+                if (text) {
+                  outItemData.add(text);
+                }
+              } else for (const _ref6 of _a16) {
+                const type = _ref6.type;
+                const text = _ref6.text;
+                if (type) {
+                  outItemData.add(type);
+                }
+                if (text) {
+                  outItemData.add(text);
+                }
+              }
             }
           }
         }
@@ -7869,10 +8046,11 @@ var EE2 = (() => {
     }
     function load2(force = false) {
       return __async(this, null, function* () {
-        if (!force && // don't update more that this frequently
-        (Date.now() - lastUpdateTime < UPDATE_INTERVAL_MS || // don't update if user hasn't needed them recently
-        Date.now() - lastInterestTime > INTEREST_SPAN_MS))
-          return;
+        if (!force && (
+        // don't update more that this frequently
+        Date.now() - lastUpdateTime < UPDATE_INTERVAL_MS ||
+        // don't update if user hasn't needed them recently
+        Date.now() - lastInterestTime > INTEREST_SPAN_MS)) return;
         if (downloadController) downloadController.abort();
         let foundItems = 0;
         let foundStats = 0;
@@ -7881,10 +8059,10 @@ var EE2 = (() => {
           isLoading.value = true;
           error.value = null;
           downloadController = new AbortController();
-          const [outItemData, outStatTuple] = yield Promise.all([
-            loadItemData(),
-            loadStatData()
-          ]);
+          const _yield$Promise$all = yield Promise.all([loadItemData(), loadStatData()]),
+            _yield$Promise$all2 = _slicedToArray(_yield$Promise$all, 2),
+            outItemData = _yield$Promise$all2[0],
+            outStatTuple = _yield$Promise$all2[1];
           foundItems = outItemData.size - itemData.value.size;
           foundStats = outStatTuple[1].size - statDataSet.value.size;
           if (foundItems > 0 && foundStats > 0) {
@@ -7925,65 +8103,16 @@ var EE2 = (() => {
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/parser/meta.ts
   init_timers();
-  var WEAPON_ONE_HANDED_MELEE = /* @__PURE__ */ new Set([
-    "One Hand Axe" /* OneHandedAxe */,
-    "One Hand Mace" /* OneHandedMace */,
-    "One Hand Sword" /* OneHandedSword */,
-    "Claw" /* Claw */,
-    "Dagger" /* Dagger */,
-    "Rune Dagger" /* RuneDagger */,
-    "Spear" /* Spear */,
-    "Flail" /* Flail */
-  ]);
-  var WEAPON_ONE_HANDED = /* @__PURE__ */ new Set([
-    "Sceptre" /* Sceptre */,
-    "Wand" /* Wand */,
-    ...WEAPON_ONE_HANDED_MELEE
-  ]);
-  var WEAPON_TWO_HANDED_MELEE = /* @__PURE__ */ new Set([
-    "Two Hand Axe" /* TwoHandedAxe */,
-    "Two Hand Mace" /* TwoHandedMace */,
-    "Two Hand Sword" /* TwoHandedSword */,
-    "Warstaff" /* Warstaff */,
-    "Talisman" /* Talisman */
-  ]);
-  var MARTIAL_WEAPON = /* @__PURE__ */ new Set([
-    "Bow" /* Bow */,
-    "Crossbow" /* Crossbow */,
-    ...WEAPON_ONE_HANDED_MELEE,
-    ...WEAPON_TWO_HANDED_MELEE
-  ]);
-  var WEAPON = /* @__PURE__ */ new Set([
-    "Staff" /* Staff */,
-    "Fishing Rod" /* FishingRod */,
-    ...WEAPON_ONE_HANDED,
-    ...MARTIAL_WEAPON
-  ]);
-  var ARMOUR = /* @__PURE__ */ new Set([
-    "Body Armour" /* BodyArmour */,
-    "Boots" /* Boots */,
-    "Gloves" /* Gloves */,
-    "Helmet" /* Helmet */,
-    "Shield" /* Shield */,
-    "Focus" /* Focus */,
-    "Buckler" /* Buckler */
-  ]);
-  var GRANTS_REAL_SKILL = /* @__PURE__ */ new Set([
-    "Staff" /* Staff */,
-    "Wand" /* Wand */,
-    "Sceptre" /* Sceptre */
-  ]);
-  var GRANTS_SKILL = /* @__PURE__ */ new Set([
-    ...GRANTS_REAL_SKILL,
-    "Spear" /* Spear */,
-    "Shield" /* Shield */,
-    "Buckler" /* Buckler */
-  ]);
-  var GEM = /* @__PURE__ */ new Set([
-    "Gem" /* Gem */,
-    "Meta Gem" /* MetaGem */,
-    "Support Gem" /* SupportGem */
-    // ItemCategory.UncutGem,
+  var WEAPON_ONE_HANDED_MELEE = /* @__PURE__ */new Set(["One Hand Axe" /* OneHandedAxe */, "One Hand Mace" /* OneHandedMace */, "One Hand Sword" /* OneHandedSword */, "Claw" /* Claw */, "Dagger" /* Dagger */, "Rune Dagger" /* RuneDagger */, "Spear" /* Spear */, "Flail" /* Flail */]);
+  var WEAPON_ONE_HANDED = /* @__PURE__ */new Set(["Sceptre" /* Sceptre */, "Wand" /* Wand */].concat(_toConsumableArray(WEAPON_ONE_HANDED_MELEE)));
+  var WEAPON_TWO_HANDED_MELEE = /* @__PURE__ */new Set(["Two Hand Axe" /* TwoHandedAxe */, "Two Hand Mace" /* TwoHandedMace */, "Two Hand Sword" /* TwoHandedSword */, "Warstaff" /* Warstaff */, "Talisman" /* Talisman */]);
+  var MARTIAL_WEAPON = /* @__PURE__ */new Set(["Bow" /* Bow */, "Crossbow" /* Crossbow */].concat(_toConsumableArray(WEAPON_ONE_HANDED_MELEE), _toConsumableArray(WEAPON_TWO_HANDED_MELEE)));
+  var WEAPON = /* @__PURE__ */new Set(["Staff" /* Staff */, "Fishing Rod" /* FishingRod */].concat(_toConsumableArray(WEAPON_ONE_HANDED), _toConsumableArray(MARTIAL_WEAPON)));
+  var ARMOUR = /* @__PURE__ */new Set(["Body Armour" /* BodyArmour */, "Boots" /* Boots */, "Gloves" /* Gloves */, "Helmet" /* Helmet */, "Shield" /* Shield */, "Focus" /* Focus */, "Buckler" /* Buckler */]);
+  var GRANTS_REAL_SKILL = /* @__PURE__ */new Set(["Staff" /* Staff */, "Wand" /* Wand */, "Sceptre" /* Sceptre */]);
+  var GRANTS_SKILL = /* @__PURE__ */new Set([].concat(_toConsumableArray(GRANTS_REAL_SKILL), ["Spear" /* Spear */, "Shield" /* Shield */, "Buckler" /* Buckler */]));
+  var GEM = /* @__PURE__ */new Set(["Gem" /* Gem */, "Meta Gem" /* MetaGem */, "Support Gem" /* SupportGem */
+  // ItemCategory.UncutGem,
   ]);
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/parser/ParsedItem.ts
@@ -8026,19 +8155,14 @@ var EE2 = (() => {
   var TAG_TO_CATALYST = {};
   var ITEM_BY_TRANSLATED = () => void 0;
   var ITEM_BY_REF = () => void 0;
-  var ITEMS_ITERATOR = function* () {
-  };
-  var GEM_NS_NAMES = function* () {
-  };
-  var UNIQUE_NS_NAMES = function* () {
-  };
-  var ITEM_NS_NAMES = function* () {
-  };
-  var TRADE_TAG_TO_REF = /* @__PURE__ */ new Map();
+  var ITEMS_ITERATOR = function* () {};
+  var GEM_NS_NAMES = function* () {};
+  var UNIQUE_NS_NAMES = function* () {};
+  var ITEM_NS_NAMES = function* () {};
+  var TRADE_TAG_TO_REF = /* @__PURE__ */new Map();
   var STAT_BY_MATCH_STR = () => void 0;
   var STAT_BY_REF = () => void 0;
-  var STATS_ITERATOR = function* () {
-  };
+  var STATS_ITERATOR = function* () {};
   var TRADE_ITEM_BY_REF = () => void 0;
   var TRADE_STAT_BY_STAT_ID = () => false;
   var TRADE_STAT_BY_MATCH_STR = () => void 0;
@@ -8067,7 +8191,7 @@ var EE2 = (() => {
         start = ndjson.lastIndexOf("\n", matchPos) + 1;
         const end = ndjson.indexOf("\n", matchPos);
         const jsonLine = ndjson.slice(start, end);
-        if (andIncludes.every((str) => jsonLine.includes(str))) {
+        if (andIncludes.every(str => jsonLine.includes(str))) {
           yield JSON.parse(jsonLine);
         }
         start = end + 1;
@@ -8078,8 +8202,14 @@ var EE2 = (() => {
     let cached = "";
     return function* () {
       if (!cached.length) {
-        for (const item of items) {
-          cached += item.name + "\n";
+        {
+          const _a17 = items;
+          if (Array.isArray(_a17)) for (let _i15 = 0; _i15 < _a17.length; _i15++) {
+            const item = _a17[_i15];
+            cached += item.name + "\n";
+          } else for (const item of _a17) {
+            cached += item.name + "\n";
+          }
         }
       }
       let start = 0;
@@ -8094,24 +8224,13 @@ var EE2 = (() => {
     return __async(this, null, function* () {
       const ndjson = yield (yield fetch(`${"/"}data/${language}/items.ndjson`)).text();
       const INDEX_WIDTH = 2;
-      const indexNames = new Uint32Array(
-        yield (yield fetch(
-          `${"/"}data/${language}/items-name.index.bin`
-        )).arrayBuffer()
-      );
-      const indexRefNames = new Uint32Array(
-        yield (yield fetch(
-          `${"/"}data/${language}/items-ref.index.bin`
-        )).arrayBuffer()
-      );
+      const indexNames = new Uint32Array(yield (yield fetch(`${"/"}data/${language}/items-name.index.bin`)).arrayBuffer());
+      const indexRefNames = new Uint32Array(yield (yield fetch(`${"/"}data/${language}/items-ref.index.bin`)).arrayBuffer());
       function commonFind(index, prop) {
-        return function(ns, name) {
-          let start = dataBinarySearch(
-            index,
-            Number(fnv1a(`${ns}::${name}`, { size: 32 })),
-            0,
-            INDEX_WIDTH
-          );
+        return function (ns, name) {
+          let start = dataBinarySearch(index, Number(fnv1a(`${ns}::${name}`, {
+            size: 32
+          })), 0, INDEX_WIDTH);
           if (start === -1) return void 0;
           start = index[start * INDEX_WIDTH + 1];
           const out = [];
@@ -8135,9 +8254,15 @@ var EE2 = (() => {
       GEM_NS_NAMES = itemNamesFromLines(ITEMS_ITERATOR('": "GEM"'));
       UNIQUE_NS_NAMES = itemNamesFromLines(ITEMS_ITERATOR('": "UNIQUE"'));
       ITEM_NS_NAMES = itemNamesFromLines(ITEMS_ITERATOR('": "ITEM"'));
-      TRADE_TAG_TO_REF = /* @__PURE__ */ new Map();
-      for (const item of ITEMS_ITERATOR('"tradeTag":')) {
-        TRADE_TAG_TO_REF.set(item.tradeTag, item.refName);
+      TRADE_TAG_TO_REF = /* @__PURE__ */new Map();
+      {
+        const _a18 = ITEMS_ITERATOR('"tradeTag":');
+        if (Array.isArray(_a18)) for (let _i16 = 0; _i16 < _a18.length; _i16++) {
+          const item = _a18[_i16];
+          TRADE_TAG_TO_REF.set(item.tradeTag, item.refName);
+        } else for (const item of _a18) {
+          TRADE_TAG_TO_REF.set(item.tradeTag, item.refName);
+        }
       }
     });
   }
@@ -8145,51 +8270,38 @@ var EE2 = (() => {
     return __async(this, null, function* () {
       const ndjson = yield (yield fetch(`${"/"}data/${language}/stats.ndjson`)).text();
       const INDEX_WIDTH = 2;
-      const indexRef = new Uint32Array(
-        yield (yield fetch(
-          `${"/"}data/${language}/stats-ref.index.bin`
-        )).arrayBuffer()
-      );
-      const indexMatcher = new Uint32Array(
-        yield (yield fetch(
-          `${"/"}data/${language}/stats-matcher.index.bin`
-        )).arrayBuffer()
-      );
-      STAT_BY_REF = function(ref3) {
-        let start = dataBinarySearch(
-          indexRef,
-          Number(fnv1a(ref3, { size: 32 })),
-          0,
-          INDEX_WIDTH
-        );
+      const indexRef = new Uint32Array(yield (yield fetch(`${"/"}data/${language}/stats-ref.index.bin`)).arrayBuffer());
+      const indexMatcher = new Uint32Array(yield (yield fetch(`${"/"}data/${language}/stats-matcher.index.bin`)).arrayBuffer());
+      STAT_BY_REF = function (ref3) {
+        let start = dataBinarySearch(indexRef, Number(fnv1a(ref3, {
+          size: 32
+        })), 0, INDEX_WIDTH);
         if (start === -1) return void 0;
         start = indexRef[start * INDEX_WIDTH + 1];
         const end = ndjson.indexOf("\n", start);
         return JSON.parse(ndjson.slice(start, end));
       };
-      STAT_BY_MATCH_STR = function(matchStr) {
-        let start = dataBinarySearch(
-          indexMatcher,
-          Number(fnv1a(matchStr, { size: 32 })),
-          0,
-          INDEX_WIDTH
-        );
+      STAT_BY_MATCH_STR = function (matchStr) {
+        let start = dataBinarySearch(indexMatcher, Number(fnv1a(matchStr, {
+          size: 32
+        })), 0, INDEX_WIDTH);
         if (start === -1) return void 0;
         start = indexMatcher[start * INDEX_WIDTH + 1];
         const end = ndjson.indexOf("\n", start);
         const stat2 = JSON.parse(ndjson.slice(start, end));
-        const matcher = stat2.matchers.find(
-          (m) => m.string === matchStr || m.advanced === matchStr
-        );
+        const matcher = stat2.matchers.find(m => m.string === matchStr || m.advanced === matchStr);
         if (!matcher) {
           return void 0;
         }
-        return { stat: stat2, matcher };
+        return {
+          stat: stat2,
+          matcher
+        };
       };
       STATS_ITERATOR = ndjsonFindLines(ndjson);
     });
   }
-  var DELAYED_STAT_VALIDATION = /* @__PURE__ */ new Set();
+  var DELAYED_STAT_VALIDATION = /* @__PURE__ */new Set();
   function stat(text) {
     DELAYED_STAT_VALIDATION.add(text);
     return text;
@@ -8202,16 +8314,23 @@ var EE2 = (() => {
       yield loadForLang(lang);
       let failed = false;
       const missing = [];
-      for (const text of DELAYED_STAT_VALIDATION) {
-        if (STAT_BY_REF(text) == null) {
-          missing.push(text);
-          failed = true;
+      {
+        const _a19 = DELAYED_STAT_VALIDATION;
+        if (Array.isArray(_a19)) for (let _i17 = 0; _i17 < _a19.length; _i17++) {
+          const text = _a19[_i17];
+          if (STAT_BY_REF(text) == null) {
+            missing.push(text);
+            failed = true;
+          }
+        } else for (const text of _a19) {
+          if (STAT_BY_REF(text) == null) {
+            missing.push(text);
+            failed = true;
+          }
         }
       }
       if (failed) {
-        console.log(
-          "Cannot find stat" + (missing.length > 1 ? "s" : "") + missing.join("\n")
-        );
+        console.log("Cannot find stat" + (missing.length > 1 ? "s" : "") + missing.join("\n"));
       }
       DELAYED_STAT_VALIDATION.clear();
     });
@@ -8227,17 +8346,15 @@ var EE2 = (() => {
   }
   function loadUltraLateItems() {
     const a = Array.from(ITEMS_ITERATOR('"craftable": {"category": "SoulCore"}'));
-    const b = a.filter((r) => r.augment && r.augment.some((s) => s.tradeId));
-    const augmentList = b.map((r) => __spreadProps(__spreadValues({}, r), {
-      augment: r.augment.filter((s) => s.tradeId)
+    const b = a.filter(r => r.augment && r.augment.some(s => s.tradeId));
+    const augmentList = b.map(r => __spreadProps(__spreadValues({}, r), {
+      augment: r.augment.filter(s => s.tradeId)
     }));
     AUGMENT_DATA_BY_AUGMENT = augmentsToLookup(augmentList);
     AUGMENT_DATA_BY_TRADE_ID = augmentsToLookupTradeId(augmentList);
     GROUPED_AUGMENTS = groupAugments(augmentList);
     const normalCatalysts = Array.from(ITEMS_ITERATOR('"tags": ["catalyst"'));
-    const refinedCatalysts = Array.from(
-      ITEMS_ITERATOR('"tags": ["jewel_catalyst"')
-    );
+    const refinedCatalysts = Array.from(ITEMS_ITERATOR('"tags": ["jewel_catalyst"'));
     CATALYST_TYPES = {
       Normal: normalCatalysts,
       Refined: refinedCatalysts
@@ -8245,11 +8362,7 @@ var EE2 = (() => {
     CATALYST_TO_TAG = {
       life_catalyst: [CLIENT_STRINGS.LIFE_TAG],
       mana_catalyst: [CLIENT_STRINGS.MANA_TAG],
-      defences_catalyst: [
-        CLIENT_STRINGS.ARMOUR_TAG,
-        CLIENT_STRINGS.EVASION_TAG,
-        CLIENT_STRINGS.ENERGY_SHIELD_TAG
-      ],
+      defences_catalyst: [CLIENT_STRINGS.ARMOUR_TAG, CLIENT_STRINGS.EVASION_TAG, CLIENT_STRINGS.ENERGY_SHIELD_TAG],
       physical_catalyst: [CLIENT_STRINGS.PHYSICAL_TAG],
       fire_catalyst: [CLIENT_STRINGS.FIRE_TAG],
       cold_catalyst: [CLIENT_STRINGS.COLD_TAG],
@@ -8281,46 +8394,190 @@ var EE2 = (() => {
   }
   function augmentsToLookup(augmentList) {
     const augmentDataByAugment = {};
-    for (const augment of augmentList) {
-      if (!augment.augment) continue;
-      for (const augmentStat of augment.augment) {
-        const { categories, string: text, values, tradeId } = augmentStat;
-        if (!tradeId) continue;
-        if (!augmentDataByAugment[augment.refName]) {
-          augmentDataByAugment[augment.refName] = [];
+    {
+      const _a20 = augmentList;
+      if (Array.isArray(_a20)) for (let _i18 = 0; _i18 < _a20.length; _i18++) {
+        const augment = _a20[_i18];
+        if (!augment.augment) continue;
+        {
+          const _a21 = augment.augment;
+          if (Array.isArray(_a21)) for (let _i19 = 0; _i19 < _a21.length; _i19++) {
+            const augmentStat = _a21[_i19];
+            const categories = augmentStat.categories,
+              text = augmentStat.string,
+              values = augmentStat.values,
+              tradeId = augmentStat.tradeId;
+            if (!tradeId) continue;
+            if (!augmentDataByAugment[augment.refName]) {
+              augmentDataByAugment[augment.refName] = [];
+            }
+            augmentDataByAugment[augment.refName].push({
+              augment: augment.name,
+              refName: augment.refName,
+              baseStat: text,
+              values,
+              id: tradeId[0],
+              categories,
+              icon: augment.icon
+            });
+          } else for (const augmentStat of _a21) {
+            const categories = augmentStat.categories,
+              text = augmentStat.string,
+              values = augmentStat.values,
+              tradeId = augmentStat.tradeId;
+            if (!tradeId) continue;
+            if (!augmentDataByAugment[augment.refName]) {
+              augmentDataByAugment[augment.refName] = [];
+            }
+            augmentDataByAugment[augment.refName].push({
+              augment: augment.name,
+              refName: augment.refName,
+              baseStat: text,
+              values,
+              id: tradeId[0],
+              categories,
+              icon: augment.icon
+            });
+          }
         }
-        augmentDataByAugment[augment.refName].push({
-          augment: augment.name,
-          refName: augment.refName,
-          baseStat: text,
-          values,
-          id: tradeId[0],
-          categories,
-          icon: augment.icon
-        });
+      } else for (const augment of _a20) {
+        if (!augment.augment) continue;
+        {
+          const _a22 = augment.augment;
+          if (Array.isArray(_a22)) for (let _i20 = 0; _i20 < _a22.length; _i20++) {
+            const augmentStat = _a22[_i20];
+            const categories = augmentStat.categories,
+              text = augmentStat.string,
+              values = augmentStat.values,
+              tradeId = augmentStat.tradeId;
+            if (!tradeId) continue;
+            if (!augmentDataByAugment[augment.refName]) {
+              augmentDataByAugment[augment.refName] = [];
+            }
+            augmentDataByAugment[augment.refName].push({
+              augment: augment.name,
+              refName: augment.refName,
+              baseStat: text,
+              values,
+              id: tradeId[0],
+              categories,
+              icon: augment.icon
+            });
+          } else for (const augmentStat of _a22) {
+            const categories = augmentStat.categories,
+              text = augmentStat.string,
+              values = augmentStat.values,
+              tradeId = augmentStat.tradeId;
+            if (!tradeId) continue;
+            if (!augmentDataByAugment[augment.refName]) {
+              augmentDataByAugment[augment.refName] = [];
+            }
+            augmentDataByAugment[augment.refName].push({
+              augment: augment.name,
+              refName: augment.refName,
+              baseStat: text,
+              values,
+              id: tradeId[0],
+              categories,
+              icon: augment.icon
+            });
+          }
+        }
       }
     }
     return augmentDataByAugment;
   }
   function augmentsToLookupTradeId(augmentList) {
     const augmentDataByAugment = {};
-    for (const augment of augmentList) {
-      if (!augment.augment) continue;
-      for (const augmentStat of augment.augment) {
-        const { categories, string: text, values, tradeId } = augmentStat;
-        if (!tradeId) continue;
-        if (!augmentDataByAugment[tradeId[0]]) {
-          augmentDataByAugment[tradeId[0]] = [];
+    {
+      const _a23 = augmentList;
+      if (Array.isArray(_a23)) for (let _i21 = 0; _i21 < _a23.length; _i21++) {
+        const augment = _a23[_i21];
+        if (!augment.augment) continue;
+        {
+          const _a24 = augment.augment;
+          if (Array.isArray(_a24)) for (let _i22 = 0; _i22 < _a24.length; _i22++) {
+            const augmentStat = _a24[_i22];
+            const categories = augmentStat.categories,
+              text = augmentStat.string,
+              values = augmentStat.values,
+              tradeId = augmentStat.tradeId;
+            if (!tradeId) continue;
+            if (!augmentDataByAugment[tradeId[0]]) {
+              augmentDataByAugment[tradeId[0]] = [];
+            }
+            augmentDataByAugment[tradeId[0]].push({
+              refName: augment.refName,
+              augment: augment.name,
+              baseStat: text,
+              values,
+              id: tradeId[0],
+              categories,
+              icon: augment.icon
+            });
+          } else for (const augmentStat of _a24) {
+            const categories = augmentStat.categories,
+              text = augmentStat.string,
+              values = augmentStat.values,
+              tradeId = augmentStat.tradeId;
+            if (!tradeId) continue;
+            if (!augmentDataByAugment[tradeId[0]]) {
+              augmentDataByAugment[tradeId[0]] = [];
+            }
+            augmentDataByAugment[tradeId[0]].push({
+              refName: augment.refName,
+              augment: augment.name,
+              baseStat: text,
+              values,
+              id: tradeId[0],
+              categories,
+              icon: augment.icon
+            });
+          }
         }
-        augmentDataByAugment[tradeId[0]].push({
-          refName: augment.refName,
-          augment: augment.name,
-          baseStat: text,
-          values,
-          id: tradeId[0],
-          categories,
-          icon: augment.icon
-        });
+      } else for (const augment of _a23) {
+        if (!augment.augment) continue;
+        {
+          const _a25 = augment.augment;
+          if (Array.isArray(_a25)) for (let _i23 = 0; _i23 < _a25.length; _i23++) {
+            const augmentStat = _a25[_i23];
+            const categories = augmentStat.categories,
+              text = augmentStat.string,
+              values = augmentStat.values,
+              tradeId = augmentStat.tradeId;
+            if (!tradeId) continue;
+            if (!augmentDataByAugment[tradeId[0]]) {
+              augmentDataByAugment[tradeId[0]] = [];
+            }
+            augmentDataByAugment[tradeId[0]].push({
+              refName: augment.refName,
+              augment: augment.name,
+              baseStat: text,
+              values,
+              id: tradeId[0],
+              categories,
+              icon: augment.icon
+            });
+          } else for (const augmentStat of _a25) {
+            const categories = augmentStat.categories,
+              text = augmentStat.string,
+              values = augmentStat.values,
+              tradeId = augmentStat.tradeId;
+            if (!tradeId) continue;
+            if (!augmentDataByAugment[tradeId[0]]) {
+              augmentDataByAugment[tradeId[0]] = [];
+            }
+            augmentDataByAugment[tradeId[0]].push({
+              refName: augment.refName,
+              augment: augment.name,
+              baseStat: text,
+              values,
+              id: tradeId[0],
+              categories,
+              icon: augment.icon
+            });
+          }
+        }
       }
     }
     return augmentDataByAugment;
@@ -8342,48 +8599,83 @@ var EE2 = (() => {
       Idol: [],
       Other: []
     };
-    const normalRunes = new Set(
-      augmentList.map((a) => a.refName).filter((ref3) => {
-        if (!ref3.includes("Rune")) return false;
-        if (ref3.startsWith("Greater") || ref3.startsWith("Perfect") || ref3.startsWith("Lesser")) {
-          return false;
-        }
-        const split = ref3.split(" ");
-        return split.length === 2 && split[1] === "Rune";
-      })
-    );
-    for (const augment of augmentList) {
-      const ref3 = augment.refName;
-      if (ref3.includes("Rune")) {
-        const split = ref3.split(" ");
-        const notFirst = split.slice(1).join(" ");
-        if (normalRunes.has(notFirst) || normalRunes.has(ref3)) {
-          if (ref3.startsWith("Greater")) {
-            grouped2.Rune.Greater.push(augment);
-          } else if (ref3.startsWith("Perfect")) {
-            grouped2.Rune.Perfect.push(augment);
-          } else if (ref3.startsWith("Lesser")) {
-            grouped2.Rune.Lesser.push(augment);
+    const normalRunes = new Set(augmentList.map(a => a.refName).filter(ref3 => {
+      if (!ref3.includes("Rune")) return false;
+      if (ref3.startsWith("Greater") || ref3.startsWith("Perfect") || ref3.startsWith("Lesser")) {
+        return false;
+      }
+      const split = ref3.split(" ");
+      return split.length === 2 && split[1] === "Rune";
+    }));
+    {
+      const _a26 = augmentList;
+      if (Array.isArray(_a26)) for (let _i24 = 0; _i24 < _a26.length; _i24++) {
+        const augment = _a26[_i24];
+        const ref3 = augment.refName;
+        if (ref3.includes("Rune")) {
+          const split = ref3.split(" ");
+          const notFirst = split.slice(1).join(" ");
+          if (normalRunes.has(notFirst) || normalRunes.has(ref3)) {
+            if (ref3.startsWith("Greater")) {
+              grouped2.Rune.Greater.push(augment);
+            } else if (ref3.startsWith("Perfect")) {
+              grouped2.Rune.Perfect.push(augment);
+            } else if (ref3.startsWith("Lesser")) {
+              grouped2.Rune.Lesser.push(augment);
+            } else {
+              grouped2.Rune.Normal.push(augment);
+            }
           } else {
-            grouped2.Rune.Normal.push(augment);
+            grouped2.Rune.Other.push(augment);
           }
-        } else {
-          grouped2.Rune.Other.push(augment);
-        }
-      } else if (ref3.startsWith("Legacy")) {
-        grouped2.Legacy.push(augment);
-      } else if (ref3.includes("Soul Core")) {
-        if (ref3.startsWith("Soul Core")) {
-          grouped2.SoulCore.Normal.push(augment);
-        } else {
+        } else if (ref3.startsWith("Legacy")) {
+          grouped2.Legacy.push(augment);
+        } else if (ref3.includes("Soul Core")) {
+          if (ref3.startsWith("Soul Core")) {
+            grouped2.SoulCore.Normal.push(augment);
+          } else {
+            grouped2.SoulCore.Special.push(augment);
+          }
+        } else if (ref3.includes("Thesis")) {
           grouped2.SoulCore.Special.push(augment);
+        } else if (ref3.includes("Idol")) {
+          grouped2.Idol.push(augment);
+        } else {
+          grouped2.Other.push(augment);
         }
-      } else if (ref3.includes("Thesis")) {
-        grouped2.SoulCore.Special.push(augment);
-      } else if (ref3.includes("Idol")) {
-        grouped2.Idol.push(augment);
-      } else {
-        grouped2.Other.push(augment);
+      } else for (const augment of _a26) {
+        const ref3 = augment.refName;
+        if (ref3.includes("Rune")) {
+          const split = ref3.split(" ");
+          const notFirst = split.slice(1).join(" ");
+          if (normalRunes.has(notFirst) || normalRunes.has(ref3)) {
+            if (ref3.startsWith("Greater")) {
+              grouped2.Rune.Greater.push(augment);
+            } else if (ref3.startsWith("Perfect")) {
+              grouped2.Rune.Perfect.push(augment);
+            } else if (ref3.startsWith("Lesser")) {
+              grouped2.Rune.Lesser.push(augment);
+            } else {
+              grouped2.Rune.Normal.push(augment);
+            }
+          } else {
+            grouped2.Rune.Other.push(augment);
+          }
+        } else if (ref3.startsWith("Legacy")) {
+          grouped2.Legacy.push(augment);
+        } else if (ref3.includes("Soul Core")) {
+          if (ref3.startsWith("Soul Core")) {
+            grouped2.SoulCore.Normal.push(augment);
+          } else {
+            grouped2.SoulCore.Special.push(augment);
+          }
+        } else if (ref3.includes("Thesis")) {
+          grouped2.SoulCore.Special.push(augment);
+        } else if (ref3.includes("Idol")) {
+          grouped2.Idol.push(augment);
+        } else {
+          grouped2.Other.push(augment);
+        }
       }
     }
     return grouped2;
@@ -8396,11 +8688,14 @@ var EE2 = (() => {
         console.error("Failed to load trade data:", trade2.error.value);
         return;
       }
-      TRADE_ITEM_BY_REF = function(itemQuery, forceCraftable) {
+      TRADE_ITEM_BY_REF = function (itemQuery, forceCraftable) {
         trade2.expressInterest();
         const items = trade2.tradeItemData.value;
         let base;
-        const { baseType, name, rarity, category } = itemQuery;
+        const baseType = itemQuery.baseType,
+          name = itemQuery.name,
+          rarity = itemQuery.rarity,
+          category = itemQuery.category;
         if (category && GEM.has(category)) {
           if (name && items.has(name)) {
             base = {
@@ -8427,7 +8722,11 @@ var EE2 = (() => {
           }
         } else if (!baseType) {
           if (name && items.has(name)) {
-            const craftable = category ? { category } : forceCraftable ? { category: name } : void 0;
+            const craftable = category ? {
+              category
+            } : forceCraftable ? {
+              category: name
+            } : void 0;
             base = {
               name,
               refName: name,
@@ -8445,17 +8744,19 @@ var EE2 = (() => {
               namespace: "ITEM",
               icon: "%NOT_FOUND%",
               tags: [],
-              craftable: { category: "Unknown" /* Unknown */ }
+              craftable: {
+                category: "Unknown" /* Unknown */
+              }
             };
           }
         }
         return base ? [base] : void 0;
       };
-      TRADE_STAT_BY_STAT_ID = function(tradeId) {
+      TRADE_STAT_BY_STAT_ID = function (tradeId) {
         trade2.expressInterest();
         return trade2.tradeStatDataSet.value.has(tradeId);
       };
-      TRADE_STAT_BY_MATCH_STR = function(name) {
+      TRADE_STAT_BY_MATCH_STR = function (name) {
         trade2.expressInterest();
         const statData = trade2.tradeStatData.value;
         const stat2 = statData.get(name);
@@ -8477,7 +8778,13 @@ var EE2 = (() => {
     withStackTrace: false
   };
   var createNeverThrowError = (message, result, config2 = defaultErrorConfig) => {
-    const data = result.isOk() ? { type: "Ok", value: result.value } : { type: "Err", value: result.error };
+    const data = result.isOk() ? {
+      type: "Ok",
+      value: result.value
+    } : {
+      type: "Err",
+      value: result.error
+    };
     const maybeStack = config2.withStackTrace ? new Error().stack : void 0;
     return {
       data,
@@ -8487,11 +8794,11 @@ var EE2 = (() => {
   };
   function __awaiter(thisArg, _arguments, P, generator) {
     function adopt(value) {
-      return value instanceof P ? value : new P(function(resolve) {
+      return value instanceof P ? value : new P(function (resolve) {
         resolve(value);
       });
     }
-    return new (P || (P = Promise))(function(resolve, reject) {
+    return new (P || (P = Promise))(function (resolve, reject) {
       function fulfilled(value) {
         try {
           step(generator.next(value));
@@ -8513,12 +8820,17 @@ var EE2 = (() => {
     });
   }
   function __values(o) {
-    var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
+    var s = typeof Symbol === "function" && Symbol.iterator,
+      m = s && o[s],
+      i = 0;
     if (m) return m.call(o);
     if (o && typeof o.length === "number") return {
-      next: function() {
+      next: function () {
         if (o && i >= o.length) o = void 0;
-        return { value: o && o[i++], done: !o };
+        return {
+          value: o && o[i++],
+          done: !o
+        };
       }
     };
     throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
@@ -8528,19 +8840,21 @@ var EE2 = (() => {
   }
   function __asyncGenerator(thisArg, _arguments, generator) {
     if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-    var g = generator.apply(thisArg, _arguments || []), i, q = [];
-    return i = Object.create((typeof AsyncIterator === "function" ? AsyncIterator : Object).prototype), verb("next"), verb("throw"), verb("return", awaitReturn), i[Symbol.asyncIterator] = function() {
+    var g = generator.apply(thisArg, _arguments || []),
+      i,
+      q = [];
+    return i = Object.create((typeof AsyncIterator === "function" ? AsyncIterator : Object).prototype), verb("next"), verb("throw"), verb("return", awaitReturn), i[Symbol.asyncIterator] = function () {
       return this;
     }, i;
     function awaitReturn(f) {
-      return function(v) {
+      return function (v) {
         return Promise.resolve(v).then(f, reject);
       };
     }
     function verb(n, f) {
       if (g[n]) {
-        i[n] = function(v) {
-          return new Promise(function(a, b) {
+        i[n] = function (v) {
+          return new Promise(function (a, b) {
             q.push([n, v, a, b]) > 1 || resume(n, v);
           });
         };
@@ -8569,33 +8883,40 @@ var EE2 = (() => {
   }
   function __asyncDelegator(o) {
     var i, p;
-    return i = {}, verb("next"), verb("throw", function(e) {
+    return i = {}, verb("next"), verb("throw", function (e) {
       throw e;
-    }), verb("return"), i[Symbol.iterator] = function() {
+    }), verb("return"), i[Symbol.iterator] = function () {
       return this;
     }, i;
     function verb(n, f) {
-      i[n] = o[n] ? function(v) {
-        return (p = !p) ? { value: __await2(o[n](v)), done: false } : f ? f(v) : v;
+      i[n] = o[n] ? function (v) {
+        return (p = !p) ? {
+          value: __await2(o[n](v)),
+          done: false
+        } : f ? f(v) : v;
       } : f;
     }
   }
   function __asyncValues(o) {
     if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-    var m = o[Symbol.asyncIterator], i;
-    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function() {
+    var m = o[Symbol.asyncIterator],
+      i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () {
       return this;
     }, i);
     function verb(n) {
-      i[n] = o[n] && function(v) {
-        return new Promise(function(resolve, reject) {
+      i[n] = o[n] && function (v) {
+        return new Promise(function (resolve, reject) {
           v = o[n](v), settle(resolve, reject, v.done, v.value);
         });
       };
     }
     function settle(resolve, reject, d, v) {
-      Promise.resolve(v).then(function(v2) {
-        resolve({ value: v2, done: d });
+      Promise.resolve(v).then(function (v2) {
+        resolve({
+          value: v2,
+          done: d
+        });
       }, reject);
     }
   }
@@ -8604,11 +8925,11 @@ var EE2 = (() => {
       this._promise = res;
     }
     static fromSafePromise(promise) {
-      const newPromise = promise.then((value) => new Ok(value));
+      const newPromise = promise.then(value => new Ok(value));
       return new _ResultAsync(newPromise);
     }
     static fromPromise(promise, errorFn) {
-      const newPromise = promise.then((value) => new Ok(value)).catch((e) => new Err(errorFn(e)));
+      const newPromise = promise.then(value => new Ok(value)).catch(e => new Err(errorFn(e)));
       return new _ResultAsync(newPromise);
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -8616,7 +8937,7 @@ var EE2 = (() => {
       return (...args) => {
         return new _ResultAsync((() => __awaiter(this, void 0, void 0, function* () {
           try {
-            return new Ok(yield fn(...args));
+            return new Ok(yield fn.apply(void 0, args));
           } catch (error) {
             return new Err(errorFn ? errorFn(error) : error);
           }
@@ -8630,7 +8951,7 @@ var EE2 = (() => {
       return combineResultAsyncListWithAllErrors(asyncResultList);
     }
     map(f) {
-      return new _ResultAsync(this._promise.then((res) => __awaiter(this, void 0, void 0, function* () {
+      return new _ResultAsync(this._promise.then(res => __awaiter(this, void 0, void 0, function* () {
         if (res.isErr()) {
           return new Err(res.error);
         }
@@ -8638,7 +8959,7 @@ var EE2 = (() => {
       })));
     }
     andThrough(f) {
-      return new _ResultAsync(this._promise.then((res) => __awaiter(this, void 0, void 0, function* () {
+      return new _ResultAsync(this._promise.then(res => __awaiter(this, void 0, void 0, function* () {
         if (res.isErr()) {
           return new Err(res.error);
         }
@@ -8650,31 +8971,29 @@ var EE2 = (() => {
       })));
     }
     andTee(f) {
-      return new _ResultAsync(this._promise.then((res) => __awaiter(this, void 0, void 0, function* () {
+      return new _ResultAsync(this._promise.then(res => __awaiter(this, void 0, void 0, function* () {
         if (res.isErr()) {
           return new Err(res.error);
         }
         try {
           yield f(res.value);
-        } catch (e) {
-        }
+        } catch (e) {}
         return new Ok(res.value);
       })));
     }
     orTee(f) {
-      return new _ResultAsync(this._promise.then((res) => __awaiter(this, void 0, void 0, function* () {
+      return new _ResultAsync(this._promise.then(res => __awaiter(this, void 0, void 0, function* () {
         if (res.isOk()) {
           return new Ok(res.value);
         }
         try {
           yield f(res.error);
-        } catch (e) {
-        }
+        } catch (e) {}
         return new Err(res.error);
       })));
     }
     mapErr(f) {
-      return new _ResultAsync(this._promise.then((res) => __awaiter(this, void 0, void 0, function* () {
+      return new _ResultAsync(this._promise.then(res => __awaiter(this, void 0, void 0, function* () {
         if (res.isOk()) {
           return new Ok(res.value);
         }
@@ -8683,7 +9002,7 @@ var EE2 = (() => {
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
     andThen(f) {
-      return new _ResultAsync(this._promise.then((res) => {
+      return new _ResultAsync(this._promise.then(res => {
         if (res.isErr()) {
           return new Err(res.error);
         }
@@ -8693,7 +9012,7 @@ var EE2 = (() => {
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
     orElse(f) {
-      return new _ResultAsync(this._promise.then((res) => __awaiter(this, void 0, void 0, function* () {
+      return new _ResultAsync(this._promise.then(res => __awaiter(this, void 0, void 0, function* () {
         if (res.isErr()) {
           return f(res.error);
         }
@@ -8701,10 +9020,10 @@ var EE2 = (() => {
       })));
     }
     match(ok2, _err) {
-      return this._promise.then((res) => res.match(ok2, _err));
+      return this._promise.then(res => res.match(ok2, _err));
     }
     unwrapOr(t3) {
-      return this._promise.then((res) => res.unwrapOr(t3));
+      return this._promise.then(res => res.unwrapOr(t3));
     }
     /**
      * @deprecated will be removed in 9.0.0.
@@ -8720,7 +9039,7 @@ var EE2 = (() => {
      */
     safeUnwrap() {
       return __asyncGenerator(this, arguments, function* safeUnwrap_1() {
-        return yield __await2(yield __await2(yield* __yieldStar(__asyncDelegator(__asyncValues(yield __await2(this._promise.then((res) => res.safeUnwrap())))))));
+        return yield __await2(yield __await2(yield* __yieldStar(__asyncDelegator(__asyncValues(yield __await2(this._promise.then(res => res.safeUnwrap())))))));
       });
     }
     // Makes ResultAsync implement PromiseLike<Result>
@@ -8743,39 +9062,62 @@ var EE2 = (() => {
   var fromPromise = ResultAsync.fromPromise;
   var fromSafePromise = ResultAsync.fromSafePromise;
   var fromAsyncThrowable = ResultAsync.fromThrowable;
-  var combineResultList = (resultList) => {
+  var combineResultList = resultList => {
     let acc = ok([]);
-    for (const result of resultList) {
-      if (result.isErr()) {
-        acc = err(result.error);
-        break;
-      } else {
-        acc.map((list) => list.push(result.value));
+    {
+      const _a27 = resultList;
+      if (Array.isArray(_a27)) for (let _i25 = 0; _i25 < _a27.length; _i25++) {
+        const result = _a27[_i25];
+        if (result.isErr()) {
+          acc = err(result.error);
+          break;
+        } else {
+          acc.map(list => list.push(result.value));
+        }
+      } else for (const result of _a27) {
+        if (result.isErr()) {
+          acc = err(result.error);
+          break;
+        } else {
+          acc.map(list => list.push(result.value));
+        }
       }
     }
     return acc;
   };
-  var combineResultAsyncList = (asyncResultList) => ResultAsync.fromSafePromise(Promise.all(asyncResultList)).andThen(combineResultList);
-  var combineResultListWithAllErrors = (resultList) => {
+  var combineResultAsyncList = asyncResultList => ResultAsync.fromSafePromise(Promise.all(asyncResultList)).andThen(combineResultList);
+  var combineResultListWithAllErrors = resultList => {
     let acc = ok([]);
-    for (const result of resultList) {
-      if (result.isErr() && acc.isErr()) {
-        acc.error.push(result.error);
-      } else if (result.isErr() && acc.isOk()) {
-        acc = err([result.error]);
-      } else if (result.isOk() && acc.isOk()) {
-        acc.value.push(result.value);
+    {
+      const _a28 = resultList;
+      if (Array.isArray(_a28)) for (let _i26 = 0; _i26 < _a28.length; _i26++) {
+        const result = _a28[_i26];
+        if (result.isErr() && acc.isErr()) {
+          acc.error.push(result.error);
+        } else if (result.isErr() && acc.isOk()) {
+          acc = err([result.error]);
+        } else if (result.isOk() && acc.isOk()) {
+          acc.value.push(result.value);
+        }
+      } else for (const result of _a28) {
+        if (result.isErr() && acc.isErr()) {
+          acc.error.push(result.error);
+        } else if (result.isErr() && acc.isOk()) {
+          acc = err([result.error]);
+        } else if (result.isOk() && acc.isOk()) {
+          acc.value.push(result.value);
+        }
       }
     }
     return acc;
   };
-  var combineResultAsyncListWithAllErrors = (asyncResultList) => ResultAsync.fromSafePromise(Promise.all(asyncResultList)).andThen(combineResultListWithAllErrors);
+  var combineResultAsyncListWithAllErrors = asyncResultList => ResultAsync.fromSafePromise(Promise.all(asyncResultList)).andThen(combineResultListWithAllErrors);
   var Result;
-  (function(Result3) {
+  (function (Result3) {
     function fromThrowable2(fn, errorFn) {
       return (...args) => {
         try {
-          const result = fn(...args);
+          const result = fn.apply(void 0, args);
           return ok(result);
         } catch (e) {
           return err(errorFn ? errorFn(e) : e);
@@ -8821,13 +9163,12 @@ var EE2 = (() => {
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
     andThrough(f) {
-      return f(this.value).map((_value) => this.value);
+      return f(this.value).map(_value => this.value);
     }
     andTee(f) {
       try {
         f(this.value);
-      } catch (e) {
-      }
+      } catch (e) {}
       return ok(this.value);
     }
     orTee(_f) {
@@ -8898,8 +9239,7 @@ var EE2 = (() => {
     orTee(f) {
       try {
         f(this.error);
-      } catch (e) {
-      }
+      } catch (e) {}
       return err(this.error);
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
@@ -8963,7 +9303,11 @@ var EE2 = (() => {
   var FRACTURED_LINE = " (fractured)";
   function parseModInfoLine(line, type) {
     var _a2, _b, _c, _d;
-    const [modText, xText2, xText3] = line.slice(1, -1).split("\u2014").map((_) => _.trim());
+    const _line$slice$split$map = line.slice(1, -1).split("\u2014").map(_ => _.trim()),
+      _line$slice$split$map2 = _slicedToArray(_line$slice$split$map, 3),
+      modText = _line$slice$split$map2[0],
+      xText2 = _line$slice$split$map2[1],
+      xText3 = _line$slice$split$map2[2];
     let generation;
     let name;
     let tier;
@@ -9057,7 +9401,15 @@ var EE2 = (() => {
       tags = tagsText ? tagsText.split(", ") : [];
       rollIncr = incrText ? Number(__gcExec(CLIENT_STRINGS.MODIFIER_INCREASED, incrText)[1]) : void 0;
     }
-    return { type, generation, name, tier, rank, tags, rollIncr };
+    return {
+      type,
+      generation,
+      name,
+      tier,
+      rank,
+      tags,
+      rollIncr
+    };
   }
   function isModInfoLine(line) {
     return line.startsWith("{") && line.endsWith("}");
@@ -9067,14 +9419,33 @@ var EE2 = (() => {
       return;
     }
     let last;
-    for (const line of lines2) {
-      if (!isModInfoLine(line)) {
-        last.statLines.push(line);
-      } else {
-        if (last) {
-          yield last;
+    {
+      const _a29 = lines2;
+      if (Array.isArray(_a29)) for (let _i27 = 0; _i27 < _a29.length; _i27++) {
+        const line = _a29[_i27];
+        if (!isModInfoLine(line)) {
+          last.statLines.push(line);
+        } else {
+          if (last) {
+            yield last;
+          }
+          last = {
+            modLine: line,
+            statLines: []
+          };
         }
-        last = { modLine: line, statLines: [] };
+      } else for (const line of _a29) {
+        if (!isModInfoLine(line)) {
+          last.statLines.push(line);
+        } else {
+          if (last) {
+            yield last;
+          }
+          last = {
+            modLine: line,
+            statLines: []
+          };
+        }
       }
     }
     yield last;
@@ -9083,39 +9454,42 @@ var EE2 = (() => {
     let modType;
     if (lines2[0] === CLIENT_STRINGS.VEILED_PREFIX || lines2[0] === CLIENT_STRINGS.VEILED_SUFFIX) {
       modType = "veiled" /* Veiled */;
-    } else if (lines2.some((line) => line.endsWith(SCOURGE_LINE))) {
+    } else if (lines2.some(line => line.endsWith(SCOURGE_LINE))) {
       modType = "scourge" /* Scourge */;
       lines2 = removeLinesEnding(lines2, SCOURGE_LINE);
-    } else if (lines2.some((line) => line.endsWith(ENCHANT_LINE))) {
+    } else if (lines2.some(line => line.endsWith(ENCHANT_LINE))) {
       modType = "enchant" /* Enchant */;
       lines2 = removeLinesEnding(lines2, ENCHANT_LINE);
-    } else if (lines2.some((line) => line.endsWith(IMPLICIT_LINE))) {
+    } else if (lines2.some(line => line.endsWith(IMPLICIT_LINE))) {
       modType = "implicit" /* Implicit */;
       lines2 = removeLinesEnding(lines2, IMPLICIT_LINE);
-    } else if (lines2.some((line) => line.endsWith(FRACTURED_LINE))) {
+    } else if (lines2.some(line => line.endsWith(FRACTURED_LINE))) {
       modType = "fractured" /* Fractured */;
       lines2 = removeLinesEnding(lines2, FRACTURED_LINE);
-    } else if (lines2.some((line) => line.endsWith(CRAFTED_LINE))) {
+    } else if (lines2.some(line => line.endsWith(CRAFTED_LINE))) {
       modType = "crafted" /* Crafted */;
       lines2 = removeLinesEnding(lines2, CRAFTED_LINE);
-    } else if (lines2.some((line) => line.endsWith(AUGMENT_LINE))) {
+    } else if (lines2.some(line => line.endsWith(AUGMENT_LINE))) {
       modType = "rune" /* Augment */;
       lines2 = removeLinesEnding(lines2, AUGMENT_LINE);
-    } else if (lines2.some((line) => line.endsWith(ADDED_AUGMENT_LINE))) {
+    } else if (lines2.some(line => line.endsWith(ADDED_AUGMENT_LINE))) {
       modType = "added-rune" /* AddedAugment */;
       lines2 = removeLinesEnding(lines2, ADDED_AUGMENT_LINE);
-    } else if (lines2.some((line) => line.endsWith(DESECRATED_LINE))) {
+    } else if (lines2.some(line => line.endsWith(DESECRATED_LINE))) {
       modType = "desecrated" /* Desecrated */;
       lines2 = removeLinesEnding(lines2, DESECRATED_LINE);
     } else {
       modType = "explicit" /* Explicit */;
     }
-    return { modType, lines: lines2 };
+    return {
+      modType,
+      lines: lines2
+    };
   }
   var DIV_BY_100 = 2;
   function applyIncr(mod, parsed) {
-    const { rollIncr } = mod;
-    const { roll } = parsed;
+    const rollIncr = mod.rollIncr;
+    const roll = parsed.roll;
     if (!rollIncr || !roll || roll.unscalable) {
       return null;
     }
@@ -9140,50 +9514,161 @@ var EE2 = (() => {
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/parser/modifiers.ts
   function sumStatsByModType(mods) {
     const out = [];
-    for (const modA of mods) {
-      for (const statA of modA.stats) {
-        if (out.some(
-          (merged) => merged.stat.ref === statA.stat.ref && typesCanBeGrouped(merged.type, modA.info.type) && // Multiple allocations should not be merged
-          (statA.stat.ref !== "Allocates #" && statA.stat.ref !== "Legacy of #" || merged.sources.some(
-            (src) => src.stat.translation.string === statA.translation.string
-          ))
-        )) {
-          continue;
-        }
-        let hasFractured = false;
-        const sources = mods.reduce(
-          (filtered, modB) => {
-            var _a2;
-            if (typesCanBeGrouped(modB.info.type, modA.info.type)) {
-              const targetStat = modB.stats.find(
-                (statB) => statB.stat.ref === statA.stat.ref && (statA.stat.ref !== "Allocates #" && statA.stat.ref !== "Legacy of #" || statB.translation.string === statA.translation.string)
-              );
-              if (targetStat) {
-                if (modB.info.type === "fractured" /* Fractured */) {
-                  hasFractured = true;
-                }
-                const roll = ((_a2 = applyIncr(modB.info, targetStat)) != null ? _a2 : targetStat).roll;
-                filtered.push({
-                  modifier: modB,
-                  stat: targetStat,
-                  contributes: roll && {
-                    value: roll.value,
-                    min: roll.min,
-                    max: roll.max,
-                    option: roll.option
-                  }
-                });
-              }
+    {
+      const _a30 = mods;
+      if (Array.isArray(_a30)) for (let _i28 = 0; _i28 < _a30.length; _i28++) {
+        const modA = _a30[_i28];
+        {
+          const _a31 = modA.stats;
+          if (Array.isArray(_a31)) for (let _i29 = 0; _i29 < _a31.length; _i29++) {
+            const statA = _a31[_i29];
+            if (out.some(merged => merged.stat.ref === statA.stat.ref && typesCanBeGrouped(merged.type, modA.info.type) && (
+            // Multiple allocations should not be merged
+            statA.stat.ref !== "Allocates #" && statA.stat.ref !== "Legacy of #" || merged.sources.some(src => src.stat.translation.string === statA.translation.string)))) {
+              continue;
             }
-            return filtered;
-          },
-          []
-        );
-        out.push({
-          stat: statA.stat,
-          type: hasFractured ? "fractured" /* Fractured */ : modA.info.type,
-          sources
-        });
+            let hasFractured = false;
+            const sources = mods.reduce((filtered, modB) => {
+              var _a2;
+              if (typesCanBeGrouped(modB.info.type, modA.info.type)) {
+                const targetStat = modB.stats.find(statB => statB.stat.ref === statA.stat.ref && (statA.stat.ref !== "Allocates #" && statA.stat.ref !== "Legacy of #" || statB.translation.string === statA.translation.string));
+                if (targetStat) {
+                  if (modB.info.type === "fractured" /* Fractured */) {
+                    hasFractured = true;
+                  }
+                  const roll = ((_a2 = applyIncr(modB.info, targetStat)) != null ? _a2 : targetStat).roll;
+                  filtered.push({
+                    modifier: modB,
+                    stat: targetStat,
+                    contributes: roll && {
+                      value: roll.value,
+                      min: roll.min,
+                      max: roll.max,
+                      option: roll.option
+                    }
+                  });
+                }
+              }
+              return filtered;
+            }, []);
+            out.push({
+              stat: statA.stat,
+              type: hasFractured ? "fractured" /* Fractured */ : modA.info.type,
+              sources
+            });
+          } else for (const statA of _a31) {
+            if (out.some(merged => merged.stat.ref === statA.stat.ref && typesCanBeGrouped(merged.type, modA.info.type) && (
+            // Multiple allocations should not be merged
+            statA.stat.ref !== "Allocates #" && statA.stat.ref !== "Legacy of #" || merged.sources.some(src => src.stat.translation.string === statA.translation.string)))) {
+              continue;
+            }
+            let hasFractured = false;
+            const sources = mods.reduce((filtered, modB) => {
+              var _a2;
+              if (typesCanBeGrouped(modB.info.type, modA.info.type)) {
+                const targetStat = modB.stats.find(statB => statB.stat.ref === statA.stat.ref && (statA.stat.ref !== "Allocates #" && statA.stat.ref !== "Legacy of #" || statB.translation.string === statA.translation.string));
+                if (targetStat) {
+                  if (modB.info.type === "fractured" /* Fractured */) {
+                    hasFractured = true;
+                  }
+                  const roll = ((_a2 = applyIncr(modB.info, targetStat)) != null ? _a2 : targetStat).roll;
+                  filtered.push({
+                    modifier: modB,
+                    stat: targetStat,
+                    contributes: roll && {
+                      value: roll.value,
+                      min: roll.min,
+                      max: roll.max,
+                      option: roll.option
+                    }
+                  });
+                }
+              }
+              return filtered;
+            }, []);
+            out.push({
+              stat: statA.stat,
+              type: hasFractured ? "fractured" /* Fractured */ : modA.info.type,
+              sources
+            });
+          }
+        }
+      } else for (const modA of _a30) {
+        {
+          const _a32 = modA.stats;
+          if (Array.isArray(_a32)) for (let _i30 = 0; _i30 < _a32.length; _i30++) {
+            const statA = _a32[_i30];
+            if (out.some(merged => merged.stat.ref === statA.stat.ref && typesCanBeGrouped(merged.type, modA.info.type) && (
+            // Multiple allocations should not be merged
+            statA.stat.ref !== "Allocates #" && statA.stat.ref !== "Legacy of #" || merged.sources.some(src => src.stat.translation.string === statA.translation.string)))) {
+              continue;
+            }
+            let hasFractured = false;
+            const sources = mods.reduce((filtered, modB) => {
+              var _a2;
+              if (typesCanBeGrouped(modB.info.type, modA.info.type)) {
+                const targetStat = modB.stats.find(statB => statB.stat.ref === statA.stat.ref && (statA.stat.ref !== "Allocates #" && statA.stat.ref !== "Legacy of #" || statB.translation.string === statA.translation.string));
+                if (targetStat) {
+                  if (modB.info.type === "fractured" /* Fractured */) {
+                    hasFractured = true;
+                  }
+                  const roll = ((_a2 = applyIncr(modB.info, targetStat)) != null ? _a2 : targetStat).roll;
+                  filtered.push({
+                    modifier: modB,
+                    stat: targetStat,
+                    contributes: roll && {
+                      value: roll.value,
+                      min: roll.min,
+                      max: roll.max,
+                      option: roll.option
+                    }
+                  });
+                }
+              }
+              return filtered;
+            }, []);
+            out.push({
+              stat: statA.stat,
+              type: hasFractured ? "fractured" /* Fractured */ : modA.info.type,
+              sources
+            });
+          } else for (const statA of _a32) {
+            if (out.some(merged => merged.stat.ref === statA.stat.ref && typesCanBeGrouped(merged.type, modA.info.type) && (
+            // Multiple allocations should not be merged
+            statA.stat.ref !== "Allocates #" && statA.stat.ref !== "Legacy of #" || merged.sources.some(src => src.stat.translation.string === statA.translation.string)))) {
+              continue;
+            }
+            let hasFractured = false;
+            const sources = mods.reduce((filtered, modB) => {
+              var _a2;
+              if (typesCanBeGrouped(modB.info.type, modA.info.type)) {
+                const targetStat = modB.stats.find(statB => statB.stat.ref === statA.stat.ref && (statA.stat.ref !== "Allocates #" && statA.stat.ref !== "Legacy of #" || statB.translation.string === statA.translation.string));
+                if (targetStat) {
+                  if (modB.info.type === "fractured" /* Fractured */) {
+                    hasFractured = true;
+                  }
+                  const roll = ((_a2 = applyIncr(modB.info, targetStat)) != null ? _a2 : targetStat).roll;
+                  filtered.push({
+                    modifier: modB,
+                    stat: targetStat,
+                    contributes: roll && {
+                      value: roll.value,
+                      min: roll.min,
+                      max: roll.max,
+                      option: roll.option
+                    }
+                  });
+                }
+              }
+              return filtered;
+            }, []);
+            out.push({
+              stat: statA.stat,
+              type: hasFractured ? "fractured" /* Fractured */ : modA.info.type,
+              sources
+            });
+          }
+        }
       }
     }
     return out;
@@ -9204,63 +9689,57 @@ var EE2 = (() => {
       };
     }
     const fn = mode === "sum" ? (a, b) => a + b : (a, b) => Math.max(a, b);
-    return sources.length === 1 ? sources[0].contributes : sources.reduce(
-      (sum, { contributes }) => {
-        contributes = contributes != null ? contributes : { value: 1, min: 1, max: 1 };
-        sum.value = fn(sum.value, contributes.value);
-        sum.min = fn(sum.min, contributes.min);
-        sum.max = fn(sum.max, contributes.max);
-        sum.option = contributes.option;
-        return sum;
-      },
-      { value: 0, min: 0, max: 0, option: void 0 }
-    );
+    return sources.length === 1 ? sources[0].contributes : sources.reduce((sum, {
+      contributes
+    }) => {
+      contributes = contributes != null ? contributes : {
+        value: 1,
+        min: 1,
+        max: 1
+      };
+      sum.value = fn(sum.value, contributes.value);
+      sum.min = fn(sum.min, contributes.min);
+      sum.max = fn(sum.max, contributes.max);
+      sum.option = contributes.option;
+      return sum;
+    }, {
+      value: 0,
+      min: 0,
+      max: 0,
+      option: void 0
+    });
   }
   function translateStatWithRoll(calc, roll) {
     var _a2, _b;
-    const { matchers } = calc.stat;
+    const matchers = calc.stat.matchers;
     let translation;
     if (!roll) {
-      translation = (_a2 = matchers.find((m) => m.value == null)) != null ? _a2 : matchers[0];
+      translation = (_a2 = matchers.find(m => m.value == null)) != null ? _a2 : matchers[0];
     } else {
       if (roll.option) {
-        translation = matchers.find((m) => m.value === roll.option);
+        translation = matchers.find(m => m.value === roll.option);
       } else {
-        translation = matchers.find((m) => m.value === roll.value);
+        translation = matchers.find(m => m.value === roll.value);
       }
       if (!translation) {
         const sameSign = Math.sign(roll.min) === Math.sign(roll.max);
-        translation = sameSign ? matchers.find(
-          (m) => m.value == null && Boolean(m.negate) === roll.value < 0
-        ) : matchers.find((m) => m.value == null && !m.negate);
+        translation = sameSign ? matchers.find(m => m.value == null && Boolean(m.negate) === roll.value < 0) : matchers.find(m => m.value == null && !m.negate);
       }
       if (!translation) {
-        translation = (_b = matchers.find((m) => m.value == null)) != null ? _b : {
+        translation = (_b = matchers.find(m => m.value == null)) != null ? _b : {
           string: `BUG_STAT_ID: ${calc.stat.ref}`
         };
       }
     }
-    const dp = roll ? calc.stat.dp || calc.sources.some(
-      (s) => s.stat.stat.ref === calc.stat.ref && s.stat.roll.dp
-    ) : void 0;
+    const dp = roll ? calc.stat.dp || calc.sources.some(s => s.stat.stat.ref === calc.stat.ref && s.stat.roll.dp) : void 0;
     return {
       string: translation.string,
       negate: translation.negate || false,
       dp
     };
   }
-  var EXPLICIT_MOD_TYPES = /* @__PURE__ */ new Set([
-    "explicit" /* Explicit */,
-    "fractured" /* Fractured */,
-    "veiled" /* Veiled */,
-    "desecrated" /* Desecrated */,
-    "crafted" /* Crafted */,
-    "sanctum" /* Sanctum */
-  ]);
-  var INTERNAL_AUGMENT_TYPES = /* @__PURE__ */ new Set([
-    "rune" /* Augment */,
-    "added-rune" /* AddedAugment */
-  ]);
+  var EXPLICIT_MOD_TYPES = /* @__PURE__ */new Set(["explicit" /* Explicit */, "fractured" /* Fractured */, "veiled" /* Veiled */, "desecrated" /* Desecrated */, "crafted" /* Crafted */, "sanctum" /* Sanctum */]);
+  var INTERNAL_AUGMENT_TYPES = /* @__PURE__ */new Set(["rune" /* Augment */, "added-rune" /* AddedAugment */]);
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/parser/stat-translations.ts
   init_timers();
@@ -9286,7 +9765,10 @@ var EE2 = (() => {
         if (unscalable) {
           str = str.slice(0, -CLIENT_STRINGS.UNSCALABLE_VALUE.length);
         }
-        const isParsed = yield { string: str, unscalable };
+        const isParsed = yield {
+          string: str,
+          unscalable
+        };
         if (isParsed) {
           start += end - start;
           continue outer;
@@ -9294,111 +9776,135 @@ var EE2 = (() => {
       }
       notParsedLines.push(lines2[start]);
     }
-    return notParsedLines.filter((line) => line.length);
+    return notParsedLines.filter(line => line.length);
   }
   var PLACEHOLDER_MAP = [
-    // 0 # -> max 0 #
-    [[]],
-    // 1 # -> max 1 #
-    [[0], []],
-    // 2 # -> max 2 #
-    [[0, 1], [0], [1], []],
-    // 3 # -> max 2 #
-    [[0, 1, 2], [1, 2], [0, 2], [0, 1], [2], [1], [0], []],
-    // 4 # -> max 2 #
-    [
-      [0, 1, 2, 3],
-      [1, 2, 3],
-      [0, 2, 3],
-      [0, 1, 3],
-      [0, 1, 2],
-      [2, 3],
-      [1, 3],
-      [1, 2],
-      [0, 3],
-      [0, 2],
-      [0, 1],
-      [3],
-      [2],
-      [1],
-      [0],
-      []
-    ]
-  ];
+  // 0 # -> max 0 #
+  [[]],
+  // 1 # -> max 1 #
+  [[0], []],
+  // 2 # -> max 2 #
+  [[0, 1], [0], [1], []],
+  // 3 # -> max 2 #
+  [[0, 1, 2], [1, 2], [0, 2], [0, 1], [2], [1], [0], []],
+  // 4 # -> max 2 #
+  [[0, 1, 2, 3], [1, 2, 3], [0, 2, 3], [0, 1, 3], [0, 1, 2], [2, 3], [1, 3], [1, 2], [0, 3], [0, 2], [0, 1], [3], [2], [1], [0], []]];
   function* _statPlaceholderGenerator(stat2) {
     const matches = [];
-    const withPlaceholders = stat2.replace(/\(\)/gm, "").replace(
-      /(^|[^\d)])([+-]?\d+(?:\.\d+)?)(?:\((.[^)-]*)(?:-([^)]+))?\))?/gm,
-      (_, pre, roll, min, max) => {
-        if (min != null && max == null) {
-          max = min;
-        }
-        const captured = {
-          roll: Number(roll),
-          rollStr: roll,
-          decimal: roll.includes(".") || (min == null ? void 0 : min.includes(".")) || (max == null ? void 0 : max.includes(".")) || false,
-          bounds: { min: Number(min), max: Number(max) }
-        };
-        matches.push(captured);
-        if (Number.isNaN(captured.bounds.min) || Number.isNaN(captured.bounds.max)) {
-          captured.bounds = void 0;
-          return pre + (min != null ? `#(${min}-${max})` : "#");
-        } else {
-          return pre + "#";
-        }
+    const withPlaceholders = stat2.replace(/\(\)/gm, "").replace(/(^|[^\d)])([+-]?\d+(?:\.\d+)?)(?:\((.[^)-]*)(?:-([^)]+))?\))?/gm, (_, pre, roll, min, max) => {
+      if (min != null && max == null) {
+        max = min;
       }
-    );
+      const captured = {
+        roll: Number(roll),
+        rollStr: roll,
+        decimal: roll.includes(".") || (min == null ? void 0 : min.includes(".")) || (max == null ? void 0 : max.includes(".")) || false,
+        bounds: {
+          min: Number(min),
+          max: Number(max)
+        }
+      };
+      matches.push(captured);
+      if (Number.isNaN(captured.bounds.min) || Number.isNaN(captured.bounds.max)) {
+        captured.bounds = void 0;
+        return pre + (min != null ? `#(${min}-${max})` : "#");
+      } else {
+        return pre + "#";
+      }
+    });
     if (matches.length < PLACEHOLDER_MAP.length) {
-      for (const replacements of PLACEHOLDER_MAP[matches.length]) {
-        let idx = -1;
-        const replaced = withPlaceholders.replace(/#/gm, () => {
-          idx += 1;
-          return replacements.includes(idx) ? matches[idx].rollStr : "#";
-        });
-        yield {
-          stat: replaced,
-          values: matches.filter(
-            (_, idx2) => !replacements.includes(idx2)
-          )
-        };
+      {
+        const _a33 = PLACEHOLDER_MAP[matches.length];
+        if (Array.isArray(_a33)) for (let _i31 = 0; _i31 < _a33.length; _i31++) {
+          const replacements = _a33[_i31];
+          let idx = -1;
+          const replaced = withPlaceholders.replace(/#/gm, () => {
+            idx += 1;
+            return replacements.includes(idx) ? matches[idx].rollStr : "#";
+          });
+          yield {
+            stat: replaced,
+            values: matches.filter((_, idx2) => !replacements.includes(idx2))
+          };
+        } else for (const replacements of _a33) {
+          let idx = -1;
+          const replaced = withPlaceholders.replace(/#/gm, () => {
+            idx += 1;
+            return replacements.includes(idx) ? matches[idx].rollStr : "#";
+          });
+          yield {
+            stat: replaced,
+            values: matches.filter((_, idx2) => !replacements.includes(idx2))
+          };
+        }
       }
     }
-    yield { stat: stat2, values: [] };
+    yield {
+      stat: stat2,
+      values: []
+    };
   }
   function tryParseTranslation(stat2, modType, itemCategory) {
     let backupParsedStat;
     let backupParsedCombination;
-    for (const combination of _statPlaceholderGenerator(stat2.string)) {
-      const found = findAndResolveTranslation({
-        matchStr: combination.stat,
-        modType,
-        itemCategory,
-        roll: combination.values.length === 1 ? combination.values[0].roll : void 0
-      });
-      const realType = modType === "added-rune" /* AddedAugment */ ? "rune" /* Augment */ : modType;
-      if (!found || (!found.stat.trade.ids || !(realType in found.stat.trade.ids)) && !found.stat.ref.startsWith(CLIENT_STRINGS_REF.GRANTS_SKILL)) {
-        if (backupParsedStat) {
+    {
+      const _a34 = _statPlaceholderGenerator(stat2.string);
+      if (Array.isArray(_a34)) for (let _i32 = 0; _i32 < _a34.length; _i32++) {
+        const combination = _a34[_i32];
+        const found = findAndResolveTranslation({
+          matchStr: combination.stat,
+          modType,
+          itemCategory,
+          roll: combination.values.length === 1 ? combination.values[0].roll : void 0
+        });
+        const realType = modType === "added-rune" /* AddedAugment */ ? "rune" /* Augment */ : modType;
+        if (!found || (!found.stat.trade.ids || !(realType in found.stat.trade.ids)) && !found.stat.ref.startsWith(CLIENT_STRINGS_REF.GRANTS_SKILL)) {
+          if (backupParsedStat) {
+            continue;
+          }
+          backupParsedStat = trySecondaryParseTranslation(combination.stat);
+          if (backupParsedStat) {
+            backupParsedCombination = combination;
+          }
           continue;
         }
-        backupParsedStat = trySecondaryParseTranslation(combination.stat);
-        if (backupParsedStat) {
-          backupParsedCombination = combination;
+        const roll = parseRoll(found, combination, stat2);
+        return {
+          stat: found.stat,
+          translation: found.matcher,
+          roll
+        };
+      } else for (const combination of _a34) {
+        const found = findAndResolveTranslation({
+          matchStr: combination.stat,
+          modType,
+          itemCategory,
+          roll: combination.values.length === 1 ? combination.values[0].roll : void 0
+        });
+        const realType = modType === "added-rune" /* AddedAugment */ ? "rune" /* Augment */ : modType;
+        if (!found || (!found.stat.trade.ids || !(realType in found.stat.trade.ids)) && !found.stat.ref.startsWith(CLIENT_STRINGS_REF.GRANTS_SKILL)) {
+          if (backupParsedStat) {
+            continue;
+          }
+          backupParsedStat = trySecondaryParseTranslation(combination.stat);
+          if (backupParsedStat) {
+            backupParsedCombination = combination;
+          }
+          continue;
         }
-        continue;
+        const roll = parseRoll(found, combination, stat2);
+        return {
+          stat: found.stat,
+          translation: found.matcher,
+          roll
+        };
       }
-      const roll = parseRoll(found, combination, stat2);
-      return {
-        stat: found.stat,
-        translation: found.matcher,
-        roll
-      };
     }
     if (backupParsedStat) {
-      backupParsedStat.roll = parseRoll(
-        { stat: backupParsedStat.stat, matcher: backupParsedStat.translation },
-        backupParsedCombination,
-        stat2
-      );
+      backupParsedStat.roll = parseRoll({
+        stat: backupParsedStat.stat,
+        matcher: backupParsedStat.translation
+      }, backupParsedCombination, stat2);
       return backupParsedStat;
     }
   }
@@ -9406,11 +9912,21 @@ var EE2 = (() => {
     var _a2, _b;
     let legacyStatRolls = false;
     if (found.matcher.negate) {
-      for (const stat3 of combination.values) {
-        stat3.roll *= -1;
-        if (stat3.bounds) {
-          stat3.bounds.min *= -1;
-          stat3.bounds.max *= -1;
+      {
+        const _a35 = combination.values;
+        if (Array.isArray(_a35)) for (let _i33 = 0; _i33 < _a35.length; _i33++) {
+          const stat3 = _a35[_i33];
+          stat3.roll *= -1;
+          if (stat3.bounds) {
+            stat3.bounds.min *= -1;
+            stat3.bounds.max *= -1;
+          }
+        } else for (const stat3 of _a35) {
+          stat3.roll *= -1;
+          if (stat3.bounds) {
+            stat3.bounds.min *= -1;
+            stat3.bounds.max *= -1;
+          }
         }
       }
     }
@@ -9421,34 +9937,52 @@ var EE2 = (() => {
         max: (_b = (_a2 = uses.bounds) == null ? void 0 : _a2.max) != null ? _b : uses.roll
       };
     }
-    for (const stat3 of combination.values) {
-      if (!stat3.bounds) continue;
-      if (stat3.bounds.min > stat3.bounds.max) {
-        stat3.bounds = {
-          max: stat3.bounds.min,
-          min: stat3.bounds.max
-        };
-      }
-      if (stat3.roll > stat3.bounds.max) {
-        stat3.bounds.max = stat3.roll;
-        legacyStatRolls = true;
-      }
-      if (stat3.roll < stat3.bounds.min) {
-        stat3.bounds.min = stat3.roll;
-        legacyStatRolls = true;
+    {
+      const _a36 = combination.values;
+      if (Array.isArray(_a36)) for (let _i34 = 0; _i34 < _a36.length; _i34++) {
+        const stat3 = _a36[_i34];
+        if (!stat3.bounds) continue;
+        if (stat3.bounds.min > stat3.bounds.max) {
+          stat3.bounds = {
+            max: stat3.bounds.min,
+            min: stat3.bounds.max
+          };
+        }
+        if (stat3.roll > stat3.bounds.max) {
+          stat3.bounds.max = stat3.roll;
+          legacyStatRolls = true;
+        }
+        if (stat3.roll < stat3.bounds.min) {
+          stat3.bounds.min = stat3.roll;
+          legacyStatRolls = true;
+        }
+      } else for (const stat3 of _a36) {
+        if (!stat3.bounds) continue;
+        if (stat3.bounds.min > stat3.bounds.max) {
+          stat3.bounds = {
+            max: stat3.bounds.min,
+            min: stat3.bounds.max
+          };
+        }
+        if (stat3.roll > stat3.bounds.max) {
+          stat3.bounds.max = stat3.roll;
+          legacyStatRolls = true;
+        }
+        if (stat3.roll < stat3.bounds.min) {
+          stat3.bounds.min = stat3.roll;
+          legacyStatRolls = true;
+        }
       }
     }
     if (!combination.values.length && found.matcher.value) {
-      combination.values = [
-        {
-          roll: found.matcher.value,
-          decimal: false,
-          bounds: {
-            min: found.matcher.value,
-            max: found.matcher.value
-          }
+      combination.values = [{
+        roll: found.matcher.value,
+        decimal: false,
+        bounds: {
+          min: found.matcher.value,
+          max: found.matcher.value
         }
-      ];
+      }];
     }
     if (!combination.values.length) {
       return void 0;
@@ -9456,20 +9990,16 @@ var EE2 = (() => {
     const roll = {
       unscalable: stat2.unscalable,
       legacy: legacyStatRolls || void 0,
-      dp: found.stat.dp || combination.values.some((stat3) => stat3.decimal),
-      value: getRollOrMinmaxAvg(combination.values.map((stat3) => stat3.roll)),
-      min: getRollOrMinmaxAvg(
-        combination.values.map((stat3) => {
-          var _a3, _b2;
-          return (_b2 = (_a3 = stat3.bounds) == null ? void 0 : _a3.min) != null ? _b2 : stat3.roll;
-        })
-      ),
-      max: getRollOrMinmaxAvg(
-        combination.values.map((stat3) => {
-          var _a3, _b2;
-          return (_b2 = (_a3 = stat3.bounds) == null ? void 0 : _a3.max) != null ? _b2 : stat3.roll;
-        })
-      ),
+      dp: found.stat.dp || combination.values.some(stat3 => stat3.decimal),
+      value: getRollOrMinmaxAvg(combination.values.map(stat3 => stat3.roll)),
+      min: getRollOrMinmaxAvg(combination.values.map(stat3 => {
+        var _a3, _b2;
+        return (_b2 = (_a3 = stat3.bounds) == null ? void 0 : _a3.min) != null ? _b2 : stat3.roll;
+      })),
+      max: getRollOrMinmaxAvg(combination.values.map(stat3 => {
+        var _a3, _b2;
+        return (_b2 = (_a3 = stat3.bounds) == null ? void 0 : _a3.max) != null ? _b2 : stat3.roll;
+      })),
       option: found.matcher.value
     };
     return roll;
@@ -9490,19 +10020,20 @@ var EE2 = (() => {
     const statLine = {
       ref: stat2,
       better: 1 /* PositiveRoll */,
-      matchers: [
-        {
-          string: stat2
-        }
-      ],
+      matchers: [{
+        string: stat2
+      }],
       trade: {
         ids: tradeStat
       }
     };
-    return { stat: statLine, translation: statLine.matchers[0] };
+    return {
+      stat: statLine,
+      translation: statLine.matchers[0]
+    };
   }
   function findAndResolveTranslation(params) {
-    const { matchStr } = params;
+    const matchStr = params.matchStr;
     const statOrGroup = STAT_BY_MATCH_STR(matchStr);
     return statOrGroup;
   }
@@ -9515,24 +10046,26 @@ var EE2 = (() => {
       separator = /[\u4e00-\u9fa5]/.test(name) ? "" : " ";
     }
     const words = name.split(separator);
-    const perm = words.flatMap(
-      (_, start) => Array(words.length - start).fill(void 0).map((_2, idx) => words.slice(start, start + idx + 1).join(separator))
-    );
-    const result = perm.map((name2) => {
+    const perm = words.flatMap((_, start) => Array(words.length - start).fill(void 0).map((_2, idx) => words.slice(start, start + idx + 1).join(separator)));
+    const result = perm.map(name2 => {
       var _a2;
       const result2 = (_a2 = ITEM_BY_REF("ITEM", name2)) != null ? _a2 : ITEM_BY_TRANSLATED("ITEM", name2);
       if (result2) {
-        return { name: name2, found: result2 && result2[0].craftable, tradeItem: false };
+        return {
+          name: name2,
+          found: result2 && result2[0].craftable,
+          tradeItem: false
+        };
       }
-      const tradeResult = TRADE_ITEM_BY_REF({ name: name2 }, true);
+      const tradeResult = TRADE_ITEM_BY_REF({
+        name: name2
+      }, true);
       return {
         name: name2,
         found: tradeResult && tradeResult[0].craftable,
         tradeItem: true
       };
-    }).filter((res) => res.found).sort(
-      (a, b) => b.name.length - a.name.length + (b.tradeItem ? 0 : 1e5) - (a.tradeItem ? 0 : 1e5)
-    );
+    }).filter(res => res.found).sort((a, b) => b.name.length - a.name.length + (b.tradeItem ? 0 : 1e5) - (a.tradeItem ? 0 : 1e5));
     return result.length ? result[0].name : void 0;
   }
 
@@ -9541,30 +10074,15 @@ var EE2 = (() => {
   var QUALITY_STATS = {
     ARMOUR: {
       flat: [stat("# to Armour")],
-      incr: [
-        stat("#% increased Armour"),
-        stat("#% increased Armour and Energy Shield"),
-        stat("#% increased Armour and Evasion"),
-        stat("#% increased Armour, Evasion and Energy Shield")
-      ]
+      incr: [stat("#% increased Armour"), stat("#% increased Armour and Energy Shield"), stat("#% increased Armour and Evasion"), stat("#% increased Armour, Evasion and Energy Shield")]
     },
     EVASION: {
       flat: [stat("# to Evasion Rating")],
-      incr: [
-        stat("#% increased Evasion Rating"),
-        stat("#% increased Armour and Evasion"),
-        stat("#% increased Evasion and Energy Shield"),
-        stat("#% increased Armour, Evasion and Energy Shield")
-      ]
+      incr: [stat("#% increased Evasion Rating"), stat("#% increased Armour and Evasion"), stat("#% increased Evasion and Energy Shield"), stat("#% increased Armour, Evasion and Energy Shield")]
     },
     ENERGY_SHIELD: {
       flat: [stat("# to maximum Energy Shield")],
-      incr: [
-        stat("#% increased Energy Shield"),
-        stat("#% increased Armour and Energy Shield"),
-        stat("#% increased Evasion and Energy Shield"),
-        stat("#% increased Armour, Evasion and Energy Shield")
-      ]
+      incr: [stat("#% increased Energy Shield"), stat("#% increased Armour and Energy Shield"), stat("#% increased Evasion and Energy Shield"), stat("#% increased Armour, Evasion and Energy Shield")]
     },
     PHYSICAL_DAMAGE: {
       flat: [stat("Adds # to # Physical Damage")],
@@ -9593,11 +10111,7 @@ var EE2 = (() => {
       incr: []
     },
     ELEMENTAL_DAMAGE: {
-      flat: [
-        stat("Adds # to # Fire Damage"),
-        stat("Adds # to # Cold Damage"),
-        stat("Adds # to # Lightning Damage")
-      ],
+      flat: [stat("Adds # to # Fire Damage"), stat("Adds # to # Cold Damage"), stat("Adds # to # Lightning Damage")],
       incr: []
     },
     CRIT_CHANCE: {
@@ -9619,7 +10133,10 @@ var EE2 = (() => {
   };
   function propAt20Quality(total, statRefs, item) {
     var _a2, _b;
-    const { incr, flat, sources } = calcPropBase(statRefs, item);
+    const _calcPropBase = calcPropBase(statRefs, item),
+      incr = _calcPropBase.incr,
+      flat = _calcPropBase.flat,
+      sources = _calcPropBase.sources;
     const base = calcFlat(total, incr.value, item.quality) - flat.value;
     const quality = itemIsModifiable(item) ? Math.max(20, (_a2 = item.quality) != null ? _a2 : 0) : (_b = item.quality) != null ? _b : 0;
     return {
@@ -9628,11 +10145,16 @@ var EE2 = (() => {
         min: calcIncreased(base + flat.min, incr.min, quality),
         max: calcIncreased(base + flat.max, incr.max, quality)
       },
-      sources: sources.map((source) => __spreadProps(__spreadValues({}, source), { contributes: void 0 }))
+      sources: sources.map(source => __spreadProps(__spreadValues({}, source), {
+        contributes: void 0
+      }))
     };
   }
   function calcPropBounds(total, statRefs, item, inverted = false) {
-    const { incr, flat, sources } = calcPropBase(statRefs, item);
+    const _calcPropBase2 = calcPropBase(statRefs, item),
+      incr = _calcPropBase2.incr,
+      flat = _calcPropBase2.flat,
+      sources = _calcPropBase2.sources;
     const base = calcFlat(total, incr.value, 0, inverted) - flat.value;
     return {
       roll: {
@@ -9640,7 +10162,9 @@ var EE2 = (() => {
         min: calcIncreased(base + flat.min, incr.min, 0, inverted),
         max: calcIncreased(base + flat.max, incr.max, 0, inverted)
       },
-      sources: statRefs.incr.length && statRefs.flat.length ? sources.map((source) => __spreadProps(__spreadValues({}, source), { contributes: void 0 })) : statRefs.incr.length ? sources.map((source) => __spreadProps(__spreadValues({}, source), {
+      sources: statRefs.incr.length && statRefs.flat.length ? sources.map(source => __spreadProps(__spreadValues({}, source), {
+        contributes: void 0
+      })) : statRefs.incr.length ? sources.map(source => __spreadProps(__spreadValues({}, source), {
         contributes: {
           value: base * source.contributes.value / 100,
           min: base * source.contributes.min / 100,
@@ -9651,32 +10175,66 @@ var EE2 = (() => {
   }
   function calcPropPercentile(total, bounds, statRefs, item) {
     var _a2;
-    const { incr, flat } = calcPropBase(statRefs, item);
+    const _calcPropBase3 = calcPropBase(statRefs, item),
+      incr = _calcPropBase3.incr,
+      flat = _calcPropBase3.flat;
     const roll = calcFlat(total, incr.value, (_a2 = item.quality) != null ? _a2 : 0) - flat.value;
-    const [min, max] = bounds;
+    const _bounds = _slicedToArray(bounds, 2),
+      min = _bounds[0],
+      max = _bounds[1];
     const result = Math.round((roll - min) / (max - min) * 100);
     return Math.min(Math.max(result, 0), 100);
   }
   function calcPropBase(statRefs, item) {
-    const incr = { value: 0, min: 0, max: 0 };
-    const flat = { value: 0, min: 0, max: 0 };
+    const incr = {
+      value: 0,
+      min: 0,
+      max: 0
+    };
+    const flat = {
+      value: 0,
+      min: 0,
+      max: 0
+    };
     const sources = [];
-    for (const calc of item.statsByType) {
-      let total;
-      if (statRefs.flat.includes(calc.stat.ref)) {
-        total = flat;
-      } else if (statRefs.incr.includes(calc.stat.ref)) {
-        total = incr;
-      } else {
-        continue;
+    {
+      const _a37 = item.statsByType;
+      if (Array.isArray(_a37)) for (let _i35 = 0; _i35 < _a37.length; _i35++) {
+        const calc = _a37[_i35];
+        let total;
+        if (statRefs.flat.includes(calc.stat.ref)) {
+          total = flat;
+        } else if (statRefs.incr.includes(calc.stat.ref)) {
+          total = incr;
+        } else {
+          continue;
+        }
+        const roll = statSourcesTotal(calc.sources);
+        total.value += roll.value;
+        total.min += roll.min;
+        total.max += roll.max;
+        sources.push.apply(sources, _toConsumableArray(calc.sources));
+      } else for (const calc of _a37) {
+        let total;
+        if (statRefs.flat.includes(calc.stat.ref)) {
+          total = flat;
+        } else if (statRefs.incr.includes(calc.stat.ref)) {
+          total = incr;
+        } else {
+          continue;
+        }
+        const roll = statSourcesTotal(calc.sources);
+        total.value += roll.value;
+        total.min += roll.min;
+        total.max += roll.max;
+        sources.push.apply(sources, _toConsumableArray(calc.sources));
       }
-      const roll = statSourcesTotal(calc.sources);
-      total.value += roll.value;
-      total.min += roll.min;
-      total.max += roll.max;
-      sources.push(...calc.sources);
     }
-    return { incr, flat, sources };
+    return {
+      incr,
+      flat,
+      sources
+    };
   }
   function calcFlat(total, incrPct, morePct = 0, inverted = false) {
     if (inverted) {
@@ -9695,26 +10253,20 @@ var EE2 = (() => {
   init_timers();
   function selectAugmentEffectByItemCategory(category, rune) {
     if (!rune) return;
-    return rune.filter((rune2) => rune2.categories.includes(category));
+    return rune.filter(rune2 => rune2.categories.includes(category));
   }
   function buildEditorItems(augments, category, existing) {
-    return augments.map((augment) => {
-      const effect2 = selectAugmentEffectByItemCategory(
-        category,
-        augment.augment
-      );
+    return augments.map(augment => {
+      const effect2 = selectAugmentEffectByItemCategory(category, augment.augment);
       if (!effect2 || !effect2.length) return void 0;
       return buildEditorItem(augment, effect2, existing);
-    }).filter((augment) => augment !== void 0);
+    }).filter(augment => augment !== void 0);
   }
   function zipHashAndValues(strings, values) {
     if (!strings || !values) return "ns(shouldn't see this)";
-    if (!values.every(
-      (v) => v.length === values[0].length && v.every((v2, i) => v2 === values[0][i])
-    ))
-      return "ve(shouldn't see this)";
+    if (!values.every(v => v.length === values[0].length && v.every((v2, i) => v2 === values[0][i]))) return "ve(shouldn't see this)";
     const valueGenerator = values[0].values();
-    const outString = strings.map((str) => {
+    const outString = strings.map(str => {
       var _a2, _b, _c;
       const replaceCount = (_b = (_a2 = str.match(/#/g)) == null ? void 0 : _a2.length) != null ? _b : 0;
       const valuesToAdd = [];
@@ -9731,10 +10283,7 @@ var EE2 = (() => {
       name: augment.name,
       refName: augment.refName,
       icon: augment.icon,
-      displayString: zipHashAndValues(
-        stats == null ? void 0 : stats.map((s) => s.string),
-        stats == null ? void 0 : stats.map((s) => s.values)
-      ),
+      displayString: zipHashAndValues(stats == null ? void 0 : stats.map(s => s.string), stats == null ? void 0 : stats.map(s => s.values)),
       stats,
       baseItem: augment
     };
@@ -9755,7 +10304,7 @@ var EE2 = (() => {
     } else if ((_e = lookup2.all) == null ? void 0 : _e.length) {
       refNames = lookup2.all;
     }
-    const bases = refNames.map((refName) => {
+    const bases = refNames.map(refName => {
       var _a3, _b2;
       if (!refName) return null;
       return (_b2 = (_a3 = ITEM_BY_REF("ITEM", refName)) == null ? void 0 : _a3.at(0)) != null ? _b2 : null;
@@ -9778,98 +10327,28 @@ var EE2 = (() => {
     }
   }
   function recalculateWeaponProperties(newItem, oldItem) {
-    const basePHYSICAL = calcBase(
-      oldItem,
-      oldItem.weaponPHYSICAL,
-      QUALITY_STATS.PHYSICAL_DAMAGE
-    );
-    const totalPHYSICAL = calcTotal(
-      basePHYSICAL,
-      newItem,
-      QUALITY_STATS.PHYSICAL_DAMAGE
-    );
+    const basePHYSICAL = calcBase(oldItem, oldItem.weaponPHYSICAL, QUALITY_STATS.PHYSICAL_DAMAGE);
+    const totalPHYSICAL = calcTotal(basePHYSICAL, newItem, QUALITY_STATS.PHYSICAL_DAMAGE);
     newItem.weaponPHYSICAL = totalPHYSICAL;
-    const baseAS = calcBase(
-      oldItem,
-      oldItem.weaponAS,
-      OTHER_PSEUDO_STATS.ATTACK_SPEED,
-      false
-    );
-    const totalAS = calcTotal(
-      baseAS,
-      newItem,
-      OTHER_PSEUDO_STATS.ATTACK_SPEED,
-      false
-    );
+    const baseAS = calcBase(oldItem, oldItem.weaponAS, OTHER_PSEUDO_STATS.ATTACK_SPEED, false);
+    const totalAS = calcTotal(baseAS, newItem, OTHER_PSEUDO_STATS.ATTACK_SPEED, false);
     newItem.weaponAS = totalAS;
-    const baseFIRE = calcBase(
-      oldItem,
-      oldItem.weaponFIRE,
-      OTHER_PSEUDO_STATS.FIRE_DAMAGE,
-      false
-    );
-    const totalFIRE = calcTotal(
-      baseFIRE,
-      newItem,
-      OTHER_PSEUDO_STATS.FIRE_DAMAGE,
-      false
-    );
+    const baseFIRE = calcBase(oldItem, oldItem.weaponFIRE, OTHER_PSEUDO_STATS.FIRE_DAMAGE, false);
+    const totalFIRE = calcTotal(baseFIRE, newItem, OTHER_PSEUDO_STATS.FIRE_DAMAGE, false);
     newItem.weaponFIRE = totalFIRE;
-    const baseCOLD = calcBase(
-      oldItem,
-      oldItem.weaponCOLD,
-      OTHER_PSEUDO_STATS.COLD_DAMAGE,
-      false
-    );
-    const totalCOLD = calcTotal(
-      baseCOLD,
-      newItem,
-      OTHER_PSEUDO_STATS.COLD_DAMAGE,
-      false
-    );
+    const baseCOLD = calcBase(oldItem, oldItem.weaponCOLD, OTHER_PSEUDO_STATS.COLD_DAMAGE, false);
+    const totalCOLD = calcTotal(baseCOLD, newItem, OTHER_PSEUDO_STATS.COLD_DAMAGE, false);
     newItem.weaponCOLD = totalCOLD;
-    const baseLIGHTNING = calcBase(
-      oldItem,
-      oldItem.weaponLIGHTNING,
-      OTHER_PSEUDO_STATS.LIGHTNING_DAMAGE,
-      false
-    );
-    const totalLIGHTNING = calcTotal(
-      baseLIGHTNING,
-      newItem,
-      OTHER_PSEUDO_STATS.LIGHTNING_DAMAGE,
-      false
-    );
+    const baseLIGHTNING = calcBase(oldItem, oldItem.weaponLIGHTNING, OTHER_PSEUDO_STATS.LIGHTNING_DAMAGE, false);
+    const totalLIGHTNING = calcTotal(baseLIGHTNING, newItem, OTHER_PSEUDO_STATS.LIGHTNING_DAMAGE, false);
     newItem.weaponLIGHTNING = totalLIGHTNING;
-    const baseELEMENTAL = calcBase(
-      oldItem,
-      oldItem.weaponELEMENTAL,
-      OTHER_PSEUDO_STATS.ELEMENTAL_DAMAGE,
-      false
-    );
-    const totalELEMENTAL = calcTotal(
-      baseELEMENTAL,
-      newItem,
-      OTHER_PSEUDO_STATS.ELEMENTAL_DAMAGE,
-      false
-    );
+    const baseELEMENTAL = calcBase(oldItem, oldItem.weaponELEMENTAL, OTHER_PSEUDO_STATS.ELEMENTAL_DAMAGE, false);
+    const totalELEMENTAL = calcTotal(baseELEMENTAL, newItem, OTHER_PSEUDO_STATS.ELEMENTAL_DAMAGE, false);
     newItem.weaponELEMENTAL = totalELEMENTAL;
-    const baseCRIT = calcBase(
-      oldItem,
-      oldItem.weaponCRIT,
-      OTHER_PSEUDO_STATS.CRIT_CHANCE
-    );
-    const totalCRIT = calcTotal(
-      baseCRIT,
-      newItem,
-      OTHER_PSEUDO_STATS.CRIT_CHANCE
-    );
+    const baseCRIT = calcBase(oldItem, oldItem.weaponCRIT, OTHER_PSEUDO_STATS.CRIT_CHANCE);
+    const totalCRIT = calcTotal(baseCRIT, newItem, OTHER_PSEUDO_STATS.CRIT_CHANCE);
     newItem.weaponCRIT = totalCRIT;
-    const baseSPIRIT = calcBase(
-      oldItem,
-      oldItem.weaponSPIRIT,
-      OTHER_PSEUDO_STATS.SPIRIT
-    );
+    const baseSPIRIT = calcBase(oldItem, oldItem.weaponSPIRIT, OTHER_PSEUDO_STATS.SPIRIT);
     const totalSPIRIT = calcTotal(baseSPIRIT, newItem, OTHER_PSEUDO_STATS.SPIRIT);
     newItem.weaponSPIRIT = totalSPIRIT;
   }
@@ -9885,11 +10364,7 @@ var EE2 = (() => {
       newItem.armourEV = total;
     }
     if (newItem.armourES) {
-      const base = calcBase(
-        oldItem,
-        oldItem.armourES,
-        QUALITY_STATS.ENERGY_SHIELD
-      );
+      const base = calcBase(oldItem, oldItem.armourES, QUALITY_STATS.ENERGY_SHIELD);
       const total = calcTotal(base, newItem, QUALITY_STATS.ENERGY_SHIELD);
       newItem.armourES = total;
     }
@@ -9899,30 +10374,25 @@ var EE2 = (() => {
       newItem.armourRW = total;
     }
     if (newItem.armourBLOCK) {
-      const base = calcBase(
-        oldItem,
-        oldItem.armourBLOCK,
-        OTHER_PSEUDO_STATS.BLOCK
-      );
+      const base = calcBase(oldItem, oldItem.armourBLOCK, OTHER_PSEUDO_STATS.BLOCK);
       const total = calcTotal(base, newItem, OTHER_PSEUDO_STATS.BLOCK);
       newItem.armourBLOCK = total;
     }
   }
   function calcBase(item, inStat, statRefs, useQuality = true) {
     var _a2;
-    const { incr, flat } = calcPropBase(statRefs, item);
+    const _calcPropBase4 = calcPropBase(statRefs, item),
+      incr = _calcPropBase4.incr,
+      flat = _calcPropBase4.flat;
     const base = calcFlat(inStat != null ? inStat : 0, incr.value, useQuality ? (_a2 = item.quality) != null ? _a2 : 0 : 0) - flat.value;
     return base;
   }
   function calcTotal(base, item, statRefs, useQuality = true, inverted = false) {
     var _a2;
-    const { incr, flat } = calcPropBase(statRefs, item);
-    const damage = calcIncreased(
-      base + flat.value,
-      incr.value,
-      useQuality ? (_a2 = item.quality) != null ? _a2 : 0 : 0,
-      inverted
-    );
+    const _calcPropBase5 = calcPropBase(statRefs, item),
+      incr = _calcPropBase5.incr,
+      flat = _calcPropBase5.flat;
+    const damage = calcIncreased(base + flat.value, incr.value, useQuality ? (_a2 = item.quality) != null ? _a2 : 0 : 0, inverted);
     return damage;
   }
 
@@ -9932,29 +10402,35 @@ var EE2 = (() => {
       throw new Error("Augment index out of bounds");
     }
     const oldItem = JSON.parse(JSON.stringify(item));
-    item.newMods = item.newMods.filter(
-      (mod) => !INTERNAL_AUGMENT_TYPES.has(mod.info.type)
-    );
-    item.statsByType = item.statsByType.filter(
-      (stat2) => !INTERNAL_AUGMENT_TYPES.has(stat2.type)
-    );
+    item.newMods = item.newMods.filter(mod => !INTERNAL_AUGMENT_TYPES.has(mod.info.type));
+    item.statsByType = item.statsByType.filter(stat2 => !INTERNAL_AUGMENT_TYPES.has(stat2.type));
     item.augmentSockets.augments[index] = augment;
-    for (const thisAugment of item.augmentSockets.augments) {
-      if (!thisAugment) continue;
-      const modInfo = {
-        // need to keep pre-existing ones marked as non-added
-        type: thisAugment.existing ? "rune" /* Augment */ : "added-rune" /* AddedAugment */,
-        tags: []
-      };
-      parseStatsFromMod(
-        thisAugment.displayString.split("\n"),
-        item,
-        {
+    {
+      const _a38 = item.augmentSockets.augments;
+      if (Array.isArray(_a38)) for (let _i36 = 0; _i36 < _a38.length; _i36++) {
+        const thisAugment = _a38[_i36];
+        if (!thisAugment) continue;
+        const modInfo = {
+          // need to keep pre-existing ones marked as non-added
+          type: thisAugment.existing ? "rune" /* Augment */ : "added-rune" /* AddedAugment */,
+          tags: []
+        };
+        parseStatsFromMod(thisAugment.displayString.split("\n"), item, {
           info: modInfo,
           stats: []
-        },
-        thisAugment.existing ? void 0 : thisAugment.baseItem
-      );
+        }, thisAugment.existing ? void 0 : thisAugment.baseItem);
+      } else for (const thisAugment of _a38) {
+        if (!thisAugment) continue;
+        const modInfo = {
+          // need to keep pre-existing ones marked as non-added
+          type: thisAugment.existing ? "rune" /* Augment */ : "added-rune" /* AddedAugment */,
+          tags: []
+        };
+        parseStatsFromMod(thisAugment.displayString.split("\n"), item, {
+          info: modInfo,
+          stats: []
+        }, thisAugment.existing ? void 0 : thisAugment.baseItem);
+      }
     }
     item.statsByType = sumStatsByModType(item.newMods);
     recalculateItemProperties(item, oldItem);
@@ -9963,152 +10439,114 @@ var EE2 = (() => {
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/parser/utils.ts
   init_timers();
   function combinations(arr) {
-    return arr.reduce(
-      (acc, curr) => [...acc, ...acc.map((a) => [...a, curr])],
-      [[]]
-    );
+    return arr.reduce((acc, curr) => [].concat(_toConsumableArray(acc), _toConsumableArray(acc.map(a => [].concat(_toConsumableArray(a), [curr])))), [[]]);
   }
   function avg(arr) {
     return arr.reduce((a, b) => a + b, 0) / arr.length;
   }
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/parser/Parser.ts
-  var LANGUAGE_DETECTOR = [
-    {
-      lang: "en",
-      displayLang: "English",
-      itemClassLine: "Item Class: ",
-      rarityLine: "Rarity: "
-    },
-    {
-      lang: "ru",
-      displayLang: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439",
-      itemClassLine: "\u041A\u043B\u0430\u0441\u0441 \u043F\u0440\u0435\u0434\u043C\u0435\u0442\u0430: ",
-      rarityLine: "\u0420\u0435\u0434\u043A\u043E\u0441\u0442\u044C: "
-    },
-    {
-      lang: "fr",
-      displayLang: "Fran\xE7ais",
-      itemClassLine: "Classe d'objet: ",
-      rarityLine: "Raret\xE9: "
-    },
-    {
-      lang: "de",
-      displayLang: "Deutsch",
-      itemClassLine: "Gegenstandsklasse: ",
-      rarityLine: "Seltenheit: "
-    },
-    {
-      lang: "pt",
-      displayLang: "Portugu\xEAs (Brasil)",
-      itemClassLine: "Classe do Item: ",
-      rarityLine: "Raridade: "
-    },
-    {
-      lang: "es",
-      displayLang: "Espa\xF1ol",
-      itemClassLine: "Clase de objeto: ",
-      rarityLine: "Rareza: "
-    },
-    {
-      lang: "th",
-      displayLang: "\u0E44\u0E17\u0E22",
-      itemClassLine: "\u0E0A\u0E19\u0E34\u0E14\u0E44\u0E2D\u0E40\u0E17\u0E21: ",
-      rarityLine: "Rarity: "
-    },
-    {
-      lang: "ko",
-      displayLang: "\uD55C\uAD6D\uC5B4",
-      itemClassLine: "\uC544\uC774\uD15C \uC885\uB958: ",
-      rarityLine: "\uC544\uC774\uD15C \uD76C\uADC0\uB3C4: "
-    },
-    {
-      lang: "cmn-Hant",
-      displayLang: "\u6B63\u9AD4\u4E2D\u6587",
-      itemClassLine: "\u7269\u54C1\u7A2E\u985E: ",
-      rarityLine: "\u7A00\u6709\u5EA6: "
-    },
-    {
-      lang: "cmn-Hans",
-      displayLang: "\u666E\u901A\u8BDD",
-      itemClassLine: "\u7269\u54C1\u7C7B\u522B: ",
-      rarityLine: "Rarity: "
-    },
-    {
-      lang: "ja",
-      displayLang: "\u65E5\u672C\u8A9E",
-      itemClassLine: "\u30A2\u30A4\u30C6\u30E0\u30AF\u30E9\u30B9: ",
-      rarityLine: "\u30EC\u30A2\u30EA\u30C6\u30A3: "
-    }
-  ];
-  var parsers = [
-    parseUnidentified,
-    { virtual: parseSuperior },
-    { virtual: parseExceptional },
-    { virtual: parseRuneforged },
-    parseSynthesised,
-    parseCategoryByHelpText,
-    { virtual: normalizeName },
-    { virtual: findInDatabase },
-    // -----------
-    parseItemLevel,
-    parseRequirements,
-    parseTalismanTier,
-    parseGem,
-    parseArmour,
-    parseWeapon,
-    parseCaster,
-    parseFlask,
-    parseJewelery,
-    parseCharmSlots,
-    parseSpirit,
-    parsePriceNote,
-    parseTimelostRadius,
-    parseStackSize,
-    parseCorrupted,
-    parseFoil,
-    parseInfluence,
-    parseMap,
-    parseWaystone,
-    parseSockets,
-    parseAugmentSockets,
-    parseHeistBlueprint,
-    parseTrials,
-    parseAreaLevel,
-    parseAtzoatlRooms,
-    parseMirroredTablet,
-    parseFilledCoffin,
-    parseMirrored,
-    parseSanctified,
-    parseSentinelCharge,
-    parseLogbookArea,
-    parseLogbookArea,
-    parseLogbookArea,
-    parseModifiers,
-    // enchant
-    parseModifiers,
-    // augment
-    parseModifiers,
-    // implicit
-    parseModifiers,
-    // grant skill
-    parseModifiers,
-    // explicit
-    { virtual: transformToLegacyModifiers },
-    { virtual: parseFractured },
-    { virtual: parseBlightedMap },
-    { virtual: applyAugmentSockets },
-    { virtual: applyElementalAdded },
-    { virtual: pickCorrectVariant },
-    { virtual: calcBasePercentile }
-  ];
+  var LANGUAGE_DETECTOR = [{
+    lang: "en",
+    displayLang: "English",
+    itemClassLine: "Item Class: ",
+    rarityLine: "Rarity: "
+  }, {
+    lang: "ru",
+    displayLang: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439",
+    itemClassLine: "\u041A\u043B\u0430\u0441\u0441 \u043F\u0440\u0435\u0434\u043C\u0435\u0442\u0430: ",
+    rarityLine: "\u0420\u0435\u0434\u043A\u043E\u0441\u0442\u044C: "
+  }, {
+    lang: "fr",
+    displayLang: "Fran\xE7ais",
+    itemClassLine: "Classe d'objet: ",
+    rarityLine: "Raret\xE9: "
+  }, {
+    lang: "de",
+    displayLang: "Deutsch",
+    itemClassLine: "Gegenstandsklasse: ",
+    rarityLine: "Seltenheit: "
+  }, {
+    lang: "pt",
+    displayLang: "Portugu\xEAs (Brasil)",
+    itemClassLine: "Classe do Item: ",
+    rarityLine: "Raridade: "
+  }, {
+    lang: "es",
+    displayLang: "Espa\xF1ol",
+    itemClassLine: "Clase de objeto: ",
+    rarityLine: "Rareza: "
+  }, {
+    lang: "th",
+    displayLang: "\u0E44\u0E17\u0E22",
+    itemClassLine: "\u0E0A\u0E19\u0E34\u0E14\u0E44\u0E2D\u0E40\u0E17\u0E21: ",
+    rarityLine: "Rarity: "
+  }, {
+    lang: "ko",
+    displayLang: "\uD55C\uAD6D\uC5B4",
+    itemClassLine: "\uC544\uC774\uD15C \uC885\uB958: ",
+    rarityLine: "\uC544\uC774\uD15C \uD76C\uADC0\uB3C4: "
+  }, {
+    lang: "cmn-Hant",
+    displayLang: "\u6B63\u9AD4\u4E2D\u6587",
+    itemClassLine: "\u7269\u54C1\u7A2E\u985E: ",
+    rarityLine: "\u7A00\u6709\u5EA6: "
+  }, {
+    lang: "cmn-Hans",
+    displayLang: "\u666E\u901A\u8BDD",
+    itemClassLine: "\u7269\u54C1\u7C7B\u522B: ",
+    rarityLine: "Rarity: "
+  }, {
+    lang: "ja",
+    displayLang: "\u65E5\u672C\u8A9E",
+    itemClassLine: "\u30A2\u30A4\u30C6\u30E0\u30AF\u30E9\u30B9: ",
+    rarityLine: "\u30EC\u30A2\u30EA\u30C6\u30A3: "
+  }];
+  var parsers = [parseUnidentified, {
+    virtual: parseSuperior
+  }, {
+    virtual: parseExceptional
+  }, {
+    virtual: parseRuneforged
+  }, parseSynthesised, parseCategoryByHelpText, {
+    virtual: normalizeName
+  }, {
+    virtual: findInDatabase
+  },
+  // -----------
+  parseItemLevel, parseRequirements, parseTalismanTier, parseGem, parseArmour, parseWeapon, parseCaster, parseFlask, parseJewelery, parseCharmSlots, parseSpirit, parsePriceNote, parseTimelostRadius, parseStackSize, parseCorrupted, parseFoil, parseInfluence, parseMap, parseWaystone, parseSockets, parseAugmentSockets, parseHeistBlueprint, parseTrials, parseAreaLevel, parseAtzoatlRooms, parseMirroredTablet, parseFilledCoffin, parseMirrored, parseSanctified, parseSentinelCharge, parseLogbookArea, parseLogbookArea, parseLogbookArea, parseModifiers,
+  // enchant
+  parseModifiers,
+  // augment
+  parseModifiers,
+  // implicit
+  parseModifiers,
+  // grant skill
+  parseModifiers,
+  // explicit
+  {
+    virtual: transformToLegacyModifiers
+  }, {
+    virtual: parseFractured
+  }, {
+    virtual: parseBlightedMap
+  }, {
+    virtual: applyAugmentSockets
+  }, {
+    virtual: applyElementalAdded
+  }, {
+    virtual: pickCorrectVariant
+  }, {
+    virtual: calcBasePercentile
+  }];
   function parseClipboard(clipboard) {
     try {
       performance.mark("parse-start");
       let sections = itemTextToSections(clipboard);
       if (sections[0][2] === CLIENT_STRINGS.CANNOT_USE_ITEM) {
+        var _sections$;
         sections[0].pop();
-        sections[1].unshift(...sections[0]);
+        (_sections$ = sections[1]).unshift.apply(_sections$, _toConsumableArray(sections[0]));
         sections.shift();
       }
       const parsed = parseNamePlate(sections[0]);
@@ -10116,19 +10554,62 @@ var EE2 = (() => {
       sections.shift();
       parsed.value.rawText = clipboard;
       performance.mark("parse-start-parsers");
-      for (const parser of parsers) {
-        if (typeof parser === "object") {
-          const error = parser.virtual(parsed.value);
-          if (error) return error;
-          continue;
-        }
-        for (const section of sections) {
-          const result = parser(section, parsed.value);
-          if (result === "SECTION_PARSED") {
-            sections = sections.filter((s) => s !== section);
-            break;
-          } else if (result === "PARSER_SKIPPED") {
-            break;
+      {
+        const _a39 = parsers;
+        if (Array.isArray(_a39)) for (let _i37 = 0; _i37 < _a39.length; _i37++) {
+          const parser = _a39[_i37];
+          if (typeof parser === "object") {
+            const error = parser.virtual(parsed.value);
+            if (error) return error;
+            continue;
+          }
+          {
+            const _a40 = sections;
+            if (Array.isArray(_a40)) for (let _i38 = 0; _i38 < _a40.length; _i38++) {
+              const section = _a40[_i38];
+              const result = parser(section, parsed.value);
+              if (result === "SECTION_PARSED") {
+                sections = sections.filter(s => s !== section);
+                break;
+              } else if (result === "PARSER_SKIPPED") {
+                break;
+              }
+            } else for (const section of _a40) {
+              const result = parser(section, parsed.value);
+              if (result === "SECTION_PARSED") {
+                sections = sections.filter(s => s !== section);
+                break;
+              } else if (result === "PARSER_SKIPPED") {
+                break;
+              }
+            }
+          }
+        } else for (const parser of _a39) {
+          if (typeof parser === "object") {
+            const error = parser.virtual(parsed.value);
+            if (error) return error;
+            continue;
+          }
+          {
+            const _a41 = sections;
+            if (Array.isArray(_a41)) for (let _i39 = 0; _i39 < _a41.length; _i39++) {
+              const section = _a41[_i39];
+              const result = parser(section, parsed.value);
+              if (result === "SECTION_PARSED") {
+                sections = sections.filter(s => s !== section);
+                break;
+              } else if (result === "PARSER_SKIPPED") {
+                break;
+              }
+            } else for (const section of _a41) {
+              const result = parser(section, parsed.value);
+              if (result === "SECTION_PARSED") {
+                sections = sections.filter(s => s !== section);
+                break;
+              } else if (result === "PARSER_SKIPPED") {
+                break;
+              }
+            }
           }
         }
       }
@@ -10156,7 +10637,7 @@ var EE2 = (() => {
         return section2;
       }
     }, sections[0]);
-    return sections.filter((section) => section.length);
+    return sections.filter(section => section.length);
   }
   function normalizeName(item) {
     performance.mark("normalizeName");
@@ -10251,15 +10732,13 @@ var EE2 = (() => {
       }
     }
     if (info[0].unique) {
-      const uniqueInfo = info.filter(
-        (info2) => info2.unique.base === item.baseType
-      );
+      const uniqueInfo = info.filter(info2 => info2.unique.base === item.baseType);
       if (uniqueInfo == null ? void 0 : uniqueInfo.length) {
         info = uniqueInfo;
       } else if (item.baseType) {
         const baseInfo = ITEM_BY_TRANSLATED("ITEM", item.baseType);
         if (baseInfo == null ? void 0 : baseInfo.length) {
-          info = info.filter((info2) => info2.unique.base === baseInfo[0].refName);
+          info = info.filter(info2 => info2.unique.base === baseInfo[0].refName);
         }
       }
     }
@@ -10269,10 +10748,7 @@ var EE2 = (() => {
       if (item.info.craftable) {
         item.category = item.info.craftable.category;
       } else if (item.info.unique) {
-        item.category = ITEM_BY_REF(
-          "ITEM",
-          item.info.unique.base
-        )[0].craftable.category;
+        item.category = ITEM_BY_REF("ITEM", item.info.unique.base)[0].craftable.category;
       }
     }
   }
@@ -10289,59 +10765,75 @@ var EE2 = (() => {
     performance.mark("parseWaystone");
     if (section[0].startsWith(CLIENT_STRINGS.WAYSTONE_REVIVES) && ((_a2 = item.info.map) == null ? void 0 : _a2.tier)) {
       item.mapTier = item.info.map.tier;
-      for (const line of section) {
-        if (line.startsWith(CLIENT_STRINGS.WAYSTONE_REVIVES)) {
-          item.mapRevives = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_REVIVES.length), 10);
-          continue;
-        }
-        if (line.startsWith(CLIENT_STRINGS.WAYSTONE_PACK_SIZE)) {
-          item.mapPackSize = parseInt(
-            line.slice(CLIENT_STRINGS.WAYSTONE_PACK_SIZE.length),
-            10
-          );
-          continue;
-        }
-        if (line.startsWith(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS)) {
-          item.mapMagicMonsters = parseInt(
-            line.slice(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS.length),
-            10
-          );
-          continue;
-        }
-        if (line.startsWith(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS)) {
-          item.mapRareMonsters = parseInt(
-            line.slice(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS.length),
-            10
-          );
-          continue;
-        }
-        if (line.startsWith(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE)) {
-          item.mapDropChance = parseInt(
-            line.slice(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE.length),
-            10
-          );
-          continue;
-        }
-        if (line.startsWith(CLIENT_STRINGS.WAYSTONE_RARITY)) {
-          item.mapItemRarity = parseInt(
-            line.slice(CLIENT_STRINGS.WAYSTONE_RARITY.length),
-            10
-          );
-          continue;
-        }
-        if (line.startsWith(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY)) {
-          item.mapMonsterRarity = parseInt(
-            line.slice(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY.length),
-            10
-          );
-          continue;
-        }
-        if (line.startsWith(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS)) {
-          item.mapEffectiveness = parseInt(
-            line.slice(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS.length),
-            10
-          );
-          continue;
+      {
+        const _a42 = section;
+        if (Array.isArray(_a42)) for (let _i40 = 0; _i40 < _a42.length; _i40++) {
+          const line = _a42[_i40];
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_REVIVES)) {
+            item.mapRevives = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_REVIVES.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_PACK_SIZE)) {
+            item.mapPackSize = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_PACK_SIZE.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS)) {
+            item.mapMagicMonsters = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS)) {
+            item.mapRareMonsters = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE)) {
+            item.mapDropChance = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_RARITY)) {
+            item.mapItemRarity = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_RARITY.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY)) {
+            item.mapMonsterRarity = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS)) {
+            item.mapEffectiveness = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS.length), 10);
+            continue;
+          }
+        } else for (const line of _a42) {
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_REVIVES)) {
+            item.mapRevives = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_REVIVES.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_PACK_SIZE)) {
+            item.mapPackSize = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_PACK_SIZE.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS)) {
+            item.mapMagicMonsters = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS)) {
+            item.mapRareMonsters = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE)) {
+            item.mapDropChance = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_RARITY)) {
+            item.mapItemRarity = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_RARITY.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY)) {
+            item.mapMonsterRarity = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY.length), 10);
+            continue;
+          }
+          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS)) {
+            item.mapEffectiveness = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS.length), 10);
+            continue;
+          }
         }
       }
       return "SECTION_PARSED";
@@ -10351,9 +10843,7 @@ var EE2 = (() => {
   function parseBlightedMap(item) {
     performance.mark("parseBlightedMap");
     if (item.category !== "Map" /* Map */) return;
-    const calc = item.statsByType.find(
-      (calc2) => calc2.type === "implicit" /* Implicit */ && calc2.stat.ref.startsWith("Area is infested with Fungal Growths")
-    );
+    const calc = item.statsByType.find(calc2 => calc2.type === "implicit" /* Implicit */ && calc2.stat.ref.startsWith("Area is infested with Fungal Growths"));
     if (calc !== void 0) {
       if (calc.sources[0].contributes.value === 9) {
         item.mapBlighted = "Blight-ravaged";
@@ -10366,32 +10856,41 @@ var EE2 = (() => {
   }
   function parseFractured(item) {
     performance.mark("parseFractured");
-    if (item.newMods.some((mod) => mod.info.type === "fractured" /* Fractured */)) {
+    if (item.newMods.some(mod => mod.info.type === "fractured" /* Fractured */)) {
       item.isFractured = true;
     }
   }
   function pickCorrectVariant(item) {
     performance.mark("pickCorrectVariant");
     if (!item.info.disc) return;
-    for (const variant of item.infoVariants) {
-      const cond = variant.disc;
-      if (cond.propAR && !item.armourAR) continue;
-      if (cond.propEV && !item.armourEV) continue;
-      if (cond.propES && !item.armourES) continue;
-      if (cond.mapTier === "W" && !(item.mapTier <= 5)) continue;
-      if (cond.mapTier === "Y" && !(item.mapTier >= 6 && item.mapTier <= 10))
-        continue;
-      if (cond.mapTier === "R" && !(item.mapTier >= 11)) continue;
-      if (cond.hasImplicit && !item.statsByType.some(
-        (calc) => calc.type === "implicit" /* Implicit */ && calc.stat.ref === cond.hasImplicit.ref
-      ))
-        continue;
-      if (cond.hasExplicit && !item.statsByType.some(
-        (calc) => calc.type === "explicit" /* Explicit */ && calc.stat.ref === cond.hasExplicit.ref
-      ))
-        continue;
-      if (cond.sectionText && !item.rawText.includes(cond.sectionText)) continue;
-      item.info = variant;
+    {
+      const _a43 = item.infoVariants;
+      if (Array.isArray(_a43)) for (let _i41 = 0; _i41 < _a43.length; _i41++) {
+        const variant = _a43[_i41];
+        const cond = variant.disc;
+        if (cond.propAR && !item.armourAR) continue;
+        if (cond.propEV && !item.armourEV) continue;
+        if (cond.propES && !item.armourES) continue;
+        if (cond.mapTier === "W" && !(item.mapTier <= 5)) continue;
+        if (cond.mapTier === "Y" && !(item.mapTier >= 6 && item.mapTier <= 10)) continue;
+        if (cond.mapTier === "R" && !(item.mapTier >= 11)) continue;
+        if (cond.hasImplicit && !item.statsByType.some(calc => calc.type === "implicit" /* Implicit */ && calc.stat.ref === cond.hasImplicit.ref)) continue;
+        if (cond.hasExplicit && !item.statsByType.some(calc => calc.type === "explicit" /* Explicit */ && calc.stat.ref === cond.hasExplicit.ref)) continue;
+        if (cond.sectionText && !item.rawText.includes(cond.sectionText)) continue;
+        item.info = variant;
+      } else for (const variant of _a43) {
+        const cond = variant.disc;
+        if (cond.propAR && !item.armourAR) continue;
+        if (cond.propEV && !item.armourEV) continue;
+        if (cond.propES && !item.armourES) continue;
+        if (cond.mapTier === "W" && !(item.mapTier <= 5)) continue;
+        if (cond.mapTier === "Y" && !(item.mapTier >= 6 && item.mapTier <= 10)) continue;
+        if (cond.mapTier === "R" && !(item.mapTier >= 11)) continue;
+        if (cond.hasImplicit && !item.statsByType.some(calc => calc.type === "implicit" /* Implicit */ && calc.stat.ref === cond.hasImplicit.ref)) continue;
+        if (cond.hasExplicit && !item.statsByType.some(calc => calc.type === "explicit" /* Explicit */ && calc.stat.ref === cond.hasExplicit.ref)) continue;
+        if (cond.sectionText && !item.rawText.includes(cond.sectionText)) continue;
+        item.info = variant;
+      }
     }
   }
   function parseNamePlate(section) {
@@ -10403,13 +10902,13 @@ var EE2 = (() => {
         missingItemClass = true;
       } else {
         console.log(section);
-        const langFound = LANGUAGE_DETECTOR.find(
-          ({ rarityLine }) => section[1].startsWith(rarityLine)
-        );
+        const langFound = LANGUAGE_DETECTOR.find(({
+          rarityLine
+        }) => section[1].startsWith(rarityLine));
         if (langFound) {
-          return err(
-            `item.wrong_language|${langFound.displayLang}|${LANGUAGE_DETECTOR.find(({ lang }) => lang === AppConfig().language).displayLang}`
-          );
+          return err(`item.wrong_language|${langFound.displayLang}|${LANGUAGE_DETECTOR.find(({
+            lang
+          }) => lang === AppConfig().language).displayLang}`);
         }
         return err("item.parse_error");
       }
@@ -10476,26 +10975,51 @@ var EE2 = (() => {
     performance.mark("parseInfluence");
     if (section.length <= 2) {
       const countBefore = item.influences.length;
-      for (const line of section) {
-        switch (line) {
-          case CLIENT_STRINGS.INFLUENCE_CRUSADER:
-            item.influences.push("Crusader" /* Crusader */);
-            break;
-          case CLIENT_STRINGS.INFLUENCE_ELDER:
-            item.influences.push("Elder" /* Elder */);
-            break;
-          case CLIENT_STRINGS.INFLUENCE_SHAPER:
-            item.influences.push("Shaper" /* Shaper */);
-            break;
-          case CLIENT_STRINGS.INFLUENCE_HUNTER:
-            item.influences.push("Hunter" /* Hunter */);
-            break;
-          case CLIENT_STRINGS.INFLUENCE_REDEEMER:
-            item.influences.push("Redeemer" /* Redeemer */);
-            break;
-          case CLIENT_STRINGS.INFLUENCE_WARLORD:
-            item.influences.push("Warlord" /* Warlord */);
-            break;
+      {
+        const _a44 = section;
+        if (Array.isArray(_a44)) for (let _i42 = 0; _i42 < _a44.length; _i42++) {
+          const line = _a44[_i42];
+          switch (line) {
+            case CLIENT_STRINGS.INFLUENCE_CRUSADER:
+              item.influences.push("Crusader" /* Crusader */);
+              break;
+            case CLIENT_STRINGS.INFLUENCE_ELDER:
+              item.influences.push("Elder" /* Elder */);
+              break;
+            case CLIENT_STRINGS.INFLUENCE_SHAPER:
+              item.influences.push("Shaper" /* Shaper */);
+              break;
+            case CLIENT_STRINGS.INFLUENCE_HUNTER:
+              item.influences.push("Hunter" /* Hunter */);
+              break;
+            case CLIENT_STRINGS.INFLUENCE_REDEEMER:
+              item.influences.push("Redeemer" /* Redeemer */);
+              break;
+            case CLIENT_STRINGS.INFLUENCE_WARLORD:
+              item.influences.push("Warlord" /* Warlord */);
+              break;
+          }
+        } else for (const line of _a44) {
+          switch (line) {
+            case CLIENT_STRINGS.INFLUENCE_CRUSADER:
+              item.influences.push("Crusader" /* Crusader */);
+              break;
+            case CLIENT_STRINGS.INFLUENCE_ELDER:
+              item.influences.push("Elder" /* Elder */);
+              break;
+            case CLIENT_STRINGS.INFLUENCE_SHAPER:
+              item.influences.push("Shaper" /* Shaper */);
+              break;
+            case CLIENT_STRINGS.INFLUENCE_HUNTER:
+              item.influences.push("Hunter" /* Hunter */);
+              break;
+            case CLIENT_STRINGS.INFLUENCE_REDEEMER:
+              item.influences.push("Redeemer" /* Redeemer */);
+              break;
+            case CLIENT_STRINGS.INFLUENCE_WARLORD:
+              item.influences.push("Warlord" /* Warlord */);
+              break;
+          }
         }
       }
       if (countBefore < item.influences.length) {
@@ -10545,10 +11069,19 @@ var EE2 = (() => {
     if (item.info.refName === "Filled Coffin") {
       prefix = CLIENT_STRINGS.CORPSE_LEVEL;
     }
-    for (const line of section) {
-      if (line.startsWith(prefix)) {
-        item.itemLevel = Number(line.slice(prefix.length));
-        return "SECTION_PARSED";
+    {
+      const _a45 = section;
+      if (Array.isArray(_a45)) for (let _i43 = 0; _i43 < _a45.length; _i43++) {
+        const line = _a45[_i43];
+        if (line.startsWith(prefix)) {
+          item.itemLevel = Number(line.slice(prefix.length));
+          return "SECTION_PARSED";
+        }
+      } else for (const line of _a45) {
+        if (line.startsWith(prefix)) {
+          item.itemLevel = Number(line.slice(prefix.length));
+          return "SECTION_PARSED";
+        }
       }
     }
     return "SECTION_SKIPPED";
@@ -10590,10 +11123,7 @@ var EE2 = (() => {
     }
     const gemLevelLineNumber = item.category === "Gem" /* Gem */ || item.category === "Meta Gem" /* MetaGem */ ? 1 : 0;
     if ((_a2 = section[gemLevelLineNumber]) == null ? void 0 : _a2.startsWith(CLIENT_STRINGS.GEM_LEVEL)) {
-      item.gemLevel = parseInt(
-        section[gemLevelLineNumber].slice(CLIENT_STRINGS.GEM_LEVEL.length),
-        10
-      );
+      item.gemLevel = parseInt(section[gemLevelLineNumber].slice(CLIENT_STRINGS.GEM_LEVEL.length), 10);
       parseQualityNested(section, item);
       return "SECTION_PARSED";
     }
@@ -10605,9 +11135,15 @@ var EE2 = (() => {
       return "PARSER_SKIPPED";
     }
     if (section[0].startsWith(CLIENT_STRINGS.STACK_SIZE)) {
-      const [value, max] = section[0].slice(CLIENT_STRINGS.STACK_SIZE.length).replace(/[^\d/]/g, "").split("/").map(Number);
+      const _section$0$slice$repl = section[0].slice(CLIENT_STRINGS.STACK_SIZE.length).replace(/[^\d/]/g, "").split("/").map(Number),
+        _section$0$slice$repl2 = _slicedToArray(_section$0$slice$repl, 2),
+        value = _section$0$slice$repl2[0],
+        max = _section$0$slice$repl2[1];
       if (item.info.refName !== "Idol of Estazunti") {
-        item.stackSize = { value, max };
+        item.stackSize = {
+          value,
+          max
+        };
       }
       return "SECTION_PARSED";
     }
@@ -10632,9 +11168,7 @@ var EE2 = (() => {
           empty: 0,
           current: current2,
           normal: categoryMax,
-          augments: Array(categoryMax > current2 ? categoryMax : current2).fill(
-            null
-          )
+          augments: Array(categoryMax > current2 ? categoryMax : current2).fill(null)
         };
       }
       return "SECTION_PARSED";
@@ -10670,52 +11204,160 @@ var EE2 = (() => {
   }
   function parseQualityNested(section, item) {
     performance.mark("parseQualityNested");
-    for (const line of section) {
-      if (line.startsWith(CLIENT_STRINGS.QUALITY)) {
-        item.quality = parseInt(line.slice(CLIENT_STRINGS.QUALITY.length), 10);
-        if (item.category === "Ring" /* Ring */ || item.category === "Amulet" /* Amulet */ || item.category === "Jewel" /* Jewel */) {
-          const catalysts = item.category === "Jewel" /* Jewel */ ? CATALYST_TYPES.Refined : CATALYST_TYPES.Normal;
-          for (const catalyst of catalysts) {
-            for (const tag of CATALYST_TO_TAG[catalyst.tags[1]]) {
-              if (line.includes(tag)) {
-                item.qualityType = catalyst.tags[1];
-                return;
+    {
+      const _a46 = section;
+      if (Array.isArray(_a46)) for (let _i44 = 0; _i44 < _a46.length; _i44++) {
+        const line = _a46[_i44];
+        if (line.startsWith(CLIENT_STRINGS.QUALITY)) {
+          item.quality = parseInt(line.slice(CLIENT_STRINGS.QUALITY.length), 10);
+          if (item.category === "Ring" /* Ring */ || item.category === "Amulet" /* Amulet */ || item.category === "Jewel" /* Jewel */) {
+            const catalysts = item.category === "Jewel" /* Jewel */ ? CATALYST_TYPES.Refined : CATALYST_TYPES.Normal;
+            {
+              const _a47 = catalysts;
+              if (Array.isArray(_a47)) for (let _i45 = 0; _i45 < _a47.length; _i45++) {
+                const catalyst = _a47[_i45];
+                {
+                  const _a48 = CATALYST_TO_TAG[catalyst.tags[1]];
+                  if (Array.isArray(_a48)) for (let _i46 = 0; _i46 < _a48.length; _i46++) {
+                    const tag = _a48[_i46];
+                    if (line.includes(tag)) {
+                      item.qualityType = catalyst.tags[1];
+                      return;
+                    }
+                  } else for (const tag of _a48) {
+                    if (line.includes(tag)) {
+                      item.qualityType = catalyst.tags[1];
+                      return;
+                    }
+                  }
+                }
+              } else for (const catalyst of _a47) {
+                {
+                  const _a49 = CATALYST_TO_TAG[catalyst.tags[1]];
+                  if (Array.isArray(_a49)) for (let _i47 = 0; _i47 < _a49.length; _i47++) {
+                    const tag = _a49[_i47];
+                    if (line.includes(tag)) {
+                      item.qualityType = catalyst.tags[1];
+                      return;
+                    }
+                  } else for (const tag of _a49) {
+                    if (line.includes(tag)) {
+                      item.qualityType = catalyst.tags[1];
+                      return;
+                    }
+                  }
+                }
               }
             }
           }
+          return;
         }
-        return;
+      } else for (const line of _a46) {
+        if (line.startsWith(CLIENT_STRINGS.QUALITY)) {
+          item.quality = parseInt(line.slice(CLIENT_STRINGS.QUALITY.length), 10);
+          if (item.category === "Ring" /* Ring */ || item.category === "Amulet" /* Amulet */ || item.category === "Jewel" /* Jewel */) {
+            const catalysts = item.category === "Jewel" /* Jewel */ ? CATALYST_TYPES.Refined : CATALYST_TYPES.Normal;
+            {
+              const _a50 = catalysts;
+              if (Array.isArray(_a50)) for (let _i48 = 0; _i48 < _a50.length; _i48++) {
+                const catalyst = _a50[_i48];
+                {
+                  const _a51 = CATALYST_TO_TAG[catalyst.tags[1]];
+                  if (Array.isArray(_a51)) for (let _i49 = 0; _i49 < _a51.length; _i49++) {
+                    const tag = _a51[_i49];
+                    if (line.includes(tag)) {
+                      item.qualityType = catalyst.tags[1];
+                      return;
+                    }
+                  } else for (const tag of _a51) {
+                    if (line.includes(tag)) {
+                      item.qualityType = catalyst.tags[1];
+                      return;
+                    }
+                  }
+                }
+              } else for (const catalyst of _a50) {
+                {
+                  const _a52 = CATALYST_TO_TAG[catalyst.tags[1]];
+                  if (Array.isArray(_a52)) for (let _i50 = 0; _i50 < _a52.length; _i50++) {
+                    const tag = _a52[_i50];
+                    if (line.includes(tag)) {
+                      item.qualityType = catalyst.tags[1];
+                      return;
+                    }
+                  } else for (const tag of _a52) {
+                    if (line.includes(tag)) {
+                      item.qualityType = catalyst.tags[1];
+                      return;
+                    }
+                  }
+                }
+              }
+            }
+          }
+          return;
+        }
       }
     }
   }
   function parseArmour(section, item) {
     performance.mark("parseArmour");
     let isParsed = "SECTION_SKIPPED";
-    for (const line of section) {
-      if (line.startsWith(CLIENT_STRINGS.ARMOUR)) {
-        item.armourAR = parseInt(line.slice(CLIENT_STRINGS.ARMOUR.length), 10);
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.EVASION)) {
-        item.armourEV = parseInt(line.slice(CLIENT_STRINGS.EVASION.length), 10);
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.ENERGY_SHIELD)) {
-        item.armourES = parseInt(line.slice(CLIENT_STRINGS.ENERGY_SHIELD.length), 10);
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.BLOCK_CHANCE)) {
-        item.armourBLOCK = parseInt(line.slice(CLIENT_STRINGS.BLOCK_CHANCE.length), 10);
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.RUNIC_WARD)) {
-        item.armourRW = parseInt(line.slice(CLIENT_STRINGS.RUNIC_WARD.length), 10);
-        isParsed = "SECTION_PARSED";
-        continue;
+    {
+      const _a53 = section;
+      if (Array.isArray(_a53)) for (let _i51 = 0; _i51 < _a53.length; _i51++) {
+        const line = _a53[_i51];
+        if (line.startsWith(CLIENT_STRINGS.ARMOUR)) {
+          item.armourAR = parseInt(line.slice(CLIENT_STRINGS.ARMOUR.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.EVASION)) {
+          item.armourEV = parseInt(line.slice(CLIENT_STRINGS.EVASION.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.ENERGY_SHIELD)) {
+          item.armourES = parseInt(line.slice(CLIENT_STRINGS.ENERGY_SHIELD.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.BLOCK_CHANCE)) {
+          item.armourBLOCK = parseInt(line.slice(CLIENT_STRINGS.BLOCK_CHANCE.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.RUNIC_WARD)) {
+          item.armourRW = parseInt(line.slice(CLIENT_STRINGS.RUNIC_WARD.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+      } else for (const line of _a53) {
+        if (line.startsWith(CLIENT_STRINGS.ARMOUR)) {
+          item.armourAR = parseInt(line.slice(CLIENT_STRINGS.ARMOUR.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.EVASION)) {
+          item.armourEV = parseInt(line.slice(CLIENT_STRINGS.EVASION.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.ENERGY_SHIELD)) {
+          item.armourES = parseInt(line.slice(CLIENT_STRINGS.ENERGY_SHIELD.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.BLOCK_CHANCE)) {
+          item.armourBLOCK = parseInt(line.slice(CLIENT_STRINGS.BLOCK_CHANCE.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.RUNIC_WARD)) {
+          item.armourRW = parseInt(line.slice(CLIENT_STRINGS.RUNIC_WARD.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
       }
     }
     if (isParsed === "SECTION_PARSED") {
@@ -10733,84 +11375,131 @@ var EE2 = (() => {
   function parseWeapon(section, item) {
     performance.mark("parseWeapon");
     let isParsed = "SECTION_SKIPPED";
-    for (const line of section) {
-      if (line.startsWith(CLIENT_STRINGS.CRIT_CHANCE)) {
-        item.weaponCRIT = parseFloat(line.slice(CLIENT_STRINGS.CRIT_CHANCE.length));
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.ATTACK_SPEED)) {
-        item.weaponAS = parseFloat(line.slice(CLIENT_STRINGS.ATTACK_SPEED.length));
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.PHYSICAL_DAMAGE)) {
-        item.weaponPHYSICAL = getRollOrMinmaxAvg(
-          line.slice(CLIENT_STRINGS.PHYSICAL_DAMAGE.length).split(CLIENT_STRINGS.HYPHEN).map((str) => parseInt(str.replace(/[^\d]/g, ""), 10))
-        );
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.ELEMENTAL_DAMAGE)) {
-        item.weaponELEMENTAL = line.slice(CLIENT_STRINGS.ELEMENTAL_DAMAGE.length).split(", ").map(
-          (element) => getRollOrMinmaxAvg(
-            element.split(CLIENT_STRINGS.HYPHEN).map((str) => parseInt(str.replace(/[^\d]/g, ""), 10))
-          )
-        ).reduce((sum, x) => sum + x, 0);
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.FIRE_DAMAGE)) {
-        const fireDamage = line.slice(CLIENT_STRINGS.FIRE_DAMAGE.length).split(", ").map(
-          (element) => getRollOrMinmaxAvg(
-            element.split(CLIENT_STRINGS.HYPHEN).map((str) => parseInt(str.replace(/[^\d]/g, ""), 10))
-          )
-        ).reduce((sum, x) => sum + x, 0);
-        if (item.weaponELEMENTAL) {
-          item.weaponELEMENTAL = fireDamage + item.weaponELEMENTAL;
-        } else {
-          item.weaponELEMENTAL = fireDamage;
+    {
+      const _a54 = section;
+      if (Array.isArray(_a54)) for (let _i52 = 0; _i52 < _a54.length; _i52++) {
+        const line = _a54[_i52];
+        if (line.startsWith(CLIENT_STRINGS.CRIT_CHANCE)) {
+          item.weaponCRIT = parseFloat(line.slice(CLIENT_STRINGS.CRIT_CHANCE.length));
+          isParsed = "SECTION_PARSED";
+          continue;
         }
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.COLD_DAMAGE)) {
-        const coldDamage = line.slice(CLIENT_STRINGS.COLD_DAMAGE.length).split(", ").map(
-          (element) => getRollOrMinmaxAvg(
-            element.split(CLIENT_STRINGS.HYPHEN).map((str) => parseInt(str.replace(/[^\d]/g, ""), 10))
-          )
-        ).reduce((sum, x) => sum + x, 0);
-        if (item.weaponELEMENTAL) {
-          item.weaponELEMENTAL = coldDamage + item.weaponELEMENTAL;
-        } else {
-          item.weaponELEMENTAL = coldDamage;
+        if (line.startsWith(CLIENT_STRINGS.ATTACK_SPEED)) {
+          item.weaponAS = parseFloat(line.slice(CLIENT_STRINGS.ATTACK_SPEED.length));
+          isParsed = "SECTION_PARSED";
+          continue;
         }
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.LIGHTNING_DAMAGE)) {
-        const lightningDamage = line.slice(CLIENT_STRINGS.LIGHTNING_DAMAGE.length).split(", ").map(
-          (element) => getRollOrMinmaxAvg(
-            element.split(CLIENT_STRINGS.HYPHEN).map((str) => parseInt(str.replace(/[^\d]/g, ""), 10))
-          )
-        ).reduce((sum, x) => sum + x, 0);
-        if (item.weaponELEMENTAL) {
-          item.weaponELEMENTAL = lightningDamage + item.weaponELEMENTAL;
-        } else {
-          item.weaponELEMENTAL = lightningDamage;
+        if (line.startsWith(CLIENT_STRINGS.PHYSICAL_DAMAGE)) {
+          item.weaponPHYSICAL = getRollOrMinmaxAvg(line.slice(CLIENT_STRINGS.PHYSICAL_DAMAGE.length).split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)));
+          isParsed = "SECTION_PARSED";
+          continue;
         }
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.RELOAD_SPEED)) {
-        item.weaponRELOAD = parseFloat(line.slice(CLIENT_STRINGS.RELOAD_SPEED.length));
-        isParsed = "SECTION_PARSED";
-        continue;
-      }
-      if (line.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
-        item.weaponSPIRIT = parseInt(line.slice(CLIENT_STRINGS.BASE_SPIRIT.length), 10);
-        isParsed = "SECTION_PARSED";
-        continue;
+        if (line.startsWith(CLIENT_STRINGS.ELEMENTAL_DAMAGE)) {
+          item.weaponELEMENTAL = line.slice(CLIENT_STRINGS.ELEMENTAL_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.FIRE_DAMAGE)) {
+          const fireDamage = line.slice(CLIENT_STRINGS.FIRE_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+          if (item.weaponELEMENTAL) {
+            item.weaponELEMENTAL = fireDamage + item.weaponELEMENTAL;
+          } else {
+            item.weaponELEMENTAL = fireDamage;
+          }
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.COLD_DAMAGE)) {
+          const coldDamage = line.slice(CLIENT_STRINGS.COLD_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+          if (item.weaponELEMENTAL) {
+            item.weaponELEMENTAL = coldDamage + item.weaponELEMENTAL;
+          } else {
+            item.weaponELEMENTAL = coldDamage;
+          }
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.LIGHTNING_DAMAGE)) {
+          const lightningDamage = line.slice(CLIENT_STRINGS.LIGHTNING_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+          if (item.weaponELEMENTAL) {
+            item.weaponELEMENTAL = lightningDamage + item.weaponELEMENTAL;
+          } else {
+            item.weaponELEMENTAL = lightningDamage;
+          }
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.RELOAD_SPEED)) {
+          item.weaponRELOAD = parseFloat(line.slice(CLIENT_STRINGS.RELOAD_SPEED.length));
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
+          item.weaponSPIRIT = parseInt(line.slice(CLIENT_STRINGS.BASE_SPIRIT.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+      } else for (const line of _a54) {
+        if (line.startsWith(CLIENT_STRINGS.CRIT_CHANCE)) {
+          item.weaponCRIT = parseFloat(line.slice(CLIENT_STRINGS.CRIT_CHANCE.length));
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.ATTACK_SPEED)) {
+          item.weaponAS = parseFloat(line.slice(CLIENT_STRINGS.ATTACK_SPEED.length));
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.PHYSICAL_DAMAGE)) {
+          item.weaponPHYSICAL = getRollOrMinmaxAvg(line.slice(CLIENT_STRINGS.PHYSICAL_DAMAGE.length).split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)));
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.ELEMENTAL_DAMAGE)) {
+          item.weaponELEMENTAL = line.slice(CLIENT_STRINGS.ELEMENTAL_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.FIRE_DAMAGE)) {
+          const fireDamage = line.slice(CLIENT_STRINGS.FIRE_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+          if (item.weaponELEMENTAL) {
+            item.weaponELEMENTAL = fireDamage + item.weaponELEMENTAL;
+          } else {
+            item.weaponELEMENTAL = fireDamage;
+          }
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.COLD_DAMAGE)) {
+          const coldDamage = line.slice(CLIENT_STRINGS.COLD_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+          if (item.weaponELEMENTAL) {
+            item.weaponELEMENTAL = coldDamage + item.weaponELEMENTAL;
+          } else {
+            item.weaponELEMENTAL = coldDamage;
+          }
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.LIGHTNING_DAMAGE)) {
+          const lightningDamage = line.slice(CLIENT_STRINGS.LIGHTNING_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+          if (item.weaponELEMENTAL) {
+            item.weaponELEMENTAL = lightningDamage + item.weaponELEMENTAL;
+          } else {
+            item.weaponELEMENTAL = lightningDamage;
+          }
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.RELOAD_SPEED)) {
+          item.weaponRELOAD = parseFloat(line.slice(CLIENT_STRINGS.RELOAD_SPEED.length));
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
+        if (line.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
+          item.weaponSPIRIT = parseInt(line.slice(CLIENT_STRINGS.BASE_SPIRIT.length), 10);
+          isParsed = "SECTION_PARSED";
+          continue;
+        }
       }
     }
     if (isParsed === "SECTION_PARSED") {
@@ -10831,8 +11520,7 @@ var EE2 = (() => {
   }
   function parseCaster(section, item) {
     performance.mark("parseCaster");
-    if (item.category !== "Wand" /* Wand */ && item.category !== "Sceptre" /* Sceptre */ && item.category !== "Staff" /* Staff */)
-      return "PARSER_SKIPPED";
+    if (item.category !== "Wand" /* Wand */ && item.category !== "Sceptre" /* Sceptre */ && item.category !== "Staff" /* Staff */) return "PARSER_SKIPPED";
     if (section.length === 1 && section[0].startsWith(CLIENT_STRINGS.QUALITY)) {
       parseQualityNested(section, item);
       return "SECTION_PARSED";
@@ -10845,29 +11533,50 @@ var EE2 = (() => {
     if (section.length < 3) return "SECTION_SKIPPED";
     const faction = STAT_BY_MATCH_STR(section[1]);
     if (!faction) return "SECTION_SKIPPED";
-    const areaMods = [
-      {
-        info: { tags: [], type: "pseudo" /* Pseudo */ },
-        stats: [
-          {
-            stat: faction.stat,
-            translation: faction.matcher
-          }
-        ]
-      }
-    ];
-    const { modType, lines: lines2 } = parseModType(section.slice(2));
-    for (const line of lines2) {
-      const found = tryParseTranslation(
-        { string: line, unscalable: false },
-        modType,
-        void 0
-      );
-      if (found) {
-        areaMods.push({
-          info: { tags: [], type: modType },
-          stats: [found]
-        });
+    const areaMods = [{
+      info: {
+        tags: [],
+        type: "pseudo" /* Pseudo */
+      },
+      stats: [{
+        stat: faction.stat,
+        translation: faction.matcher
+      }]
+    }];
+    const _parseModType = parseModType(section.slice(2)),
+      modType = _parseModType.modType,
+      lines2 = _parseModType.lines;
+    {
+      const _a55 = lines2;
+      if (Array.isArray(_a55)) for (let _i53 = 0; _i53 < _a55.length; _i53++) {
+        const line = _a55[_i53];
+        const found = tryParseTranslation({
+          string: line,
+          unscalable: false
+        }, modType, void 0);
+        if (found) {
+          areaMods.push({
+            info: {
+              tags: [],
+              type: modType
+            },
+            stats: [found]
+          });
+        }
+      } else for (const line of _a55) {
+        const found = tryParseTranslation({
+          string: line,
+          unscalable: false
+        }, modType, void 0);
+        if (found) {
+          areaMods.push({
+            info: {
+              tags: [],
+              type: modType
+            },
+            stats: [found]
+          });
+        }
       }
     }
     areaMods.shift();
@@ -10885,64 +11594,92 @@ var EE2 = (() => {
     if (item.rarity !== "Normal" /* Normal */ && item.rarity !== "Magic" /* Magic */ && item.rarity !== "Rare" /* Rare */ && item.rarity !== "Unique" /* Unique */) {
       return "PARSER_SKIPPED";
     }
-    const recognizedLine = section.find(
-      (line) => line.endsWith(ENCHANT_LINE) || line.endsWith(AUGMENT_LINE) || line.startsWith(CLIENT_STRINGS.GRANTS_SKILL) || isModInfoLine(line)
-    );
+    const recognizedLine = section.find(line => line.endsWith(ENCHANT_LINE) || line.endsWith(AUGMENT_LINE) || line.startsWith(CLIENT_STRINGS.GRANTS_SKILL) || isModInfoLine(line));
     if (!recognizedLine) {
       return "SECTION_SKIPPED";
     }
     if (isModInfoLine(recognizedLine)) {
-      for (const { modLine, statLines } of groupLinesByMod(section)) {
-        const { modType, lines: lines2 } = parseModType(statLines);
-        const modInfo = parseModInfoLine(modLine, modType);
-        if (item.category === "Relic" /* Relic */ && modInfo.type === "explicit" /* Explicit */) {
-          modInfo.type = "sanctum" /* Sanctum */;
-        }
-        parseStatsFromMod(lines2, item, { info: modInfo, stats: [] });
-        if (modType === "veiled" /* Veiled */) {
-          item.isVeiled = true;
+      {
+        const _a56 = groupLinesByMod(section);
+        if (Array.isArray(_a56)) for (let _i54 = 0; _i54 < _a56.length; _i54++) {
+          const _a56$_i = _a56[_i54],
+            modLine = _a56$_i.modLine,
+            statLines = _a56$_i.statLines;
+          const _parseModType2 = parseModType(statLines),
+            modType = _parseModType2.modType,
+            lines2 = _parseModType2.lines;
+          const modInfo = parseModInfoLine(modLine, modType);
+          if (item.category === "Relic" /* Relic */ && modInfo.type === "explicit" /* Explicit */) {
+            modInfo.type = "sanctum" /* Sanctum */;
+          }
+          parseStatsFromMod(lines2, item, {
+            info: modInfo,
+            stats: []
+          });
+          if (modType === "veiled" /* Veiled */) {
+            item.isVeiled = true;
+          }
+        } else for (const _ref7 of _a56) {
+          const modLine = _ref7.modLine;
+          const statLines = _ref7.statLines;
+          const _parseModType3 = parseModType(statLines),
+            modType = _parseModType3.modType,
+            lines2 = _parseModType3.lines;
+          const modInfo = parseModInfoLine(modLine, modType);
+          if (item.category === "Relic" /* Relic */ && modInfo.type === "explicit" /* Explicit */) {
+            modInfo.type = "sanctum" /* Sanctum */;
+          }
+          parseStatsFromMod(lines2, item, {
+            info: modInfo,
+            stats: []
+          });
+          if (modType === "veiled" /* Veiled */) {
+            item.isVeiled = true;
+          }
         }
       }
     } else {
-      const { lines: lines2 } = parseModType(section);
+      const _parseModType4 = parseModType(section),
+        lines2 = _parseModType4.lines;
       const modInfo = {
         type: recognizedLine.endsWith(ENCHANT_LINE) ? "enchant" /* Enchant */ : recognizedLine.startsWith(CLIENT_STRINGS.GRANTS_SKILL) ? "skill" /* Skill */ : "rune" /* Augment */,
         tags: []
       };
-      parseStatsFromMod(lines2, item, { info: modInfo, stats: [] });
+      parseStatsFromMod(lines2, item, {
+        info: modInfo,
+        stats: []
+      });
     }
     return "SECTION_PARSED";
   }
   function applyAugmentSockets(item) {
     performance.mark("applyAugmentSockets");
     if (item.augmentSockets) {
-      const augmentMods = item.newMods.filter(
-        (mod) => mod.info.type === "rune" /* Augment */
-      );
-      const augmentStats = item.statsByType.filter((calc) => calc.type === "rune" /* Augment */).filter((calc) => !calc.stat.ref.startsWith("Bonded"));
-      let statCombinations = combinations(augmentStats).filter((f) => f.length).toSorted((a, b) => b.length - a.length);
+      const augmentMods = item.newMods.filter(mod => mod.info.type === "rune" /* Augment */);
+      const augmentStats = item.statsByType.filter(calc => calc.type === "rune" /* Augment */).filter(calc => !calc.stat.ref.startsWith("Bonded"));
+      let statCombinations = combinations(augmentStats).filter(f => f.length).toSorted((a, b) => b.length - a.length);
       const augs = [];
-      for (let i = 0; i < statCombinations.length; ) {
+      for (let i = 0; i < statCombinations.length;) {
         const foundAugs = determineAugments(augmentMods[0], statCombinations[i]);
         if (foundAugs.length) {
           augs.push(foundAugs);
-          for (const combStat of statCombinations[i]) {
-            statCombinations = statCombinations.filter(
-              (f) => f.find((s) => s === combStat) === void 0
-            );
+          {
+            const _a57 = statCombinations[i];
+            if (Array.isArray(_a57)) for (let _i55 = 0; _i55 < _a57.length; _i55++) {
+              const combStat = _a57[_i55];
+              statCombinations = statCombinations.filter(f => f.find(s => s === combStat) === void 0);
+            } else for (const combStat of _a57) {
+              statCombinations = statCombinations.filter(f => f.find(s => s === combStat) === void 0);
+            }
           }
           i = 0;
           continue;
         }
         i++;
       }
-      const augments = augs.map((augGroup) => {
+      const augments = augs.map(augGroup => {
         var _a2;
-        return buildEditorItems(
-          augGroup,
-          (_a2 = item.category) != null ? _a2 : "Unknown" /* Unknown */,
-          true
-        );
+        return buildEditorItems(augGroup, (_a2 = item.category) != null ? _a2 : "Unknown" /* Unknown */, true);
       }).flat();
       if (augments.length < Math.max(item.augmentSockets.current, item.augmentSockets.normal)) {
         const emptyAugments = item.isCorrupted ? item.augmentSockets.current - augments.length : Math.max(item.augmentSockets.current, item.augmentSockets.normal) - augments.length;
@@ -10950,19 +11687,17 @@ var EE2 = (() => {
           augments.push(null);
         }
       }
-      item.augmentSockets.empty = augments.filter(
-        (augment) => augment === null
-      ).length;
+      item.augmentSockets.empty = augments.filter(augment => augment === null).length;
       item.augmentSockets.augments = augments;
     }
     if (item.augmentSockets && (item.augmentSockets.empty === item.augmentSockets.normal || item.augmentSockets.empty === item.augmentSockets.current && item.augmentSockets.current > item.augmentSockets.normal) && item.rarity !== "Unique" /* Unique */) {
       const augmentBases = getSavedAugments(item);
-      const editorItems = augmentBases.map((base) => {
+      const editorItems = augmentBases.map(base => {
         var _a2;
         if (!base) return null;
         return buildEditorItems([base], (_a2 = item.category) != null ? _a2 : "Unknown" /* Unknown */)[0];
       });
-      if (!editorItems.length || editorItems.every((item2) => item2 === null)) {
+      if (!editorItems.length || editorItems.every(item2 => item2 === null)) {
         return;
       }
       const allSameAugment = new Set(augmentBases).size === 1;
@@ -11003,10 +11738,19 @@ var EE2 = (() => {
   function parseFlask(section, item) {
     performance.mark("parseFlask");
     let isParsed = "SECTION_SKIPPED";
-    for (const line of section) {
-      if (CLIENT_STRINGS.FLASK_CHARGES.test(line)) {
-        isParsed = "SECTION_PARSED";
-        break;
+    {
+      const _a58 = section;
+      if (Array.isArray(_a58)) for (let _i56 = 0; _i56 < _a58.length; _i56++) {
+        const line = _a58[_i56];
+        if (CLIENT_STRINGS.FLASK_CHARGES.test(line)) {
+          isParsed = "SECTION_PARSED";
+          break;
+        }
+      } else for (const line of _a58) {
+        if (CLIENT_STRINGS.FLASK_CHARGES.test(line)) {
+          isParsed = "SECTION_PARSED";
+          break;
+        }
       }
     }
     if (isParsed) {
@@ -11019,9 +11763,17 @@ var EE2 = (() => {
     if (item.category !== "Amulet" /* Amulet */ && item.category !== "Ring" /* Ring */ && item.category !== "Belt" /* Belt */) {
       return "PARSER_SKIPPED";
     }
-    for (const line of section) {
-      if (line.startsWith(CLIENT_STRINGS.QUALITY.substring(0, CLIENT_STRINGS.QUALITY.indexOf(":")))) {
-        return "SECTION_PARSED";
+    {
+      const _a59 = section;
+      if (Array.isArray(_a59)) for (let _i57 = 0; _i57 < _a59.length; _i57++) {
+        const line = _a59[_i57];
+        if (line.startsWith(CLIENT_STRINGS.QUALITY.substring(0, CLIENT_STRINGS.QUALITY.indexOf(":")))) {
+          return "SECTION_PARSED";
+        }
+      } else for (const line of _a59) {
+        if (line.startsWith(CLIENT_STRINGS.QUALITY.substring(0, CLIENT_STRINGS.QUALITY.indexOf(":")))) {
+          return "SECTION_PARSED";
+        }
       }
     }
     return "SECTION_SKIPPED";
@@ -11030,10 +11782,19 @@ var EE2 = (() => {
     performance.mark("parseCharmSlots");
     if (item.category !== "Belt" /* Belt */) return "PARSER_SKIPPED";
     let isParsed = "SECTION_SKIPPED";
-    for (const line of section) {
-      if (line.startsWith(CLIENT_STRINGS.CHARM_SLOTS)) {
-        isParsed = "SECTION_PARSED";
-        break;
+    {
+      const _a60 = section;
+      if (Array.isArray(_a60)) for (let _i58 = 0; _i58 < _a60.length; _i58++) {
+        const line = _a60[_i58];
+        if (line.startsWith(CLIENT_STRINGS.CHARM_SLOTS)) {
+          isParsed = "SECTION_PARSED";
+          break;
+        }
+      } else for (const line of _a60) {
+        if (line.startsWith(CLIENT_STRINGS.CHARM_SLOTS)) {
+          isParsed = "SECTION_PARSED";
+          break;
+        }
       }
     }
     return isParsed;
@@ -11042,20 +11803,38 @@ var EE2 = (() => {
     performance.mark("parseSpirit");
     if (item.category !== "Sceptre" /* Sceptre */) return "PARSER_SKIPPED";
     let isParsed = "SECTION_SKIPPED";
-    for (const line of section) {
-      if (line.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
-        isParsed = "SECTION_PARSED";
-        break;
+    {
+      const _a61 = section;
+      if (Array.isArray(_a61)) for (let _i59 = 0; _i59 < _a61.length; _i59++) {
+        const line = _a61[_i59];
+        if (line.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
+          isParsed = "SECTION_PARSED";
+          break;
+        }
+      } else for (const line of _a61) {
+        if (line.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
+          isParsed = "SECTION_PARSED";
+          break;
+        }
       }
     }
     return isParsed;
   }
   function parsePriceNote(section, item) {
     performance.mark("parsePriceNote");
-    for (const line of section) {
-      if (line.startsWith(CLIENT_STRINGS.PRICE_NOTE)) {
-        item.note = line.slice(CLIENT_STRINGS.PRICE_NOTE.length);
-        return "SECTION_PARSED";
+    {
+      const _a62 = section;
+      if (Array.isArray(_a62)) for (let _i60 = 0; _i60 < _a62.length; _i60++) {
+        const line = _a62[_i60];
+        if (line.startsWith(CLIENT_STRINGS.PRICE_NOTE)) {
+          item.note = line.slice(CLIENT_STRINGS.PRICE_NOTE.length);
+          return "SECTION_PARSED";
+        }
+      } else for (const line of _a62) {
+        if (line.startsWith(CLIENT_STRINGS.PRICE_NOTE)) {
+          item.note = line.slice(CLIENT_STRINGS.PRICE_NOTE.length);
+          return "SECTION_PARSED";
+        }
       }
     }
     return "SECTION_SKIPPED";
@@ -11063,9 +11842,17 @@ var EE2 = (() => {
   function parseTimelostRadius(section, item) {
     performance.mark("parseTimelostRadius");
     if (item.category !== "Jewel" /* Jewel */) return "PARSER_SKIPPED";
-    for (const line of section) {
-      if (line.startsWith(CLIENT_STRINGS.TIMELESS_RADIUS)) {
-        return "SECTION_PARSED";
+    {
+      const _a63 = section;
+      if (Array.isArray(_a63)) for (let _i61 = 0; _i61 < _a63.length; _i61++) {
+        const line = _a63[_i61];
+        if (line.startsWith(CLIENT_STRINGS.TIMELESS_RADIUS)) {
+          return "SECTION_PARSED";
+        }
+      } else for (const line of _a63) {
+        if (line.startsWith(CLIENT_STRINGS.TIMELESS_RADIUS)) {
+          return "SECTION_PARSED";
+        }
       }
     }
     return "SECTION_SKIPPED";
@@ -11075,10 +11862,7 @@ var EE2 = (() => {
     if (item.category !== "Sentinel" /* Sentinel */) return "PARSER_SKIPPED";
     if (section.length === 1) {
       if (section[0].startsWith(CLIENT_STRINGS.SENTINEL_CHARGE)) {
-        item.sentinelCharge = parseInt(
-          section[0].slice(CLIENT_STRINGS.SENTINEL_CHARGE.length),
-          10
-        );
+        item.sentinelCharge = parseInt(section[0].slice(CLIENT_STRINGS.SENTINEL_CHARGE.length), 10);
         return "SECTION_PARSED";
       }
     }
@@ -11129,8 +11913,7 @@ var EE2 = (() => {
   }
   function parseRuneforged(item) {
     performance.mark("parseRuneforged");
-    if (item.rarity === "Normal" /* Normal */ || item.rarity === "Magic" /* Magic */ || item.rarity === "Rare" /* Rare */ || item.rarity === "Unique" /* Unique */) {
-    }
+    if (item.rarity === "Normal" /* Normal */ || item.rarity === "Magic" /* Magic */ || item.rarity === "Rare" /* Rare */ || item.rarity === "Unique" /* Unique */) {}
   }
   function parseCategoryByHelpText(section, item) {
     performance.mark("parseCategoryByHelpText");
@@ -11154,28 +11937,49 @@ var EE2 = (() => {
       return "SECTION_SKIPPED";
     }
     item.heist = {};
-    for (const line of section) {
-      if (line.startsWith(CLIENT_STRINGS.HEIST_TARGET)) {
-        const targetText = line.slice(CLIENT_STRINGS.HEIST_TARGET.length);
-        switch (targetText) {
-          case CLIENT_STRINGS.HEIST_BLUEPRINT_ENCHANTS:
-            item.heist.target = "Enchants";
-            break;
-          case CLIENT_STRINGS.HEIST_BLUEPRINT_GEMS:
-            item.heist.target = "Gems";
-            break;
-          case CLIENT_STRINGS.HEIST_BLUEPRINT_REPLICAS:
-            item.heist.target = "Replicas";
-            break;
-          case CLIENT_STRINGS.HEIST_BLUEPRINT_TRINKETS:
-            item.heist.target = "Trinkets";
-            break;
+    {
+      const _a64 = section;
+      if (Array.isArray(_a64)) for (let _i62 = 0; _i62 < _a64.length; _i62++) {
+        const line = _a64[_i62];
+        if (line.startsWith(CLIENT_STRINGS.HEIST_TARGET)) {
+          const targetText = line.slice(CLIENT_STRINGS.HEIST_TARGET.length);
+          switch (targetText) {
+            case CLIENT_STRINGS.HEIST_BLUEPRINT_ENCHANTS:
+              item.heist.target = "Enchants";
+              break;
+            case CLIENT_STRINGS.HEIST_BLUEPRINT_GEMS:
+              item.heist.target = "Gems";
+              break;
+            case CLIENT_STRINGS.HEIST_BLUEPRINT_REPLICAS:
+              item.heist.target = "Replicas";
+              break;
+            case CLIENT_STRINGS.HEIST_BLUEPRINT_TRINKETS:
+              item.heist.target = "Trinkets";
+              break;
+          }
+        } else if (line.startsWith(CLIENT_STRINGS.HEIST_WINGS_REVEALED)) {
+          item.heist.wingsRevealed = parseInt(line.slice(CLIENT_STRINGS.HEIST_WINGS_REVEALED.length), 10);
         }
-      } else if (line.startsWith(CLIENT_STRINGS.HEIST_WINGS_REVEALED)) {
-        item.heist.wingsRevealed = parseInt(
-          line.slice(CLIENT_STRINGS.HEIST_WINGS_REVEALED.length),
-          10
-        );
+      } else for (const line of _a64) {
+        if (line.startsWith(CLIENT_STRINGS.HEIST_TARGET)) {
+          const targetText = line.slice(CLIENT_STRINGS.HEIST_TARGET.length);
+          switch (targetText) {
+            case CLIENT_STRINGS.HEIST_BLUEPRINT_ENCHANTS:
+              item.heist.target = "Enchants";
+              break;
+            case CLIENT_STRINGS.HEIST_BLUEPRINT_GEMS:
+              item.heist.target = "Gems";
+              break;
+            case CLIENT_STRINGS.HEIST_BLUEPRINT_REPLICAS:
+              item.heist.target = "Replicas";
+              break;
+            case CLIENT_STRINGS.HEIST_BLUEPRINT_TRINKETS:
+              item.heist.target = "Trinkets";
+              break;
+          }
+        } else if (line.startsWith(CLIENT_STRINGS.HEIST_WINGS_REVEALED)) {
+          item.heist.wingsRevealed = parseInt(line.slice(CLIENT_STRINGS.HEIST_WINGS_REVEALED.length), 10);
+        }
       }
     }
     return "SECTION_PARSED";
@@ -11190,16 +11994,32 @@ var EE2 = (() => {
       return "SECTION_SKIPPED";
     }
     item.trials = {};
-    for (const line of section) {
-      if (line.startsWith(CLIENT_STRINGS.TRIAL_COUNT)) {
-        item.trials.numberOfTrials = Number(line.slice(CLIENT_STRINGS.TRIAL_COUNT.length));
-      } else if (item.info.refName === "Inscribed Ultimatum") {
-        if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_VICTORIOUS)) {
-          item.trials.ultimatumHint = "Victorious";
-        } else if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_COWARDLY)) {
-          item.trials.ultimatumHint = "Cowardly";
-        } else if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_DEADLY)) {
-          item.trials.ultimatumHint = "Deadly";
+    {
+      const _a65 = section;
+      if (Array.isArray(_a65)) for (let _i63 = 0; _i63 < _a65.length; _i63++) {
+        const line = _a65[_i63];
+        if (line.startsWith(CLIENT_STRINGS.TRIAL_COUNT)) {
+          item.trials.numberOfTrials = Number(line.slice(CLIENT_STRINGS.TRIAL_COUNT.length));
+        } else if (item.info.refName === "Inscribed Ultimatum") {
+          if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_VICTORIOUS)) {
+            item.trials.ultimatumHint = "Victorious";
+          } else if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_COWARDLY)) {
+            item.trials.ultimatumHint = "Cowardly";
+          } else if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_DEADLY)) {
+            item.trials.ultimatumHint = "Deadly";
+          }
+        }
+      } else for (const line of _a65) {
+        if (line.startsWith(CLIENT_STRINGS.TRIAL_COUNT)) {
+          item.trials.numberOfTrials = Number(line.slice(CLIENT_STRINGS.TRIAL_COUNT.length));
+        } else if (item.info.refName === "Inscribed Ultimatum") {
+          if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_VICTORIOUS)) {
+            item.trials.ultimatumHint = "Victorious";
+          } else if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_COWARDLY)) {
+            item.trials.ultimatumHint = "Cowardly";
+          } else if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_DEADLY)) {
+            item.trials.ultimatumHint = "Deadly";
+          }
         }
       }
     }
@@ -11207,17 +12027,25 @@ var EE2 = (() => {
   }
   function parseAreaLevelNested(section, item) {
     performance.mark("parseAreaLevelNested");
-    for (const line of section) {
-      if (line.startsWith(CLIENT_STRINGS.AREA_LEVEL)) {
-        item.areaLevel = Number(line.slice(CLIENT_STRINGS.AREA_LEVEL.length));
-        break;
+    {
+      const _a66 = section;
+      if (Array.isArray(_a66)) for (let _i64 = 0; _i64 < _a66.length; _i64++) {
+        const line = _a66[_i64];
+        if (line.startsWith(CLIENT_STRINGS.AREA_LEVEL)) {
+          item.areaLevel = Number(line.slice(CLIENT_STRINGS.AREA_LEVEL.length));
+          break;
+        }
+      } else for (const line of _a66) {
+        if (line.startsWith(CLIENT_STRINGS.AREA_LEVEL)) {
+          item.areaLevel = Number(line.slice(CLIENT_STRINGS.AREA_LEVEL.length));
+          break;
+        }
       }
     }
   }
   function parseAreaLevel(section, item) {
     performance.mark("parseAreaLevel");
-    if (item.info.refName !== "Chronicle of Atzoatl" && item.info.refName !== "Expedition Logbook" && item.info.refName !== "Mirrored Tablet" && item.info.refName !== "Forbidden Tome")
-      return "PARSER_SKIPPED";
+    if (item.info.refName !== "Chronicle of Atzoatl" && item.info.refName !== "Expedition Logbook" && item.info.refName !== "Mirrored Tablet" && item.info.refName !== "Forbidden Tome") return "PARSER_SKIPPED";
     parseAreaLevelNested(section, item);
     return item.areaLevel ? "SECTION_PARSED" : "SECTION_SKIPPED";
   }
@@ -11226,17 +12054,22 @@ var EE2 = (() => {
     if (item.info.refName !== "Chronicle of Atzoatl") return "PARSER_SKIPPED";
     if (section[0] !== CLIENT_STRINGS.INCURSION_OPEN) return "SECTION_SKIPPED";
     let state = 1 /* Open */;
-    for (const line of section.slice(1)) {
-      if (line === CLIENT_STRINGS.INCURSION_OBSTRUCTED) {
-        state = 2 /* Obstructed */;
-        continue;
-      }
-      const found = STAT_BY_MATCH_STR(line);
-      if (found) {
-        item.newMods.push({
-          info: { tags: [], type: "pseudo" /* Pseudo */ },
-          stats: [
-            {
+    {
+      const _a67 = section.slice(1);
+      if (Array.isArray(_a67)) for (let _i65 = 0; _i65 < _a67.length; _i65++) {
+        const line = _a67[_i65];
+        if (line === CLIENT_STRINGS.INCURSION_OBSTRUCTED) {
+          state = 2 /* Obstructed */;
+          continue;
+        }
+        const found = STAT_BY_MATCH_STR(line);
+        if (found) {
+          item.newMods.push({
+            info: {
+              tags: [],
+              type: "pseudo" /* Pseudo */
+            },
+            stats: [{
               stat: found.stat,
               translation: {
                 string: state === 1 /* Open */ ? found.matcher.string : `${CLIENT_STRINGS.INCURSION_OBSTRUCTED} ${found.matcher.string}`
@@ -11248,14 +12081,46 @@ var EE2 = (() => {
                 dp: false,
                 unscalable: true
               }
-            }
-          ]
-        });
-      } else {
-        item.unknownModifiers.push({
-          text: line,
-          type: "pseudo" /* Pseudo */
-        });
+            }]
+          });
+        } else {
+          item.unknownModifiers.push({
+            text: line,
+            type: "pseudo" /* Pseudo */
+          });
+        }
+      } else for (const line of _a67) {
+        if (line === CLIENT_STRINGS.INCURSION_OBSTRUCTED) {
+          state = 2 /* Obstructed */;
+          continue;
+        }
+        const found = STAT_BY_MATCH_STR(line);
+        if (found) {
+          item.newMods.push({
+            info: {
+              tags: [],
+              type: "pseudo" /* Pseudo */
+            },
+            stats: [{
+              stat: found.stat,
+              translation: {
+                string: state === 1 /* Open */ ? found.matcher.string : `${CLIENT_STRINGS.INCURSION_OBSTRUCTED} ${found.matcher.string}`
+              },
+              roll: {
+                value: state,
+                min: state,
+                max: state,
+                dp: false,
+                unscalable: true
+              }
+            }]
+          });
+        } else {
+          item.unknownModifiers.push({
+            text: line,
+            type: "pseudo" /* Pseudo */
+          });
+        }
       }
     }
     return "SECTION_PARSED";
@@ -11264,22 +12129,47 @@ var EE2 = (() => {
     performance.mark("parseMirroredTablet");
     if (item.info.refName !== "Mirrored Tablet") return "PARSER_SKIPPED";
     if (section.length < 8) return "SECTION_SKIPPED";
-    for (const line of section) {
-      const found = tryParseTranslation(
-        { string: line, unscalable: true },
-        "pseudo" /* Pseudo */,
-        void 0
-      );
-      if (found) {
-        item.newMods.push({
-          info: { tags: [], type: "pseudo" /* Pseudo */ },
-          stats: [found]
-        });
-      } else {
-        item.unknownModifiers.push({
-          text: line,
-          type: "pseudo" /* Pseudo */
-        });
+    {
+      const _a68 = section;
+      if (Array.isArray(_a68)) for (let _i66 = 0; _i66 < _a68.length; _i66++) {
+        const line = _a68[_i66];
+        const found = tryParseTranslation({
+          string: line,
+          unscalable: true
+        }, "pseudo" /* Pseudo */, void 0);
+        if (found) {
+          item.newMods.push({
+            info: {
+              tags: [],
+              type: "pseudo" /* Pseudo */
+            },
+            stats: [found]
+          });
+        } else {
+          item.unknownModifiers.push({
+            text: line,
+            type: "pseudo" /* Pseudo */
+          });
+        }
+      } else for (const line of _a68) {
+        const found = tryParseTranslation({
+          string: line,
+          unscalable: true
+        }, "pseudo" /* Pseudo */, void 0);
+        if (found) {
+          item.newMods.push({
+            info: {
+              tags: [],
+              type: "pseudo" /* Pseudo */
+            },
+            stats: [found]
+          });
+        } else {
+          item.unknownModifiers.push({
+            text: line,
+            type: "pseudo" /* Pseudo */
+          });
+        }
       }
     }
     return "SECTION_PARSED";
@@ -11287,27 +12177,28 @@ var EE2 = (() => {
   function parseFilledCoffin(section, item) {
     performance.mark("parseFilledCoffin");
     if (item.info.refName !== "Filled Coffin") return "PARSER_SKIPPED";
-    if (!section.some((line) => line.endsWith(IMPLICIT_LINE)))
-      return "SECTION_SKIPPED";
-    const { lines: lines2 } = parseModType(section);
+    if (!section.some(line => line.endsWith(IMPLICIT_LINE))) return "SECTION_SKIPPED";
+    const _parseModType5 = parseModType(section),
+      lines2 = _parseModType5.lines;
     const modInfo = {
       type: "necropolis" /* Necropolis */,
       tags: []
     };
-    parseStatsFromMod(lines2, item, { info: modInfo, stats: [] });
+    parseStatsFromMod(lines2, item, {
+      info: modInfo,
+      stats: []
+    });
     return "SECTION_PARSED";
   }
   function markupConditionParser(text) {
     text = text.replace(/<<set:.+?>>/g, "");
-    text = text.replace(
-      /<(if:.+?|elif:.+?|else)>{(.+?)}/g,
-      (_, type, body) => {
-        return type.startsWith("if:") ? body : "";
-      }
-    );
+    text = text.replace(/<(if:.+?|elif:.+?|else)>{(.+?)}/g, (_, type, body) => {
+      return type.startsWith("if:") ? body : "";
+    });
     return text;
   }
   function parseStatsFromMod(lines2, item, modifier, addedAugment) {
+    var _item$unknownModifier;
     item.newMods.push(modifier);
     if (modifier.info.type === "veiled" /* Veiled */) {
       return true;
@@ -11318,11 +12209,7 @@ var EE2 = (() => {
       if (item.info.refName === "From Nothing") {
         stat2.value.string = stat2.value.string.replace("()", "");
       }
-      const parsedStat = tryParseTranslation(
-        stat2.value,
-        modifier.info.type,
-        item.category
-      );
+      const parsedStat = tryParseTranslation(stat2.value, modifier.info.type, item.category);
       if ((parsedStat == null ? void 0 : parsedStat.stat.ref) === "Grants Skill: Parry" || (parsedStat == null ? void 0 : parsedStat.stat.ref) === "Grants Skill: Raise Shield" || (parsedStat == null ? void 0 : parsedStat.stat.ref) === "Grants Skill: Spear Throw") {
         stat2 = statIterator.next(true);
         continue;
@@ -11337,12 +12224,10 @@ var EE2 = (() => {
         stat2 = statIterator.next(false);
       }
     }
-    item.unknownModifiers.push(
-      ...stat2.value.map((line) => ({
-        text: line,
-        type: modifier.info.type
-      }))
-    );
+    (_item$unknownModifier = item.unknownModifiers).push.apply(_item$unknownModifier, _toConsumableArray(stat2.value.map(line => ({
+      text: line,
+      type: modifier.info.type
+    }))));
     return true;
   }
   function transformToLegacyModifiers(item) {
@@ -11351,31 +12236,51 @@ var EE2 = (() => {
   }
   function applyElementalAdded(item) {
     if (item.weaponELEMENTAL && item.rarity !== "Unique") {
-      const knownRefs = /* @__PURE__ */ new Set([
-        "Adds # to # Lightning Damage",
-        "Adds # to # Cold Damage",
-        "Adds # to # Fire Damage"
-      ]);
-      item.statsByType.forEach((calc) => {
+      const knownRefs = /* @__PURE__ */new Set(["Adds # to # Lightning Damage", "Adds # to # Cold Damage", "Adds # to # Fire Damage"]);
+      item.statsByType.forEach(calc => {
         if (knownRefs.has(calc.stat.ref)) {
-          for (const source of calc.sources) {
-            if (calc.stat.ref === "Adds # to # Lightning Damage") {
-              if (item.weaponLIGHTNING) {
-                item.weaponLIGHTNING = source.contributes.value + item.weaponLIGHTNING;
-              } else {
-                item.weaponLIGHTNING = source.contributes.value;
+          {
+            const _a69 = calc.sources;
+            if (Array.isArray(_a69)) for (let _i67 = 0; _i67 < _a69.length; _i67++) {
+              const source = _a69[_i67];
+              if (calc.stat.ref === "Adds # to # Lightning Damage") {
+                if (item.weaponLIGHTNING) {
+                  item.weaponLIGHTNING = source.contributes.value + item.weaponLIGHTNING;
+                } else {
+                  item.weaponLIGHTNING = source.contributes.value;
+                }
+              } else if (calc.stat.ref === "Adds # to # Cold Damage") {
+                if (item.weaponCOLD) {
+                  item.weaponCOLD = source.contributes.value + item.weaponCOLD;
+                } else {
+                  item.weaponCOLD = source.contributes.value;
+                }
+              } else if (calc.stat.ref === "Adds # to # Fire Damage") {
+                if (item.weaponFIRE) {
+                  item.weaponFIRE = source.contributes.value + item.weaponFIRE;
+                } else {
+                  item.weaponFIRE = source.contributes.value;
+                }
               }
-            } else if (calc.stat.ref === "Adds # to # Cold Damage") {
-              if (item.weaponCOLD) {
-                item.weaponCOLD = source.contributes.value + item.weaponCOLD;
-              } else {
-                item.weaponCOLD = source.contributes.value;
-              }
-            } else if (calc.stat.ref === "Adds # to # Fire Damage") {
-              if (item.weaponFIRE) {
-                item.weaponFIRE = source.contributes.value + item.weaponFIRE;
-              } else {
-                item.weaponFIRE = source.contributes.value;
+            } else for (const source of _a69) {
+              if (calc.stat.ref === "Adds # to # Lightning Damage") {
+                if (item.weaponLIGHTNING) {
+                  item.weaponLIGHTNING = source.contributes.value + item.weaponLIGHTNING;
+                } else {
+                  item.weaponLIGHTNING = source.contributes.value;
+                }
+              } else if (calc.stat.ref === "Adds # to # Cold Damage") {
+                if (item.weaponCOLD) {
+                  item.weaponCOLD = source.contributes.value + item.weaponCOLD;
+                } else {
+                  item.weaponCOLD = source.contributes.value;
+                }
+              } else if (calc.stat.ref === "Adds # to # Fire Damage") {
+                if (item.weaponFIRE) {
+                  item.weaponFIRE = source.contributes.value + item.weaponFIRE;
+                } else {
+                  item.weaponFIRE = source.contributes.value;
+                }
               }
             }
           }
@@ -11388,32 +12293,15 @@ var EE2 = (() => {
     const info = item.info.unique ? ITEM_BY_REF("ITEM", item.info.unique.base)[0].armour : item.info.armour;
     if (!info) return;
     if (item.armourAR && info.ar) {
-      item.basePercentile = calcPropPercentile(
-        item.armourAR,
-        info.ar,
-        QUALITY_STATS.ARMOUR,
-        item
-      );
+      item.basePercentile = calcPropPercentile(item.armourAR, info.ar, QUALITY_STATS.ARMOUR, item);
     } else if (item.armourEV && info.ev) {
-      item.basePercentile = calcPropPercentile(
-        item.armourEV,
-        info.ev,
-        QUALITY_STATS.EVASION,
-        item
-      );
+      item.basePercentile = calcPropPercentile(item.armourEV, info.ev, QUALITY_STATS.EVASION, item);
     } else if (item.armourES && info.es) {
-      item.basePercentile = calcPropPercentile(
-        item.armourES,
-        info.es,
-        QUALITY_STATS.ENERGY_SHIELD,
-        item
-      );
+      item.basePercentile = calcPropPercentile(item.armourES, info.es, QUALITY_STATS.ENERGY_SHIELD, item);
     }
   }
   function removeLinesEnding(lines2, ending) {
-    return lines2.map(
-      (line) => line.endsWith(ending) ? line.slice(0, -ending.length) : line
-    );
+    return lines2.map(line => line.endsWith(ending) ? line.slice(0, -ending.length) : line);
   }
   function parseAffixStrings(text) {
     return text.replace(/\[([^\]|]+)\|?([^\]]*)\]/g, (_, part1, part2) => {
@@ -11441,7 +12329,7 @@ var EE2 = (() => {
         return 1;
       default:
     }
-    const { category } = item;
+    const category = item.category;
     switch (category) {
       case "Body Armour" /* BodyArmour */:
       case "Two Hand Axe" /* TwoHandedAxe */:
@@ -11475,33 +12363,57 @@ var EE2 = (() => {
   }
   function modifiedBfs(remaining, combo, available) {
     var _a2;
-    if (remaining === 0) return [...combo];
+    if (remaining === 0) return _toConsumableArray(combo);
     if (combo.length >= 7 || available.length > 8) return [];
     let best = null;
-    for (const augValue of available) {
-      if (augValue > remaining) {
-        continue;
-      }
-      combo.push(augValue);
-      const result = modifiedBfs(remaining - augValue, combo, available);
-      combo.pop();
-      if (result) {
-        if (!best || result.length < best.length) {
-          best = result;
-        } else if (result.length === best.length) {
-          const resultMax = Math.max(
-            ...result.map((v) => result.filter((x) => x === v).length)
-          );
-          const bestMax = Math.max(
-            ...best.map((v) => best.filter((x) => x === v).length)
-          );
-          if (resultMax > bestMax) {
+    {
+      const _a70 = available;
+      if (Array.isArray(_a70)) for (let _i68 = 0; _i68 < _a70.length; _i68++) {
+        const augValue = _a70[_i68];
+        if (augValue > remaining) {
+          continue;
+        }
+        combo.push(augValue);
+        const result = modifiedBfs(remaining - augValue, combo, available);
+        combo.pop();
+        if (result) {
+          if (!best || result.length < best.length) {
             best = result;
-          } else if (resultMax === bestMax) {
-            const resultSet = new Set(result);
-            const bestSet = new Set(best);
-            if (resultSet.size < bestSet.size) {
+          } else if (result.length === best.length) {
+            const resultMax = Math.max.apply(Math, _toConsumableArray(result.map(v => result.filter(x => x === v).length)));
+            const bestMax = Math.max.apply(Math, _toConsumableArray(best.map(v => best.filter(x => x === v).length)));
+            if (resultMax > bestMax) {
               best = result;
+            } else if (resultMax === bestMax) {
+              const resultSet = new Set(result);
+              const bestSet = new Set(best);
+              if (resultSet.size < bestSet.size) {
+                best = result;
+              }
+            }
+          }
+        }
+      } else for (const augValue of _a70) {
+        if (augValue > remaining) {
+          continue;
+        }
+        combo.push(augValue);
+        const result = modifiedBfs(remaining - augValue, combo, available);
+        combo.pop();
+        if (result) {
+          if (!best || result.length < best.length) {
+            best = result;
+          } else if (result.length === best.length) {
+            const resultMax = Math.max.apply(Math, _toConsumableArray(result.map(v => result.filter(x => x === v).length)));
+            const bestMax = Math.max.apply(Math, _toConsumableArray(best.map(v => best.filter(x => x === v).length)));
+            if (resultMax > bestMax) {
+              best = result;
+            } else if (resultMax === bestMax) {
+              const resultSet = new Set(result);
+              const bestSet = new Set(best);
+              if (resultSet.size < bestSet.size) {
+                best = result;
+              }
             }
           }
         }
@@ -11512,36 +12424,28 @@ var EE2 = (() => {
   function determineAugments(mod, statCalcs) {
     var _a2;
     if (mod.info.type !== "rune" /* Augment */) return [];
-    const augmentAppliedValue = statCalcs.map((s) => {
+    const augmentAppliedValue = statCalcs.map(s => {
       var _a3;
       return (_a3 = s.sources[0].contributes) == null ? void 0 : _a3.value;
-    }).filter((v) => v !== void 0);
-    const allTradeIds = statCalcs.map(
-      (c) => c.stat.trade.ids["rune" /* Augment */][0]
-    );
-    const allPossibleAugments = allTradeIds.map((id) => AUGMENT_DATA_BY_TRADE_ID[id]).filter((v) => v !== void 0);
-    const augmentRefSets = allPossibleAugments.map(
-      (augGroup) => new Set(augGroup.map((a) => a.refName))
-    );
+    }).filter(v => v !== void 0);
+    const allTradeIds = statCalcs.map(c => c.stat.trade.ids["rune" /* Augment */][0]);
+    const allPossibleAugments = allTradeIds.map(id => AUGMENT_DATA_BY_TRADE_ID[id]).filter(v => v !== void 0);
+    const augmentRefSets = allPossibleAugments.map(augGroup => new Set(augGroup.map(a => a.refName)));
     const morePossibleAugments = augmentRefSets.reduce((acc, set3) => {
       return set3.intersection(acc);
     }, augmentRefSets[0]);
-    const possibleAugments = allPossibleAugments.map(
-      (augGroup) => augGroup.filter((aug) => morePossibleAugments.has(aug.refName))
-    ).find((f) => f.length);
+    const possibleAugments = allPossibleAugments.map(augGroup => augGroup.filter(aug => morePossibleAugments.has(aug.refName))).find(f => f.length);
     if (!possibleAugments) return [];
     if (!augmentAppliedValue || !augmentAppliedValue.length) {
       const singleAugment = possibleAugments[0];
       return [ITEM_BY_REF("ITEM", singleAugment.refName)[0]];
     }
     if (augmentAppliedValue.length > 1) {
-      const likelyAugment = possibleAugments.find(
-        (aug) => new Set(aug.values).intersection(new Set(augmentAppliedValue)).size === augmentAppliedValue.length
-      );
+      const likelyAugment = possibleAugments.find(aug => new Set(aug.values).intersection(new Set(augmentAppliedValue)).size === augmentAppliedValue.length);
       if (!likelyAugment) return [];
       return [ITEM_BY_REF("ITEM", likelyAugment.refName)[0]];
     }
-    const availableAugmentValues = possibleAugments.map((augment) => {
+    const availableAugmentValues = possibleAugments.map(augment => {
       if (augment.values.length === 1) return augment.values[0];
       if ((__gcMatch(augment.baseStat, /#/g) || []).length > 1) {
         const sum = augment.values.reduce((a, b) => a + b, 0);
@@ -11550,16 +12454,14 @@ var EE2 = (() => {
       return augment.values[0];
     }).toSorted((a, b) => b - a);
     const likelyValues = (_a2 = modifiedBfs(augmentAppliedValue[0], [], availableAugmentValues)) != null ? _a2 : [];
-    return likelyValues.map((v) => {
-      const augment = possibleAugments.find(
-        (aug) => aug.values.some((augVal) => augVal === v) || avg(aug.values) === v
-      );
+    return likelyValues.map(v => {
+      const augment = possibleAugments.find(aug => aug.values.some(augVal => augVal === v) || avg(aug.values) === v);
       return ITEM_BY_REF("ITEM", augment.refName)[0];
     });
   }
   function replaceHashWithValues(template, values) {
     let result = template;
-    values.forEach((value) => {
+    values.forEach(value => {
       result = result.replace("#", value.toString());
     });
     return result;
@@ -11621,7 +12523,7 @@ var EE2 = (() => {
       return __async(this, null, function* () {
         const _limiters = Array.from(limiters);
         try {
-          yield Promise.all(_limiters.map((rl) => rl.wait(false)));
+          yield Promise.all(_limiters.map(rl => rl.wait(false)));
         } catch (e) {
           if (e instanceof Error && e.message === "RateLimiter is no longer active") {
             return this.waitMulti(limiters);
@@ -11629,8 +12531,8 @@ var EE2 = (() => {
             throw e;
           }
         }
-        if (_limiters.every((rl) => !rl.isFullyUtilized)) {
-          _limiters.forEach((rl) => {
+        if (_limiters.every(rl => !rl.isFullyUtilized)) {
+          _limiters.forEach(rl => {
             rl.wait();
           });
         } else {
@@ -11642,26 +12544,35 @@ var EE2 = (() => {
       let simulation;
       {
         const now = Date.now();
-        simulation = Array.from(limiters).map((l) => ({
+        simulation = Array.from(limiters).map(l => ({
           max: l.max,
           window: l.window,
-          stack: ignoreState ? [] : l.stack.map((entry) => entry.releasedAt - now).sort((a, b) => a - b)
+          stack: ignoreState ? [] : l.stack.map(entry => entry.releasedAt - now).sort((a, b) => a - b)
         }));
       }
       let total = 0;
       while (count--) {
-        while (simulation.some((limit) => limit.stack.length >= limit.max)) {
-          const waitTime = simulation.reduce(
-            (ms, limit) => limit.stack.length >= limit.max ? Math.max(limit.stack[0] - total, ms) : ms,
-            0
-          );
+        while (simulation.some(limit => limit.stack.length >= limit.max)) {
+          const waitTime = simulation.reduce((ms, limit) => limit.stack.length >= limit.max ? Math.max(limit.stack[0] - total, ms) : ms, 0);
           total += waitTime;
-          for (const limit of simulation) {
-            limit.stack = limit.stack.filter((time) => time > total);
+          {
+            const _a71 = simulation;
+            if (Array.isArray(_a71)) for (let _i69 = 0; _i69 < _a71.length; _i69++) {
+              const limit = _a71[_i69];
+              limit.stack = limit.stack.filter(time => time > total);
+            } else for (const limit of _a71) {
+              limit.stack = limit.stack.filter(time => time > total);
+            }
           }
         }
-        for (const limit of simulation) {
-          limit.stack.push(total + limit.window * 1e3);
+        {
+          const _a72 = simulation;
+          if (Array.isArray(_a72)) for (let _i70 = 0; _i70 < _a72.length; _i70++) {
+            const limit = _a72[_i70];
+            limit.stack.push(total + limit.window * 1e3);
+          } else for (const limit of _a72) {
+            limit.stack.push(total + limit.window * 1e3);
+          }
         }
       }
       return total;
@@ -11715,7 +12626,7 @@ var EE2 = (() => {
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/price-check/trade/common.ts
   function apiToSatisfySearch(item, stats, filters) {
-    if (stats.some((s) => !s.disabled)) {
+    if (stats.some(s => !s.disabled)) {
       return "trade";
     }
     if (filters.stackSize) {
@@ -11729,88 +12640,122 @@ var EE2 = (() => {
     return item.info.tradeTag;
   }
   var RATE_LIMIT_RULES = {
-    SEARCH: (0, import_vue4.shallowReactive)(/* @__PURE__ */ new Set([new RateLimiter(1, 5)])),
-    EXCHANGE: (0, import_vue4.shallowReactive)(/* @__PURE__ */ new Set([new RateLimiter(1, 5)])),
-    FETCH: (0, import_vue4.shallowReactive)(/* @__PURE__ */ new Set([new RateLimiter(1, 5)]))
+    SEARCH: (0, import_vue4.shallowReactive)(/* @__PURE__ */new Set([new RateLimiter(1, 5)])),
+    EXCHANGE: (0, import_vue4.shallowReactive)(/* @__PURE__ */new Set([new RateLimiter(1, 5)])),
+    FETCH: (0, import_vue4.shallowReactive)(/* @__PURE__ */new Set([new RateLimiter(1, 5)]))
     // WHISPER: shallowReactive(new Set([new RateLimiter(1, 5)])),
     // HISTORY: shallowReactive(new Set([new RateLimiter(1, 5)])),
   };
   function adjustRateLimits(clientLimits, headers) {
     if (!headers.has("x-rate-limit-rules")) return;
     const rules = headers.get("x-rate-limit-rules").split(",");
-    _adjustRateLimits(
-      clientLimits,
-      rules.map((rule) => headers.get(`x-rate-limit-${rule}`)).join(","),
-      rules.map((rule) => headers.get(`x-rate-limit-${rule}-state`)).join(",")
-    );
+    _adjustRateLimits(clientLimits, rules.map(rule => headers.get(`x-rate-limit-${rule}`)).join(","), rules.map(rule => headers.get(`x-rate-limit-${rule}-state`)).join(","));
   }
   function _adjustRateLimits(clientLimits, limitStr, stateStr) {
     const DEBUG = false;
     const DESYNC_FIX = AppConfig("price-check").apiLatencySeconds;
-    const limitRuleState = stateStr.split(",").map((rule) => rule.split(":")).map((rule) => Number(rule[0]));
-    const limitRule = limitStr.split(",").map((rule) => rule.split(":")).map((rule, idx) => ({
+    const limitRuleState = stateStr.split(",").map(rule => rule.split(":")).map(rule => Number(rule[0]));
+    const limitRule = limitStr.split(",").map(rule => rule.split(":")).map((rule, idx) => ({
       max: Number(rule[0]),
       window: Number(rule[1]) + DESYNC_FIX,
       state: limitRuleState[idx]
     }));
-    for (const limit of clientLimits) {
-      const isActive = limitRule.some(
-        (serverLimit) => limit.isEqualLimit(serverLimit)
-      );
-      if (!isActive) {
-        clientLimits.delete(limit);
-        limit.destroy();
-        DEBUG && console.log("Destroy", limit.toString());
-      }
-    }
-    for (const limit of clientLimits) {
-      const serverLimit = limitRule.find(
-        (serverLimit2) => limit.isEqualLimit(serverLimit2)
-      );
-      const delta = serverLimit.state - limit.stack.length;
-      if (delta === 0) {
-        DEBUG && console.log("Limits are in sync");
-      } else if (delta > 0) {
-        DEBUG && console.error(
-          `Rate limit state on Server is greater by ${Math.abs(delta)}. Bursting to prevent rate limiting.`
-        );
-        for (let i = 0; i < Math.min(delta, limit.available); ++i) {
-          limit.wait();
+    {
+      const _a73 = clientLimits;
+      if (Array.isArray(_a73)) for (let _i71 = 0; _i71 < _a73.length; _i71++) {
+        const limit = _a73[_i71];
+        const isActive = limitRule.some(serverLimit => limit.isEqualLimit(serverLimit));
+        if (!isActive) {
+          clientLimits.delete(limit);
+          limit.destroy();
+          DEBUG && console.log("Destroy", limit.toString());
         }
-      } else if (delta < 0) {
-        DEBUG && console.warn(
-          `Rate limit state on Client is greater by ${Math.abs(delta)}`
-        );
+      } else for (const limit of _a73) {
+        const isActive = limitRule.some(serverLimit => limit.isEqualLimit(serverLimit));
+        if (!isActive) {
+          clientLimits.delete(limit);
+          limit.destroy();
+          DEBUG && console.log("Destroy", limit.toString());
+        }
       }
     }
-    serverLimits: for (const serverLimit of limitRule) {
-      for (const limit of clientLimits) {
-        if (limit.isEqualLimit(serverLimit)) continue serverLimits;
+    {
+      const _a74 = clientLimits;
+      if (Array.isArray(_a74)) for (let _i72 = 0; _i72 < _a74.length; _i72++) {
+        const limit = _a74[_i72];
+        const serverLimit = limitRule.find(serverLimit2 => limit.isEqualLimit(serverLimit2));
+        const delta = serverLimit.state - limit.stack.length;
+        if (delta === 0) {
+          DEBUG && console.log("Limits are in sync");
+        } else if (delta > 0) {
+          DEBUG && console.error(`Rate limit state on Server is greater by ${Math.abs(delta)}. Bursting to prevent rate limiting.`);
+          for (let i = 0; i < Math.min(delta, limit.available); ++i) {
+            limit.wait();
+          }
+        } else if (delta < 0) {
+          DEBUG && console.warn(`Rate limit state on Client is greater by ${Math.abs(delta)}`);
+        }
+      } else for (const limit of _a74) {
+        const serverLimit = limitRule.find(serverLimit2 => limit.isEqualLimit(serverLimit2));
+        const delta = serverLimit.state - limit.stack.length;
+        if (delta === 0) {
+          DEBUG && console.log("Limits are in sync");
+        } else if (delta > 0) {
+          DEBUG && console.error(`Rate limit state on Server is greater by ${Math.abs(delta)}. Bursting to prevent rate limiting.`);
+          for (let i = 0; i < Math.min(delta, limit.available); ++i) {
+            limit.wait();
+          }
+        } else if (delta < 0) {
+          DEBUG && console.warn(`Rate limit state on Client is greater by ${Math.abs(delta)}`);
+        }
       }
-      const rl = new RateLimiter(serverLimit.max, serverLimit.window);
-      clientLimits.add(rl);
-      DEBUG && console.log("Add", rl.toString());
-      for (let i = 0; i < serverLimit.state; ++i) {
-        rl.wait();
+    }
+    {
+      const _a75 = limitRule;
+      if (Array.isArray(_a75)) serverLimits: for (let _i73 = 0; _i73 < _a75.length; _i73++) {
+        const serverLimit = _a75[_i73];
+        {
+          const _a77 = clientLimits;
+          if (Array.isArray(_a77)) for (let _i75 = 0; _i75 < _a77.length; _i75++) {
+            const limit = _a77[_i75];
+            if (limit.isEqualLimit(serverLimit)) continue serverLimits;
+          } else for (const limit of _a77) {
+            if (limit.isEqualLimit(serverLimit)) continue serverLimits;
+          }
+        }
+        const rl = new RateLimiter(serverLimit.max, serverLimit.window);
+        clientLimits.add(rl);
+        DEBUG && console.log("Add", rl.toString());
+        for (let i = 0; i < serverLimit.state; ++i) {
+          rl.wait();
+        }
+      } else serverLimits: for (const serverLimit of _a75) {
+        {
+          const _a76 = clientLimits;
+          if (Array.isArray(_a76)) for (let _i74 = 0; _i74 < _a76.length; _i74++) {
+            const limit = _a76[_i74];
+            if (limit.isEqualLimit(serverLimit)) continue serverLimits;
+          } else for (const limit of _a76) {
+            if (limit.isEqualLimit(serverLimit)) continue serverLimits;
+          }
+        }
+        const rl = new RateLimiter(serverLimit.max, serverLimit.window);
+        clientLimits.add(rl);
+        DEBUG && console.log("Add", rl.toString());
+        for (let i = 0; i < serverLimit.state; ++i) {
+          rl.wait();
+        }
       }
     }
   }
   function preventQueueCreation(targets) {
-    const estimatedMillis = Math.max(
-      ...targets.map((target) => {
-        const estimated = RateLimiter.estimateTime(target.count, target.limiters);
-        const estimatedCleanState = RateLimiter.estimateTime(
-          target.count,
-          target.limiters,
-          true
-        );
-        return estimated === estimatedCleanState ? 0 : estimated;
-      })
-    );
+    const estimatedMillis = Math.max.apply(Math, _toConsumableArray(targets.map(target => {
+      const estimated = RateLimiter.estimateTime(target.count, target.limiters);
+      const estimatedCleanState = RateLimiter.estimateTime(target.count, target.limiters, true);
+      return estimated === estimatedCleanState ? 0 : estimated;
+    })));
     if (estimatedMillis >= 1500) {
-      throw new Error(
-        `Retry after ${Math.round(estimatedMillis / 1e3)} seconds`
-      );
+      throw new Error(`Retry after ${Math.round(estimatedMillis / 1e3)} seconds`);
     }
   }
 
@@ -11820,143 +12765,216 @@ var EE2 = (() => {
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/price-check/filters/interfaces.ts
   init_timers();
   var _INTERNAL_TRADE_IDS = [
-    // #region DO NOT ADD OR REMOVE
-    "item.base_percentile",
-    "item.armour",
-    "item.evasion_rating",
-    "item.energy_shield",
-    "item.block",
-    "item.total_dps",
-    "item.physical_dps",
-    "item.elemental_dps",
-    "item.crit",
-    "item.aps",
-    "item.has_empty_modifier",
-    "item.spirit",
-    // #endregion DO NOT ADD OR REMOVE
-    // KEEP AS 12 number, maybe fix this to be better later
-    "item.has_elemental_affix",
-    "item.has_elemental_fire_affix",
-    "item.has_elemental_cold_affix",
-    "item.has_elemental_lightning_affix",
-    // KEEP above in order and as 12-15
-    "item.reload_time",
-    "item.rarity_magic",
-    "item.map_revives",
-    "item.map_pack_size",
-    "item.map_drop_chance",
-    "item.map_item_rarity",
-    "item.map_magic_monsters",
-    "item.map_rare_monsters",
-    "item.map_gold",
-    "item.runic_ward",
-    "item.duplicates"
-  ];
+  // #region DO NOT ADD OR REMOVE
+  "item.base_percentile", "item.armour", "item.evasion_rating", "item.energy_shield", "item.block", "item.total_dps", "item.physical_dps", "item.elemental_dps", "item.crit", "item.aps", "item.has_empty_modifier", "item.spirit",
+  // #endregion DO NOT ADD OR REMOVE
+  // KEEP AS 12 number, maybe fix this to be better later
+  "item.has_elemental_affix", "item.has_elemental_fire_affix", "item.has_elemental_cold_affix", "item.has_elemental_lightning_affix",
+  // KEEP above in order and as 12-15
+  "item.reload_time", "item.rarity_magic", "item.map_revives", "item.map_pack_size", "item.map_drop_chance", "item.map_item_rarity", "item.map_magic_monsters", "item.map_rare_monsters", "item.map_gold", "item.runic_ward", "item.duplicates"];
   var INTERNAL_TRADE_IDS = _INTERNAL_TRADE_IDS;
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/node_modules/dot-prop/index.js
   init_timers();
-  var isObject2 = (value) => {
+  var isObject2 = value => {
     const type = typeof value;
     return value !== null && (type === "object" || type === "function");
   };
-  var disallowedKeys = /* @__PURE__ */ new Set([
-    "__proto__",
-    "prototype",
-    "constructor"
-  ]);
+  var disallowedKeys = /* @__PURE__ */new Set(["__proto__", "prototype", "constructor"]);
   var digits = new Set("0123456789");
   function getPathSegments(path) {
     const parts = [];
     let currentSegment = "";
     let currentPart = "start";
     let isIgnoring = false;
-    for (const character of path) {
-      switch (character) {
-        case "\\": {
-          if (currentPart === "index") {
-            throw new Error("Invalid character in an index");
-          }
-          if (currentPart === "indexEnd") {
-            throw new Error("Invalid character after an index");
-          }
-          if (isIgnoring) {
-            currentSegment += character;
-          }
-          currentPart = "property";
-          isIgnoring = !isIgnoring;
-          break;
-        }
-        case ".": {
-          if (currentPart === "index") {
-            throw new Error("Invalid character in an index");
-          }
-          if (currentPart === "indexEnd") {
-            currentPart = "property";
-            break;
-          }
-          if (isIgnoring) {
-            isIgnoring = false;
-            currentSegment += character;
-            break;
-          }
-          if (disallowedKeys.has(currentSegment)) {
-            return [];
-          }
-          parts.push(currentSegment);
-          currentSegment = "";
-          currentPart = "property";
-          break;
-        }
-        case "[": {
-          if (currentPart === "index") {
-            throw new Error("Invalid character in an index");
-          }
-          if (currentPart === "indexEnd") {
-            currentPart = "index";
-            break;
-          }
-          if (isIgnoring) {
-            isIgnoring = false;
-            currentSegment += character;
-            break;
-          }
-          if (currentPart === "property") {
-            if (disallowedKeys.has(currentSegment)) {
-              return [];
+    {
+      const _a78 = path;
+      if (Array.isArray(_a78)) for (let _i76 = 0; _i76 < _a78.length; _i76++) {
+        const character = _a78[_i76];
+        switch (character) {
+          case "\\":
+            {
+              if (currentPart === "index") {
+                throw new Error("Invalid character in an index");
+              }
+              if (currentPart === "indexEnd") {
+                throw new Error("Invalid character after an index");
+              }
+              if (isIgnoring) {
+                currentSegment += character;
+              }
+              currentPart = "property";
+              isIgnoring = !isIgnoring;
+              break;
             }
-            parts.push(currentSegment);
-            currentSegment = "";
-          }
-          currentPart = "index";
-          break;
+          case ".":
+            {
+              if (currentPart === "index") {
+                throw new Error("Invalid character in an index");
+              }
+              if (currentPart === "indexEnd") {
+                currentPart = "property";
+                break;
+              }
+              if (isIgnoring) {
+                isIgnoring = false;
+                currentSegment += character;
+                break;
+              }
+              if (disallowedKeys.has(currentSegment)) {
+                return [];
+              }
+              parts.push(currentSegment);
+              currentSegment = "";
+              currentPart = "property";
+              break;
+            }
+          case "[":
+            {
+              if (currentPart === "index") {
+                throw new Error("Invalid character in an index");
+              }
+              if (currentPart === "indexEnd") {
+                currentPart = "index";
+                break;
+              }
+              if (isIgnoring) {
+                isIgnoring = false;
+                currentSegment += character;
+                break;
+              }
+              if (currentPart === "property") {
+                if (disallowedKeys.has(currentSegment)) {
+                  return [];
+                }
+                parts.push(currentSegment);
+                currentSegment = "";
+              }
+              currentPart = "index";
+              break;
+            }
+          case "]":
+            {
+              if (currentPart === "index") {
+                parts.push(Number.parseInt(currentSegment, 10));
+                currentSegment = "";
+                currentPart = "indexEnd";
+                break;
+              }
+              if (currentPart === "indexEnd") {
+                throw new Error("Invalid character after an index");
+              }
+            }
+          default:
+            {
+              if (currentPart === "index" && !digits.has(character)) {
+                throw new Error("Invalid character in an index");
+              }
+              if (currentPart === "indexEnd") {
+                throw new Error("Invalid character after an index");
+              }
+              if (currentPart === "start") {
+                currentPart = "property";
+              }
+              if (isIgnoring) {
+                isIgnoring = false;
+                currentSegment += "\\";
+              }
+              currentSegment += character;
+            }
         }
-        case "]": {
-          if (currentPart === "index") {
-            parts.push(Number.parseInt(currentSegment, 10));
-            currentSegment = "";
-            currentPart = "indexEnd";
-            break;
-          }
-          if (currentPart === "indexEnd") {
-            throw new Error("Invalid character after an index");
-          }
-        }
-        default: {
-          if (currentPart === "index" && !digits.has(character)) {
-            throw new Error("Invalid character in an index");
-          }
-          if (currentPart === "indexEnd") {
-            throw new Error("Invalid character after an index");
-          }
-          if (currentPart === "start") {
-            currentPart = "property";
-          }
-          if (isIgnoring) {
-            isIgnoring = false;
-            currentSegment += "\\";
-          }
-          currentSegment += character;
+      } else for (const character of _a78) {
+        switch (character) {
+          case "\\":
+            {
+              if (currentPart === "index") {
+                throw new Error("Invalid character in an index");
+              }
+              if (currentPart === "indexEnd") {
+                throw new Error("Invalid character after an index");
+              }
+              if (isIgnoring) {
+                currentSegment += character;
+              }
+              currentPart = "property";
+              isIgnoring = !isIgnoring;
+              break;
+            }
+          case ".":
+            {
+              if (currentPart === "index") {
+                throw new Error("Invalid character in an index");
+              }
+              if (currentPart === "indexEnd") {
+                currentPart = "property";
+                break;
+              }
+              if (isIgnoring) {
+                isIgnoring = false;
+                currentSegment += character;
+                break;
+              }
+              if (disallowedKeys.has(currentSegment)) {
+                return [];
+              }
+              parts.push(currentSegment);
+              currentSegment = "";
+              currentPart = "property";
+              break;
+            }
+          case "[":
+            {
+              if (currentPart === "index") {
+                throw new Error("Invalid character in an index");
+              }
+              if (currentPart === "indexEnd") {
+                currentPart = "index";
+                break;
+              }
+              if (isIgnoring) {
+                isIgnoring = false;
+                currentSegment += character;
+                break;
+              }
+              if (currentPart === "property") {
+                if (disallowedKeys.has(currentSegment)) {
+                  return [];
+                }
+                parts.push(currentSegment);
+                currentSegment = "";
+              }
+              currentPart = "index";
+              break;
+            }
+          case "]":
+            {
+              if (currentPart === "index") {
+                parts.push(Number.parseInt(currentSegment, 10));
+                currentSegment = "";
+                currentPart = "indexEnd";
+                break;
+              }
+              if (currentPart === "indexEnd") {
+                throw new Error("Invalid character after an index");
+              }
+            }
+          default:
+            {
+              if (currentPart === "index" && !digits.has(character)) {
+                throw new Error("Invalid character in an index");
+              }
+              if (currentPart === "indexEnd") {
+                throw new Error("Invalid character after an index");
+              }
+              if (currentPart === "start") {
+                currentPart = "property";
+              }
+              if (isIgnoring) {
+                isIgnoring = false;
+                currentSegment += "\\";
+              }
+              currentSegment += character;
+            }
         }
       }
     }
@@ -11964,20 +12982,23 @@ var EE2 = (() => {
       currentSegment += "\\";
     }
     switch (currentPart) {
-      case "property": {
-        if (disallowedKeys.has(currentSegment)) {
-          return [];
+      case "property":
+        {
+          if (disallowedKeys.has(currentSegment)) {
+            return [];
+          }
+          parts.push(currentSegment);
+          break;
         }
-        parts.push(currentSegment);
-        break;
-      }
-      case "index": {
-        throw new Error("Index was not closed");
-      }
-      case "start": {
-        parts.push("");
-        break;
-      }
+      case "index":
+        {
+          throw new Error("Index was not closed");
+        }
+      case "start":
+        {
+          parts.push("");
+          break;
+        }
     }
     return parts;
   }
@@ -12041,15 +13062,17 @@ var EE2 = (() => {
   function stable(v) {
     if (v === null || typeof v !== "object") return JSON.stringify(v);
     if (Array.isArray(v)) return "[" + v.map(stable).join(",") + "]";
-    return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}";
+    return "{" + Object.keys(v).sort().map(k => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}";
   }
-  var object_hash_default = { sha1: stable };
+  var object_hash_default = {
+    sha1: stable
+  };
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/price-check/trade/Cache.ts
   var CACHE_TTL = 300;
   var Cache = class {
     constructor() {
-      __publicField(this, "cached", /* @__PURE__ */ new Map());
+      __publicField(this, "cached", /* @__PURE__ */new Map());
       __publicField(this, "currency", "");
     }
     get(key) {
@@ -12076,7 +13099,13 @@ var EE2 = (() => {
   // tools/poe2-ee2/shims/prices.ts
   init_timers();
   var import_vue5 = __toESM(require_runtime_core());
-  var DivCurrency = { id: "div", abbrev: "div", ref: "Divine Orb", text: "Divine Orb", icon: "" };
+  var DivCurrency = {
+    id: "div",
+    abbrev: "div",
+    ref: "Divine Orb",
+    text: "Divine Orb",
+    icon: ""
+  };
   function displayRounding(value, fraction = false) {
     if (fraction && Math.abs(value) < 1) {
       if (value === 0) return "0";
@@ -12093,8 +13122,7 @@ var EE2 = (() => {
       cachedCurrencyByQuery: (_q, _amount) => void 0,
       findPriceByQuery: () => void 0,
       autoCurrency: () => void 0,
-      queuePricesFetch: () => {
-      },
+      queuePricesFetch: () => {},
       selectedCoreCurrency: (0, import_vue5.shallowRef)(void 0),
       ITEM_DROP: (0, import_vue5.shallowRef)([])
     };
@@ -12104,7 +13132,11 @@ var EE2 = (() => {
   init_timers();
   function getCurrencyDetailsId(id) {
     if (!TRADE_TAG_TO_REF.has(id)) {
-      return { ns: "nan ns", name: "nan item", variant: void 0 };
+      return {
+        ns: "nan ns",
+        name: "nan item",
+        variant: void 0
+      };
     }
     const refName = TRADE_TAG_TO_REF.get(id);
     return {
@@ -12115,65 +13147,9 @@ var EE2 = (() => {
   }
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/price-check/trade/pathofexile-trade.ts
-  var CATEGORY_TO_TRADE_ID = /* @__PURE__ */ new Map([
-    ["Map" /* Map */, "map"],
-    ["Abyss Jewel" /* AbyssJewel */, "jewel.abyss"],
-    ["Amulet" /* Amulet */, "accessory.amulet"],
-    ["Belt" /* Belt */, "accessory.belt"],
-    ["Body Armour" /* BodyArmour */, "armour.chest"],
-    ["Boots" /* Boots */, "armour.boots"],
-    ["Bow" /* Bow */, "weapon.bow"],
-    ["Claw" /* Claw */, "weapon.claw"],
-    ["Dagger" /* Dagger */, "weapon.dagger"],
-    ["Fishing Rod" /* FishingRod */, "weapon.rod"],
-    ["Flask" /* Flask */, "flask"],
-    ["Gloves" /* Gloves */, "armour.gloves"],
-    ["Helmet" /* Helmet */, "armour.helmet"],
-    ["Jewel" /* Jewel */, "jewel"],
-    ["One Hand Axe" /* OneHandedAxe */, "weapon.oneaxe"],
-    ["One Hand Mace" /* OneHandedMace */, "weapon.onemace"],
-    ["One Hand Sword" /* OneHandedSword */, "weapon.onesword"],
-    ["Quiver" /* Quiver */, "armour.quiver"],
-    ["Ring" /* Ring */, "accessory.ring"],
-    ["Rune Dagger" /* RuneDagger */, "weapon.runedagger"],
-    ["Sceptre" /* Sceptre */, "weapon.sceptre"],
-    ["Shield" /* Shield */, "armour.shield"],
-    ["Staff" /* Staff */, "weapon.staff"],
-    ["Two Hand Axe" /* TwoHandedAxe */, "weapon.twoaxe"],
-    ["Two Hand Mace" /* TwoHandedMace */, "weapon.twomace"],
-    ["Two Hand Sword" /* TwoHandedSword */, "weapon.twosword"],
-    ["Wand" /* Wand */, "weapon.wand"],
-    ["Warstaff" /* Warstaff */, "weapon.warstaff"],
-    ["Cluster Jewel" /* ClusterJewel */, "jewel.cluster"],
-    ["Heist Blueprint" /* HeistBlueprint */, "heistmission.blueprint"],
-    ["Heist Contract" /* HeistContract */, "heistmission.contract"],
-    ["Heist Tool" /* HeistTool */, "heistequipment.heisttool"],
-    ["Heist Brooch" /* HeistBrooch */, "heistequipment.heistreward"],
-    ["Heist Gear" /* HeistGear */, "heistequipment.heistweapon"],
-    ["Heist Cloak" /* HeistCloak */, "heistequipment.heistutility"],
-    ["Trinket" /* Trinket */, "accessory.trinket"],
-    ["Sanctum Relic" /* SanctumRelic */, "sanctum.relic"],
-    ["Tincture" /* Tincture */, "tincture"],
-    ["Charm" /* Charm */, "flask.charm"],
-    ["Crossbow" /* Crossbow */, "weapon.crossbow"],
-    ["Skill Gem" /* SkillGem */, "gem.activegem"],
-    ["Support Gem" /* SupportGem */, "gem.supportgem"],
-    ["Meta Gem" /* MetaGem */, "gem.metagem"],
-    ["Focus" /* Focus */, "armour.focus"],
-    ["Spear" /* Spear */, "weapon.spear"],
-    ["Flail" /* Flail */, "weapon.flail"],
-    ["Buckler" /* Buckler */, "armour.buckler"],
-    ["TowerAugment" /* Tablet */, "map.tablet"],
-    ["MapFragment" /* MapFragment */, "map.fragment"],
-    ["Talisman" /* Talisman */, "weapon.talisman"],
-    ["Waystone" /* Waystone */, "map.waystone"]
-  ]);
+  var CATEGORY_TO_TRADE_ID = /* @__PURE__ */new Map([["Map" /* Map */, "map"], ["Abyss Jewel" /* AbyssJewel */, "jewel.abyss"], ["Amulet" /* Amulet */, "accessory.amulet"], ["Belt" /* Belt */, "accessory.belt"], ["Body Armour" /* BodyArmour */, "armour.chest"], ["Boots" /* Boots */, "armour.boots"], ["Bow" /* Bow */, "weapon.bow"], ["Claw" /* Claw */, "weapon.claw"], ["Dagger" /* Dagger */, "weapon.dagger"], ["Fishing Rod" /* FishingRod */, "weapon.rod"], ["Flask" /* Flask */, "flask"], ["Gloves" /* Gloves */, "armour.gloves"], ["Helmet" /* Helmet */, "armour.helmet"], ["Jewel" /* Jewel */, "jewel"], ["One Hand Axe" /* OneHandedAxe */, "weapon.oneaxe"], ["One Hand Mace" /* OneHandedMace */, "weapon.onemace"], ["One Hand Sword" /* OneHandedSword */, "weapon.onesword"], ["Quiver" /* Quiver */, "armour.quiver"], ["Ring" /* Ring */, "accessory.ring"], ["Rune Dagger" /* RuneDagger */, "weapon.runedagger"], ["Sceptre" /* Sceptre */, "weapon.sceptre"], ["Shield" /* Shield */, "armour.shield"], ["Staff" /* Staff */, "weapon.staff"], ["Two Hand Axe" /* TwoHandedAxe */, "weapon.twoaxe"], ["Two Hand Mace" /* TwoHandedMace */, "weapon.twomace"], ["Two Hand Sword" /* TwoHandedSword */, "weapon.twosword"], ["Wand" /* Wand */, "weapon.wand"], ["Warstaff" /* Warstaff */, "weapon.warstaff"], ["Cluster Jewel" /* ClusterJewel */, "jewel.cluster"], ["Heist Blueprint" /* HeistBlueprint */, "heistmission.blueprint"], ["Heist Contract" /* HeistContract */, "heistmission.contract"], ["Heist Tool" /* HeistTool */, "heistequipment.heisttool"], ["Heist Brooch" /* HeistBrooch */, "heistequipment.heistreward"], ["Heist Gear" /* HeistGear */, "heistequipment.heistweapon"], ["Heist Cloak" /* HeistCloak */, "heistequipment.heistutility"], ["Trinket" /* Trinket */, "accessory.trinket"], ["Sanctum Relic" /* SanctumRelic */, "sanctum.relic"], ["Tincture" /* Tincture */, "tincture"], ["Charm" /* Charm */, "flask.charm"], ["Crossbow" /* Crossbow */, "weapon.crossbow"], ["Skill Gem" /* SkillGem */, "gem.activegem"], ["Support Gem" /* SupportGem */, "gem.supportgem"], ["Meta Gem" /* MetaGem */, "gem.metagem"], ["Focus" /* Focus */, "armour.focus"], ["Spear" /* Spear */, "weapon.spear"], ["Flail" /* Flail */, "weapon.flail"], ["Buckler" /* Buckler */, "armour.buckler"], ["TowerAugment" /* Tablet */, "map.tablet"], ["MapFragment" /* MapFragment */, "map.fragment"], ["Talisman" /* Talisman */, "weapon.talisman"], ["Waystone" /* Waystone */, "map.waystone"]]);
   var TOTAL_MODS_TEXT = {
-    EMPTY_MODIFIERS: [
-      "# Empty Modifiers",
-      "# Empty Prefix Modifiers",
-      "# Empty Suffix Modifiers"
-    ],
+    EMPTY_MODIFIERS: ["# Empty Modifiers", "# Empty Prefix Modifiers", "# Empty Suffix Modifiers"],
     TOTAL_MODIFIERS: ["# Modifiers", "# Prefix Modifiers", "# Suffix Modifiers"]
   };
   var CONVERT_CURRENCY = {
@@ -12191,9 +13167,7 @@ var EE2 = (() => {
   function createTradeRequest(filters, stats, item) {
     var _a2, _b, _c, _d, _e, _f;
     if (filters.trade.listingType === "onlineleague") {
-      console.error(
-        "onlineleague is not supported for trade, you shouldn't ever see this"
-      );
+      console.error("onlineleague is not supported for trade, you shouldn't ever see this");
       filters.trade.listingType = "securable";
     }
     const body = {
@@ -12201,34 +13175,25 @@ var EE2 = (() => {
         status: {
           option: filters.trade.listingType
         },
-        stats: [{ type: "and", filters: [] }],
+        stats: [{
+          type: "and",
+          filters: []
+        }],
         filters: {}
       },
       sort: {
         price: "asc"
       }
     };
-    const { query } = body;
+    const query = body.query;
     if (filters.trade.currency) {
-      setProperty(
-        query.filters,
-        "trade_filters.filters.price.option",
-        filters.trade.currency
-      );
+      setProperty(query.filters, "trade_filters.filters.price.option", filters.trade.currency);
     }
     if (filters.trade.collapseListings === "api") {
-      setProperty(
-        query.filters,
-        "trade_filters.filters.collapse.option",
-        String(true)
-      );
+      setProperty(query.filters, "trade_filters.filters.collapse.option", String(true));
     }
     if (filters.trade.listed) {
-      setProperty(
-        query.filters,
-        "trade_filters.filters.indexed.option",
-        filters.trade.listed
-      );
+      setProperty(query.filters, "trade_filters.filters.indexed.option", filters.trade.listed);
     }
     const activeSearch = filters.searchRelaxed && !filters.searchRelaxed.disabled ? filters.searchRelaxed : filters.searchExact;
     if (activeSearch.nameTrade) {
@@ -12252,508 +13217,487 @@ var EE2 = (() => {
     if (filters.foil && !filters.foil.disabled) {
       setProperty(query.filters, "type_filters.filters.rarity.option", "uniquefoil");
     } else if (filters.rarity) {
-      setProperty(
-        query.filters,
-        "type_filters.filters.rarity.option",
-        filters.rarity.value
-      );
+      setProperty(query.filters, "type_filters.filters.rarity.option", filters.rarity.value);
     }
     if (filters.itemLevel && !filters.itemLevel.disabled) {
-      setProperty(
-        query.filters,
-        "type_filters.filters.ilvl.min",
-        filters.itemLevel.value
-      );
+      setProperty(query.filters, "type_filters.filters.ilvl.min", filters.itemLevel.value);
       if (filters.itemLevel.max) {
-        setProperty(
-          query.filters,
-          "type_filters.filters.ilvl.max",
-          filters.itemLevel.max
-        );
+        setProperty(query.filters, "type_filters.filters.ilvl.max", filters.itemLevel.max);
       }
     }
     if (filters.requires && filters.requires.level && !filters.requires.level.disabled) {
-      setProperty(
-        query.filters,
-        "req_filters.filters.lvl.max",
-        filters.requires.level.value
-      );
+      setProperty(query.filters, "req_filters.filters.lvl.max", filters.requires.level.value);
     }
     if (filters.quality && !filters.quality.disabled) {
-      setProperty(
-        query.filters,
-        "type_filters.filters.quality.min",
-        filters.quality.value
-      );
+      setProperty(query.filters, "type_filters.filters.quality.min", filters.quality.value);
     }
     if (filters.augmentSockets && !filters.augmentSockets.disabled) {
-      setProperty(
-        query.filters,
-        "equipment_filters.filters.rune_sockets.min",
-        filters.augmentSockets.value
-      );
+      setProperty(query.filters, "equipment_filters.filters.rune_sockets.min", filters.augmentSockets.value);
     }
     if (filters.mapTier && !filters.mapTier.disabled) {
-      setProperty(
-        query.filters,
-        "map_filters.filters.map_tier.min",
-        filters.mapTier.value
-      );
-      setProperty(
-        query.filters,
-        "map_filters.filters.map_tier.max",
-        filters.mapTier.value
-      );
+      setProperty(query.filters, "map_filters.filters.map_tier.min", filters.mapTier.value);
+      setProperty(query.filters, "map_filters.filters.map_tier.max", filters.mapTier.value);
     }
     if (filters.ultimatumHint && !filters.ultimatumHint.disabled) {
-      setProperty(
-        query.filters,
-        "map_filters.filters.ultimatum_hint.option",
-        filters.ultimatumHint.value
-      );
+      setProperty(query.filters, "map_filters.filters.ultimatum_hint.option", filters.ultimatumHint.value);
     }
     if (filters.gemLevel && !filters.gemLevel.disabled) {
-      setProperty(
-        query.filters,
-        "misc_filters.filters.gem_level.min",
-        filters.gemLevel.value
-      );
+      setProperty(query.filters, "misc_filters.filters.gem_level.min", filters.gemLevel.value);
       if (filters.gemLevel.max) {
-        setProperty(
-          query.filters,
-          "misc_filters.filters.gem_level.max",
-          filters.gemLevel.max
-        );
+        setProperty(query.filters, "misc_filters.filters.gem_level.max", filters.gemLevel.max);
       }
     }
     if (filters.socketNumber && !filters.socketNumber.disabled) {
-      setProperty(
-        query.filters,
-        "misc_filters.filters.gem_sockets.min",
-        filters.socketNumber.value
-      );
+      setProperty(query.filters, "misc_filters.filters.gem_sockets.min", filters.socketNumber.value);
     }
     if (filters.areaLevel && !filters.areaLevel.disabled) {
       if (filters.awardedAscendancyPoints) {
-        setProperty(
-          query.filters,
-          "misc_filters.filters.area_level.max",
-          filters.areaLevel.value
-        );
+        setProperty(query.filters, "misc_filters.filters.area_level.max", filters.areaLevel.value);
       } else {
-        setProperty(
-          query.filters,
-          "misc_filters.filters.area_level.min",
-          filters.areaLevel.value
-        );
+        setProperty(query.filters, "misc_filters.filters.area_level.min", filters.areaLevel.value);
       }
     }
     if (filters.awardedAscendancyPoints && !filters.awardedAscendancyPoints.disabled) {
-      setProperty(
-        query.filters,
-        "misc_filters.filters.area_level.min",
-        areaLevelByAscendancyPoints(
-          item.info.refName,
-          filters.awardedAscendancyPoints.value
-        )
-      );
+      setProperty(query.filters, "misc_filters.filters.area_level.min", areaLevelByAscendancyPoints(item.info.refName, filters.awardedAscendancyPoints.value));
     }
     if (filters.unidentified && !filters.unidentified.disabled) {
-      setProperty(
-        query.filters,
-        "misc_filters.filters.identified.option",
-        String(false)
-      );
+      setProperty(query.filters, "misc_filters.filters.identified.option", String(false));
     }
     if (filters.unidentifiedTier && !filters.unidentifiedTier.disabled) {
-      setProperty(
-        query.filters,
-        "misc_filters.filters.unidentified_tier.min",
-        filters.unidentifiedTier.value
-      );
+      setProperty(query.filters, "misc_filters.filters.unidentified_tier.min", filters.unidentifiedTier.value);
     }
     if ((((_a2 = filters.corrupted) == null ? void 0 : _a2.value) === false || ((_b = filters.corrupted) == null ? void 0 : _b.exact)) && filters.corrupted && (!filters.sanctified || filters.sanctified && filters.sanctified.disabled)) {
-      setProperty(
-        query.filters,
-        "misc_filters.filters.corrupted.option",
-        String(filters.corrupted.value)
-      );
+      setProperty(query.filters, "misc_filters.filters.corrupted.option", String(filters.corrupted.value));
     }
     if (((_c = filters.fractured) == null ? void 0 : _c.value) === false) {
-      setProperty(
-        query.filters,
-        "misc_filters.filters.fractured_item.option",
-        String(false)
-      );
+      setProperty(query.filters, "misc_filters.filters.fractured_item.option", String(false));
     }
     if (filters.mirrored) {
       if (filters.mirrored.disabled) {
-        setProperty(
-          query.filters,
-          "misc_filters.filters.mirrored.option",
-          String(false)
-        );
+        setProperty(query.filters, "misc_filters.filters.mirrored.option", String(false));
       }
     } else if (item.rarity === "Normal" /* Normal */ || item.rarity === "Magic" /* Magic */ || item.rarity === "Rare" /* Rare */) {
-      setProperty(
-        query.filters,
-        "misc_filters.filters.mirrored.option",
-        String(false)
-      );
+      setProperty(query.filters, "misc_filters.filters.mirrored.option", String(false));
     }
     if (filters.sanctified || ((_d = filters.corrupted) == null ? void 0 : _d.value) === true && !((_e = filters.corrupted) == null ? void 0 : _e.exact)) {
       if ((_f = filters.sanctified) == null ? void 0 : _f.disabled) {
-        setProperty(
-          query.filters,
-          "misc_filters.filters.sanctified.option",
-          String(false)
-        );
+        setProperty(query.filters, "misc_filters.filters.sanctified.option", String(false));
       }
     } else if (item.rarity === "Normal" /* Normal */ || item.rarity === "Magic" /* Magic */ || item.rarity === "Rare" /* Rare */) {
-      setProperty(
-        query.filters,
-        "misc_filters.filters.sanctified.option",
-        String(false)
-      );
+      setProperty(query.filters, "misc_filters.filters.sanctified.option", String(false));
     }
-    for (const stat2 of stats) {
-      let applyElementalDamageLogicalFilter = function() {
-        if (stat2.tradeId[0] !== "item.elemental_dps") {
-          console.error("Elemental damage filter applied to non-elemental dps");
-          return;
-        }
-        const mapIds = (ids) => Object.values(ids).flat().map((id) => ({ id }));
-        const fireIds = mapIds(STAT_BY_REF("Adds # to # Fire Damage").trade.ids);
-        const coldIds = mapIds(STAT_BY_REF("Adds # to # Cold Damage").trade.ids);
-        const lightningIds = mapIds(
-          STAT_BY_REF("Adds # to # Lightning Damage").trade.ids
-        );
-        const selectedType = stat2.option.value;
-        const notGroup = [];
-        switch (selectedType) {
-          case 0 /* Any */:
-            break;
-          case 1 /* Fire */:
-            notGroup.push(...coldIds);
-            notGroup.push(...lightningIds);
-            break;
-          case 2 /* Cold */:
-            notGroup.push(...fireIds);
-            notGroup.push(...lightningIds);
-            break;
-          case 3 /* Lightning */:
-            notGroup.push(...fireIds);
-            notGroup.push(...coldIds);
-            break;
-        }
-        if (notGroup.length) {
-          query.stats.push({
-            type: "not",
-            filters: notGroup
-          });
-        }
-      };
-      if (stat2.tradeId[0] === "item.has_empty_modifier") {
-        const TARGET_ID = {
-          EMPTY_MODIFIERS: STAT_BY_REF(
-            TOTAL_MODS_TEXT.EMPTY_MODIFIERS[stat2.option.value]
-          ).trade.ids["pseudo" /* Pseudo */][0]
+    {
+      const _a79 = stats;
+      if (Array.isArray(_a79)) for (let _i77 = 0; _i77 < _a79.length; _i77++) {
+        const stat2 = _a79[_i77];
+        let applyElementalDamageLogicalFilter = function () {
+          if (stat2.tradeId[0] !== "item.elemental_dps") {
+            console.error("Elemental damage filter applied to non-elemental dps");
+            return;
+          }
+          const mapIds = ids => Object.values(ids).flat().map(id => ({
+            id
+          }));
+          const fireIds = mapIds(STAT_BY_REF("Adds # to # Fire Damage").trade.ids);
+          const coldIds = mapIds(STAT_BY_REF("Adds # to # Cold Damage").trade.ids);
+          const lightningIds = mapIds(STAT_BY_REF("Adds # to # Lightning Damage").trade.ids);
+          const selectedType = stat2.option.value;
+          const notGroup = [];
+          switch (selectedType) {
+            case 0 /* Any */:
+              break;
+            case 1 /* Fire */:
+              notGroup.push.apply(notGroup, _toConsumableArray(coldIds));
+              notGroup.push.apply(notGroup, _toConsumableArray(lightningIds));
+              break;
+            case 2 /* Cold */:
+              notGroup.push.apply(notGroup, _toConsumableArray(fireIds));
+              notGroup.push.apply(notGroup, _toConsumableArray(lightningIds));
+              break;
+            case 3 /* Lightning */:
+              notGroup.push.apply(notGroup, _toConsumableArray(fireIds));
+              notGroup.push.apply(notGroup, _toConsumableArray(coldIds));
+              break;
+          }
+          if (notGroup.length) {
+            query.stats.push({
+              type: "not",
+              filters: notGroup
+            });
+          }
         };
-        const emptyRoll = stat2.roll;
-        query.stats.push({
-          type: "count",
-          value: { min: 1, max: 1 },
-          disabled: stat2.disabled,
-          filters: [
-            {
+        if (stat2.tradeId[0] === "item.has_empty_modifier") {
+          const TARGET_ID = {
+            EMPTY_MODIFIERS: STAT_BY_REF(TOTAL_MODS_TEXT.EMPTY_MODIFIERS[stat2.option.value]).trade.ids["pseudo" /* Pseudo */][0]
+          };
+          const emptyRoll = stat2.roll;
+          query.stats.push({
+            type: "count",
+            value: {
+              min: 1,
+              max: 1
+            },
+            disabled: stat2.disabled,
+            filters: [{
               id: TARGET_ID.EMPTY_MODIFIERS,
               value: __spreadValues({}, getMinMax(emptyRoll)),
               disabled: stat2.disabled
-            }
-          ]
-        });
-      } else if (
+            }]
+          });
+        } else if (
         // https://github.com/SnosMe/awakened-poe-trade/issues/758
-        item.category === "Flask" /* Flask */ && stat2.statRef === "#% increased Charge Recovery" && !stats.some((s) => s.statRef === "#% increased effect")
-      ) {
-        const reducedEffectId = STAT_BY_REF("#% increased effect").trade.ids["explicit" /* Explicit */][0];
-        query.stats.push({
-          type: "not",
-          disabled: stat2.disabled,
-          filters: [{ id: reducedEffectId, disabled: stat2.disabled }]
-        });
-      }
-      if (stat2.disabled) continue;
-      const input = stat2.roll;
-      switch (stat2.tradeId[0]) {
-        case "item.armour":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.ar.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.ar.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          break;
-        case "item.evasion_rating":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.ev.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.ev.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          break;
-        case "item.energy_shield":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.es.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.es.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          break;
-        case "item.runic_ward":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.ward.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.ward.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          break;
-        case "item.block":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.block.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.block.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          break;
-        case "item.total_dps":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.dps.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.dps.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          break;
-        case "item.physical_dps":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.pdps.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.pdps.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          break;
-        case "item.elemental_dps":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.edps.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.edps.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          applyElementalDamageLogicalFilter();
-          break;
-        case "item.crit":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.crit.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.crit.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          break;
-        case "item.aps":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.aps.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.aps.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          break;
-        case "item.spirit":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.spirit.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.spirit.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          break;
-        case "item.reload_time":
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.reload_time.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          setProperty(
-            query.filters,
-            "equipment_filters.filters.reload_time.max",
-            typeof input.max === "number" ? input.max : void 0
-          );
-          break;
-        case "item.rarity_magic":
-          setProperty(query.filters, "type_filters.filters.rarity.option", "magic");
-          break;
-        case "item.map_revives":
-          setProperty(
-            query.filters,
-            "map_filters.filters.map_revives.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          break;
-        case "item.map_pack_size":
-          setProperty(
-            query.filters,
-            "map_filters.filters.map_packsize.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          break;
-        case "item.map_magic_monsters":
-          setProperty(
-            query.filters,
-            "map_filters.filters.map_magic_monsters.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          break;
-        case "item.map_rare_monsters":
-          setProperty(
-            query.filters,
-            "map_filters.filters.map_rare_monsters.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          break;
-        case "item.map_drop_chance":
-          setProperty(
-            query.filters,
-            "map_filters.filters.map_bonus.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          break;
-        case "item.map_item_rarity":
-          setProperty(
-            query.filters,
-            "map_filters.filters.map_iir.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          break;
-        case "item.map_gold":
-          setProperty(
-            query.filters,
-            "map_filters.filters.map_gold.min",
-            typeof input.min === "number" ? input.min : void 0
-          );
-          break;
-        case "item.duplicates":
-          {
-            if (item.info.refName !== "Mageblood") {
-              throw new Error("Duplicates filter applied to non-mageblood");
+        item.category === "Flask" /* Flask */ && stat2.statRef === "#% increased Charge Recovery" && !stats.some(s => s.statRef === "#% increased effect")) {
+          const reducedEffectId = STAT_BY_REF("#% increased effect").trade.ids["explicit" /* Explicit */][0];
+          query.stats.push({
+            type: "not",
+            disabled: stat2.disabled,
+            filters: [{
+              id: reducedEffectId,
+              disabled: stat2.disabled
+            }]
+          });
+        }
+        if (stat2.disabled) continue;
+        const input = stat2.roll;
+        switch (stat2.tradeId[0]) {
+          case "item.armour":
+            setProperty(query.filters, "equipment_filters.filters.ar.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.ar.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.evasion_rating":
+            setProperty(query.filters, "equipment_filters.filters.ev.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.ev.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.energy_shield":
+            setProperty(query.filters, "equipment_filters.filters.es.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.es.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.runic_ward":
+            setProperty(query.filters, "equipment_filters.filters.ward.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.ward.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.block":
+            setProperty(query.filters, "equipment_filters.filters.block.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.block.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.total_dps":
+            setProperty(query.filters, "equipment_filters.filters.dps.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.dps.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.physical_dps":
+            setProperty(query.filters, "equipment_filters.filters.pdps.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.pdps.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.elemental_dps":
+            setProperty(query.filters, "equipment_filters.filters.edps.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.edps.max", typeof input.max === "number" ? input.max : void 0);
+            applyElementalDamageLogicalFilter();
+            break;
+          case "item.crit":
+            setProperty(query.filters, "equipment_filters.filters.crit.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.crit.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.aps":
+            setProperty(query.filters, "equipment_filters.filters.aps.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.aps.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.spirit":
+            setProperty(query.filters, "equipment_filters.filters.spirit.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.spirit.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.reload_time":
+            setProperty(query.filters, "equipment_filters.filters.reload_time.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.reload_time.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.rarity_magic":
+            setProperty(query.filters, "type_filters.filters.rarity.option", "magic");
+            break;
+          case "item.map_revives":
+            setProperty(query.filters, "map_filters.filters.map_revives.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_pack_size":
+            setProperty(query.filters, "map_filters.filters.map_packsize.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_magic_monsters":
+            setProperty(query.filters, "map_filters.filters.map_magic_monsters.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_rare_monsters":
+            setProperty(query.filters, "map_filters.filters.map_rare_monsters.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_drop_chance":
+            setProperty(query.filters, "map_filters.filters.map_bonus.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_item_rarity":
+            setProperty(query.filters, "map_filters.filters.map_iir.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_gold":
+            setProperty(query.filters, "map_filters.filters.map_gold.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.duplicates":
+            {
+              if (item.info.refName !== "Mageblood") {
+                throw new Error("Duplicates filter applied to non-mageblood");
+              }
+              const bmFilter = buildMageBloodNotFilter(stat2, stats.filter(s => s.statRef.startsWith("Legacy of")), query.stats[0]);
+              if (bmFilter) {
+                query.stats.push(bmFilter);
+              }
             }
-            const bmFilter = buildMageBloodNotFilter(
-              stat2,
-              stats.filter((s) => s.statRef.startsWith("Legacy of")),
-              query.stats[0]
-            );
-            if (bmFilter) {
-              query.stats.push(bmFilter);
-            }
+            break;
+        }
+      } else for (const stat2 of _a79) {
+        let applyElementalDamageLogicalFilter = function () {
+          if (stat2.tradeId[0] !== "item.elemental_dps") {
+            console.error("Elemental damage filter applied to non-elemental dps");
+            return;
           }
-          break;
+          const mapIds = ids => Object.values(ids).flat().map(id => ({
+            id
+          }));
+          const fireIds = mapIds(STAT_BY_REF("Adds # to # Fire Damage").trade.ids);
+          const coldIds = mapIds(STAT_BY_REF("Adds # to # Cold Damage").trade.ids);
+          const lightningIds = mapIds(STAT_BY_REF("Adds # to # Lightning Damage").trade.ids);
+          const selectedType = stat2.option.value;
+          const notGroup = [];
+          switch (selectedType) {
+            case 0 /* Any */:
+              break;
+            case 1 /* Fire */:
+              notGroup.push.apply(notGroup, _toConsumableArray(coldIds));
+              notGroup.push.apply(notGroup, _toConsumableArray(lightningIds));
+              break;
+            case 2 /* Cold */:
+              notGroup.push.apply(notGroup, _toConsumableArray(fireIds));
+              notGroup.push.apply(notGroup, _toConsumableArray(lightningIds));
+              break;
+            case 3 /* Lightning */:
+              notGroup.push.apply(notGroup, _toConsumableArray(fireIds));
+              notGroup.push.apply(notGroup, _toConsumableArray(coldIds));
+              break;
+          }
+          if (notGroup.length) {
+            query.stats.push({
+              type: "not",
+              filters: notGroup
+            });
+          }
+        };
+        if (stat2.tradeId[0] === "item.has_empty_modifier") {
+          const TARGET_ID = {
+            EMPTY_MODIFIERS: STAT_BY_REF(TOTAL_MODS_TEXT.EMPTY_MODIFIERS[stat2.option.value]).trade.ids["pseudo" /* Pseudo */][0]
+          };
+          const emptyRoll = stat2.roll;
+          query.stats.push({
+            type: "count",
+            value: {
+              min: 1,
+              max: 1
+            },
+            disabled: stat2.disabled,
+            filters: [{
+              id: TARGET_ID.EMPTY_MODIFIERS,
+              value: __spreadValues({}, getMinMax(emptyRoll)),
+              disabled: stat2.disabled
+            }]
+          });
+        } else if (
+        // https://github.com/SnosMe/awakened-poe-trade/issues/758
+        item.category === "Flask" /* Flask */ && stat2.statRef === "#% increased Charge Recovery" && !stats.some(s => s.statRef === "#% increased effect")) {
+          const reducedEffectId = STAT_BY_REF("#% increased effect").trade.ids["explicit" /* Explicit */][0];
+          query.stats.push({
+            type: "not",
+            disabled: stat2.disabled,
+            filters: [{
+              id: reducedEffectId,
+              disabled: stat2.disabled
+            }]
+          });
+        }
+        if (stat2.disabled) continue;
+        const input = stat2.roll;
+        switch (stat2.tradeId[0]) {
+          case "item.armour":
+            setProperty(query.filters, "equipment_filters.filters.ar.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.ar.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.evasion_rating":
+            setProperty(query.filters, "equipment_filters.filters.ev.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.ev.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.energy_shield":
+            setProperty(query.filters, "equipment_filters.filters.es.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.es.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.runic_ward":
+            setProperty(query.filters, "equipment_filters.filters.ward.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.ward.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.block":
+            setProperty(query.filters, "equipment_filters.filters.block.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.block.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.total_dps":
+            setProperty(query.filters, "equipment_filters.filters.dps.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.dps.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.physical_dps":
+            setProperty(query.filters, "equipment_filters.filters.pdps.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.pdps.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.elemental_dps":
+            setProperty(query.filters, "equipment_filters.filters.edps.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.edps.max", typeof input.max === "number" ? input.max : void 0);
+            applyElementalDamageLogicalFilter();
+            break;
+          case "item.crit":
+            setProperty(query.filters, "equipment_filters.filters.crit.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.crit.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.aps":
+            setProperty(query.filters, "equipment_filters.filters.aps.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.aps.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.spirit":
+            setProperty(query.filters, "equipment_filters.filters.spirit.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.spirit.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.reload_time":
+            setProperty(query.filters, "equipment_filters.filters.reload_time.min", typeof input.min === "number" ? input.min : void 0);
+            setProperty(query.filters, "equipment_filters.filters.reload_time.max", typeof input.max === "number" ? input.max : void 0);
+            break;
+          case "item.rarity_magic":
+            setProperty(query.filters, "type_filters.filters.rarity.option", "magic");
+            break;
+          case "item.map_revives":
+            setProperty(query.filters, "map_filters.filters.map_revives.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_pack_size":
+            setProperty(query.filters, "map_filters.filters.map_packsize.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_magic_monsters":
+            setProperty(query.filters, "map_filters.filters.map_magic_monsters.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_rare_monsters":
+            setProperty(query.filters, "map_filters.filters.map_rare_monsters.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_drop_chance":
+            setProperty(query.filters, "map_filters.filters.map_bonus.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_item_rarity":
+            setProperty(query.filters, "map_filters.filters.map_iir.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.map_gold":
+            setProperty(query.filters, "map_filters.filters.map_gold.min", typeof input.min === "number" ? input.min : void 0);
+            break;
+          case "item.duplicates":
+            {
+              if (item.info.refName !== "Mageblood") {
+                throw new Error("Duplicates filter applied to non-mageblood");
+              }
+              const bmFilter = buildMageBloodNotFilter(stat2, stats.filter(s => s.statRef.startsWith("Legacy of")), query.stats[0]);
+              if (bmFilter) {
+                query.stats.push(bmFilter);
+              }
+            }
+            break;
+        }
       }
     }
-    stats = stats.filter((stat2) => !INTERNAL_TRADE_IDS.includes(stat2.tradeId[0]));
+    stats = stats.filter(stat2 => !INTERNAL_TRADE_IDS.includes(stat2.tradeId[0]));
     const qAnd = query.stats[0];
-    for (const stat2 of stats) {
-      if (stat2.statRef === "Only affects Passives in # Ring") {
-        const metaSource = stat2.roll;
-        const metamorphosisCount = metaSource.bounds.max;
-        const metamorphosisCurrent = metaSource.min;
-        const builtTradeFilter = Array.from(
-          { length: metamorphosisCount },
-          (_, index) => ({
+    {
+      const _a80 = stats;
+      if (Array.isArray(_a80)) for (let _i78 = 0; _i78 < _a80.length; _i78++) {
+        const stat2 = _a80[_i78];
+        if (stat2.statRef === "Only affects Passives in # Ring") {
+          const metaSource = stat2.roll;
+          const metamorphosisCount = metaSource.bounds.max;
+          const metamorphosisCurrent = metaSource.min;
+          const builtTradeFilter = Array.from({
+            length: metamorphosisCount
+          }, (_, index) => ({
             id: `${stat2.tradeId[0]}|${index + 1}`,
             disabled: index + 1 !== metamorphosisCurrent
-          })
-        );
-        query.stats.push({
-          type: "count",
-          value: { min: 1 },
-          disabled: stat2.disabled,
-          filters: builtTradeFilter
-        });
-        continue;
-      }
-      if (stat2.tradeId.length === 1) {
-        qAnd.filters.push(tradeIdToQuery(stat2.tradeId[0], stat2));
-      } else {
-        query.stats.push({
-          type: "count",
-          value: { min: 1 },
-          disabled: stat2.disabled,
-          filters: stat2.tradeId.map((id) => tradeIdToQuery(id, stat2))
-        });
+          }));
+          query.stats.push({
+            type: "count",
+            value: {
+              min: 1
+            },
+            disabled: stat2.disabled,
+            filters: builtTradeFilter
+          });
+          continue;
+        }
+        if (stat2.tradeId.length === 1) {
+          qAnd.filters.push(tradeIdToQuery(stat2.tradeId[0], stat2));
+        } else {
+          query.stats.push({
+            type: "count",
+            value: {
+              min: 1
+            },
+            disabled: stat2.disabled,
+            filters: stat2.tradeId.map(id => tradeIdToQuery(id, stat2))
+          });
+        }
+      } else for (const stat2 of _a80) {
+        if (stat2.statRef === "Only affects Passives in # Ring") {
+          const metaSource = stat2.roll;
+          const metamorphosisCount = metaSource.bounds.max;
+          const metamorphosisCurrent = metaSource.min;
+          const builtTradeFilter = Array.from({
+            length: metamorphosisCount
+          }, (_, index) => ({
+            id: `${stat2.tradeId[0]}|${index + 1}`,
+            disabled: index + 1 !== metamorphosisCurrent
+          }));
+          query.stats.push({
+            type: "count",
+            value: {
+              min: 1
+            },
+            disabled: stat2.disabled,
+            filters: builtTradeFilter
+          });
+          continue;
+        }
+        if (stat2.tradeId.length === 1) {
+          qAnd.filters.push(tradeIdToQuery(stat2.tradeId[0], stat2));
+        } else {
+          query.stats.push({
+            type: "count",
+            value: {
+              min: 1
+            },
+            disabled: stat2.disabled,
+            filters: stat2.tradeId.map(id => tradeIdToQuery(id, stat2))
+          });
+        }
       }
     }
     if (filters.veiled && !filters.veiled.disabled) {
       setProperty(query.filters, "misc_filters.filters.veiled.option", String(true));
       const veiledCount = filters.veiled.veiledCount;
-      qAnd.filters.push(
-        tradeIdToQuery("pseudo.pseudo_number_of_unrevealed_mods", {
-          tradeId: ["pseudo.pseudo_number_of_unrevealed_mods"],
-          statRef: "# Unrevealed Modifiers",
-          text: "Unrevealed Modifiers",
-          tag: "pseudo" /* Pseudo */,
-          sources: [],
-          roll: {
-            value: veiledCount,
+      qAnd.filters.push(tradeIdToQuery("pseudo.pseudo_number_of_unrevealed_mods", {
+        tradeId: ["pseudo.pseudo_number_of_unrevealed_mods"],
+        statRef: "# Unrevealed Modifiers",
+        text: "Unrevealed Modifiers",
+        tag: "pseudo" /* Pseudo */,
+        sources: [],
+        roll: {
+          value: veiledCount,
+          min: veiledCount,
+          max: void 0,
+          default: {
             min: veiledCount,
-            max: void 0,
-            default: { min: veiledCount, max: veiledCount },
-            dp: false,
-            isNegated: false
+            max: veiledCount
           },
-          disabled: false
-        })
-      );
+          dp: false,
+          isNegated: false
+        },
+        disabled: false
+      }));
     }
     return body;
   }
@@ -12762,22 +13706,22 @@ var EE2 = (() => {
     return __async(this, null, function* () {
       let data = cache.get([body, leagueId]);
       if (!data) {
-        preventQueueCreation([
-          { count: 1, limiters: RATE_LIMIT_RULES.SEARCH },
-          { count: 1, limiters: RATE_LIMIT_RULES.FETCH }
-        ]);
+        preventQueueCreation([{
+          count: 1,
+          limiters: RATE_LIMIT_RULES.SEARCH
+        }, {
+          count: 1,
+          limiters: RATE_LIMIT_RULES.FETCH
+        }]);
         yield RateLimiter.waitMulti(RATE_LIMIT_RULES.SEARCH);
-        const response = yield Host.proxy(
-          `${poeWebApi()}/api/trade2/search/${leagueId}`,
-          {
-            method: "POST",
-            headers: {
-              "Accept": "application/json",
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify(body)
-          }
-        );
+        const response = yield Host.proxy(`${poeWebApi()}/api/trade2/search/${leagueId}`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
         adjustRateLimits(RATE_LIMIT_RULES.SEARCH, response.headers);
         const _data = yield response.json();
         if (_data.error) {
@@ -12785,11 +13729,7 @@ var EE2 = (() => {
         } else {
           data = _data;
         }
-        cache.set(
-          [body, leagueId],
-          data,
-          Cache.deriveTtl(...RATE_LIMIT_RULES.SEARCH, ...RATE_LIMIT_RULES.FETCH)
-        );
+        cache.set([body, leagueId], data, Cache.deriveTtl.apply(Cache, _toConsumableArray(RATE_LIMIT_RULES.SEARCH).concat(_toConsumableArray(RATE_LIMIT_RULES.FETCH))));
       }
       return data;
     });
@@ -12797,28 +13737,24 @@ var EE2 = (() => {
   function requestResults(queryId, resultIds, opts) {
     return __async(this, null, function* () {
       var _a2;
-      const { cachedCurrencyByQuery, xchgRateCurrency: xchgRateCurrency2 } = usePoeninja();
+      const _usePoeninja = usePoeninja(),
+        cachedCurrencyByQuery = _usePoeninja.cachedCurrencyByQuery,
+        xchgRateCurrency2 = _usePoeninja.xchgRateCurrency;
       cache.purgeIfDifferentCurrency((_a2 = xchgRateCurrency2.value) == null ? void 0 : _a2.id);
       let data = cache.get(resultIds);
       if (!data) {
         yield RateLimiter.waitMulti(RATE_LIMIT_RULES.FETCH);
-        const response = yield Host.proxy(
-          `${poeWebApi()}/api/trade2/fetch/${resultIds.join(",")}?query=${queryId}`
-        );
+        const response = yield Host.proxy(`${poeWebApi()}/api/trade2/fetch/${resultIds.join(",")}?query=${queryId}`);
         adjustRateLimits(RATE_LIMIT_RULES.FETCH, response.headers);
         const _data = yield response.json();
         if (_data.error) {
           throw new Error(_data.error.message);
         } else {
-          data = _data.result.filter((res) => res != null);
+          data = _data.result.filter(res => res != null);
         }
-        cache.set(
-          resultIds,
-          data,
-          Cache.deriveTtl(...RATE_LIMIT_RULES.SEARCH, ...RATE_LIMIT_RULES.FETCH)
-        );
+        cache.set(resultIds, data, Cache.deriveTtl.apply(Cache, _toConsumableArray(RATE_LIMIT_RULES.SEARCH).concat(_toConsumableArray(RATE_LIMIT_RULES.FETCH))));
       }
-      return data.map((result) => {
+      return data.map(result => {
         var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u;
         let displayItem;
         try {
@@ -12835,23 +13771,18 @@ var EE2 = (() => {
             priceCurrencyRank = 3;
           }
         }
-        const query = getCurrencyDetailsId(
-          (_c = (_b = result.listing.price) == null ? void 0 : _b.currency) != null ? _c : "no price"
-        );
-        const normalizedCurrency = cachedCurrencyByQuery(
-          query,
-          (_e = (_d = result.listing.price) == null ? void 0 : _d.amount) != null ? _e : 0
-        );
+        const query = getCurrencyDetailsId((_c = (_b = result.listing.price) == null ? void 0 : _b.currency) != null ? _c : "no price");
+        const normalizedCurrency = cachedCurrencyByQuery(query, (_e = (_d = result.listing.price) == null ? void 0 : _d.amount) != null ? _e : 0);
         const normalizedPrice = normalizedCurrency !== void 0 ? displayRounding(normalizedCurrency.min) : void 0;
         const normalizedPriceCurrency = (normalizedCurrency == null ? void 0 : normalizedCurrency.currency) !== "div" ? xchgRateCurrency2.value : DivCurrency;
         return {
           id: result.id,
-          itemLevel: (_h = (_g = (_f = result.item.properties) == null ? void 0 : _f.find((prop) => prop.type === 78)) == null ? void 0 : _g.values[0][0]) != null ? _h : String(result.item.ilvl),
+          itemLevel: (_h = (_g = (_f = result.item.properties) == null ? void 0 : _f.find(prop => prop.type === 78)) == null ? void 0 : _g.values[0][0]) != null ? _h : String(result.item.ilvl),
           stackSize: result.item.stackSize,
           corrupted: result.item.corrupted,
-          quality: (_j = (_i = result.item.properties) == null ? void 0 : _i.find((prop) => prop.type === 6)) == null ? void 0 : _j.values[0][0],
-          level: (_l = (_k = result.item.properties) == null ? void 0 : _k.find((prop) => prop.type === 5)) == null ? void 0 : _l.values[0][0],
-          gemSockets: ((_m = result.item.gemSockets) == null ? void 0 : _m.length) ? (_n = result.item.gemSockets) == null ? void 0 : _n.length : (_p = (_o = result.item.socketedItems) == null ? void 0 : _o.filter((s) => s.gemSockets).map((s) => s.gemSockets).toSorted((a, b) => a.length - b.length)[0]) == null ? void 0 : _p.length,
+          quality: (_j = (_i = result.item.properties) == null ? void 0 : _i.find(prop => prop.type === 6)) == null ? void 0 : _j.values[0][0],
+          level: (_l = (_k = result.item.properties) == null ? void 0 : _k.find(prop => prop.type === 5)) == null ? void 0 : _l.values[0][0],
+          gemSockets: ((_m = result.item.gemSockets) == null ? void 0 : _m.length) ? (_n = result.item.gemSockets) == null ? void 0 : _n.length : (_p = (_o = result.item.socketedItems) == null ? void 0 : _o.filter(s => s.gemSockets).map(s => s.gemSockets).toSorted((a, b) => a.length - b.length)[0]) == null ? void 0 : _p.length,
           relativeDate: (_q = DateTime.fromISO(result.listing.indexed).toRelative({
             style: "short"
           })) != null ? _q : "",
@@ -12875,12 +13806,21 @@ var EE2 = (() => {
   }
   function getMinMax(roll) {
     if (!roll) {
-      return { min: void 0, max: void 0 };
+      return {
+        min: void 0,
+        max: void 0
+      };
     }
     const sign = roll.tradeInvert ? -1 : 1;
     const a = typeof roll.min === "number" ? roll.min * sign : void 0;
     const b = typeof roll.max === "number" ? roll.max * sign : void 0;
-    return !roll.tradeInvert ? { min: a, max: b } : { min: b, max: a };
+    return !roll.tradeInvert ? {
+      min: a,
+      max: b
+    } : {
+      min: b,
+      max: a
+    };
   }
   function tradeIdToQuery(id, stat2) {
     const roll = stat2.roll;
@@ -12933,13 +13873,22 @@ var EE2 = (() => {
         color: 2 /* Unmet */
       });
     } else if (result.item.corrupted) {
-      itemTags.push({ text: CLIENT_STRINGS.CORRUPTED, color: 2 /* Unmet */ });
+      itemTags.push({
+        text: CLIENT_STRINGS.CORRUPTED,
+        color: 2 /* Unmet */
+      });
     }
     if (result.item.duplicated) {
-      itemTags.push({ text: CLIENT_STRINGS.MIRRORED, color: 1 /* Augmented */ });
+      itemTags.push({
+        text: CLIENT_STRINGS.MIRRORED,
+        color: 1 /* Augmented */
+      });
     }
     if (result.item.sanctified) {
-      itemTags.push({ text: CLIENT_STRINGS.SANCTIFIED, color: 8732 /* Sanctified */ });
+      itemTags.push({
+        text: CLIENT_STRINGS.SANCTIFIED,
+        color: 8732 /* Sanctified */
+      });
     }
     const displayItem = __spreadProps(__spreadValues({
       title,
@@ -12949,7 +13898,7 @@ var EE2 = (() => {
       itemProps: buildItemProps(result.item.ilvl, result.item.requirements),
       grantSkill: buildGrantSkillBlock(result.item.grantedSkills)
     }, parseMods(result)), {
-      veiledMods: (_a2 = result.item.veiledMods) == null ? void 0 : _a2.map((vm) => {
+      veiledMods: (_a2 = result.item.veiledMods) == null ? void 0 : _a2.map(vm => {
         const text = typeof vm === "string" ? vm : vm.description;
         return {
           text: text.startsWith("Prefix") ? "Unrevealed Prefix" : "Unrevealed Suffix",
@@ -12971,60 +13920,15 @@ var EE2 = (() => {
     const modMetadata = (_a2 = result.item.extended) == null ? void 0 : _a2.mods;
     const modHashes = (_b = result.item.extended) == null ? void 0 : _b.hashes;
     return {
-      enchantMods: parseModBlock(
-        result.item.enchantMods,
-        8729 /* Enchant */,
-        modMetadata == null ? void 0 : modMetadata.enchant,
-        modHashes == null ? void 0 : modHashes.enchant
-      ),
-      runeMods: parseModBlock(
-        result.item.runeMods,
-        8729 /* Enchant */,
-        modMetadata == null ? void 0 : modMetadata.rune,
-        modHashes == null ? void 0 : modHashes.rune
-      ),
-      implicitMods: parseModBlock(
-        result.item.implicitMods,
-        void 0,
-        modMetadata == null ? void 0 : modMetadata.implicit,
-        modHashes == null ? void 0 : modHashes.implicit
-      ),
-      fracturedMods: parseModBlock(
-        result.item.fracturedMods,
-        8730 /* Fractured */,
-        modMetadata == null ? void 0 : modMetadata.fractured,
-        modHashes == null ? void 0 : modHashes.fractured
-      ),
-      explicitMods: parseModBlock(
-        result.item.explicitMods,
-        void 0,
-        modMetadata == null ? void 0 : modMetadata.explicit,
-        modHashes == null ? void 0 : modHashes.explicit
-      ),
-      craftedMods: parseModBlock(
-        result.item.craftedMods,
-        void 0,
-        modMetadata == null ? void 0 : modMetadata.crafted,
-        modHashes == null ? void 0 : modHashes.crafted
-      ),
-      desecratedMods: parseModBlock(
-        result.item.desecratedMods,
-        8731 /* Desecrated */,
-        modMetadata == null ? void 0 : modMetadata.desecrated,
-        modHashes == null ? void 0 : modHashes.desecrated
-      ),
-      mutatedMods: parseModBlock(
-        result.item.mutatedMods,
-        8733 /* Mutated */,
-        modMetadata == null ? void 0 : modMetadata.mutated,
-        modHashes == null ? void 0 : modHashes.mutated
-      ),
-      pseudoMods: parseModBlock(
-        result.item.pseudoMods,
-        void 0,
-        modMetadata == null ? void 0 : modMetadata.pseudo,
-        modHashes == null ? void 0 : modHashes.pseudo
-      )
+      enchantMods: parseModBlock(result.item.enchantMods, 8729 /* Enchant */, modMetadata == null ? void 0 : modMetadata.enchant, modHashes == null ? void 0 : modHashes.enchant),
+      runeMods: parseModBlock(result.item.runeMods, 8729 /* Enchant */, modMetadata == null ? void 0 : modMetadata.rune, modHashes == null ? void 0 : modHashes.rune),
+      implicitMods: parseModBlock(result.item.implicitMods, void 0, modMetadata == null ? void 0 : modMetadata.implicit, modHashes == null ? void 0 : modHashes.implicit),
+      fracturedMods: parseModBlock(result.item.fracturedMods, 8730 /* Fractured */, modMetadata == null ? void 0 : modMetadata.fractured, modHashes == null ? void 0 : modHashes.fractured),
+      explicitMods: parseModBlock(result.item.explicitMods, void 0, modMetadata == null ? void 0 : modMetadata.explicit, modHashes == null ? void 0 : modHashes.explicit),
+      craftedMods: parseModBlock(result.item.craftedMods, void 0, modMetadata == null ? void 0 : modMetadata.crafted, modHashes == null ? void 0 : modHashes.crafted),
+      desecratedMods: parseModBlock(result.item.desecratedMods, 8731 /* Desecrated */, modMetadata == null ? void 0 : modMetadata.desecrated, modHashes == null ? void 0 : modHashes.desecrated),
+      mutatedMods: parseModBlock(result.item.mutatedMods, 8733 /* Mutated */, modMetadata == null ? void 0 : modMetadata.mutated, modHashes == null ? void 0 : modHashes.mutated),
+      pseudoMods: parseModBlock(result.item.pseudoMods, void 0, modMetadata == null ? void 0 : modMetadata.pseudo, modHashes == null ? void 0 : modHashes.pseudo)
     };
   }
   function parseModBlock(translated, color = 1 /* Augmented */, mods, hashes) {
@@ -13033,10 +13937,14 @@ var EE2 = (() => {
     if (typeof translated[0] === "string") {
       return translated.map((s, index) => {
         const tier = getTier(index, mods, hashes);
-        return { text: parseAffixStrings(s), color, tier };
+        return {
+          text: parseAffixStrings(s),
+          color,
+          tier
+        };
       });
     }
-    return translated.map((s) => {
+    return translated.map(s => {
       return {
         text: parseAffixStrings(s.description),
         color,
@@ -13050,122 +13958,229 @@ var EE2 = (() => {
     if (!hashEntry) return;
     const modIndexes = hashEntry[1];
     if (!modIndexes) return;
-    return modIndexes.map((modIndex) => {
+    return modIndexes.map(modIndex => {
       var _a2;
       return (_a2 = mods[modIndex]) == null ? void 0 : _a2.tier;
-    }).filter((tier) => tier != null).join(" + ");
+    }).filter(tier => tier != null).join(" + ");
   }
   function getTierV2(mods) {
     if (!(mods == null ? void 0 : mods.length)) return;
-    return mods.map((mod) => mod.tier).join(" + ");
+    return mods.map(mod => mod.tier).join(" + ");
   }
   function buildNameBlock(extended, props) {
     const block = [];
     if (!props || !extended) return block;
     if (props) {
       let hasDamage = false;
-      for (const prop of props) {
-        const { name, values, type } = prop;
-        let text;
-        switch (type) {
-          case 9 /* WeaponPhysicalDamage */:
-            block.push({
-              text: "item.physical_dps",
-              value: extended.pdps,
-              color: useColor(extended.pdps_aug)
-            });
-            hasDamage = true;
-            continue;
-          case 10 /* WeaponElementalDamage */:
-            block.push({
-              text: "item.elemental_dps",
-              value: extended.edps,
-              color: useColor(extended.edps_aug)
-            });
-            hasDamage = true;
-            continue;
-          case 16 /* ArmourReduction */:
-            block.push({
-              text: "item.armour",
-              value: extended.ar,
-              color: useColor(extended.ar_aug) || values[0][1]
-            });
-            continue;
-          case 17 /* ArmourEvasion */:
-            block.push({
-              text: "item.evasion_rating",
-              value: extended.ev,
-              color: useColor(extended.ev_aug) || values[0][1]
-            });
-            continue;
-          case 18 /* ArmourEnergyShield */:
-            block.push({
-              text: "item.energy_shield",
-              value: extended.es,
-              color: useColor(extended.es_aug) || values[0][1]
-            });
-            continue;
-          case 54 /* ArmourWard */:
-            block.push({
-              text: "item.runic_ward",
-              value: extended.ward,
-              color: useColor(extended.ward_aug) || values[0][1]
-            });
-            continue;
-          case 6 /* Quality */:
-            text = `${parseAffixStrings(name)}: {0}`;
-            break;
-          case 13 /* WeaponSpeed */:
-            text = "item.aps";
-            break;
-          case 12 /* WeaponCriticalChance */:
-            text = "item.crit";
-            break;
-          case 97 /* WeaponReloadTime */:
-            text = "item.reload_time";
-            break;
-          case 15 /* ShieldBlock */:
-            text = "item.block";
-            break;
-          case 25 /* Spirit */:
-            text = "item.spirit";
-            break;
-          case 1 /* MapTier */:
-            text = "item.map_tier";
-            break;
-          case 98 /* MapPortals */:
-            text = "item.map_revives";
-            break;
-          case 4 /* MapPackSizeBonus */:
-            text = "item.map_pack_size";
-            break;
-          case 102 /* MapMagicMonstersQuantityBonus */:
-            text = "item.map_magic_monsters";
-            break;
-          case 103 /* MapRareMonstersQuantityBonus */:
-            text = "item.map_rare_monsters";
-            break;
-          case 66 /* MapMapItemDropChanceBonus */:
-            text = "item.map_drop_chance";
-            break;
-          case 3 /* MapRarityBonus */:
-            text = "item.map_item_rarity";
-            break;
-          case 100 /* MapGoldQuantityBonus */:
-            text = "item.map_gold";
-            break;
-          case 2 /* MapQuantityBonus */:
-            break;
+      {
+        const _a81 = props;
+        if (Array.isArray(_a81)) for (let _i79 = 0; _i79 < _a81.length; _i79++) {
+          const prop = _a81[_i79];
+          const name = prop.name,
+            values = prop.values,
+            type = prop.type;
+          let text;
+          switch (type) {
+            case 9 /* WeaponPhysicalDamage */:
+              block.push({
+                text: "item.physical_dps",
+                value: extended.pdps,
+                color: useColor(extended.pdps_aug)
+              });
+              hasDamage = true;
+              continue;
+            case 10 /* WeaponElementalDamage */:
+              block.push({
+                text: "item.elemental_dps",
+                value: extended.edps,
+                color: useColor(extended.edps_aug)
+              });
+              hasDamage = true;
+              continue;
+            case 16 /* ArmourReduction */:
+              block.push({
+                text: "item.armour",
+                value: extended.ar,
+                color: useColor(extended.ar_aug) || values[0][1]
+              });
+              continue;
+            case 17 /* ArmourEvasion */:
+              block.push({
+                text: "item.evasion_rating",
+                value: extended.ev,
+                color: useColor(extended.ev_aug) || values[0][1]
+              });
+              continue;
+            case 18 /* ArmourEnergyShield */:
+              block.push({
+                text: "item.energy_shield",
+                value: extended.es,
+                color: useColor(extended.es_aug) || values[0][1]
+              });
+              continue;
+            case 54 /* ArmourWard */:
+              block.push({
+                text: "item.runic_ward",
+                value: extended.ward,
+                color: useColor(extended.ward_aug) || values[0][1]
+              });
+              continue;
+            case 6 /* Quality */:
+              text = `${parseAffixStrings(name)}: {0}`;
+              break;
+            case 13 /* WeaponSpeed */:
+              text = "item.aps";
+              break;
+            case 12 /* WeaponCriticalChance */:
+              text = "item.crit";
+              break;
+            case 97 /* WeaponReloadTime */:
+              text = "item.reload_time";
+              break;
+            case 15 /* ShieldBlock */:
+              text = "item.block";
+              break;
+            case 25 /* Spirit */:
+              text = "item.spirit";
+              break;
+            case 1 /* MapTier */:
+              text = "item.map_tier";
+              break;
+            case 98 /* MapPortals */:
+              text = "item.map_revives";
+              break;
+            case 4 /* MapPackSizeBonus */:
+              text = "item.map_pack_size";
+              break;
+            case 102 /* MapMagicMonstersQuantityBonus */:
+              text = "item.map_magic_monsters";
+              break;
+            case 103 /* MapRareMonstersQuantityBonus */:
+              text = "item.map_rare_monsters";
+              break;
+            case 66 /* MapMapItemDropChanceBonus */:
+              text = "item.map_drop_chance";
+              break;
+            case 3 /* MapRarityBonus */:
+              text = "item.map_item_rarity";
+              break;
+            case 100 /* MapGoldQuantityBonus */:
+              text = "item.map_gold";
+              break;
+            case 2 /* MapQuantityBonus */:
+              break;
+          }
+          block.push({
+            text: text != null ? text : `${parseAffixStrings(name)} `,
+            // if we have a value, there should only be one probably...
+            value: values.length ? values[0][0] : "",
+            color: values.length ? values[0][1] : 0 /* White */
+          });
+        } else for (const prop of _a81) {
+          const name = prop.name,
+            values = prop.values,
+            type = prop.type;
+          let text;
+          switch (type) {
+            case 9 /* WeaponPhysicalDamage */:
+              block.push({
+                text: "item.physical_dps",
+                value: extended.pdps,
+                color: useColor(extended.pdps_aug)
+              });
+              hasDamage = true;
+              continue;
+            case 10 /* WeaponElementalDamage */:
+              block.push({
+                text: "item.elemental_dps",
+                value: extended.edps,
+                color: useColor(extended.edps_aug)
+              });
+              hasDamage = true;
+              continue;
+            case 16 /* ArmourReduction */:
+              block.push({
+                text: "item.armour",
+                value: extended.ar,
+                color: useColor(extended.ar_aug) || values[0][1]
+              });
+              continue;
+            case 17 /* ArmourEvasion */:
+              block.push({
+                text: "item.evasion_rating",
+                value: extended.ev,
+                color: useColor(extended.ev_aug) || values[0][1]
+              });
+              continue;
+            case 18 /* ArmourEnergyShield */:
+              block.push({
+                text: "item.energy_shield",
+                value: extended.es,
+                color: useColor(extended.es_aug) || values[0][1]
+              });
+              continue;
+            case 54 /* ArmourWard */:
+              block.push({
+                text: "item.runic_ward",
+                value: extended.ward,
+                color: useColor(extended.ward_aug) || values[0][1]
+              });
+              continue;
+            case 6 /* Quality */:
+              text = `${parseAffixStrings(name)}: {0}`;
+              break;
+            case 13 /* WeaponSpeed */:
+              text = "item.aps";
+              break;
+            case 12 /* WeaponCriticalChance */:
+              text = "item.crit";
+              break;
+            case 97 /* WeaponReloadTime */:
+              text = "item.reload_time";
+              break;
+            case 15 /* ShieldBlock */:
+              text = "item.block";
+              break;
+            case 25 /* Spirit */:
+              text = "item.spirit";
+              break;
+            case 1 /* MapTier */:
+              text = "item.map_tier";
+              break;
+            case 98 /* MapPortals */:
+              text = "item.map_revives";
+              break;
+            case 4 /* MapPackSizeBonus */:
+              text = "item.map_pack_size";
+              break;
+            case 102 /* MapMagicMonstersQuantityBonus */:
+              text = "item.map_magic_monsters";
+              break;
+            case 103 /* MapRareMonstersQuantityBonus */:
+              text = "item.map_rare_monsters";
+              break;
+            case 66 /* MapMapItemDropChanceBonus */:
+              text = "item.map_drop_chance";
+              break;
+            case 3 /* MapRarityBonus */:
+              text = "item.map_item_rarity";
+              break;
+            case 100 /* MapGoldQuantityBonus */:
+              text = "item.map_gold";
+              break;
+            case 2 /* MapQuantityBonus */:
+              break;
+          }
+          block.push({
+            text: text != null ? text : `${parseAffixStrings(name)} `,
+            // if we have a value, there should only be one probably...
+            value: values.length ? values[0][0] : "",
+            color: values.length ? values[0][1] : 0 /* White */
+          });
         }
-        block.push({
-          text: text != null ? text : `${parseAffixStrings(name)} `,
-          // if we have a value, there should only be one probably...
-          value: values.length ? values[0][0] : "",
-          color: values.length ? values[0][1] : 0 /* White */
-        });
       }
       if (hasDamage) {
-        const dpsIndex = block.findIndex((line) => line.text.includes("dps"));
+        const dpsIndex = block.findIndex(line => line.text.includes("dps"));
         block.splice(dpsIndex, 0, {
           text: "item.total_dps",
           value: extended.dps,
@@ -13191,9 +14206,7 @@ var EE2 = (() => {
     if (requirements && requirements.length) {
       let value = requirements[0].values[0][0];
       if (requirements.length > 1) {
-        value = parseAffixStrings(
-          `${value}, ${requirements.slice(1).map((r) => `${r.values[0][0]} ${r.name}`).join(", ")}`
-        );
+        value = parseAffixStrings(`${value}, ${requirements.slice(1).map(r => `${r.values[0][0]} ${r.name}`).join(", ")}`);
       }
       block.push({
         // no colon for req
@@ -13207,20 +14220,49 @@ var EE2 = (() => {
   function buildGrantSkillBlock(skills) {
     if (!skills || skills.length === 0) return [];
     const block = [];
-    for (const skill of skills) {
-      block.push({
-        text: `${parseAffixStrings(skill.name)}: `,
-        value: parseAffixStrings(skill.values[0][0]),
-        color: skill.values[0][1]
-      });
+    {
+      const _a82 = skills;
+      if (Array.isArray(_a82)) for (let _i80 = 0; _i80 < _a82.length; _i80++) {
+        const skill = _a82[_i80];
+        block.push({
+          text: `${parseAffixStrings(skill.name)}: `,
+          value: parseAffixStrings(skill.values[0][0]),
+          color: skill.values[0][1]
+        });
+      } else for (const skill of _a82) {
+        block.push({
+          text: `${parseAffixStrings(skill.name)}: `,
+          value: parseAffixStrings(skill.values[0][0]),
+          color: skill.values[0][1]
+        });
+      }
     }
     return block;
   }
-  var EASY_LEGACY_DUPLICATE_TO_FILTER = /* @__PURE__ */ new Map([
-    [3, { count: 1, values: [{ min: 4 }] }],
-    [2, { count: 4, values: [{ min: 1 }, { min: 2 }, { min: 3 }] }],
-    [1, { count: 7, values: [{ min: 1 }, { min: 2 }, { max: 2 }] }]
-  ]);
+  var EASY_LEGACY_DUPLICATE_TO_FILTER = /* @__PURE__ */new Map([[3, {
+    count: 1,
+    values: [{
+      min: 4
+    }]
+  }], [2, {
+    count: 4,
+    values: [{
+      min: 1
+    }, {
+      min: 2
+    }, {
+      min: 3
+    }]
+  }], [1, {
+    count: 7,
+    values: [{
+      min: 1
+    }, {
+      min: 2
+    }, {
+      max: 2
+    }]
+  }]]);
   function buildFilterWithValue(inFilter, inRoll) {
     if (!inRoll) {
       return tradeIdToQuery(inFilter.tradeId[0], inFilter);
@@ -13229,98 +14271,95 @@ var EE2 = (() => {
       roll: __spreadProps(__spreadValues({}, inRoll), {
         dp: false,
         isNegated: false,
-        default: { min: inRoll.value, max: inRoll.value }
+        default: {
+          min: inRoll.value,
+          max: inRoll.value
+        }
       })
     });
     return tradeIdToQuery(newFilter.tradeId[0], newFilter);
   }
   function buildMageBloodNotFilter(duplicateStat, legacyOfStats, qAnd) {
+    var _qAnd$filters6;
     var _a2;
     const countFilter = {
       type: "count",
       filters: []
     };
-    const knownCount = legacyOfStats.filter((s) => !s.disabled).length;
+    const knownCount = legacyOfStats.filter(s => !s.disabled).length;
     const dupCount = (_a2 = duplicateStat.roll.min) != null ? _a2 : duplicateStat.roll.value;
     if (dupCount + knownCount > 4) {
-      throw new Error(
-        "not valid Mageblood, reduce duplicates or unselect a Legacy"
-      );
+      throw new Error("not valid Mageblood, reduce duplicates or unselect a Legacy");
     }
     if (duplicateStat.disabled) {
-      qAnd.filters.push(
-        ...legacyOfStats.map((s) => buildFilterWithValue(s, void 0))
-      );
+      var _qAnd$filters;
+      (_qAnd$filters = qAnd.filters).push.apply(_qAnd$filters, _toConsumableArray(legacyOfStats.map(s => buildFilterWithValue(s, void 0))));
       return;
     }
     if (dupCount === 0) {
-      qAnd.filters.push(
-        ...legacyOfStats.map((s) => buildFilterWithValue(s, void 0))
-      );
+      var _qAnd$filters2;
+      (_qAnd$filters2 = qAnd.filters).push.apply(_qAnd$filters2, _toConsumableArray(legacyOfStats.map(s => buildFilterWithValue(s, void 0))));
       return;
     }
     if (knownCount + dupCount === 4) {
       if (dupCount === 3) {
-        qAnd.filters.push(
-          ...legacyOfStats.map(
-            (s) => buildFilterWithValue(s, { value: 4, min: 4, max: void 0 })
-          )
-        );
+        var _qAnd$filters3;
+        (_qAnd$filters3 = qAnd.filters).push.apply(_qAnd$filters3, _toConsumableArray(legacyOfStats.map(s => buildFilterWithValue(s, {
+          value: 4,
+          min: 4,
+          max: void 0
+        }))));
         return;
       }
       if (dupCount === 0) {
-        qAnd.filters.push(
-          ...legacyOfStats.map(
-            (s) => buildFilterWithValue(s, { value: 1, min: 1, max: void 0 })
-          )
-        );
+        var _qAnd$filters4;
+        (_qAnd$filters4 = qAnd.filters).push.apply(_qAnd$filters4, _toConsumableArray(legacyOfStats.map(s => buildFilterWithValue(s, {
+          value: 1,
+          min: 1,
+          max: void 0
+        }))));
         return;
       }
       if (dupCount === 2 || dupCount === 1) {
-        qAnd.filters.push(
-          ...legacyOfStats.map((s) => buildFilterWithValue(s, void 0))
-        );
+        var _qAnd$filters5, _countFilter$filters;
+        (_qAnd$filters5 = qAnd.filters).push.apply(_qAnd$filters5, _toConsumableArray(legacyOfStats.map(s => buildFilterWithValue(s, void 0))));
         const dupFilter = EASY_LEGACY_DUPLICATE_TO_FILTER.get(dupCount);
         countFilter.value = {
           min: dupFilter.count
         };
-        countFilter.filters.push(
-          ...legacyOfStats.map((s) => buildFilterWithValue(s, void 0)).flatMap((legFilter) => {
-            return dupFilter.values.map((v) => __spreadProps(__spreadValues({}, legFilter), {
-              value: __spreadValues({}, v)
-            }));
-          })
-        );
+        (_countFilter$filters = countFilter.filters).push.apply(_countFilter$filters, _toConsumableArray(legacyOfStats.map(s => buildFilterWithValue(s, void 0)).flatMap(legFilter => {
+          return dupFilter.values.map(v => __spreadProps(__spreadValues({}, legFilter), {
+            value: __spreadValues({}, v)
+          }));
+        })));
         return countFilter;
       }
     }
-    qAnd.filters.push(
-      ...legacyOfStats.map((s) => buildFilterWithValue(s, void 0))
-    );
+    (_qAnd$filters6 = qAnd.filters).push.apply(_qAnd$filters6, _toConsumableArray(legacyOfStats.map(s => buildFilterWithValue(s, void 0))));
     const someLegacy = legacyOfStats[0];
     const tradeId = someLegacy.tradeId[0].split("|")[0];
-    const legacyTradeIds = someLegacy.sources[0].stat.stat.matchers.map(
-      (m) => `${tradeId}|${m.value}`
-    );
+    const legacyTradeIds = someLegacy.sources[0].stat.stat.matchers.map(m => `${tradeId}|${m.value}`);
     countFilter.value = {
       min: 1
     };
     if (dupCount === 1) {
-      countFilter.filters.push(
-        ...legacyTradeIds.map((id) => ({
-          id,
-          value: { min: 2 }
-        }))
-      );
+      var _countFilter$filters2;
+      (_countFilter$filters2 = countFilter.filters).push.apply(_countFilter$filters2, _toConsumableArray(legacyTradeIds.map(id => ({
+        id,
+        value: {
+          min: 2
+        }
+      }))));
       return countFilter;
     }
     if (dupCount === 2) {
-      countFilter.filters.push(
-        ...legacyTradeIds.map((id) => ({
-          id,
-          value: { min: 1 }
-        }))
-      );
+      var _countFilter$filters3;
+      (_countFilter$filters3 = countFilter.filters).push.apply(_countFilter$filters3, _toConsumableArray(legacyTradeIds.map(id => ({
+        id,
+        value: {
+          min: 1
+        }
+      }))));
     }
     return countFilter;
   }
@@ -13341,30 +14380,34 @@ var EE2 = (() => {
     return maxUsefulItemLevel2;
   }
   function likelyFinishedItem(item) {
-    return item.rarity === "Unique" /* Unique */ || item.statsByType.some((calc) => calc.type === "crafted" /* Crafted */) || item.quality === 20 && !item.qualityType || // quality > 20 can be used for selling bases, quality < 20 drops sometimes
+    return item.rarity === "Unique" /* Unique */ || item.statsByType.some(calc => calc.type === "crafted" /* Crafted */) || item.quality === 20 && !item.qualityType ||
+    // quality > 20 can be used for selling bases, quality < 20 drops sometimes
     !itemIsModifiable(item);
   }
   function hasCraftingValue(item) {
-    return itemIsModifiable(item) && // Base useful crafting item (synth and influence not in poe2 yet though)
-    (item.isSynthesised || item.isFractured || item.influences.length || // Clusters (deprecated)
-    item.category === "Cluster Jewel" /* ClusterJewel */ || // Jewels
-    item.category === "Jewel" /* Jewel */ && item.rarity === "Magic" /* Magic */ || // High ilvl (minus 15, seems like low ilevel ones still kinda sell?)
-    item.itemLevel >= maxUsefulItemLevel(item.category) - 15 || // is exceptional item
+    return itemIsModifiable(item) && (
+    // Base useful crafting item (synth and influence not in poe2 yet though)
+    item.isSynthesised || item.isFractured || item.influences.length ||
+    // Clusters (deprecated)
+    item.category === "Cluster Jewel" /* ClusterJewel */ ||
+    // Jewels
+    item.category === "Jewel" /* Jewel */ && item.rarity === "Magic" /* Magic */ ||
+    // High ilvl (minus 15, seems like low ilevel ones still kinda sell?)
+    item.itemLevel >= maxUsefulItemLevel(item.category) - 15 ||
+    // is exceptional item
     item.augmentSockets && item.augmentSockets.current > item.augmentSockets.normal || item.quality && item.quality > 20);
   }
   function explicitModifierCount(item) {
-    const randomMods = item.newMods.filter(
-      (mod) => EXPLICIT_MOD_TYPES.has(mod.info.type)
-    );
+    const randomMods = item.newMods.filter(mod => EXPLICIT_MOD_TYPES.has(mod.info.type));
     if (randomMods.length === 0) {
-      return { prefixes: 0, suffixes: 0, total: 0 };
+      return {
+        prefixes: 0,
+        suffixes: 0,
+        total: 0
+      };
     }
-    const prefixes = randomMods.filter(
-      (mod) => mod.info.generation === "prefix"
-    ).length;
-    const suffixes = randomMods.filter(
-      (mod) => mod.info.generation === "suffix"
-    ).length;
+    const prefixes = randomMods.filter(mod => mod.info.generation === "prefix").length;
+    const suffixes = randomMods.filter(mod => mod.info.generation === "suffix").length;
     return {
       prefixes,
       suffixes,
@@ -13373,18 +14416,8 @@ var EE2 = (() => {
   }
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/price-check/filters/create-item-filters.ts
-  var SPECIAL_SUPPORT_GEM = [
-    "Empower Support",
-    "Enlighten Support",
-    "Enhance Support"
-  ];
-  var CATEGORIES_WITH_USEFUL_QUALITY = /* @__PURE__ */ new Set([
-    "Flask" /* Flask */,
-    "Charm" /* Charm */,
-    "Tincture" /* Tincture */,
-    ...WEAPON,
-    ...ARMOUR
-  ]);
+  var SPECIAL_SUPPORT_GEM = ["Empower Support", "Enlighten Support", "Enhance Support"];
+  var CATEGORIES_WITH_USEFUL_QUALITY = /* @__PURE__ */new Set(["Flask" /* Flask */, "Charm" /* Charm */, "Tincture" /* Tincture */].concat(_toConsumableArray(WEAPON), _toConsumableArray(ARMOUR)));
   function createFilters(item, opts) {
     var _a2, _b, _c, _d, _e;
     performance.mark("create-item-filters-start");
@@ -13484,7 +14517,9 @@ var EE2 = (() => {
         };
       }
       if (item.mapBlighted) {
-        filters.mapBlighted = { value: item.mapBlighted };
+        filters.mapBlighted = {
+          value: item.mapBlighted
+        };
       }
       filters.mapTier = {
         value: item.mapTier,
@@ -13558,9 +14593,8 @@ var EE2 = (() => {
           disabled: item.quality <= 20
         };
       } else if (
-        // Require Exceptional quality for non-flasks (most will be 20 anyways so can be ignored)
-        item.quality > 20 && item.category && CATEGORIES_WITH_USEFUL_QUALITY.has(item.category)
-      ) {
+      // Require Exceptional quality for non-flasks (most will be 20 anyways so can be ignored)
+      item.quality > 20 && item.category && CATEGORIES_WITH_USEFUL_QUALITY.has(item.category)) {
         filters.quality = {
           value: item.quality,
           // Not by default if rare, since most of craft is likely already done (and don't care about it on finished items)
@@ -13610,9 +14644,11 @@ var EE2 = (() => {
         };
       }
     }
-    const forAdornedJewel = item.rarity === "Magic" /* Magic */ && // item.isCorrupted && -- let the buyer corrupt
-    (item.category === "Jewel" /* Jewel */ || item.category === "Abyss Jewel" /* AbyssJewel */);
-    if (!item.isUnmodifiable && // Ignore waystones now(prev tablets) since if  there is one that is corrupted with right mods buyer wont care
+    const forAdornedJewel = item.rarity === "Magic" /* Magic */ && (
+    // item.isCorrupted && -- let the buyer corrupt
+    item.category === "Jewel" /* Jewel */ || item.category === "Abyss Jewel" /* AbyssJewel */);
+    if (!item.isUnmodifiable &&
+    // Ignore waystones now(prev tablets) since if  there is one that is corrupted with right mods buyer wont care
     item.category !== "Map" /* Map */ && (item.rarity === "Normal" /* Normal */ || item.rarity === "Magic" /* Magic */ || item.rarity === "Rare" /* Rare */ || item.rarity === "Unique" /* Unique */)) {
       filters.corrupted = {
         value: item.isCorrupted,
@@ -13627,7 +14663,8 @@ var EE2 = (() => {
       filters.rarity = {
         value: "normal"
       };
-    } else if (item.rarity === "Magic" /* Magic */ && opts.exact && // Ignore tablet since they should be compared to rare ones
+    } else if (item.rarity === "Magic" /* Magic */ && opts.exact &&
+    // Ignore tablet since they should be compared to rare ones
     item.category !== "TowerAugment" /* Tablet */) {
       filters.rarity = {
         value: "magic"
@@ -13638,19 +14675,27 @@ var EE2 = (() => {
       };
     }
     if (item.isMirrored) {
-      filters.mirrored = { disabled: false };
+      filters.mirrored = {
+        disabled: false
+      };
     }
     if (item.isSanctified) {
-      filters.sanctified = { disabled: false };
+      filters.sanctified = {
+        disabled: false
+      };
     }
     if (!item.isFractured && opts.exact) {
-      filters.fractured = { value: false };
+      filters.fractured = {
+        value: false
+      };
     }
     if (item.isFoil) {
-      filters.foil = { disabled: true };
+      filters.foil = {
+        disabled: true
+      };
     }
     if (item.influences.length && item.influences.length <= 2) {
-      filters.influences = item.influences.map((influence) => ({
+      filters.influences = item.influences.map(influence => ({
         value: influence,
         disabled: !opts.exact
       }));
@@ -13677,13 +14722,7 @@ var EE2 = (() => {
             disabled: false
           };
         }
-        if (item.itemLevel >= 75 && [
-          "Agnerod",
-          "Agnerod East",
-          "Agnerod North",
-          "Agnerod South",
-          "Agnerod West"
-        ].includes(item.info.refName)) {
+        if (item.itemLevel >= 75 && ["Agnerod", "Agnerod East", "Agnerod North", "Agnerod South", "Agnerod West"].includes(item.info.refName)) {
           const normalizedLvl = item.itemLevel >= 82 ? 82 : item.itemLevel >= 80 ? 80 : item.itemLevel >= 78 ? 78 : 75;
           filters.itemLevel = {
             value: normalizedLvl,
@@ -13707,10 +14746,8 @@ var EE2 = (() => {
     }
     if (item.isVeiled) {
       filters.veiled = {
-        statRefs: item.statsByType.filter((calc) => calc.type === "veiled" /* Veiled */).map((calc) => calc.stat.ref),
-        veiledCount: item.newMods.filter(
-          (m) => m.info.type === "veiled" /* Veiled */
-        ).length,
+        statRefs: item.statsByType.filter(calc => calc.type === "veiled" /* Veiled */).map(calc => calc.stat.ref),
+        veiledCount: item.newMods.filter(m => m.info.type === "veiled" /* Veiled */).length,
         disabled: item.rarity !== "Unique" /* Unique */
       };
       if (item.rarity !== "Unique" /* Unique */) {
@@ -13875,22 +14912,42 @@ var EE2 = (() => {
   }
   function floorToBracket(value, brackets) {
     let prev = brackets[0];
-    for (const num of brackets) {
-      if (num > value) {
-        return prev;
-      } else {
-        prev = num;
+    {
+      const _a83 = brackets;
+      if (Array.isArray(_a83)) for (let _i81 = 0; _i81 < _a83.length; _i81++) {
+        const num = _a83[_i81];
+        if (num > value) {
+          return prev;
+        } else {
+          prev = num;
+        }
+      } else for (const num of _a83) {
+        if (num > value) {
+          return prev;
+        } else {
+          prev = num;
+        }
       }
     }
     return prev;
   }
   function ceilToBracket(value, brackets) {
     let prev = brackets[0];
-    for (const num of brackets) {
-      if (num < value) {
-        return prev;
-      } else {
-        prev = num;
+    {
+      const _a84 = brackets;
+      if (Array.isArray(_a84)) for (let _i82 = 0; _i82 < _a84.length; _i82++) {
+        const num = _a84[_i82];
+        if (num < value) {
+          return prev;
+        } else {
+          prev = num;
+        }
+      } else for (const num of _a84) {
+        if (num < value) {
+          return prev;
+        } else {
+          prev = num;
+        }
       }
     }
     return prev;
@@ -13943,189 +15000,111 @@ var EE2 = (() => {
   }
   function filterBasePercentile(ctx) {
     if (ctx.item.basePercentile != null) {
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Base Percentile: #%",
-            tradeId: "item.base_percentile",
-            roll: { min: 0, max: 100, value: ctx.item.basePercentile },
-            sources: [],
-            disabled: ctx.item.basePercentile < 50
-          },
-          ctx
-        )
-      );
+      ctx.filters.push(propToFilter({
+        ref: "Base Percentile: #%",
+        tradeId: "item.base_percentile",
+        roll: {
+          min: 0,
+          max: 100,
+          value: ctx.item.basePercentile
+        },
+        sources: [],
+        disabled: ctx.item.basePercentile < 50
+      }, ctx));
     }
   }
-  var ARMOUR_STATS = /* @__PURE__ */ new Set([
-    ...QUALITY_STATS.ARMOUR.flat,
-    ...QUALITY_STATS.EVASION.flat,
-    ...QUALITY_STATS.ENERGY_SHIELD.flat,
-    ...QUALITY_STATS.WARD.flat,
-    ...QUALITY_STATS.ARMOUR.incr,
-    ...QUALITY_STATS.EVASION.incr,
-    ...QUALITY_STATS.ENERGY_SHIELD.incr,
-    ...QUALITY_STATS.WARD.incr,
-    stat("#% increased Block chance")
-  ]);
+  var ARMOUR_STATS = /* @__PURE__ */new Set([].concat(_toConsumableArray(QUALITY_STATS.ARMOUR.flat), _toConsumableArray(QUALITY_STATS.EVASION.flat), _toConsumableArray(QUALITY_STATS.ENERGY_SHIELD.flat), _toConsumableArray(QUALITY_STATS.WARD.flat), _toConsumableArray(QUALITY_STATS.ARMOUR.incr), _toConsumableArray(QUALITY_STATS.EVASION.incr), _toConsumableArray(QUALITY_STATS.ENERGY_SHIELD.incr), _toConsumableArray(QUALITY_STATS.WARD.incr), [stat("#% increased Block chance")]));
   function armourProps(ctx) {
-    const { item } = ctx;
+    const item = ctx.item;
     if (item.armourAR) {
       const totalQ20 = propAt20Quality(item.armourAR, QUALITY_STATS.ARMOUR, item);
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Armour: #",
-            tradeId: "item.armour",
-            roll: totalQ20.roll,
-            sources: totalQ20.sources,
-            disabled: !isSingleAttrArmour(item)
-          },
-          ctx
-        )
-      );
+      ctx.filters.push(propToFilter({
+        ref: "Armour: #",
+        tradeId: "item.armour",
+        roll: totalQ20.roll,
+        sources: totalQ20.sources,
+        disabled: !isSingleAttrArmour(item)
+      }, ctx));
     }
     if (item.armourEV) {
-      const totalQ20 = propAt20Quality(
-        item.armourEV,
-        QUALITY_STATS.EVASION,
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Evasion Rating: #",
-            tradeId: "item.evasion_rating",
-            roll: totalQ20.roll,
-            sources: totalQ20.sources,
-            disabled: !isSingleAttrArmour(item)
-          },
-          ctx
-        )
-      );
+      const totalQ20 = propAt20Quality(item.armourEV, QUALITY_STATS.EVASION, item);
+      ctx.filters.push(propToFilter({
+        ref: "Evasion Rating: #",
+        tradeId: "item.evasion_rating",
+        roll: totalQ20.roll,
+        sources: totalQ20.sources,
+        disabled: !isSingleAttrArmour(item)
+      }, ctx));
     }
     if (item.armourES) {
-      const totalQ20 = propAt20Quality(
-        item.armourES,
-        QUALITY_STATS.ENERGY_SHIELD,
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Energy Shield: #",
-            tradeId: "item.energy_shield",
-            roll: totalQ20.roll,
-            sources: totalQ20.sources,
-            disabled: !isSingleAttrArmour(item)
-          },
-          ctx
-        )
-      );
+      const totalQ20 = propAt20Quality(item.armourES, QUALITY_STATS.ENERGY_SHIELD, item);
+      ctx.filters.push(propToFilter({
+        ref: "Energy Shield: #",
+        tradeId: "item.energy_shield",
+        roll: totalQ20.roll,
+        sources: totalQ20.sources,
+        disabled: !isSingleAttrArmour(item)
+      }, ctx));
     }
     if (item.armourBLOCK) {
-      const block = calcPropBounds(
-        item.armourBLOCK,
-        { flat: [], incr: ["#% increased Block chance"] },
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Block: #%",
-            tradeId: "item.block",
-            roll: block.roll,
-            sources: block.sources,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      const block = calcPropBounds(item.armourBLOCK, {
+        flat: [],
+        incr: ["#% increased Block chance"]
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Block: #%",
+        tradeId: "item.block",
+        roll: block.roll,
+        sources: block.sources,
+        disabled: true
+      }, ctx));
     }
     if (item.armourRW) {
       const runicWard = calcPropBounds(item.armourRW, QUALITY_STATS.WARD, item);
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Runic Ward: #",
-            tradeId: "item.runic_ward",
-            roll: runicWard.roll,
-            sources: runicWard.sources,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      ctx.filters.push(propToFilter({
+        ref: "Runic Ward: #",
+        tradeId: "item.runic_ward",
+        roll: runicWard.roll,
+        sources: runicWard.sources,
+        disabled: true
+      }, ctx));
     }
     if (item.armourAR || item.armourEV || item.armourES || item.armourRW || item.armourBLOCK) {
       removeUsedStats(ctx, ARMOUR_STATS);
     }
   }
-  var WEAPON_STATS = /* @__PURE__ */ new Set([
-    ...QUALITY_STATS.PHYSICAL_DAMAGE.flat,
-    ...QUALITY_STATS.PHYSICAL_DAMAGE.incr,
-    stat("#% increased Attack Speed"),
-    stat("#% to Critical Hit Chance"),
-    // stat('Adds # to # Chaos Damage'),
-    stat("Adds # to # Lightning Damage"),
-    stat("Adds # to # Cold Damage"),
-    stat("Adds # to # Fire Damage"),
-    stat("#% increased Spirit")
-  ]);
+  var WEAPON_STATS = /* @__PURE__ */new Set([].concat(_toConsumableArray(QUALITY_STATS.PHYSICAL_DAMAGE.flat), _toConsumableArray(QUALITY_STATS.PHYSICAL_DAMAGE.incr), [stat("#% increased Attack Speed"), stat("#% to Critical Hit Chance"),
+  // stat('Adds # to # Chaos Damage'),
+  stat("Adds # to # Lightning Damage"), stat("Adds # to # Cold Damage"), stat("Adds # to # Fire Damage"), stat("#% increased Spirit")]));
   function weaponProps(ctx) {
     var _a2, _b, _c, _d, _e, _f;
-    const { item } = ctx;
-    const attackSpeed = calcPropBounds(
-      (_a2 = item.weaponAS) != null ? _a2 : 0,
-      { incr: ["#% increased Attack Speed"], flat: [] },
-      item
-    );
-    const physQ20 = propAt20Quality(
-      (_b = item.weaponPHYSICAL) != null ? _b : 0,
-      QUALITY_STATS.PHYSICAL_DAMAGE,
-      item
-    );
+    const item = ctx.item;
+    const attackSpeed = calcPropBounds((_a2 = item.weaponAS) != null ? _a2 : 0, {
+      incr: ["#% increased Attack Speed"],
+      flat: []
+    }, item);
+    const physQ20 = propAt20Quality((_b = item.weaponPHYSICAL) != null ? _b : 0, QUALITY_STATS.PHYSICAL_DAMAGE, item);
     const pdpsQ20 = {
       value: physQ20.roll.value * attackSpeed.roll.value,
       min: physQ20.roll.min * attackSpeed.roll.min,
       max: physQ20.roll.max * attackSpeed.roll.max
     };
-    const eleDmg = calcPropBounds(
-      (_c = item.weaponELEMENTAL) != null ? _c : 0,
-      {
-        flat: [
-          "Adds # to # Lightning Damage",
-          "Adds # to # Cold Damage",
-          "Adds # to # Fire Damage"
-        ],
-        incr: []
-      },
-      item
-    );
-    const fireDmg = calcPropBounds(
-      (_d = item.weaponFIRE) != null ? _d : 0,
-      {
-        flat: ["Adds # to # Fire Damage"],
-        incr: []
-      },
-      item
-    );
-    const coldDmg = calcPropBounds(
-      (_e = item.weaponCOLD) != null ? _e : 0,
-      {
-        flat: ["Adds # to # Cold Damage"],
-        incr: []
-      },
-      item
-    );
-    const lightningDmg = calcPropBounds(
-      (_f = item.weaponLIGHTNING) != null ? _f : 0,
-      {
-        flat: ["Adds # to # Lightning Damage"],
-        incr: []
-      },
-      item
-    );
+    const eleDmg = calcPropBounds((_c = item.weaponELEMENTAL) != null ? _c : 0, {
+      flat: ["Adds # to # Lightning Damage", "Adds # to # Cold Damage", "Adds # to # Fire Damage"],
+      incr: []
+    }, item);
+    const fireDmg = calcPropBounds((_d = item.weaponFIRE) != null ? _d : 0, {
+      flat: ["Adds # to # Fire Damage"],
+      incr: []
+    }, item);
+    const coldDmg = calcPropBounds((_e = item.weaponCOLD) != null ? _e : 0, {
+      flat: ["Adds # to # Cold Damage"],
+      incr: []
+    }, item);
+    const lightningDmg = calcPropBounds((_f = item.weaponLIGHTNING) != null ? _f : 0, {
+      flat: ["Adds # to # Lightning Damage"],
+      incr: []
+    }, item);
     const edps = {
       value: eleDmg.roll.value * attackSpeed.roll.value,
       min: eleDmg.roll.min * attackSpeed.roll.min,
@@ -14153,50 +15132,27 @@ var EE2 = (() => {
     };
     if (item.weaponELEMENTAL) {
       const elementalInfo = {};
-      if (fireDps.value !== 0)
-        elementalInfo[INTERNAL_TRADE_IDS[13]] = shortRollToFilter(
-          fireDps,
-          ctx.searchInRange,
-          item
-        );
-      if (coldDps.value !== 0)
-        elementalInfo[INTERNAL_TRADE_IDS[14]] = shortRollToFilter(
-          coldDps,
-          ctx.searchInRange,
-          item
-        );
-      if (lightningDps.value !== 0)
-        elementalInfo[INTERNAL_TRADE_IDS[15]] = shortRollToFilter(
-          lightningDps,
-          ctx.searchInRange,
-          item
-        );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Total DPS: #",
-            tradeId: "item.total_dps",
-            roll: dps,
-            sources: [eleDmg.sources, physQ20.sources].flat(),
-            disabled: false
-          },
-          ctx
-        )
-      );
-      const elementalFilter = propToFilter(
-        {
-          ref: "Elemental DPS: #",
-          tradeId: "item.elemental_dps",
-          roll: edps,
-          sources: eleDmg.sources,
-          disabled: edps.value / dps.value < 0.15,
-          hidden: edps.value / dps.value < 0.15 ? "filters.hide_ele_dps" : void 0,
-          option: {
-            value: 0 /* Any */
-          }
-        },
-        ctx
-      );
+      if (fireDps.value !== 0) elementalInfo[INTERNAL_TRADE_IDS[13]] = shortRollToFilter(fireDps, ctx.searchInRange, item);
+      if (coldDps.value !== 0) elementalInfo[INTERNAL_TRADE_IDS[14]] = shortRollToFilter(coldDps, ctx.searchInRange, item);
+      if (lightningDps.value !== 0) elementalInfo[INTERNAL_TRADE_IDS[15]] = shortRollToFilter(lightningDps, ctx.searchInRange, item);
+      ctx.filters.push(propToFilter({
+        ref: "Total DPS: #",
+        tradeId: "item.total_dps",
+        roll: dps,
+        sources: [eleDmg.sources, physQ20.sources].flat(),
+        disabled: false
+      }, ctx));
+      const elementalFilter = propToFilter({
+        ref: "Elemental DPS: #",
+        tradeId: "item.elemental_dps",
+        roll: edps,
+        sources: eleDmg.sources,
+        disabled: edps.value / dps.value < 0.15,
+        hidden: edps.value / dps.value < 0.15 ? "filters.hide_ele_dps" : void 0,
+        option: {
+          value: 0 /* Any */
+        }
+      }, ctx);
       if (Object.keys(elementalInfo).length) {
         elementalInfo[INTERNAL_TRADE_IDS[12]] = elementalFilter.roll;
         elementalFilter.additionalInfo = {
@@ -14206,286 +15162,201 @@ var EE2 = (() => {
       ctx.filters.push(elementalFilter);
     }
     if (item.weaponPHYSICAL) {
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Physical DPS: #",
-            tradeId: "item.physical_dps",
-            roll: pdpsQ20,
-            sources: physQ20.sources,
-            disabled: !isPdpsImportant(item) || pdpsQ20.value / dps.value < 0.67,
-            hidden: pdpsQ20.value / dps.value < 0.67 ? "filters.hide_phys_dps" : void 0
-          },
-          ctx
-        )
-      );
+      ctx.filters.push(propToFilter({
+        ref: "Physical DPS: #",
+        tradeId: "item.physical_dps",
+        roll: pdpsQ20,
+        sources: physQ20.sources,
+        disabled: !isPdpsImportant(item) || pdpsQ20.value / dps.value < 0.67,
+        hidden: pdpsQ20.value / dps.value < 0.67 ? "filters.hide_phys_dps" : void 0
+      }, ctx));
     }
     if (item.weaponAS) {
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Attacks per Second: #",
-            tradeId: "item.aps",
-            roll: attackSpeed.roll,
-            sources: attackSpeed.sources,
-            dp: true,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      ctx.filters.push(propToFilter({
+        ref: "Attacks per Second: #",
+        tradeId: "item.aps",
+        roll: attackSpeed.roll,
+        sources: attackSpeed.sources,
+        dp: true,
+        disabled: true
+      }, ctx));
     }
     if (item.weaponCRIT) {
-      const critChance = calcPropBounds(
-        item.weaponCRIT,
-        {
-          incr: ["#% increased Critical Hit Chance"],
-          flat: ["#% to Critical Hit Chance"]
-        },
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Critical Hit Chance: #%",
-            tradeId: "item.crit",
-            roll: critChance.roll,
-            sources: critChance.sources,
-            dp: true,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      const critChance = calcPropBounds(item.weaponCRIT, {
+        incr: ["#% increased Critical Hit Chance"],
+        flat: ["#% to Critical Hit Chance"]
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Critical Hit Chance: #%",
+        tradeId: "item.crit",
+        roll: critChance.roll,
+        sources: critChance.sources,
+        dp: true,
+        disabled: true
+      }, ctx));
     }
     if (item.weaponRELOAD) {
-      const reloadTime = calcPropBounds(
-        item.weaponRELOAD,
-        {
-          incr: ["#% increased Attack Speed"],
-          flat: []
-        },
-        item,
-        // Inverted since lower is better for reload time
-        true
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Reload Time: #",
-            tradeId: "item.reload_time",
-            roll: reloadTime.roll,
-            sources: reloadTime.sources,
-            dp: true,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      const reloadTime = calcPropBounds(item.weaponRELOAD, {
+        incr: ["#% increased Attack Speed"],
+        flat: []
+      }, item,
+      // Inverted since lower is better for reload time
+      true);
+      ctx.filters.push(propToFilter({
+        ref: "Reload Time: #",
+        tradeId: "item.reload_time",
+        roll: reloadTime.roll,
+        sources: reloadTime.sources,
+        dp: true,
+        disabled: true
+      }, ctx));
     }
     if (item.weaponSPIRIT) {
-      const spirit = calcPropBounds(
-        item.weaponSPIRIT,
-        { flat: [], incr: ["#% increased Spirit"] },
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Spirit: #%",
-            tradeId: "item.spirit",
-            roll: spirit.roll,
-            sources: spirit.sources,
-            disabled: false
-          },
-          ctx
-        )
-      );
+      const spirit = calcPropBounds(item.weaponSPIRIT, {
+        flat: [],
+        incr: ["#% increased Spirit"]
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Spirit: #%",
+        tradeId: "item.spirit",
+        roll: spirit.roll,
+        sources: spirit.sources,
+        disabled: false
+      }, ctx));
     }
     if (item.weaponAS || item.weaponCRIT || item.weaponELEMENTAL || item.weaponPHYSICAL || item.weaponSPIRIT) {
       removeUsedStats(ctx, WEAPON_STATS);
     }
   }
   function mapProps(ctx) {
-    const { item } = ctx;
+    const item = ctx.item;
     if (item.mapRevives) {
-      const revives = calcPropBounds(
-        item.mapRevives,
-        { flat: [], incr: [] },
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Revives Available: #",
-            tradeId: "item.map_revives",
-            roll: revives.roll,
-            sources: revives.sources,
-            disabled: true,
-            hidden: "filters.hide_revives"
-          },
-          ctx
-        )
-      );
+      const revives = calcPropBounds(item.mapRevives, {
+        flat: [],
+        incr: []
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Revives Available: #",
+        tradeId: "item.map_revives",
+        roll: revives.roll,
+        sources: revives.sources,
+        disabled: true,
+        hidden: "filters.hide_revives"
+      }, ctx));
     }
     if (item.mapPackSize) {
-      const packSize = calcPropBounds(
-        item.mapPackSize,
-        { flat: [], incr: [] },
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Monster Pack Size: #",
-            tradeId: "item.map_pack_size",
-            roll: packSize.roll,
-            sources: packSize.sources,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      const packSize = calcPropBounds(item.mapPackSize, {
+        flat: [],
+        incr: []
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Monster Pack Size: #",
+        tradeId: "item.map_pack_size",
+        roll: packSize.roll,
+        sources: packSize.sources,
+        disabled: true
+      }, ctx));
     }
     if (item.mapMagicMonsters) {
-      const magicMonsters = calcPropBounds(
-        item.mapMagicMonsters,
-        { flat: [], incr: [] },
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Magic Monsters: #",
-            tradeId: "item.map_magic_monsters",
-            roll: magicMonsters.roll,
-            sources: magicMonsters.sources,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      const magicMonsters = calcPropBounds(item.mapMagicMonsters, {
+        flat: [],
+        incr: []
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Magic Monsters: #",
+        tradeId: "item.map_magic_monsters",
+        roll: magicMonsters.roll,
+        sources: magicMonsters.sources,
+        disabled: true
+      }, ctx));
     }
     if (item.mapRareMonsters) {
-      const rareMonsters = calcPropBounds(
-        item.mapRareMonsters,
-        { flat: [], incr: [] },
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Rare Monsters: #",
-            tradeId: "item.map_rare_monsters",
-            roll: rareMonsters.roll,
-            sources: rareMonsters.sources,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      const rareMonsters = calcPropBounds(item.mapRareMonsters, {
+        flat: [],
+        incr: []
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Rare Monsters: #",
+        tradeId: "item.map_rare_monsters",
+        roll: rareMonsters.roll,
+        sources: rareMonsters.sources,
+        disabled: true
+      }, ctx));
     }
     if (item.mapDropChance) {
-      const dropChance = calcPropBounds(
-        item.mapDropChance,
-        { flat: [], incr: [] },
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Waystone Drop Chance: #%",
-            tradeId: "item.map_drop_chance",
-            roll: dropChance.roll,
-            sources: dropChance.sources,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      const dropChance = calcPropBounds(item.mapDropChance, {
+        flat: [],
+        incr: []
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Waystone Drop Chance: #%",
+        tradeId: "item.map_drop_chance",
+        roll: dropChance.roll,
+        sources: dropChance.sources,
+        disabled: true
+      }, ctx));
     }
     if (item.mapItemRarity) {
-      const itemRarity = calcPropBounds(
-        item.mapItemRarity,
-        { flat: [], incr: [] },
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Map Item Rarity: #%",
-            tradeId: "item.map_item_rarity",
-            roll: itemRarity.roll,
-            sources: itemRarity.sources,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      const itemRarity = calcPropBounds(item.mapItemRarity, {
+        flat: [],
+        incr: []
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Map Item Rarity: #%",
+        tradeId: "item.map_item_rarity",
+        roll: itemRarity.roll,
+        sources: itemRarity.sources,
+        disabled: true
+      }, ctx));
     }
     if (item.mapGold) {
-      const gold = calcPropBounds(item.mapGold, { flat: [], incr: [] }, item);
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Gold Found: #%",
-            tradeId: "item.map_gold",
-            roll: gold.roll,
-            sources: gold.sources,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      const gold = calcPropBounds(item.mapGold, {
+        flat: [],
+        incr: []
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Gold Found: #%",
+        tradeId: "item.map_gold",
+        roll: gold.roll,
+        sources: gold.sources,
+        disabled: true
+      }, ctx));
     }
     if (item.mapMonsterRarity) {
-      const itemRarity = calcPropBounds(
-        item.mapMonsterRarity,
-        { flat: [], incr: [] },
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Monster Rarity: #%",
-            // yes rare monsters replaced trade id
-            tradeId: "item.map_rare_monsters",
-            roll: itemRarity.roll,
-            sources: itemRarity.sources,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      const itemRarity = calcPropBounds(item.mapMonsterRarity, {
+        flat: [],
+        incr: []
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Monster Rarity: #%",
+        // yes rare monsters replaced trade id
+        tradeId: "item.map_rare_monsters",
+        roll: itemRarity.roll,
+        sources: itemRarity.sources,
+        disabled: true
+      }, ctx));
     }
     if (item.mapEffectiveness) {
-      const itemRarity = calcPropBounds(
-        item.mapEffectiveness,
-        { flat: [], incr: [] },
-        item
-      );
-      ctx.filters.push(
-        propToFilter(
-          {
-            ref: "Monster Effectiveness: #%",
-            // yes magic monsters
-            tradeId: "item.map_magic_monsters",
-            roll: itemRarity.roll,
-            sources: itemRarity.sources,
-            disabled: true
-          },
-          ctx
-        )
-      );
+      const itemRarity = calcPropBounds(item.mapEffectiveness, {
+        flat: [],
+        incr: []
+      }, item);
+      ctx.filters.push(propToFilter({
+        ref: "Monster Effectiveness: #%",
+        // yes magic monsters
+        tradeId: "item.map_magic_monsters",
+        roll: itemRarity.roll,
+        sources: itemRarity.sources,
+        disabled: true
+      }, ctx));
     }
   }
   function removeUsedStats(ctx, stats) {
-    ctx.statsByType = ctx.statsByType.filter((m) => !stats.has(m.stat.ref));
+    ctx.statsByType = ctx.statsByType.filter(m => !stats.has(m.stat.ref));
   }
   function isSingleAttrArmour(item) {
-    return [item.armourAR, item.armourEV, item.armourES].filter(
-      (value) => value != null
-    ).length === 1 || // TODO: figure out if people are actually using hybrid in 2
+    return [item.armourAR, item.armourEV, item.armourES].filter(value => value != null).length === 1 ||
+    // TODO: figure out if people are actually using hybrid in 2
     // originally this method was for 1 where people don't touch hybrid,
     // or when they do they only care about one type
     true;
@@ -14512,35 +15383,38 @@ var EE2 = (() => {
     var _a2;
     const stat2 = {
       ref: opts.ref,
-      matchers: [{ string: opts.ref }],
-      trade: { ids: { pseudo: [opts.tradeId] } },
+      matchers: [{
+        string: opts.ref
+      }],
+      trade: {
+        ids: {
+          pseudo: [opts.tradeId]
+        }
+      },
       better: 1 /* PositiveRoll */
     };
-    const filter = calculatedStatToFilter(
-      {
-        stat: stat2,
-        type: "pseudo" /* Pseudo */,
-        sources: [
-          {
-            modifier: {
-              info: { type: "pseudo" /* Pseudo */, tags: [] },
-              stats: []
-            },
-            stat: {
-              stat: stat2,
-              translation: stat2.matchers[0],
-              roll: __spreadValues({
-                dp: (_a2 = opts.dp) != null ? _a2 : false,
-                unscalable: false
-              }, opts.roll)
-            },
-            contributes: opts.roll
-          }
-        ]
-      },
-      ctx.searchInRange,
-      ctx.item
-    );
+    const filter = calculatedStatToFilter({
+      stat: stat2,
+      type: "pseudo" /* Pseudo */,
+      sources: [{
+        modifier: {
+          info: {
+            type: "pseudo" /* Pseudo */,
+            tags: []
+          },
+          stats: []
+        },
+        stat: {
+          stat: stat2,
+          translation: stat2.matchers[0],
+          roll: __spreadValues({
+            dp: (_a2 = opts.dp) != null ? _a2 : false,
+            unscalable: false
+          }, opts.roll)
+        },
+        contributes: opts.roll
+      }]
+    }, ctx.searchInRange, ctx.item);
     filter.tag = "property" /* Property */;
     filter.sources = opts.sources;
     if (opts.disabled != null) filter.disabled = opts.disabled;
@@ -14550,388 +15424,464 @@ var EE2 = (() => {
   }
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/price-check/filters/pseudo/index.ts
-  var RESISTANCES_INFO = [
-    {
-      ref: stat("#% to All Resistances"),
-      elements: ["fire", "cold", "lightning"],
-      chaos: true
-    },
-    {
-      ref: stat("#% to all Elemental Resistances"),
-      elements: ["fire", "cold", "lightning"]
-    },
-    { ref: stat("#% to Fire Resistance"), elements: ["fire"] },
-    { ref: stat("#% to Cold Resistance"), elements: ["cold"] },
-    { ref: stat("#% to Lightning Resistance"), elements: ["lightning"] },
-    {
-      ref: stat("#% to Fire and Lightning Resistances"),
-      elements: ["fire", "lightning"]
-    },
-    { ref: stat("#% to Fire and Cold Resistances"), elements: ["fire", "cold"] },
-    {
-      ref: stat("#% to Cold and Lightning Resistances"),
-      elements: ["cold", "lightning"]
-    },
-    { ref: stat("#% to Chaos Resistance"), elements: [], chaos: true },
-    {
-      ref: stat("#% to Fire and Chaos Resistances"),
-      elements: ["fire"],
-      chaos: true
-    },
-    {
-      ref: stat("#% to Cold and Chaos Resistances"),
-      elements: ["cold"],
-      chaos: true
-    },
-    {
-      ref: stat("#% to Lightning and Chaos Resistances"),
-      elements: ["lightning"],
-      chaos: true
+  var RESISTANCES_INFO = [{
+    ref: stat("#% to All Resistances"),
+    elements: ["fire", "cold", "lightning"],
+    chaos: true
+  }, {
+    ref: stat("#% to all Elemental Resistances"),
+    elements: ["fire", "cold", "lightning"]
+  }, {
+    ref: stat("#% to Fire Resistance"),
+    elements: ["fire"]
+  }, {
+    ref: stat("#% to Cold Resistance"),
+    elements: ["cold"]
+  }, {
+    ref: stat("#% to Lightning Resistance"),
+    elements: ["lightning"]
+  }, {
+    ref: stat("#% to Fire and Lightning Resistances"),
+    elements: ["fire", "lightning"]
+  }, {
+    ref: stat("#% to Fire and Cold Resistances"),
+    elements: ["fire", "cold"]
+  }, {
+    ref: stat("#% to Cold and Lightning Resistances"),
+    elements: ["cold", "lightning"]
+  }, {
+    ref: stat("#% to Chaos Resistance"),
+    elements: [],
+    chaos: true
+  }, {
+    ref: stat("#% to Fire and Chaos Resistances"),
+    elements: ["fire"],
+    chaos: true
+  }, {
+    ref: stat("#% to Cold and Chaos Resistances"),
+    elements: ["cold"],
+    chaos: true
+  }, {
+    ref: stat("#% to Lightning and Chaos Resistances"),
+    elements: ["lightning"],
+    chaos: true
+  }];
+  var ATTRIBUTES_INFO = [{
+    ref: stat("# to all Attributes"),
+    attributes: ["str", "dex", "int"]
+  }, {
+    ref: stat("# to Strength"),
+    attributes: ["str"]
+  }, {
+    ref: stat("# to Dexterity"),
+    attributes: ["dex"]
+  }, {
+    ref: stat("# to Intelligence"),
+    attributes: ["int"]
+  }, {
+    ref: stat("# to Strength and Intelligence"),
+    attributes: ["str", "int"]
+  }, {
+    ref: stat("# to Strength and Dexterity"),
+    attributes: ["str", "dex"]
+  }, {
+    ref: stat("# to Dexterity and Intelligence"),
+    attributes: ["dex", "int"]
+  }];
+  var PSEUDO_RULES = [{
+    pseudo: stat("#% total to all Elemental Resistances"),
+    disabled: true,
+    group: "to_all_res",
+    stats: RESISTANCES_INFO.filter(info => info.elements.length).map(info => ({
+      ref: info.ref
+    })),
+    mutate(filter) {
+      filter.hidden = "filters.hide_total_all_res";
     }
-  ];
-  var ATTRIBUTES_INFO = [
-    { ref: stat("# to all Attributes"), attributes: ["str", "dex", "int"] },
-    { ref: stat("# to Strength"), attributes: ["str"] },
-    { ref: stat("# to Dexterity"), attributes: ["dex"] },
-    { ref: stat("# to Intelligence"), attributes: ["int"] },
-    { ref: stat("# to Strength and Intelligence"), attributes: ["str", "int"] },
-    { ref: stat("# to Strength and Dexterity"), attributes: ["str", "dex"] },
-    { ref: stat("# to Dexterity and Intelligence"), attributes: ["dex", "int"] }
-  ];
-  var PSEUDO_RULES = [
-    {
-      pseudo: stat("#% total to all Elemental Resistances"),
-      disabled: true,
-      group: "to_all_res",
-      stats: RESISTANCES_INFO.filter((info) => info.elements.length).map(
-        (info) => ({ ref: info.ref })
-      ),
-      mutate(filter) {
-        filter.hidden = "filters.hide_total_all_res";
+  }, {
+    pseudo: stat("#% total Elemental Resistance"),
+    disabled: false,
+    stats: RESISTANCES_INFO.filter(info => info.elements.length).map(info => ({
+      ref: info.ref,
+      multiplier: info.elements.length
+    }))
+  }, {
+    pseudo: stat("#% total to Fire Resistance"),
+    group: "to_x_ele_res",
+    stats: RESISTANCES_INFO.filter(info => info.elements.includes("fire")).map(info => ({
+      ref: info.ref
+    }))
+  }, {
+    pseudo: stat("#% total to Cold Resistance"),
+    group: "to_x_ele_res",
+    stats: RESISTANCES_INFO.filter(info => info.elements.includes("cold")).map(info => ({
+      ref: info.ref
+    }))
+  }, {
+    pseudo: stat("#% total to Lightning Resistance"),
+    group: "to_x_ele_res",
+    stats: RESISTANCES_INFO.filter(info => info.elements.includes("lightning")).map(info => ({
+      ref: info.ref
+    }))
+  }, {
+    pseudo: stat("#% total to Chaos Resistance"),
+    stats: RESISTANCES_INFO.filter(info => info.chaos === true).map(info => ({
+      ref: info.ref
+    })),
+    mutate(filter) {
+      if (filter.sources.length === 1 && (filter.sources[0].modifier.info.type === "rune" /* Augment */ || filter.sources[0].modifier.info.type === "added-rune" /* AddedAugment */)) {
+        filter.hidden = "filters.hide_crafted_chaos";
+      } else {
+        filter.disabled = false;
       }
-    },
-    {
-      pseudo: stat("#% total Elemental Resistance"),
-      disabled: false,
-      stats: RESISTANCES_INFO.filter((info) => info.elements.length).map(
-        (info) => ({ ref: info.ref, multiplier: info.elements.length })
-      )
-    },
-    {
-      pseudo: stat("#% total to Fire Resistance"),
-      group: "to_x_ele_res",
-      stats: RESISTANCES_INFO.filter(
-        (info) => info.elements.includes("fire")
-      ).map((info) => ({ ref: info.ref }))
-    },
-    {
-      pseudo: stat("#% total to Cold Resistance"),
-      group: "to_x_ele_res",
-      stats: RESISTANCES_INFO.filter(
-        (info) => info.elements.includes("cold")
-      ).map((info) => ({ ref: info.ref }))
-    },
-    {
-      pseudo: stat("#% total to Lightning Resistance"),
-      group: "to_x_ele_res",
-      stats: RESISTANCES_INFO.filter(
-        (info) => info.elements.includes("lightning")
-      ).map((info) => ({ ref: info.ref }))
-    },
-    {
-      pseudo: stat("#% total to Chaos Resistance"),
-      stats: RESISTANCES_INFO.filter((info) => info.chaos === true).map(
-        (info) => ({ ref: info.ref })
-      ),
-      mutate(filter) {
-        if (filter.sources.length === 1 && (filter.sources[0].modifier.info.type === "rune" /* Augment */ || filter.sources[0].modifier.info.type === "added-rune" /* AddedAugment */)) {
-          filter.hidden = "filters.hide_crafted_chaos";
-        } else {
-          filter.disabled = false;
-        }
-      }
-    },
-    {
-      pseudo: stat("+# total to all Attributes"),
-      group: "to_all_attrs",
-      stats: [
-        { ref: stat("# to all Attributes") }
-        // NOTE: not including other sources from `ATTRIBUTES_INFO`
-      ]
-    },
-    {
-      pseudo: stat("+# total to Strength"),
-      group: "to_x_attr",
-      stats: ATTRIBUTES_INFO.filter(
-        (info) => info.attributes.includes("str")
-      ).map((info) => ({ ref: info.ref }))
-    },
-    {
-      pseudo: stat("+# total to Dexterity"),
-      group: "to_x_attr",
-      stats: ATTRIBUTES_INFO.filter(
-        (info) => info.attributes.includes("dex")
-      ).map((info) => ({ ref: info.ref }))
-    },
-    {
-      pseudo: stat("+# total to Intelligence"),
-      group: "to_x_attr",
-      stats: ATTRIBUTES_INFO.filter(
-        (info) => info.attributes.includes("int")
-      ).map((info) => ({ ref: info.ref }))
-    },
-    {
-      pseudo: stat("+# total maximum Life"),
-      disabled: false,
-      stats: [
-        { ref: stat("# to maximum Life"), required: true },
-        ...ATTRIBUTES_INFO.filter((info) => info.attributes.includes("str")).map(
-          (info) => ({ ref: info.ref, multiplier: 2 })
-        )
-      ]
-    },
-    {
-      pseudo: stat("+# total maximum Mana"),
-      stats: [
-        { ref: stat("# to maximum Mana"), required: true },
-        ...ATTRIBUTES_INFO.filter((info) => info.attributes.includes("int")).map(
-          (info) => ({ ref: info.ref, multiplier: 2 })
-        )
-      ]
-    },
-    // {
-    //   pseudo: stat("# total maximum Spirit"),
-    //   stats: [{ ref: stat("# to Spirit") }],
-    // },
-    {
-      pseudo: stat("#% total increased maximum Energy Shield"),
-      stats: [{ ref: stat("#% increased maximum Energy Shield") }]
-    },
-    {
-      pseudo: stat("+# total maximum Energy Shield"),
-      stats: [
-        { ref: stat("# to maximum Energy Shield") }
-        // global
-      ]
-    },
-    // {
-    //   pseudo: stat("#% total Attack Speed"),
-    //   stats: [
-    //     { ref: stat("#% increased Attack Speed") }, // global
-    //     // { ref: stat('#% increased Attack and Cast Speed') }
-    //   ],
-    // },
-    // {
-    //   pseudo: stat("#% total Cast Speed"),
-    //   stats: [
-    //     { ref: stat("#% increased Cast Speed") },
-    //     // { ref: stat('#% increased Attack and Cast Speed') }
-    //   ],
-    // },
-    {
-      pseudo: stat("#% increased Movement Speed"),
-      stats: [{ ref: stat("#% increased Movement Speed") }],
-      mutate(filter) {
-        if (filter.sources.length !== 1 || filter.sources.length === 1 && filter.sources[0].modifier.info.type !== "implicit" /* Implicit */) {
-          filter.disabled = false;
-        }
-      }
-    },
-    // {
-    //   pseudo: stat("#% total increased Physical Damage"),
-    //   stats: [{ ref: stat("#% increased Global Physical Damage") }],
-    // },
-    // {
-    //   pseudo: stat("#% Global Critical Hit Chance"),
-    //   group: "global_crit_chance",
-    //   stats: [{ ref: stat("#% increased Global Critical Hit Chance") }],
-    // },
-    // {
-    //   pseudo: stat("#% total Critical Hit Chance for Spells"),
-    //   replaces: "global_crit_chance",
-    //   stats: [
-    //     {
-    //       ref: stat("#% increased Spell Critical Hit Chance"),
-    //       required: true,
-    //     },
-    //     { ref: stat("#% increased Global Critical Hit Chance") },
-    //   ],
-    // },
-    // {
-    //   pseudo: stat("#% Global Critical Hit Multiplier"),
-    //   stats: [{ ref: stat("#% to Global Critical Hit Multiplier") }],
-    // },
-    // {
-    //   pseudo: stat("#% increased Elemental Damage"),
-    //   group: "incr_ele_dmg",
-    //   stats: [{ ref: stat("#% increased Elemental Damage") }],
-    // },
-    // {
-    //   pseudo: stat("#% increased Lightning Damage"),
-    //   replaces: "incr_ele_dmg",
-    //   stats: [
-    //     { ref: stat("#% increased Lightning Damage"), required: true },
-    //     { ref: stat("#% increased Elemental Damage") },
-    //   ],
-    // },
-    // {
-    //   pseudo: stat("#% increased Cold Damage"),
-    //   replaces: "incr_ele_dmg",
-    //   stats: [
-    //     { ref: stat("#% increased Cold Damage"), required: true },
-    //     { ref: stat("#% increased Elemental Damage") },
-    //   ],
-    // },
-    // {
-    //   pseudo: stat("#% increased Fire Damage"),
-    //   group: "incr_fire_dmg",
-    //   replaces: "incr_ele_dmg",
-    //   stats: [
-    //     { ref: stat("#% increased Fire Damage"), required: true },
-    //     { ref: stat("#% increased Elemental Damage") },
-    //   ],
-    // },
-    // {
-    //   pseudo: stat("#% increased Spell Damage"),
-    //   group: "incr_spell_dmg",
-    //   stats: [{ ref: stat("#% increased Spell Damage") }],
-    // },
-    // {
-    //   pseudo: stat("#% increased Lightning Spell Damage"),
-    //   replaces: "incr_spell_dmg",
-    //   stats: [
-    //     { ref: stat("#% increased Lightning Spell Damage"), required: true },
-    //     { ref: stat("#% increased Spell Damage") },
-    //   ],
-    // },
-    // {
-    //   pseudo: stat("#% increased Cold Spell Damage"),
-    //   replaces: "incr_spell_dmg",
-    //   stats: [
-    //     { ref: stat("#% increased Cold Spell Damage"), required: true },
-    //     { ref: stat("#% increased Spell Damage") },
-    //   ],
-    // },
-    // {
-    //   pseudo: stat("#% increased Fire Spell Damage"),
-    //   replaces: "incr_spell_dmg",
-    //   stats: [
-    //     { ref: stat("#% increased Fire Spell Damage"), required: true },
-    //     { ref: stat("#% increased Spell Damage") },
-    //   ],
-    // },
-    // {
-    //   pseudo: stat("#% increased Elemental Damage with Attack Skills"),
-    //   replaces: "incr_ele_dmg",
-    //   stats: [
-    //     {
-    //       ref: stat("#% increased Elemental Damage with Attack Skills"),
-    //       required: true,
-    //     },
-    //     { ref: stat("#% increased Elemental Damage") },
-    //   ],
-    // },
-    // {
-    //   pseudo: stat("#% increased Burning Damage"),
-    //   replaces: "incr_fire_dmg",
-    //   stats: [
-    //     { ref: stat("#% increased Burning Damage"), required: true },
-    //     { ref: stat("#% increased Fire Damage") },
-    //     { ref: stat("#% increased Elemental Damage") },
-    //   ],
-    // },
-    // {
-    //   pseudo: stat("# Life Regenerated per Second"),
-    //   stats: [{ ref: stat("Regenerate # Life per second") }],
-    // },
-    // {
-    //   pseudo: stat("#% of Life Regenerated per Second"),
-    //   stats: [{ ref: stat("Regenerate #% of Life per second") }],
-    // },
-    // {
-    //   pseudo: stat("#% of Physical Attack Damage Leeched as Life"),
-    //   stats: [{ ref: stat("#% of Physical Attack Damage Leeched as Life") }],
-    // },
-    // {
-    //   pseudo: stat("#% of Physical Attack Damage Leeched as Mana"),
-    //   stats: [{ ref: stat("#% of Physical Attack Damage Leeched as Mana") }],
-    // },
-    // {
-    //   pseudo: stat("#% increased Mana Regeneration Rate"),
-    //   stats: [{ ref: stat("#% increased Mana Regeneration Rate") }],
-    // },
-    {
-      pseudo: stat("# uses remaining"),
-      disabled: false,
-      stats: [
-        { ref: stat("Adds Irradiated to a Map \n# use remaining") },
-        { ref: stat("Adds Ritual Altars to a Map \n# use remaining") },
-        { ref: stat("Adds a Kalguuran Expedition to a Map \n# use remaining") },
-        { ref: stat("Adds a Mirror of Delirium to a Map \n# use remaining") },
-        { ref: stat("Adds an Otherworldy Breach to a Map \n# use remaining") },
-        { ref: stat("Empowers the Map Boss of a Map \n# use remaining") },
-        { ref: stat("Adds Abysses to a Map \n# use remaining") }
-      ]
     }
-  ];
+  }, {
+    pseudo: stat("+# total to all Attributes"),
+    group: "to_all_attrs",
+    stats: [{
+      ref: stat("# to all Attributes")
+    }
+    // NOTE: not including other sources from `ATTRIBUTES_INFO`
+    ]
+  }, {
+    pseudo: stat("+# total to Strength"),
+    group: "to_x_attr",
+    stats: ATTRIBUTES_INFO.filter(info => info.attributes.includes("str")).map(info => ({
+      ref: info.ref
+    }))
+  }, {
+    pseudo: stat("+# total to Dexterity"),
+    group: "to_x_attr",
+    stats: ATTRIBUTES_INFO.filter(info => info.attributes.includes("dex")).map(info => ({
+      ref: info.ref
+    }))
+  }, {
+    pseudo: stat("+# total to Intelligence"),
+    group: "to_x_attr",
+    stats: ATTRIBUTES_INFO.filter(info => info.attributes.includes("int")).map(info => ({
+      ref: info.ref
+    }))
+  }, {
+    pseudo: stat("+# total maximum Life"),
+    disabled: false,
+    stats: [{
+      ref: stat("# to maximum Life"),
+      required: true
+    }].concat(_toConsumableArray(ATTRIBUTES_INFO.filter(info => info.attributes.includes("str")).map(info => ({
+      ref: info.ref,
+      multiplier: 2
+    }))))
+  }, {
+    pseudo: stat("+# total maximum Mana"),
+    stats: [{
+      ref: stat("# to maximum Mana"),
+      required: true
+    }].concat(_toConsumableArray(ATTRIBUTES_INFO.filter(info => info.attributes.includes("int")).map(info => ({
+      ref: info.ref,
+      multiplier: 2
+    }))))
+  },
+  // {
+  //   pseudo: stat("# total maximum Spirit"),
+  //   stats: [{ ref: stat("# to Spirit") }],
+  // },
+  {
+    pseudo: stat("#% total increased maximum Energy Shield"),
+    stats: [{
+      ref: stat("#% increased maximum Energy Shield")
+    }]
+  }, {
+    pseudo: stat("+# total maximum Energy Shield"),
+    stats: [{
+      ref: stat("# to maximum Energy Shield")
+    }
+    // global
+    ]
+  },
+  // {
+  //   pseudo: stat("#% total Attack Speed"),
+  //   stats: [
+  //     { ref: stat("#% increased Attack Speed") }, // global
+  //     // { ref: stat('#% increased Attack and Cast Speed') }
+  //   ],
+  // },
+  // {
+  //   pseudo: stat("#% total Cast Speed"),
+  //   stats: [
+  //     { ref: stat("#% increased Cast Speed") },
+  //     // { ref: stat('#% increased Attack and Cast Speed') }
+  //   ],
+  // },
+  {
+    pseudo: stat("#% increased Movement Speed"),
+    stats: [{
+      ref: stat("#% increased Movement Speed")
+    }],
+    mutate(filter) {
+      if (filter.sources.length !== 1 || filter.sources.length === 1 && filter.sources[0].modifier.info.type !== "implicit" /* Implicit */) {
+        filter.disabled = false;
+      }
+    }
+  },
+  // {
+  //   pseudo: stat("#% total increased Physical Damage"),
+  //   stats: [{ ref: stat("#% increased Global Physical Damage") }],
+  // },
+  // {
+  //   pseudo: stat("#% Global Critical Hit Chance"),
+  //   group: "global_crit_chance",
+  //   stats: [{ ref: stat("#% increased Global Critical Hit Chance") }],
+  // },
+  // {
+  //   pseudo: stat("#% total Critical Hit Chance for Spells"),
+  //   replaces: "global_crit_chance",
+  //   stats: [
+  //     {
+  //       ref: stat("#% increased Spell Critical Hit Chance"),
+  //       required: true,
+  //     },
+  //     { ref: stat("#% increased Global Critical Hit Chance") },
+  //   ],
+  // },
+  // {
+  //   pseudo: stat("#% Global Critical Hit Multiplier"),
+  //   stats: [{ ref: stat("#% to Global Critical Hit Multiplier") }],
+  // },
+  // {
+  //   pseudo: stat("#% increased Elemental Damage"),
+  //   group: "incr_ele_dmg",
+  //   stats: [{ ref: stat("#% increased Elemental Damage") }],
+  // },
+  // {
+  //   pseudo: stat("#% increased Lightning Damage"),
+  //   replaces: "incr_ele_dmg",
+  //   stats: [
+  //     { ref: stat("#% increased Lightning Damage"), required: true },
+  //     { ref: stat("#% increased Elemental Damage") },
+  //   ],
+  // },
+  // {
+  //   pseudo: stat("#% increased Cold Damage"),
+  //   replaces: "incr_ele_dmg",
+  //   stats: [
+  //     { ref: stat("#% increased Cold Damage"), required: true },
+  //     { ref: stat("#% increased Elemental Damage") },
+  //   ],
+  // },
+  // {
+  //   pseudo: stat("#% increased Fire Damage"),
+  //   group: "incr_fire_dmg",
+  //   replaces: "incr_ele_dmg",
+  //   stats: [
+  //     { ref: stat("#% increased Fire Damage"), required: true },
+  //     { ref: stat("#% increased Elemental Damage") },
+  //   ],
+  // },
+  // {
+  //   pseudo: stat("#% increased Spell Damage"),
+  //   group: "incr_spell_dmg",
+  //   stats: [{ ref: stat("#% increased Spell Damage") }],
+  // },
+  // {
+  //   pseudo: stat("#% increased Lightning Spell Damage"),
+  //   replaces: "incr_spell_dmg",
+  //   stats: [
+  //     { ref: stat("#% increased Lightning Spell Damage"), required: true },
+  //     { ref: stat("#% increased Spell Damage") },
+  //   ],
+  // },
+  // {
+  //   pseudo: stat("#% increased Cold Spell Damage"),
+  //   replaces: "incr_spell_dmg",
+  //   stats: [
+  //     { ref: stat("#% increased Cold Spell Damage"), required: true },
+  //     { ref: stat("#% increased Spell Damage") },
+  //   ],
+  // },
+  // {
+  //   pseudo: stat("#% increased Fire Spell Damage"),
+  //   replaces: "incr_spell_dmg",
+  //   stats: [
+  //     { ref: stat("#% increased Fire Spell Damage"), required: true },
+  //     { ref: stat("#% increased Spell Damage") },
+  //   ],
+  // },
+  // {
+  //   pseudo: stat("#% increased Elemental Damage with Attack Skills"),
+  //   replaces: "incr_ele_dmg",
+  //   stats: [
+  //     {
+  //       ref: stat("#% increased Elemental Damage with Attack Skills"),
+  //       required: true,
+  //     },
+  //     { ref: stat("#% increased Elemental Damage") },
+  //   ],
+  // },
+  // {
+  //   pseudo: stat("#% increased Burning Damage"),
+  //   replaces: "incr_fire_dmg",
+  //   stats: [
+  //     { ref: stat("#% increased Burning Damage"), required: true },
+  //     { ref: stat("#% increased Fire Damage") },
+  //     { ref: stat("#% increased Elemental Damage") },
+  //   ],
+  // },
+  // {
+  //   pseudo: stat("# Life Regenerated per Second"),
+  //   stats: [{ ref: stat("Regenerate # Life per second") }],
+  // },
+  // {
+  //   pseudo: stat("#% of Life Regenerated per Second"),
+  //   stats: [{ ref: stat("Regenerate #% of Life per second") }],
+  // },
+  // {
+  //   pseudo: stat("#% of Physical Attack Damage Leeched as Life"),
+  //   stats: [{ ref: stat("#% of Physical Attack Damage Leeched as Life") }],
+  // },
+  // {
+  //   pseudo: stat("#% of Physical Attack Damage Leeched as Mana"),
+  //   stats: [{ ref: stat("#% of Physical Attack Damage Leeched as Mana") }],
+  // },
+  // {
+  //   pseudo: stat("#% increased Mana Regeneration Rate"),
+  //   stats: [{ ref: stat("#% increased Mana Regeneration Rate") }],
+  // },
+  {
+    pseudo: stat("# uses remaining"),
+    disabled: false,
+    stats: [{
+      ref: stat("Adds Irradiated to a Map \n# use remaining")
+    }, {
+      ref: stat("Adds Ritual Altars to a Map \n# use remaining")
+    }, {
+      ref: stat("Adds a Kalguuran Expedition to a Map \n# use remaining")
+    }, {
+      ref: stat("Adds a Mirror of Delirium to a Map \n# use remaining")
+    }, {
+      ref: stat("Adds an Otherworldy Breach to a Map \n# use remaining")
+    }, {
+      ref: stat("Empowers the Map Boss of a Map \n# use remaining")
+    }, {
+      ref: stat("Adds Abysses to a Map \n# use remaining")
+    }]
+  }];
   function filterPseudo(ctx) {
     var _a2, _b, _c, _d, _e;
-    const filterByGroup = /* @__PURE__ */ new Map();
-    rulesLoop: for (const rule of PSEUDO_RULES) {
-      const sources = filterPseudoSources(ctx.statsByType, ({ stat: stat2 }, source) => {
-        var _a3;
-        const info = rule.stats.find((info2) => info2.ref === stat2.ref);
-        if (!info) return null;
-        const multi = (_a3 = info.multiplier) != null ? _a3 : 1;
-        return __spreadProps(__spreadValues({}, source), {
-          contributes: {
-            value: source.contributes.value * multi,
-            min: source.contributes.min * multi,
-            max: source.contributes.max * multi
-          }
+    const filterByGroup = /* @__PURE__ */new Map();
+    {
+      const _a85 = PSEUDO_RULES;
+      if (Array.isArray(_a85)) rulesLoop: for (let _i83 = 0; _i83 < _a85.length; _i83++) {
+        const rule = _a85[_i83];
+        const sources = filterPseudoSources(ctx.statsByType, ({
+          stat: stat2
+        }, source) => {
+          var _a3;
+          const info = rule.stats.find(info2 => info2.ref === stat2.ref);
+          if (!info) return null;
+          const multi = (_a3 = info.multiplier) != null ? _a3 : 1;
+          return __spreadProps(__spreadValues({}, source), {
+            contributes: {
+              value: source.contributes.value * multi,
+              min: source.contributes.min * multi,
+              max: source.contributes.max * multi
+            }
+          });
         });
-      });
-      if (!sources.length) continue;
-      if (rule.stats.some((s) => s.required)) {
-        for (const stat2 of rule.stats) {
-          if (stat2.required && !sources.some((source) => source.stat.stat.ref === stat2.ref)) {
-            continue rulesLoop;
+        if (!sources.length) continue;
+        if (rule.stats.some(s => s.required)) {
+          {
+            const _a87 = rule.stats;
+            if (Array.isArray(_a87)) for (let _i85 = 0; _i85 < _a87.length; _i85++) {
+              const stat2 = _a87[_i85];
+              if (stat2.required && !sources.some(source => source.stat.stat.ref === stat2.ref)) {
+                continue rulesLoop;
+              }
+            } else for (const stat2 of _a87) {
+              if (stat2.required && !sources.some(source => source.stat.stat.ref === stat2.ref)) {
+                continue rulesLoop;
+              }
+            }
           }
         }
-      }
-      const filter = calculatedStatToFilter(
-        {
+        const filter = calculatedStatToFilter({
           stat: STAT_BY_REF(rule.pseudo),
           type: "pseudo" /* Pseudo */,
           sources
-        },
-        ctx.searchInRange,
-        ctx.item
-      );
-      filter.disabled = (_a2 = rule.disabled) != null ? _a2 : true;
-      if (rule.mutate) {
-        rule.mutate(filter);
-      }
-      ctx.filters.push(filter);
-      if (rule.replaces && filterByGroup.has(rule.replaces)) {
-        const replacedFilters = filterByGroup.get(rule.replaces);
-        ctx.filters = ctx.filters.filter(
-          (filter2) => !replacedFilters.includes(filter2)
-        );
-      }
-      if (rule.group) {
-        if (filterByGroup.has(rule.group)) {
-          filterByGroup.get(rule.group).push(filter);
-        } else {
-          filterByGroup.set(rule.group, [filter]);
+        }, ctx.searchInRange, ctx.item);
+        filter.disabled = (_a2 = rule.disabled) != null ? _a2 : true;
+        if (rule.mutate) {
+          rule.mutate(filter);
+        }
+        ctx.filters.push(filter);
+        if (rule.replaces && filterByGroup.has(rule.replaces)) {
+          const replacedFilters = filterByGroup.get(rule.replaces);
+          ctx.filters = ctx.filters.filter(filter2 => !replacedFilters.includes(filter2));
+        }
+        if (rule.group) {
+          if (filterByGroup.has(rule.group)) {
+            filterByGroup.get(rule.group).push(filter);
+          } else {
+            filterByGroup.set(rule.group, [filter]);
+          }
+        }
+      } else rulesLoop: for (const rule of _a85) {
+        const sources = filterPseudoSources(ctx.statsByType, ({
+          stat: stat2
+        }, source) => {
+          var _a3;
+          const info = rule.stats.find(info2 => info2.ref === stat2.ref);
+          if (!info) return null;
+          const multi = (_a3 = info.multiplier) != null ? _a3 : 1;
+          return __spreadProps(__spreadValues({}, source), {
+            contributes: {
+              value: source.contributes.value * multi,
+              min: source.contributes.min * multi,
+              max: source.contributes.max * multi
+            }
+          });
+        });
+        if (!sources.length) continue;
+        if (rule.stats.some(s => s.required)) {
+          {
+            const _a86 = rule.stats;
+            if (Array.isArray(_a86)) for (let _i84 = 0; _i84 < _a86.length; _i84++) {
+              const stat2 = _a86[_i84];
+              if (stat2.required && !sources.some(source => source.stat.stat.ref === stat2.ref)) {
+                continue rulesLoop;
+              }
+            } else for (const stat2 of _a86) {
+              if (stat2.required && !sources.some(source => source.stat.stat.ref === stat2.ref)) {
+                continue rulesLoop;
+              }
+            }
+          }
+        }
+        const filter = calculatedStatToFilter({
+          stat: STAT_BY_REF(rule.pseudo),
+          type: "pseudo" /* Pseudo */,
+          sources
+        }, ctx.searchInRange, ctx.item);
+        filter.disabled = (_a2 = rule.disabled) != null ? _a2 : true;
+        if (rule.mutate) {
+          rule.mutate(filter);
+        }
+        ctx.filters.push(filter);
+        if (rule.replaces && filterByGroup.has(rule.replaces)) {
+          const replacedFilters = filterByGroup.get(rule.replaces);
+          ctx.filters = ctx.filters.filter(filter2 => !replacedFilters.includes(filter2));
+        }
+        if (rule.group) {
+          if (filterByGroup.has(rule.group)) {
+            filterByGroup.get(rule.group).push(filter);
+          } else {
+            filterByGroup.set(rule.group, [filter]);
+          }
         }
       }
     }
-    ctx.statsByType = ctx.statsByType.filter(
-      (m) => !PSEUDO_RULES.some(
-        (rule) => rule.stats.some(({ ref: ref3 }) => m.stat.ref === ref3)
-      )
-    );
+    ctx.statsByType = ctx.statsByType.filter(m => !PSEUDO_RULES.some(rule => rule.stats.some(({
+      ref: ref3
+    }) => m.stat.ref === ref3)));
     if (filterByGroup.has("to_x_ele_res")) {
       const resFilters = filterByGroup.get("to_x_ele_res");
       resFilters.sort((a, b) => b.roll.value - a.roll.value);
@@ -14939,24 +15889,18 @@ var EE2 = (() => {
       if (maxFilter) {
         maxFilter.hidden = "filters.hide_ele_res";
       }
-      ctx.filters = ctx.filters.filter(
-        (filter) => !resFilters.includes(filter) || filter === maxFilter
-      );
+      ctx.filters = ctx.filters.filter(filter => !resFilters.includes(filter) || filter === maxFilter);
     }
     if (filterByGroup.has("to_x_attr")) {
       const attrFilters = filterByGroup.get("to_x_attr");
       attrFilters.sort((a, b) => b.roll.value - a.roll.value);
       if (attrFilters.length === 3) {
         const toAll = filterByGroup.get("to_all_attrs");
-        if (attrFilters.every(
-          (f) => f.roll.value === attrFilters[0].roll.value
-        ) && toAll != null) {
-          ctx.filters = ctx.filters.filter(
-            (filter) => !attrFilters.includes(filter)
-          );
+        if (attrFilters.every(f => f.roll.value === attrFilters[0].roll.value) && toAll != null) {
+          ctx.filters = ctx.filters.filter(filter => !attrFilters.includes(filter));
         } else {
           if (toAll != null) {
-            ctx.filters = ctx.filters.filter((filter) => !toAll.includes(filter));
+            ctx.filters = ctx.filters.filter(filter => !toAll.includes(filter));
           }
           if (attrFilters[2].roll.value / attrFilters[0].roll.value < 0.3) {
             if (attrFilters[1].roll.value === attrFilters[2].roll.value) {
@@ -14997,20 +15941,52 @@ var EE2 = (() => {
           max: 0
         }
       };
-      for (const source of filter.sources) {
-        const info = RESISTANCES_INFO.find(
-          (info2) => info2.ref === source.stat.stat.ref
-        );
-        if (!info) continue;
-        if (info.elements.length === 3) {
-          all.value += source.contributes.value;
-          all.min += source.contributes.min;
-          all.max += source.contributes.max;
-        } else {
-          for (const element of info.elements) {
-            elements[element].value += source.contributes.value;
-            elements[element].min += source.contributes.min;
-            elements[element].max += source.contributes.max;
+      {
+        const _a88 = filter.sources;
+        if (Array.isArray(_a88)) for (let _i86 = 0; _i86 < _a88.length; _i86++) {
+          const source = _a88[_i86];
+          const info = RESISTANCES_INFO.find(info2 => info2.ref === source.stat.stat.ref);
+          if (!info) continue;
+          if (info.elements.length === 3) {
+            all.value += source.contributes.value;
+            all.min += source.contributes.min;
+            all.max += source.contributes.max;
+          } else {
+            {
+              const _a89 = info.elements;
+              if (Array.isArray(_a89)) for (let _i87 = 0; _i87 < _a89.length; _i87++) {
+                const element = _a89[_i87];
+                elements[element].value += source.contributes.value;
+                elements[element].min += source.contributes.min;
+                elements[element].max += source.contributes.max;
+              } else for (const element of _a89) {
+                elements[element].value += source.contributes.value;
+                elements[element].min += source.contributes.min;
+                elements[element].max += source.contributes.max;
+              }
+            }
+          }
+        } else for (const source of _a88) {
+          const info = RESISTANCES_INFO.find(info2 => info2.ref === source.stat.stat.ref);
+          if (!info) continue;
+          if (info.elements.length === 3) {
+            all.value += source.contributes.value;
+            all.min += source.contributes.min;
+            all.max += source.contributes.max;
+          } else {
+            {
+              const _a90 = info.elements;
+              if (Array.isArray(_a90)) for (let _i88 = 0; _i88 < _a90.length; _i88++) {
+                const element = _a90[_i88];
+                elements[element].value += source.contributes.value;
+                elements[element].min += source.contributes.min;
+                elements[element].max += source.contributes.max;
+              } else for (const element of _a90) {
+                elements[element].value += source.contributes.value;
+                elements[element].min += source.contributes.min;
+                elements[element].max += source.contributes.max;
+              }
+            }
           }
         }
       }
@@ -15027,7 +16003,7 @@ var EE2 = (() => {
         max: all.max + elements[minRoll].max
       };
       if (totalRoll.value === 0) {
-        ctx.filters = ctx.filters.filter((f) => f !== filter);
+        ctx.filters = ctx.filters.filter(f => f !== filter);
         return;
       }
       const dp = false;
@@ -15054,25 +16030,46 @@ var EE2 = (() => {
   }
   function filterPseudoSources(stats, mapFn) {
     const out = [];
-    for (const calc of stats) {
-      for (const source of calc.sources) {
-        const result = mapFn(calc, source);
-        if (result) {
-          out.push(result);
+    {
+      const _a91 = stats;
+      if (Array.isArray(_a91)) for (let _i89 = 0; _i89 < _a91.length; _i89++) {
+        const calc = _a91[_i89];
+        {
+          const _a92 = calc.sources;
+          if (Array.isArray(_a92)) for (let _i90 = 0; _i90 < _a92.length; _i90++) {
+            const source = _a92[_i90];
+            const result = mapFn(calc, source);
+            if (result) {
+              out.push(result);
+            }
+          } else for (const source of _a92) {
+            const result = mapFn(calc, source);
+            if (result) {
+              out.push(result);
+            }
+          }
+        }
+      } else for (const calc of _a91) {
+        {
+          const _a93 = calc.sources;
+          if (Array.isArray(_a93)) for (let _i91 = 0; _i91 < _a93.length; _i91++) {
+            const source = _a93[_i91];
+            const result = mapFn(calc, source);
+            if (result) {
+              out.push(result);
+            }
+          } else for (const source of _a93) {
+            const result = mapFn(calc, source);
+            if (result) {
+              out.push(result);
+            }
+          }
         }
       }
     }
     return out;
   }
-  var PSEUDO_REF_SET = /* @__PURE__ */ new Set([
-    ...PSEUDO_RULES.flatMap((rule) => rule.stats.map((stat2) => stat2.ref)),
-    ...PSEUDO_RULES.flatMap((rule) => rule.stats.map((stat2) => stat2.ref)).map(
-      (i) => i.replaceAll("+#", "#")
-    ),
-    ...PSEUDO_RULES.flatMap((rule) => rule.stats.map((stat2) => stat2.ref)).map(
-      (i) => i.replaceAll("-#", "#")
-    )
-  ]);
+  var PSEUDO_REF_SET = /* @__PURE__ */new Set([].concat(_toConsumableArray(PSEUDO_RULES.flatMap(rule => rule.stats.map(stat2 => stat2.ref))), _toConsumableArray(PSEUDO_RULES.flatMap(rule => rule.stats.map(stat2 => stat2.ref)).map(i => i.replaceAll("+#", "#"))), _toConsumableArray(PSEUDO_RULES.flatMap(rule => rule.stats.map(stat2 => stat2.ref)).map(i => i.replaceAll("-#", "#")))));
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/price-check/filters/pseudo/atzoatl-rules.ts
   init_timers();
@@ -15222,31 +16219,55 @@ var EE2 = (() => {
     // },
   ];
   function applyRules(filters) {
-    for (const filter of filters) {
-      filter.disabled = true;
+    {
+      const _a94 = filters;
+      if (Array.isArray(_a94)) for (let _i92 = 0; _i92 < _a94.length; _i92++) {
+        const filter = _a94[_i92];
+        filter.disabled = true;
+      } else for (const filter of _a94) {
+        filter.disabled = true;
+      }
     }
-    const hasExplosives = RULES.filter((rule) => rule.explosivesRoom).some(
-      (rule) => filters.some(
-        (filter) => filter.statRef === rule.ref && filter.option.value === 1 /* Open */
-      )
-    );
-    for (const rule of RULES) {
-      const index = filters.findIndex((filter2) => filter2.statRef === rule.ref);
-      if (index === -1) continue;
-      const filter = filters[index];
-      const isObstructed = filter.option.value === 2 /* Obstructed */;
-      if (rule.remove || isObstructed && !hasExplosives) {
-        filters.splice(index, 1);
-        continue;
-      }
-      if (rule.hidden !== void 0) {
-        filter.hidden = rule.hidden;
-      }
-      if (rule.disabled !== void 0) {
-        filter.disabled = rule.disabled;
-      }
-      if (isObstructed) {
-        filter.option = void 0;
+    const hasExplosives = RULES.filter(rule => rule.explosivesRoom).some(rule => filters.some(filter => filter.statRef === rule.ref && filter.option.value === 1 /* Open */));
+    {
+      const _a95 = RULES;
+      if (Array.isArray(_a95)) for (let _i93 = 0; _i93 < _a95.length; _i93++) {
+        const rule = _a95[_i93];
+        const index = filters.findIndex(filter2 => filter2.statRef === rule.ref);
+        if (index === -1) continue;
+        const filter = filters[index];
+        const isObstructed = filter.option.value === 2 /* Obstructed */;
+        if (rule.remove || isObstructed && !hasExplosives) {
+          filters.splice(index, 1);
+          continue;
+        }
+        if (rule.hidden !== void 0) {
+          filter.hidden = rule.hidden;
+        }
+        if (rule.disabled !== void 0) {
+          filter.disabled = rule.disabled;
+        }
+        if (isObstructed) {
+          filter.option = void 0;
+        }
+      } else for (const rule of _a95) {
+        const index = filters.findIndex(filter2 => filter2.statRef === rule.ref);
+        if (index === -1) continue;
+        const filter = filters[index];
+        const isObstructed = filter.option.value === 2 /* Obstructed */;
+        if (rule.remove || isObstructed && !hasExplosives) {
+          filters.splice(index, 1);
+          continue;
+        }
+        if (rule.hidden !== void 0) {
+          filter.hidden = rule.hidden;
+        }
+        if (rule.disabled !== void 0) {
+          filter.disabled = rule.disabled;
+        }
+        if (isObstructed) {
+          filter.option = void 0;
+        }
       }
     }
   }
@@ -15271,9 +16292,9 @@ var EE2 = (() => {
     // { ref: stat("Reflection of Angling (Difficulty #)"), disabled: false },
   ];
   function applyRules2(filters) {
-    for (let i = 0; i < filters.length; ) {
+    for (let i = 0; i < filters.length;) {
       const filter = filters[i];
-      const rule = RULES2.find((rule2) => rule2.ref === filter.statRef);
+      const rule = RULES2.find(rule2 => rule2.ref === filter.statRef);
       if (!rule) {
         const difficulty = filter.roll.value;
         if (difficulty < 8) {
@@ -15297,33 +16318,17 @@ var EE2 = (() => {
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/price-check/filters/pseudo/missing-fractured-rules.ts
   init_timers();
   function applyRules3(filters, explicitStats) {
-    if (filters.some((f) => f.tag === "fractured" /* Fractured */)) return;
-    const asFractured = explicitStats.filter((f) => f.tag === "explicit" /* Explicit */).map((f) => __spreadProps(__spreadValues({}, f), { tag: "fractured" /* Fractured */ }));
-    filters.push(...asFractured);
+    if (filters.some(f => f.tag === "fractured" /* Fractured */)) return;
+    const asFractured = explicitStats.filter(f => f.tag === "explicit" /* Explicit */).map(f => __spreadProps(__spreadValues({}, f), {
+      tag: "fractured" /* Fractured */
+    }));
+    filters.push.apply(filters, _toConsumableArray(asFractured));
   }
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/price-check/filters/pseudo/anointments.ts
   init_timers();
-  var EMOTIONS = [
-    "Diluted Liquid Ire",
-    "Diluted Liquid Guilt",
-    "Diluted Liquid Greed",
-    "Liquid Paranoia",
-    "Liquid Envy",
-    "Liquid Disgust",
-    "Liquid Despair",
-    "Concentrated Liquid Fear",
-    "Concentrated Liquid Suffering",
-    "Concentrated Liquid Isolation",
-    "Potent Liquid Melancholy",
-    "Potent Liquid Ferocity",
-    "Potent Liquid Contempt"
-  ];
-  var HARDCODED_HIGH_VALUE_OILS = /* @__PURE__ */ new Set([
-    "Concentrated Liquid Isolation",
-    "Potent Liquid Ferocity",
-    "Potent Liquid Contempt"
-  ]);
+  var EMOTIONS = ["Diluted Liquid Ire", "Diluted Liquid Guilt", "Diluted Liquid Greed", "Liquid Paranoia", "Liquid Envy", "Liquid Disgust", "Liquid Despair", "Concentrated Liquid Fear", "Concentrated Liquid Suffering", "Concentrated Liquid Isolation", "Potent Liquid Melancholy", "Potent Liquid Ferocity", "Potent Liquid Contempt"];
+  var HARDCODED_HIGH_VALUE_OILS = /* @__PURE__ */new Set(["Concentrated Liquid Isolation", "Potent Liquid Ferocity", "Potent Liquid Contempt"]);
   function decodeOils(calc) {
     var _a2;
     if (calc.type !== "enchant" /* Enchant */) return;
@@ -15332,26 +16337,24 @@ var EE2 = (() => {
       if (calc.stat.anointments.length === 1) {
         encoded = calc.stat.anointments[0].oils;
       } else {
-        encoded = (_a2 = calc.stat.anointments.find(
-          (anoint) => {
-            var _a3;
-            return anoint.roll === ((_a3 = calc.sources[0].stat.roll) == null ? void 0 : _a3.value);
-          }
-        )) == null ? void 0 : _a2.oils;
+        encoded = (_a2 = calc.stat.anointments.find(anoint => {
+          var _a3;
+          return anoint.roll === ((_a3 = calc.sources[0].stat.roll) == null ? void 0 : _a3.value);
+        })) == null ? void 0 : _a2.oils;
       }
     }
     if (!encoded) return;
-    const decoded = encoded.split(",").map(Number).map((idx) => EMOTIONS[idx]);
+    const decoded = encoded.split(",").map(Number).map(idx => EMOTIONS[idx]);
     return decoded;
   }
   function applyAnointmentRules(filters, item) {
-    const anointment = filters.find((filter) => filter.oils);
+    const anointment = filters.find(filter => filter.oils);
     if (!anointment) return;
     if (item.talismanTier) {
       anointment.disabled = false;
     } else if (itemIsModifiable(item)) {
       const oils = anointment.oils;
-      if (!oils.some((oil) => HARDCODED_HIGH_VALUE_OILS.has(oil))) {
+      if (!oils.some(oil => HARDCODED_HIGH_VALUE_OILS.has(oil))) {
         anointment.hidden = "filters.hide_anointment";
         anointment.disabled = true;
       }
@@ -15360,6 +16363,7 @@ var EE2 = (() => {
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/price-check/filters/create-stat-filters.ts
   function createExactStatFilters(item, statsByType, opts) {
+    var _ctx$filters;
     performance.mark("create-exact-filters-start");
     let searchInRange = Math.min(2, opts.searchStatRange);
     if (item.category === "TowerAugment" /* Tablet */) {
@@ -15367,20 +16371,11 @@ var EE2 = (() => {
     }
     if (item.mapBlighted || item.category === "Invitation" /* Invitation */) return [];
     if (item.isUnidentified && item.rarity === "Unique" /* Unique */ && !item.isSynthesised) {
-      return statsByType.filter((mod) => mod.type === "implicit" /* Implicit */).map((mod) => calculatedStatToFilter(mod, searchInRange, item)).map((filter) => __spreadProps(__spreadValues({}, filter), {
+      return statsByType.filter(mod => mod.type === "implicit" /* Implicit */).map(mod => calculatedStatToFilter(mod, searchInRange, item)).map(filter => __spreadProps(__spreadValues({}, filter), {
         disabled: false
       }));
     }
-    const keepByType = [
-      "pseudo" /* Pseudo */,
-      "fractured" /* Fractured */,
-      "desecrated" /* Desecrated */,
-      "crafted" /* Crafted */,
-      "enchant" /* Enchant */,
-      "necropolis" /* Necropolis */,
-      "sanctum" /* Sanctum */,
-      "skill" /* Skill */
-    ];
+    const keepByType = ["pseudo" /* Pseudo */, "fractured" /* Fractured */, "desecrated" /* Desecrated */, "crafted" /* Crafted */, "enchant" /* Enchant */, "necropolis" /* Necropolis */, "sanctum" /* Sanctum */, "skill" /* Skill */];
     if (!item.influences.length && !item.isFractured && item.category !== "Tincture" /* Tincture */) {
       keepByType.push("implicit" /* Implicit */);
     }
@@ -15394,16 +16389,12 @@ var EE2 = (() => {
       item,
       searchInRange,
       filters: [],
-      statsByType: statsByType.filter((calc) => keepByType.includes(calc.type))
+      statsByType: statsByType.filter(calc => keepByType.includes(calc.type))
     };
     if (item.category === "TowerAugment" /* Tablet */) {
       filterPseudo(ctx);
     }
-    ctx.filters.push(
-      ...ctx.statsByType.map(
-        (mod) => calculatedStatToFilter(mod, ctx.searchInRange, item)
-      )
-    );
+    (_ctx$filters = ctx.filters).push.apply(_ctx$filters, _toConsumableArray(ctx.statsByType.map(mod => calculatedStatToFilter(mod, ctx.searchInRange, item))));
     if (item.info.refName === "Chronicle of Atzoatl") {
       applyRules(ctx.filters);
       return ctx.filters;
@@ -15412,32 +16403,55 @@ var EE2 = (() => {
       applyRules2(ctx.filters);
       return ctx.filters;
     }
-    for (const filter of ctx.filters) {
-      filter.hidden = void 0;
-      if (
+    {
+      const _a96 = ctx.filters;
+      if (Array.isArray(_a96)) for (let _i94 = 0; _i94 < _a96.length; _i94++) {
+        const filter = _a96[_i94];
+        filter.hidden = void 0;
+        if (
         // Should select only fractured explicit
-        ctx.item.isFractured && filter.tag === "explicit" /* Explicit */ || // Dont show implicit for tablets
-        item.category === "TowerAugment" /* Tablet */ && filter.tag === "implicit" /* Implicit */
-      ) {
-        continue;
-      }
-      if (item.category === "TowerAugment" /* Tablet */) {
-        filter.disabled = false;
-      } else if (filter.tag === "explicit" /* Explicit */) {
-        filter.disabled = !filter.sources.some(
-          (source) => source.modifier.info.tier != null && source.modifier.info.tier <= 2
-        );
-      } else if (filter.tag !== "property" /* Property */) {
-        filter.disabled = false;
-      }
-      if (filter.statRef === "# uses remaining") {
-        filter.roll.min = filter.roll.value;
-        filter.roll.default.min = filter.roll.value;
-        filter.roll.default.max = filter.roll.value;
+        ctx.item.isFractured && filter.tag === "explicit" /* Explicit */ ||
+        // Dont show implicit for tablets
+        item.category === "TowerAugment" /* Tablet */ && filter.tag === "implicit" /* Implicit */) {
+          continue;
+        }
+        if (item.category === "TowerAugment" /* Tablet */) {
+          filter.disabled = false;
+        } else if (filter.tag === "explicit" /* Explicit */) {
+          filter.disabled = !filter.sources.some(source => source.modifier.info.tier != null && source.modifier.info.tier <= 2);
+        } else if (filter.tag !== "property" /* Property */) {
+          filter.disabled = false;
+        }
+        if (filter.statRef === "# uses remaining") {
+          filter.roll.min = filter.roll.value;
+          filter.roll.default.min = filter.roll.value;
+          filter.roll.default.max = filter.roll.value;
+        }
+      } else for (const filter of _a96) {
+        filter.hidden = void 0;
+        if (
+        // Should select only fractured explicit
+        ctx.item.isFractured && filter.tag === "explicit" /* Explicit */ ||
+        // Dont show implicit for tablets
+        item.category === "TowerAugment" /* Tablet */ && filter.tag === "implicit" /* Implicit */) {
+          continue;
+        }
+        if (item.category === "TowerAugment" /* Tablet */) {
+          filter.disabled = false;
+        } else if (filter.tag === "explicit" /* Explicit */) {
+          filter.disabled = !filter.sources.some(source => source.modifier.info.tier != null && source.modifier.info.tier <= 2);
+        } else if (filter.tag !== "property" /* Property */) {
+          filter.disabled = false;
+        }
+        if (filter.statRef === "# uses remaining") {
+          filter.roll.min = filter.roll.value;
+          filter.roll.default.min = filter.roll.value;
+          filter.roll.default.max = filter.roll.value;
+        }
       }
     }
-    if (ctx.item.isFractured && !ctx.filters.some((f) => f.tag === "fractured" /* Fractured */)) {
-      const explicitStats = statsByType.filter((calc) => calc.type === "explicit" /* Explicit */).map((mod) => calculatedStatToFilter(mod, ctx.searchInRange, item));
+    if (ctx.item.isFractured && !ctx.filters.some(f => f.tag === "fractured" /* Fractured */)) {
+      const explicitStats = statsByType.filter(calc => calc.type === "explicit" /* Explicit */).map(mod => calculatedStatToFilter(mod, ctx.searchInRange, item));
       applyRules3(ctx.filters, explicitStats);
     }
     const hasEmptyModifier = showHasEmptyModifier(ctx);
@@ -15460,7 +16474,10 @@ var EE2 = (() => {
           value: roll,
           min: roll,
           max: void 0,
-          default: { min: roll, max: roll },
+          default: {
+            min: roll,
+            max: roll
+          },
           dp: false,
           isNegated: false
         }
@@ -15479,14 +16496,17 @@ var EE2 = (() => {
     return ctx.filters;
   }
   function initUiModFilters(item, opts) {
+    var _ctx$filters2;
     performance.mark("create-ui-filters-start");
     const ctx = {
       item,
       filters: [],
       searchInRange: item.rarity === "Normal" /* Normal */ ? 100 : opts.searchStatRange,
-      statsByType: item.statsByType.map((calc) => {
+      statsByType: item.statsByType.map(calc => {
         if ((calc.type === "fractured" /* Fractured */ || calc.type === "desecrated" /* Desecrated */ || calc.type === "crafted" /* Crafted */) && calc.stat.trade.ids["explicit" /* Explicit */]) {
-          return __spreadProps(__spreadValues({}, calc), { type: "explicit" /* Explicit */ });
+          return __spreadProps(__spreadValues({}, calc), {
+            type: "explicit" /* Explicit */
+          });
         } else {
           return calc;
         }
@@ -15502,34 +16522,25 @@ var EE2 = (() => {
       }
     }
     if (itemIsModifiable(item)) {
-      ctx.statsByType = ctx.statsByType.filter(
-        (mod) => mod.type !== "fractured" /* Fractured */ && mod.type !== "desecrated" /* Desecrated */ && mod.type !== "crafted" /* Crafted */
-      );
-      const statsWithAllSources = item.statsByType.filter(
-        (mod) => mod.type === "fractured" /* Fractured */ || mod.type === "desecrated" /* Desecrated */ || mod.type === "crafted" /* Crafted */
-      );
-      const statsFilteredSources = statsWithAllSources.map((mod) => {
-        const filteredSources = mod.sources.filter((source) => {
+      var _ctx$statsByType;
+      ctx.statsByType = ctx.statsByType.filter(mod => mod.type !== "fractured" /* Fractured */ && mod.type !== "desecrated" /* Desecrated */ && mod.type !== "crafted" /* Crafted */);
+      const statsWithAllSources = item.statsByType.filter(mod => mod.type === "fractured" /* Fractured */ || mod.type === "desecrated" /* Desecrated */ || mod.type === "crafted" /* Crafted */);
+      const statsFilteredSources = statsWithAllSources.map(mod => {
+        const filteredSources = mod.sources.filter(source => {
           return source.modifier.info.type === mod.type;
         });
         return __spreadProps(__spreadValues({}, mod), {
           sources: filteredSources
         });
       });
-      ctx.statsByType.push(...statsFilteredSources);
+      (_ctx$statsByType = ctx.statsByType).push.apply(_ctx$statsByType, _toConsumableArray(statsFilteredSources));
     }
     if (item.isVeiled) {
-      ctx.statsByType = ctx.statsByType.filter(
-        (mod) => mod.type !== "veiled" /* Veiled */
-      );
+      ctx.statsByType = ctx.statsByType.filter(mod => mod.type !== "veiled" /* Veiled */);
     }
-    ctx.filters.push(
-      ...ctx.statsByType.map(
-        (mod) => calculatedStatToFilter(mod, ctx.searchInRange, item)
-      )
-    );
+    (_ctx$filters2 = ctx.filters).push.apply(_ctx$filters2, _toConsumableArray(ctx.statsByType.map(mod => calculatedStatToFilter(mod, ctx.searchInRange, item))));
     if (item.isVeiled) {
-      ctx.filters.forEach((filter) => {
+      ctx.filters.forEach(filter => {
         filter.disabled = true;
       });
     }
@@ -15567,12 +16578,11 @@ var EE2 = (() => {
   }
   function calculatedStatToFilter(calc, percent, item, disabled = true) {
     var _a2, _b, _c, _d;
-    const { stat: stat2, sources, type } = calc;
+    const stat2 = calc.stat,
+      sources = calc.sources,
+      type = calc.type;
     let filter;
-    const roll = statSourcesTotal(
-      calc.sources,
-      item.info.refName === "Mirrored Tablet" ? "max" : "sum"
-    );
+    const roll = statSourcesTotal(calc.sources, item.info.refName === "Mirrored Tablet" ? "max" : "sum");
     const translation = translateStatWithRoll(calc, roll);
     if (stat2.trade.option) {
       filter = {
@@ -15599,7 +16609,7 @@ var EE2 = (() => {
       disabled
     };
     if (type === "implicit" /* Implicit */) {
-      if (sources.some((s) => s.modifier.info.generation === "eldritch")) {
+      if (sources.some(s => s.modifier.info.generation === "eldritch")) {
         filter.tag = "eldritch" /* Eldritch */;
       } else if (item.isSynthesised) {
         filter.tag = "synthesised" /* Synthesised */;
@@ -15610,7 +16620,7 @@ var EE2 = (() => {
         }
       }
     } else if (type === "explicit" /* Explicit */) {
-      if (item.rarity === "Unique" /* Unique */ && sources.some((s) => s.modifier.info.generation === "mutated")) {
+      if (item.rarity === "Unique" /* Unique */ && sources.some(s => s.modifier.info.generation === "mutated")) {
         filter.tag = "mutated" /* Mutated */;
       }
       if ((_c = item.info.unique) == null ? void 0 : _c.fixedStats) {
@@ -15618,20 +16628,13 @@ var EE2 = (() => {
         if (!fixedStats.includes(filter.statRef)) {
           filter.tag = "variant" /* Variant */;
         }
-      } else if (sources.some(
-        (s) => CLIENT_STRINGS.DELVE_MODS.includes(s.modifier.info.name)
-      )) {
+      } else if (sources.some(s => CLIENT_STRINGS.DELVE_MODS.includes(s.modifier.info.name))) {
         filter.tag = "explicit-delve" /* Delve */;
-      } else if (sources.some(
-        (s) => CLIENT_STRINGS.VEILED_MODS.includes(s.modifier.info.name)
-      )) {
-      } else if (sources.some(
-        (s) => CLIENT_STRINGS.INCURSION_MODS.includes(s.modifier.info.name)
-      )) {
+      } else if (sources.some(s => CLIENT_STRINGS.VEILED_MODS.includes(s.modifier.info.name))) {} else if (sources.some(s => CLIENT_STRINGS.INCURSION_MODS.includes(s.modifier.info.name))) {
         filter.tag = "explicit-incursion" /* Incursion */;
       }
     } else if (type === "enchant" /* Enchant */) {
-      if (sources.some((s) => s.modifier.info.generation === "corrupted")) {
+      if (sources.some(s => s.modifier.info.generation === "corrupted")) {
         filter.tag = "corrupted" /* Corrupted */;
       }
     }
@@ -15649,36 +16652,25 @@ var EE2 = (() => {
       }
       if (item.rarity === "Magic" /* Magic */ && (item.isUnmodifiable || !itemIsModifiable(item)) || stat2.ref === "Has # Charm Slot") {
         percent = 0;
-      } else if (item.rarity === "Unique" /* Unique */ || item.rarity === "Magic" /* Magic */ && (item.category === "Jewel" /* Jewel */ || item.category === "TowerAugment" /* Tablet */) || calc.sources.some(
-        ({ modifier }) => modifier.info.tier === 1 && modifier.info.type === "fractured" /* Fractured */
-      )) {
+      } else if (item.rarity === "Unique" /* Unique */ || item.rarity === "Magic" /* Magic */ && (item.category === "Jewel" /* Jewel */ || item.category === "TowerAugment" /* Tablet */) || calc.sources.some(({
+        modifier
+      }) => modifier.info.tier === 1 && modifier.info.type === "fractured" /* Fractured */)) {
         const perfectRoll = calc.stat.better === 1 /* PositiveRoll */ && roll.value >= roll.max || calc.stat.better === -1 /* NegativeRoll */ && roll.value <= roll.min;
         if (perfectRoll) {
           percent = 0;
         }
       }
-      const dp = calc.stat.dp || calc.sources.some(
-        (s) => s.stat.stat.ref === calc.stat.ref && s.stat.roll.dp
-      );
+      const dp = calc.stat.dp || calc.sources.some(s => s.stat.stat.ref === calc.stat.ref && s.stat.roll.dp);
       const filterBounds = {
         min: percentRoll(roll.min, -0, Math.floor, dp),
         max: percentRoll(roll.max, 0, Math.ceil, dp)
       };
-      const filterDefault = calc.stat.better === 0 /* NotComparable */ ? { min: roll.value, max: roll.value } : item.rarity === "Unique" /* Unique */ ? {
-        min: percentRollDelta(
-          roll.value,
-          roll.max - roll.min,
-          -percent,
-          Math.floor,
-          dp
-        ),
-        max: percentRollDelta(
-          roll.value,
-          roll.max - roll.min,
-          +percent,
-          Math.ceil,
-          dp
-        )
+      const filterDefault = calc.stat.better === 0 /* NotComparable */ ? {
+        min: roll.value,
+        max: roll.value
+      } : item.rarity === "Unique" /* Unique */ ? {
+        min: percentRollDelta(roll.value, roll.max - roll.min, -percent, Math.floor, dp),
+        max: percentRollDelta(roll.value, roll.max - roll.min, +percent, Math.ceil, dp)
       } : {
         min: percentRoll(roll.value, -percent, Math.floor, dp),
         max: percentRoll(roll.value, +percent, Math.ceil, dp)
@@ -15710,10 +16702,8 @@ var EE2 = (() => {
   }
   function hideNotVariableStat(filter, item) {
     if (item.rarity !== "Unique" /* Unique */) return;
-    if (filter.tag === "implicit" /* Implicit */ && item.category === "Jewel" /* Jewel */)
-      return;
-    if (filter.tag !== "implicit" /* Implicit */ && filter.tag !== "explicit" /* Explicit */ && filter.tag !== "pseudo" /* Pseudo */ || filter.tag === "pseudo" /* Pseudo */ && filter.sources.some((s) => s.modifier.info.type === "enchant" /* Enchant */))
-      return;
+    if (filter.tag === "implicit" /* Implicit */ && item.category === "Jewel" /* Jewel */) return;
+    if (filter.tag !== "implicit" /* Implicit */ && filter.tag !== "explicit" /* Explicit */ && filter.tag !== "pseudo" /* Pseudo */ || filter.tag === "pseudo" /* Pseudo */ && filter.sources.some(s => s.modifier.info.type === "enchant" /* Enchant */)) return;
     if (filter.statRef === "# uses remaining") return;
     if (!filter.roll) {
       filter.hidden = "filters.hide_const_roll";
@@ -15753,7 +16743,7 @@ var EE2 = (() => {
   }
   function finalFilterTweaks(ctx) {
     var _a2, _b;
-    const { item } = ctx;
+    const item = ctx.item;
     if (item.category === "Cluster Jewel" /* ClusterJewel */ && item.rarity !== "Unique" /* Unique */) {
       applyClusterJewelRules(ctx.filters);
     } else if (item.category === "Flask" /* Flask */) {
@@ -15783,7 +16773,10 @@ var EE2 = (() => {
           value: roll,
           min: roll,
           max: void 0,
-          default: { min: roll, max: roll },
+          default: {
+            min: roll,
+            max: roll
+          },
           dp: false,
           isNegated: false
         }
@@ -15792,39 +16785,68 @@ var EE2 = (() => {
     if (item.category === "Amulet" /* Amulet */ || item.category === "Ring" /* Ring */) {
       applyAnointmentRules(ctx.filters, ctx.item);
     }
-    const possibleCatalyst = item.qualityType ? (_a2 = item.category === "Jewel" /* Jewel */ ? CATALYST_TYPES.Refined : item.category === "Ring" /* Ring */ || item.category === "Amulet" /* Amulet */ ? CATALYST_TYPES.Normal : void 0) == null ? void 0 : _a2.find((c) => c.tags[1] === item.qualityType) : void 0;
-    for (const filter of ctx.filters) {
-      if (filter.tag === "fractured" /* Fractured */ || filter.tag === "desecrated" /* Desecrated */ || filter.tag === "crafted" /* Crafted */) {
-        const mod = ctx.item.statsByType.find(
-          (mod2) => mod2.stat.ref === filter.statRef
-        );
-        if (mod.stat.trade.ids["explicit" /* Explicit */]) {
-          filter.hidden = "filters.hide_for_crafting";
+    const possibleCatalyst = item.qualityType ? (_a2 = item.category === "Jewel" /* Jewel */ ? CATALYST_TYPES.Refined : item.category === "Ring" /* Ring */ || item.category === "Amulet" /* Amulet */ ? CATALYST_TYPES.Normal : void 0) == null ? void 0 : _a2.find(c => c.tags[1] === item.qualityType) : void 0;
+    {
+      const _a97 = ctx.filters;
+      if (Array.isArray(_a97)) for (let _i95 = 0; _i95 < _a97.length; _i95++) {
+        const filter = _a97[_i95];
+        if (filter.tag === "fractured" /* Fractured */ || filter.tag === "desecrated" /* Desecrated */ || filter.tag === "crafted" /* Crafted */) {
+          const mod = ctx.item.statsByType.find(mod2 => mod2.stat.ref === filter.statRef);
+          if (mod.stat.trade.ids["explicit" /* Explicit */]) {
+            filter.hidden = "filters.hide_for_crafting";
+          }
+        } else if (filter.tag === "skill" /* Skill */ && filter.roll) {
+          filter.disabled = filter.roll.value < 19;
+          if (filter.disabled) {
+            filter.hidden = "filters.hide_not_max_level";
+          }
         }
-      } else if (filter.tag === "skill" /* Skill */ && filter.roll) {
-        filter.disabled = filter.roll.value < 19;
-        if (filter.disabled) {
-          filter.hidden = "filters.hide_not_max_level";
+        if (ctx.item.category === "Map" /* Map */) {
+          if (filter.tag !== "property" /* Property */ && filter.tag !== "desecrated" /* Desecrated */) {
+            filter.disabled = true;
+            filter.hidden = "filters.hide_for_map";
+          }
         }
-      }
-      if (ctx.item.category === "Map" /* Map */) {
-        if (filter.tag !== "property" /* Property */ && filter.tag !== "desecrated" /* Desecrated */) {
-          filter.disabled = true;
-          filter.hidden = "filters.hide_for_map";
+        if (ctx.item.category === "TowerAugment" /* Tablet */) {
+          if (filter.statRef === "# uses remaining") {
+            filter.hidden = void 0;
+          }
         }
-      }
-      if (ctx.item.category === "TowerAugment" /* Tablet */) {
-        if (filter.statRef === "# uses remaining") {
-          filter.hidden = void 0;
+        if (filter.sources.some(s => s.stat.fromAddedAugment)) {
+          filter.editorAdded = (_b = filter.sources.find(s => s.stat.fromAddedAugment)) == null ? void 0 : _b.stat.fromAddedAugment;
         }
-      }
-      if (filter.sources.some((s) => s.stat.fromAddedAugment)) {
-        filter.editorAdded = (_b = filter.sources.find(
-          (s) => s.stat.fromAddedAugment
-        )) == null ? void 0 : _b.stat.fromAddedAugment;
-      }
-      if (filter.sources.some((s) => s.modifier.info.addedIncr) && possibleCatalyst) {
-        filter.editorAdded = possibleCatalyst;
+        if (filter.sources.some(s => s.modifier.info.addedIncr) && possibleCatalyst) {
+          filter.editorAdded = possibleCatalyst;
+        }
+      } else for (const filter of _a97) {
+        if (filter.tag === "fractured" /* Fractured */ || filter.tag === "desecrated" /* Desecrated */ || filter.tag === "crafted" /* Crafted */) {
+          const mod = ctx.item.statsByType.find(mod2 => mod2.stat.ref === filter.statRef);
+          if (mod.stat.trade.ids["explicit" /* Explicit */]) {
+            filter.hidden = "filters.hide_for_crafting";
+          }
+        } else if (filter.tag === "skill" /* Skill */ && filter.roll) {
+          filter.disabled = filter.roll.value < 19;
+          if (filter.disabled) {
+            filter.hidden = "filters.hide_not_max_level";
+          }
+        }
+        if (ctx.item.category === "Map" /* Map */) {
+          if (filter.tag !== "property" /* Property */ && filter.tag !== "desecrated" /* Desecrated */) {
+            filter.disabled = true;
+            filter.hidden = "filters.hide_for_map";
+          }
+        }
+        if (ctx.item.category === "TowerAugment" /* Tablet */) {
+          if (filter.statRef === "# uses remaining") {
+            filter.hidden = void 0;
+          }
+        }
+        if (filter.sources.some(s => s.stat.fromAddedAugment)) {
+          filter.editorAdded = (_b = filter.sources.find(s => s.stat.fromAddedAugment)) == null ? void 0 : _b.stat.fromAddedAugment;
+        }
+        if (filter.sources.some(s => s.modifier.info.addedIncr) && possibleCatalyst) {
+          filter.editorAdded = possibleCatalyst;
+        }
       }
     }
     if (item.rarity === "Magic" /* Magic */ && itemIsModifiable(item) && item.itemLevel && maxUsefulItemLevel(item.category) - 3 > item.itemLevel) {
@@ -15839,65 +16861,104 @@ var EE2 = (() => {
       });
     }
     if (item.rarity === "Unique" /* Unique */ || item.category === "Relic" /* Relic */) {
-      const countVisible = ctx.filters.reduce(
-        (cnt, filter) => filter.hidden ? cnt : cnt + 1,
-        0
-      );
+      const countVisible = ctx.filters.reduce((cnt, filter) => filter.hidden ? cnt : cnt + 1, 0);
       if (countVisible <= 3) {
         enableAllFilters(ctx.filters);
       }
     }
   }
   function applyClusterJewelRules(filters) {
-    for (const filter of filters) {
-      if (filter.statRef === "# Added Passive Skills are Jewel Sockets") {
-        filter.hidden = "filters.hide_const_roll";
-        filter.disabled = true;
-      }
-      if (filter.statRef === "Adds # Passive Skills") {
-        filter.disabled = false;
-        if (filter.roll.value === 4) {
-          filter.roll.max = 5;
-        } else if (filter.roll.value === 5) {
-          filter.roll.min = filter.roll.default.min;
-        } else if (filter.roll.value === 3 || filter.roll.value === 6 || filter.roll.value === 10 || filter.roll.value === 11 || filter.roll.value === 12) {
-          filter.roll.min = filter.roll.default.min;
-          filter.roll.max = void 0;
+    {
+      const _a98 = filters;
+      if (Array.isArray(_a98)) for (let _i96 = 0; _i96 < _a98.length; _i96++) {
+        const filter = _a98[_i96];
+        if (filter.statRef === "# Added Passive Skills are Jewel Sockets") {
+          filter.hidden = "filters.hide_const_roll";
+          filter.disabled = true;
+        }
+        if (filter.statRef === "Adds # Passive Skills") {
+          filter.disabled = false;
+          if (filter.roll.value === 4) {
+            filter.roll.max = 5;
+          } else if (filter.roll.value === 5) {
+            filter.roll.min = filter.roll.default.min;
+          } else if (filter.roll.value === 3 || filter.roll.value === 6 || filter.roll.value === 10 || filter.roll.value === 11 || filter.roll.value === 12) {
+            filter.roll.min = filter.roll.default.min;
+            filter.roll.max = void 0;
+          }
+        }
+      } else for (const filter of _a98) {
+        if (filter.statRef === "# Added Passive Skills are Jewel Sockets") {
+          filter.hidden = "filters.hide_const_roll";
+          filter.disabled = true;
+        }
+        if (filter.statRef === "Adds # Passive Skills") {
+          filter.disabled = false;
+          if (filter.roll.value === 4) {
+            filter.roll.max = 5;
+          } else if (filter.roll.value === 5) {
+            filter.roll.min = filter.roll.default.min;
+          } else if (filter.roll.value === 3 || filter.roll.value === 6 || filter.roll.value === 10 || filter.roll.value === 11 || filter.roll.value === 12) {
+            filter.roll.min = filter.roll.default.min;
+            filter.roll.max = void 0;
+          }
         }
       }
     }
   }
   function applyFlaskRules(filters) {
-    const usedEnkindling = filters.find(
-      (filter) => filter.statRef === "Gains no Charges during Flask Effect"
-    );
-    for (const filter of filters) {
-      if (filter.tag === "enchant" /* Enchant */ && !usedEnkindling) {
-        filter.hidden = "hide_harvest_and_instilling";
-        filter.disabled = true;
+    const usedEnkindling = filters.find(filter => filter.statRef === "Gains no Charges during Flask Effect");
+    {
+      const _a99 = filters;
+      if (Array.isArray(_a99)) for (let _i97 = 0; _i97 < _a99.length; _i97++) {
+        const filter = _a99[_i97];
+        if (filter.tag === "enchant" /* Enchant */ && !usedEnkindling) {
+          filter.hidden = "hide_harvest_and_instilling";
+          filter.disabled = true;
+        }
+      } else for (const filter of _a99) {
+        if (filter.tag === "enchant" /* Enchant */ && !usedEnkindling) {
+          filter.hidden = "hide_harvest_and_instilling";
+          filter.disabled = true;
+        }
       }
     }
   }
   function hideAllAugments(filters) {
-    for (const filter of filters) {
-      if (filter.tag === "rune" /* Augment */ || filter.tag === "added-rune" /* AddedAugment */) {
-        filter.disabled = true;
-        if (filter.statRef === "Destroys all Augment Sockets on the item to create a Jewel Socket") {
-          continue;
+    {
+      const _a100 = filters;
+      if (Array.isArray(_a100)) for (let _i98 = 0; _i98 < _a100.length; _i98++) {
+        const filter = _a100[_i98];
+        if (filter.tag === "rune" /* Augment */ || filter.tag === "added-rune" /* AddedAugment */) {
+          filter.disabled = true;
+          if (filter.statRef === "Destroys all Augment Sockets on the item to create a Jewel Socket") {
+            continue;
+          }
+          filter.hidden = "filters.hide_const_roll";
         }
-        filter.hidden = "filters.hide_const_roll";
+      } else for (const filter of _a100) {
+        if (filter.tag === "rune" /* Augment */ || filter.tag === "added-rune" /* AddedAugment */) {
+          filter.disabled = true;
+          if (filter.statRef === "Destroys all Augment Sockets on the item to create a Jewel Socket") {
+            continue;
+          }
+          filter.hidden = "filters.hide_const_roll";
+        }
       }
     }
   }
   function showHasEmptyModifier(ctx) {
-    const { item } = ctx;
+    const item = ctx.item;
     if (!itemIsModifiable(item) || item.category === "Map" /* Map */) {
       return false;
     }
     if (item.rarity !== "Rare" /* Rare */ && item.rarity !== "Magic" /* Magic */) {
       return false;
     }
-    const { prefixes, suffixes, total } = explicitModifierCount(item);
+    const _explicitModifierCoun = explicitModifierCount(item),
+      prefixes = _explicitModifierCoun.prefixes,
+      suffixes = _explicitModifierCoun.suffixes,
+      total = _explicitModifierCoun.total;
     const maxAmount = itemMaxModifiersBySlot(item, ctx.filters);
     if (total !== maxAmount[0 /* Any */] && total !== 0) {
       const empty = suffixes === maxAmount[2 /* Suffix */] ? 1 /* Prefix */ : prefixes === maxAmount[1 /* Prefix */] ? 2 /* Suffix */ : 0 /* Any */;
@@ -15914,9 +16975,17 @@ var EE2 = (() => {
     return false;
   }
   function enableAllFilters(filters) {
-    for (const filter of filters) {
-      if (!filter.hidden) {
-        filter.disabled = false;
+    {
+      const _a101 = filters;
+      if (Array.isArray(_a101)) for (let _i99 = 0; _i99 < _a101.length; _i99++) {
+        const filter = _a101[_i99];
+        if (!filter.hidden) {
+          filter.disabled = false;
+        }
+      } else for (const filter of _a101) {
+        if (!filter.hidden) {
+          filter.disabled = false;
+        }
       }
     }
   }
@@ -15949,11 +17018,25 @@ var EE2 = (() => {
     var _a2, _b;
     const base = itemBaseMaxModifiersOfType(item.category, item.rarity);
     const maxAmount = [2 * base, base, base];
-    for (const { statRef, roll } of statsAndRolls) {
-      if (statRef === "# Prefix Modifier allowed") {
-        maxAmount[1 /* Prefix */] += (_a2 = roll == null ? void 0 : roll.value) != null ? _a2 : 0;
-      } else if (statRef === "# Suffix Modifier allowed") {
-        maxAmount[2 /* Suffix */] += (_b = roll == null ? void 0 : roll.value) != null ? _b : 0;
+    {
+      const _a102 = statsAndRolls;
+      if (Array.isArray(_a102)) for (let _i100 = 0; _i100 < _a102.length; _i100++) {
+        const _a102$_i = _a102[_i100],
+          statRef = _a102$_i.statRef,
+          roll = _a102$_i.roll;
+        if (statRef === "# Prefix Modifier allowed") {
+          maxAmount[1 /* Prefix */] += (_a2 = roll == null ? void 0 : roll.value) != null ? _a2 : 0;
+        } else if (statRef === "# Suffix Modifier allowed") {
+          maxAmount[2 /* Suffix */] += (_b = roll == null ? void 0 : roll.value) != null ? _b : 0;
+        }
+      } else for (const _ref8 of _a102) {
+        const statRef = _ref8.statRef;
+        const roll = _ref8.roll;
+        if (statRef === "# Prefix Modifier allowed") {
+          maxAmount[1 /* Prefix */] += (_a2 = roll == null ? void 0 : roll.value) != null ? _a2 : 0;
+        } else if (statRef === "# Suffix Modifier allowed") {
+          maxAmount[2 /* Suffix */] += (_b = roll == null ? void 0 : roll.value) != null ? _b : 0;
+        }
       }
     }
     if (maxAmount[1 /* Prefix */] < 0) {
@@ -15968,7 +17051,7 @@ var EE2 = (() => {
 
   // ../../../tmp/claude-0/-home-user/17d936e3-c252-51f4-a67c-d21e950f3207/scratchpad/src/ee2/renderer/src/web/price-check/filters/create-unique-filters.ts
   init_timers();
-  var PRESET_UNIQUES = /* @__PURE__ */ new Set(["Mageblood"]);
+  var PRESET_UNIQUES = /* @__PURE__ */new Set(["Mageblood"]);
   function createUniquePresets(item, opts) {
     if (!PRESET_UNIQUES.has(item.info.refName)) {
       throw new Error("item doesn't have unique presets");
@@ -15977,18 +17060,19 @@ var EE2 = (() => {
       case "Mageblood":
         return {
           active: "filters.preset_exact",
-          presets: [
-            {
-              id: "filters.preset_exact",
-              filters: createFilters(item, __spreadProps(__spreadValues({}, opts), { exact: true })),
-              stats: createMagebloodFilters(item, item.statsByType, opts)
-            }
-          ]
+          presets: [{
+            id: "filters.preset_exact",
+            filters: createFilters(item, __spreadProps(__spreadValues({}, opts), {
+              exact: true
+            })),
+            stats: createMagebloodFilters(item, item.statsByType, opts)
+          }]
         };
     }
     throw new Error("not implemented");
   }
   function createMagebloodFilters(item, statsByType, opts) {
+    var _ctx$filters3, _ctx$filters4;
     performance.mark("create-mageblood-filters-start");
     const searchInRange = Math.min(2, opts.searchStatRange);
     const ctx = {
@@ -15997,59 +17081,59 @@ var EE2 = (() => {
       filters: [],
       statsByType
     };
-    ctx.filters.push(
-      ...ctx.statsByType.filter(
-        (s) => s.type !== "explicit" /* Explicit */ || s.stat.ref.startsWith("All Mage's Legacies")
-      ).map((mod) => calculatedStatToFilter(mod, ctx.searchInRange, item))
-    );
-    const legacies = ctx.statsByType.filter(
-      (s) => s.type === "explicit" /* Explicit */ && s.stat.ref.startsWith("Legacy")
-    );
+    (_ctx$filters3 = ctx.filters).push.apply(_ctx$filters3, _toConsumableArray(ctx.statsByType.filter(s => s.type !== "explicit" /* Explicit */ || s.stat.ref.startsWith("All Mage's Legacies")).map(mod => calculatedStatToFilter(mod, ctx.searchInRange, item))));
+    const legacies = ctx.statsByType.filter(s => s.type === "explicit" /* Explicit */ && s.stat.ref.startsWith("Legacy"));
     const duplicates = 4 - legacies.length;
-    const dupFilter = propToFilter(
-      {
-        ref: "Duplicates: #",
-        tradeId: "item.duplicates",
-        roll: {
-          min: duplicates,
-          max: duplicates,
-          value: duplicates
-        },
-        sources: legacies.flatMap((s) => s.sources),
-        disabled: false,
-        hidden: "dont_hide_me"
+    const dupFilter = propToFilter({
+      ref: "Duplicates: #",
+      tradeId: "item.duplicates",
+      roll: {
+        min: duplicates,
+        max: duplicates,
+        value: duplicates
       },
-      ctx
-    );
+      sources: legacies.flatMap(s => s.sources),
+      disabled: false,
+      hidden: "dont_hide_me"
+    }, ctx);
     dupFilter.roll.bounds = {
       min: 0,
       max: 3
     };
     dupFilter.roll.min = duplicates;
     ctx.filters.push(dupFilter);
-    ctx.filters.push(
-      ...legacies.map((mod) => {
-        var _a2;
-        const copiedMod = JSON.parse(JSON.stringify(mod));
-        const source = copiedMod.sources[0];
-        source.contributes = {
-          value: 0,
-          min: 0,
-          max: 0,
-          option: (_a2 = source.contributes) == null ? void 0 : _a2.option
-        };
-        copiedMod.sources = [source];
-        const f = calculatedStatToFilter(copiedMod, ctx.searchInRange, item);
-        f.roll = void 0;
-        return f;
-      })
-    );
-    for (const filter of ctx.filters) {
-      if (!filter.hidden) {
-        filter.disabled = false;
-      }
-      if (filter.hidden === "dont_hide_me") {
-        filter.hidden = void 0;
+    (_ctx$filters4 = ctx.filters).push.apply(_ctx$filters4, _toConsumableArray(legacies.map(mod => {
+      var _a2;
+      const copiedMod = JSON.parse(JSON.stringify(mod));
+      const source = copiedMod.sources[0];
+      source.contributes = {
+        value: 0,
+        min: 0,
+        max: 0,
+        option: (_a2 = source.contributes) == null ? void 0 : _a2.option
+      };
+      copiedMod.sources = [source];
+      const f = calculatedStatToFilter(copiedMod, ctx.searchInRange, item);
+      f.roll = void 0;
+      return f;
+    })));
+    {
+      const _a103 = ctx.filters;
+      if (Array.isArray(_a103)) for (let _i101 = 0; _i101 < _a103.length; _i101++) {
+        const filter = _a103[_i101];
+        if (!filter.hidden) {
+          filter.disabled = false;
+        }
+        if (filter.hidden === "dont_hide_me") {
+          filter.hidden = void 0;
+        }
+      } else for (const filter of _a103) {
+        if (!filter.hidden) {
+          filter.disabled = false;
+        }
+        if (filter.hidden === "dont_hide_me") {
+          filter.hidden = void 0;
+        }
       }
     }
     return ctx.filters;
@@ -16064,7 +17148,9 @@ var EE2 = (() => {
         active: ROMAN_NUMERALS[0],
         presets: item.logbookAreaMods.map((area, idx) => ({
           id: ROMAN_NUMERALS[idx],
-          filters: createFilters(item, __spreadProps(__spreadValues({}, opts), { exact: true })),
+          filters: createFilters(item, __spreadProps(__spreadValues({}, opts), {
+            exact: true
+          })),
           stats: createExactStatFilters(item, sumStatsByModType(area), opts)
         }))
       };
@@ -16072,13 +17158,13 @@ var EE2 = (() => {
     if (item.isUnidentified || item.rarity === "Normal" /* Normal */ || !item.info.craftable && item.rarity !== "Unique" /* Unique */ || (item.category === "Flask" /* Flask */ || item.category === "Relic" /* Relic */ || item.category === "Tincture" /* Tincture */ || item.category === "Memory Line" /* MemoryLine */ || item.category === "Invitation" /* Invitation */ || item.category === "Heist Contract" /* HeistContract */ || item.category === "Heist Blueprint" /* HeistBlueprint */ || item.category === "Sentinel" /* Sentinel */ || item.category === "TowerAugment" /* Tablet */ || item.category === "BrequelFruit" /* Wombgift */) && item.rarity !== "Unique" /* Unique */ || item.category === "Currency" /* Currency */ && ((_a2 = item.trials) == null ? void 0 : _a2.numberOfTrials)) {
       return {
         active: "filters.preset_exact",
-        presets: [
-          {
-            id: "filters.preset_exact",
-            filters: createFilters(item, __spreadProps(__spreadValues({}, opts), { exact: true })),
-            stats: createExactStatFilters(item, item.statsByType, opts)
-          }
-        ]
+        presets: [{
+          id: "filters.preset_exact",
+          filters: createFilters(item, __spreadProps(__spreadValues({}, opts), {
+            exact: true
+          })),
+          stats: createExactStatFilters(item, item.statsByType, opts)
+        }]
       };
     }
     if (PRESET_UNIQUES.has(item.info.refName)) {
@@ -16086,15 +17172,22 @@ var EE2 = (() => {
     }
     const pseudoPreset = {
       id: "filters.preset_pseudo",
-      filters: createFilters(item, __spreadProps(__spreadValues({}, opts), { exact: false })),
+      filters: createFilters(item, __spreadProps(__spreadValues({}, opts), {
+        exact: false
+      })),
       stats: initUiModFilters(item, opts)
     };
     if (likelyFinishedItem(item) || !hasCraftingValue(item)) {
-      return { active: pseudoPreset.id, presets: [pseudoPreset] };
+      return {
+        active: pseudoPreset.id,
+        presets: [pseudoPreset]
+      };
     }
     const baseItemPreset = {
       id: "filters.preset_base_item",
-      filters: createFilters(item, __spreadProps(__spreadValues({}, opts), { exact: true })),
+      filters: createFilters(item, __spreadProps(__spreadValues({}, opts), {
+        exact: true
+      })),
       stats: createExactStatFilters(item, item.statsByType, opts)
     };
     return {
@@ -16110,19 +17203,19 @@ var EE2 = (() => {
     return __async(this, null, function* () {
       let data = cache2.get([body, leagueId]);
       if (!data) {
-        preventQueueCreation([{ count: 1, limiters: RATE_LIMIT_RULES.EXCHANGE }]);
+        preventQueueCreation([{
+          count: 1,
+          limiters: RATE_LIMIT_RULES.EXCHANGE
+        }]);
         yield RateLimiter.waitMulti(RATE_LIMIT_RULES.EXCHANGE);
-        const response = yield Host.proxy(
-          `${poeWebApi()}/api/trade2/exchange/${leagueId}`,
-          {
-            method: "POST",
-            headers: {
-              "Accept": "application/json",
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify(body)
-          }
-        );
+        const response = yield Host.proxy(`${poeWebApi()}/api/trade2/exchange/${leagueId}`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
         adjustRateLimits(RATE_LIMIT_RULES.EXCHANGE, response.headers);
         const _data = yield response.json();
         if (_data.error) {
@@ -16130,11 +17223,7 @@ var EE2 = (() => {
         } else {
           data = _data;
         }
-        cache2.set(
-          [body, leagueId],
-          data,
-          Cache.deriveTtl(...RATE_LIMIT_RULES.EXCHANGE)
-        );
+        cache2.set([body, leagueId], data, Cache.deriveTtl.apply(Cache, _toConsumableArray(RATE_LIMIT_RULES.EXCHANGE)));
       }
       return data;
     });
@@ -16143,7 +17232,9 @@ var EE2 = (() => {
     var _a2;
     return {
       id: result.id,
-      relativeDate: (_a2 = DateTime.fromISO(result.listing.indexed).toRelative({ style: "short" })) != null ? _a2 : "",
+      relativeDate: (_a2 = DateTime.fromISO(result.listing.indexed).toRelative({
+        style: "short"
+      })) != null ? _a2 : "",
       exchangeAmount: result.listing.offers[offer].exchange.amount,
       itemAmount: result.listing.offers[offer].item.amount,
       stock: result.listing.offers[offer].item.stock,
@@ -16155,9 +17246,7 @@ var EE2 = (() => {
   }
   function createTradeRequest2(filters, item, have) {
     if (filters.trade.listingType === "securable" || filters.trade.listingType === "available") {
-      console.error(
-        "securable and available are not supported for bulk, you shouldn't ever see this"
-      );
+      console.error("securable and available are not supported for bulk, you shouldn't ever see this");
       filters.trade.listingType = "online";
     }
     return {
@@ -16171,30 +17260,23 @@ var EE2 = (() => {
         minimum: filters.stackSize && !filters.stackSize.disabled ? filters.stackSize.value : void 0
         // fulfillable: null
       },
-      sort: { have: "asc" }
+      sort: {
+        have: "asc"
+      }
     };
   }
   var SHOW_RESULTS = 8;
   var API_FETCH_LIMIT = 100;
   function execBulkSearch(item, filters, have, opts) {
     return __async(this, null, function* () {
-      const query = yield requestTradeResultList2(
-        createTradeRequest2(filters, item, have),
-        filters.trade.league
-      );
+      const query = yield requestTradeResultList2(createTradeRequest2(filters, item, have), filters.trade.league);
       const offer = 0;
-      const results = Object.values(query.result).filter(
-        (result) => result.listing.offers.length === 1
-      );
-      const resultByHave = have.map((tradeTag2) => {
-        const resultsTag = results.filter(
-          (result) => result.listing.offers[offer].exchange.currency === tradeTag2
-        );
+      const results = Object.values(query.result).filter(result => result.listing.offers.length === 1);
+      const resultByHave = have.map(tradeTag2 => {
+        const resultsTag = results.filter(result => result.listing.offers[offer].exchange.currency === tradeTag2);
         const loadedOnDemand = tradeTag2 === "exalted" && resultsTag.length < SHOW_RESULTS && query.total > API_FETCH_LIMIT;
         if (loadedOnDemand) return null;
-        const listed = resultsTag.sort(
-          (a, b) => a.listing.offers[offer].exchange.amount / a.listing.offers[offer].item.amount - b.listing.offers[offer].exchange.amount / b.listing.offers[offer].item.amount
-        ).slice(0, SHOW_RESULTS).map((result) => toPricingResult(result, opts, offer));
+        const listed = resultsTag.sort((a, b) => a.listing.offers[offer].exchange.amount / a.listing.offers[offer].item.amount - b.listing.offers[offer].exchange.amount / b.listing.offers[offer].item.amount).slice(0, SHOW_RESULTS).map(result => toPricingResult(result, opts, offer));
         const chaosIsLoaded = tradeTag2 === "divine" && resultsTag.length < results.length && (results.length - resultsTag.length >= SHOW_RESULTS || query.total <= API_FETCH_LIMIT);
         return {
           queryId: query.id,
@@ -16224,9 +17306,10 @@ var EE2 = (() => {
       }
     });
     const selected = (0, import_vue6.computed)(() => {
-      const { leagueId } = AppConfig();
+      const _AppConfig = AppConfig(),
+        leagueId = _AppConfig.leagueId;
       if (!tradeLeagues.value || !leagueId) return void 0;
-      const listed = tradeLeagues.value.find((league) => league.id === leagueId);
+      const listed = tradeLeagues.value.find(league => league.id === leagueId);
       return {
         id: leagueId,
         realm: AppConfig().realm,
@@ -16239,18 +17322,17 @@ var EE2 = (() => {
         isLoading.value = true;
         error.value = null;
         try {
-          const response = yield Host.proxy(
-            `${poeWebApi()}/api/trade2/data/leagues`
-          );
-          if (!response.ok)
-            throw new Error(JSON.stringify(Object.fromEntries(response.headers)));
+          const response = yield Host.proxy(`${poeWebApi()}/api/trade2/data/leagues`);
+          if (!response.ok) throw new Error(JSON.stringify(Object.fromEntries(response.headers)));
           const leagues2 = yield response.json();
-          tradeLeagues.value = leagues2.result.map((league) => {
-            return { id: league.id, isPopular: true, text: league.text };
+          tradeLeagues.value = leagues2.result.map(league => {
+            return {
+              id: league.id,
+              isPopular: true,
+              text: league.text
+            };
           });
-          const leagueIsAlive = tradeLeagues.value.some(
-            (league) => league.id === selectedId.value
-          );
+          const leagueIsAlive = tradeLeagues.value.some(league => league.id === selectedId.value);
           if (!leagueIsAlive && !isPrivateLeague((_a2 = selectedId.value) != null ? _a2 : "")) {
             if (tradeLeagues.value.length > 2) {
               const TMP_CHALLENGE = 2;
@@ -16296,8 +17378,14 @@ var EE2 = (() => {
       }
     }
     let v = messages;
-    for (const p of path.split(".")) {
-      v = v && v[p];
+    {
+      const _a104 = path.split(".");
+      if (Array.isArray(_a104)) for (let _i102 = 0; _i102 < _a104.length; _i102++) {
+        const p = _a104[_i102];
+        v = v && v[p];
+      } else for (const p of _a104) {
+        v = v && v[p];
+      }
     }
     return typeof v === "string" ? v : path;
   }
@@ -16310,14 +17398,21 @@ var EE2 = (() => {
     return s;
   }
   function useI18n() {
-    return { t: t2 };
+    return {
+      t: t2
+    };
   }
 
   // tools/poe2-ee2/entry.ts
-  var LANGUAGES = [
-    { lang: "en", itemClass: "Item Class: ", rarity: "Rarity: " },
-    { lang: "de", itemClass: "Gegenstandsklasse: ", rarity: "Seltenheit: " }
-  ];
+  var LANGUAGES = [{
+    lang: "en",
+    itemClass: "Item Class: ",
+    rarity: "Rarity: "
+  }, {
+    lang: "de",
+    itemClass: "Gegenstandsklasse: ",
+    rarity: "Seltenheit: "
+  }];
   var loaded = "";
   var leaguesLoaded = false;
   function setup(h) {
@@ -16325,9 +17420,29 @@ var EE2 = (() => {
   }
   function languageOf(text) {
     const lines2 = String(text || "").split(/\r?\n/);
-    for (const l of LANGUAGES) {
-      for (const line of lines2.slice(0, 2)) {
-        if (line.indexOf(l.itemClass) === 0 || line.indexOf(l.rarity) === 0) return l.lang;
+    {
+      const _a105 = LANGUAGES;
+      if (Array.isArray(_a105)) for (let _i103 = 0; _i103 < _a105.length; _i103++) {
+        const l = _a105[_i103];
+        {
+          const _a106 = lines2.slice(0, 2);
+          if (Array.isArray(_a106)) for (let _i104 = 0; _i104 < _a106.length; _i104++) {
+            const line = _a106[_i104];
+            if (line.indexOf(l.itemClass) === 0 || line.indexOf(l.rarity) === 0) return l.lang;
+          } else for (const line of _a106) {
+            if (line.indexOf(l.itemClass) === 0 || line.indexOf(l.rarity) === 0) return l.lang;
+          }
+        }
+      } else for (const l of _a105) {
+        {
+          const _a107 = lines2.slice(0, 2);
+          if (Array.isArray(_a107)) for (let _i105 = 0; _i105 < _a107.length; _i105++) {
+            const line = _a107[_i105];
+            if (line.indexOf(l.itemClass) === 0 || line.indexOf(l.rarity) === 0) return l.lang;
+          } else for (const line of _a107) {
+            if (line.indexOf(l.itemClass) === 0 || line.indexOf(l.rarity) === 0) return l.lang;
+          }
+        }
       }
     }
     return "";
@@ -16339,8 +17454,7 @@ var EE2 = (() => {
     return __async(this, null, function* () {
       if (loaded === lang) return;
       setLanguage(lang);
-      if (!loaded) yield init(lang);
-      else yield loadForLang(lang);
+      if (!loaded) yield init(lang);else yield loadForLang(lang);
       loaded = lang;
     });
   }
@@ -16353,7 +17467,10 @@ var EE2 = (() => {
         leaguesLoaded = !l.error.value;
       }
       return {
-        list: l.list.value.map((x) => ({ id: x.id, text: x.text })),
+        list: l.list.value.map(x => ({
+          id: x.id,
+          text: x.text
+        })),
         selected: l.selectedId.value || "",
         error: l.error.value || ""
       };
@@ -16361,17 +17478,24 @@ var EE2 = (() => {
   }
   var current = null;
   function preset(c) {
-    return c.presets.presets.find((p) => p.id === c.presets.active);
+    return c.presets.presets.find(p => p.id === c.presets.active);
   }
   function check(text, league) {
     return __async(this, null, function* () {
       const lang = languageOf(text);
-      if (!lang) return { error: "not_an_item" };
+      if (!lang) return {
+        error: "not_an_item"
+      };
       yield load(lang);
       const lg = yield leagues(league);
-      if (!lg.selected) return { error: "leagues", detail: lg.error };
+      if (!lg.selected) return {
+        error: "leagues",
+        detail: lg.error
+      };
       const parsed = parseClipboard(text);
-      if (parsed.isErr()) return { error: parsed.error };
+      if (parsed.isErr()) return {
+        error: parsed.error
+      };
       const item = parsed.value;
       const presets = createPresets(item, {
         league: lg.selected,
@@ -16383,7 +17507,11 @@ var EE2 = (() => {
         useEn: true,
         defaultAllSelected: false
       });
-      current = { item, presets, run: 0 };
+      current = {
+        item,
+        presets,
+        run: 0
+      };
       const f = preset(current).filters;
       if (api(current) === "bulk") f.trade.listingType = "online";
       return view();
@@ -16394,22 +17522,17 @@ var EE2 = (() => {
     return apiToSatisfySearch(c.item, p.stats, p.filters);
   }
   function searchesAtOnce(item) {
-    return Boolean(
-      item.rarity === "Unique" /* Unique */ || item.category === "Charm" /* Charm */ || !CATEGORY_TO_TRADE_ID.has(item.category) || item.isUnidentified || item.isVeiled
-    );
+    return Boolean(item.rarity === "Unique" /* Unique */ || item.category === "Charm" /* Charm */ || !CATEGORY_TO_TRADE_ID.has(item.category) || item.isUnidentified || item.isVeiled);
   }
-  var NUMERIC = [
-    ["itemLevel", "Item level"],
-    ["quality", "Quality"],
-    ["gemLevel", "Gem level"],
-    ["mapTier", "Tier"],
-    ["areaLevel", "Area level"],
-    ["socketNumber", "Sockets"],
-    ["augmentSockets", "Rune sockets"],
-    ["stackSize", "Stack"],
-    ["awardedAscendancyPoints", "Ascendancy points"]
-  ];
-  var RARITY = { nonunique: "Not unique", normal: "Normal", magic: "Magic", rare: "Rare", unique: "Unique", uniquefoil: "Foil unique" };
+  var NUMERIC = [["itemLevel", "Item level"], ["quality", "Quality"], ["gemLevel", "Gem level"], ["mapTier", "Tier"], ["areaLevel", "Area level"], ["socketNumber", "Sockets"], ["augmentSockets", "Rune sockets"], ["stackSize", "Stack"], ["awardedAscendancyPoints", "Ascendancy points"]];
+  var RARITY = {
+    nonunique: "Not unique",
+    normal: "Normal",
+    magic: "Magic",
+    rare: "Rare",
+    unique: "Unique",
+    uniquefoil: "Foil unique"
+  };
   function view() {
     const c = current;
     if (!c) return null;
@@ -16417,13 +17540,57 @@ var EE2 = (() => {
     const f = p.filters;
     const it = c.item;
     const filters = [];
-    for (const [key, label] of NUMERIC) {
-      const v = f[key];
-      if (v && typeof v.value === "number") filters.push({ key, label, value: v.value, max: v.max === void 0 ? null : v.max, disabled: !!v.disabled });
+    {
+      const _a108 = NUMERIC;
+      if (Array.isArray(_a108)) for (let _i106 = 0; _i106 < _a108.length; _i106++) {
+        const _a108$_i = _slicedToArray(_a108[_i106], 2),
+          key = _a108$_i[0],
+          label = _a108$_i[1];
+        const v = f[key];
+        if (v && typeof v.value === "number") filters.push({
+          key,
+          label,
+          value: v.value,
+          max: v.max === void 0 ? null : v.max,
+          disabled: !!v.disabled
+        });
+      } else for (const _ref9 of _a108) {
+        var _ref0 = _slicedToArray(_ref9, 2);
+        const key = _ref0[0];
+        const label = _ref0[1];
+        const v = f[key];
+        if (v && typeof v.value === "number") filters.push({
+          key,
+          label,
+          value: v.value,
+          max: v.max === void 0 ? null : v.max,
+          disabled: !!v.disabled
+        });
+      }
     }
-    if (f.corrupted) filters.push({ key: "corrupted", label: f.corrupted.value ? "Corrupted" : "Not corrupted", value: null, max: null, disabled: false, fixed: true });
-    if (f.unidentified) filters.push({ key: "unidentified", label: "Unidentified", value: null, max: null, disabled: !!f.unidentified.disabled });
-    if (f.rarity && f.rarity.value) filters.push({ key: "rarity", label: RARITY[f.rarity.value] || f.rarity.value, value: null, max: null, disabled: false, fixed: true });
+    if (f.corrupted) filters.push({
+      key: "corrupted",
+      label: f.corrupted.value ? "Corrupted" : "Not corrupted",
+      value: null,
+      max: null,
+      disabled: false,
+      fixed: true
+    });
+    if (f.unidentified) filters.push({
+      key: "unidentified",
+      label: "Unidentified",
+      value: null,
+      max: null,
+      disabled: !!f.unidentified.disabled
+    });
+    if (f.rarity && f.rarity.value) filters.push({
+      key: "rarity",
+      label: RARITY[f.rarity.value] || f.rarity.value,
+      value: null,
+      max: null,
+      disabled: false,
+      fixed: true
+    });
     return {
       name: it.info.name,
       refName: it.info.refName,
@@ -16434,7 +17601,10 @@ var EE2 = (() => {
       corrupted: !!it.isCorrupted,
       unidentified: !!it.isUnidentified,
       searchName: f.searchExact ? f.searchExact.name || f.searchExact.baseType || "" : "",
-      presets: c.presets.presets.map((x) => ({ id: x.id, active: x.id === c.presets.active })),
+      presets: c.presets.presets.map(x => ({
+        id: x.id,
+        active: x.id === c.presets.active
+      })),
       api: api(c),
       atOnce: searchesAtOnce(it),
       filters,
@@ -16475,7 +17645,7 @@ var EE2 = (() => {
     return view();
   }
   function setPreset(id) {
-    if (current && current.presets.presets.some((p) => p.id === id)) current.presets.active = id;
+    if (current && current.presets.presets.some(p => p.id === id)) current.presets.active = id;
     return view();
   }
   function trade(r) {
@@ -16498,22 +17668,26 @@ var EE2 = (() => {
   function search(update) {
     return __async(this, null, function* () {
       const c = current;
-      if (!c) return { error: "nothing" };
+      if (!c) return {
+        error: "nothing"
+      };
       const run = ++c.run;
       const p = preset(c);
       const kind = api(c);
       if (kind === "bulk") {
         try {
           const have = ["exalted", "divine"];
-          const res = yield execBulkSearch(c.item, p.filters, have, { accountName: AppConfig().accountName });
+          const res = yield execBulkSearch(c.item, p.filters, have, {
+            accountName: AppConfig().accountName
+          });
           if (run !== c.run || current !== c) return null;
           const out2 = {
             kind,
             done: true,
-            groups: res.filter((g) => g).map((g) => ({
+            groups: res.filter(g => g).map(g => ({
               have: g.haveTag,
               total: g.total,
-              listed: g.listed.map((r) => ({
+              listed: g.listed.map(r => ({
                 rate: r.itemAmount ? r.exchangeAmount / r.itemAmount : 0,
                 exchangeAmount: r.exchangeAmount,
                 itemAmount: r.itemAmount,
@@ -16528,36 +17702,48 @@ var EE2 = (() => {
           update(out2);
           return out2;
         } catch (e) {
-          const out2 = { kind, done: true, error: String(e.message || e) };
+          const out2 = {
+            kind,
+            done: true,
+            error: String(e.message || e)
+          };
           update(out2);
           return out2;
         }
       }
       const fetched = [];
       let total = 0;
-      const snapshot = (done, error = "") => ({ kind, done, error, total, listed: grouped(fetched).map(trade) });
+      const snapshot = (done, error = "") => ({
+        kind,
+        done,
+        error,
+        total,
+        listed: grouped(fetched).map(trade)
+      });
       try {
         const result = yield requestTradeResultList(createTradeRequest(p.filters, p.stats, c.item), p.filters.trade.league);
         if (run !== c.run || current !== c) return null;
         total = result.total;
         update(snapshot(false));
-        const opts = { accountName: AppConfig().accountName };
+        const opts = {
+          accountName: AppConfig().accountName
+        };
         const r1 = result.result.length > 0 ? requestResults(result.id, result.result.slice(0, 10), opts) : Promise.resolve([]);
         const r2 = result.result.length > 10 ? requestResults(result.id, result.result.slice(10, 20), opts) : Promise.resolve([]);
         const first = yield r1;
-        fetched.push(...first);
+        fetched.push.apply(fetched, _toConsumableArray(first));
         const second = yield r2;
-        fetched.push(...second);
+        fetched.push.apply(fetched, _toConsumableArray(second));
         if (run !== c.run || current !== c) return null;
         update(snapshot(false));
         let count = 20;
-        for (; ; ) {
+        for (;;) {
           const g = grouped(fetched);
           const notGrouped = g.reduce((n, r) => r.listedTimes <= 2 ? n + 1 : n, 0);
           if (!((notGrouped < MIN_NOT_GROUPED || g.length < MIN_GROUPED) && count < result.result.length && count < API_FETCH_LIMIT2)) break;
           const more = yield requestResults(result.id, result.result.slice(count, count + 10), opts);
           if (run !== c.run || current !== c) return null;
-          fetched.push(...more);
+          fetched.push.apply(fetched, _toConsumableArray(more));
           count += 10;
           update(snapshot(false));
         }
@@ -16577,20 +17763,41 @@ var EE2 = (() => {
   var MIN_GROUPED = 10;
   function grouped(results) {
     const out = [];
-    for (const result of results) {
-      if (result == null) break;
-      if (out.length === 0) {
-        out.push(Object.assign({ listedTimes: 1 }, result));
-        continue;
-      }
-      const existing = out.find(
-        (added, idx) => added.accountName === result.accountName && added.priceCurrency === result.priceCurrency && added.priceAmount === result.priceAmount || added.accountName === result.accountName && out.length - idx <= 2
-      );
-      if (existing) {
-        if (existing.stackSize) existing.stackSize += result.stackSize;
-        else existing.listedTimes += 1;
-      } else {
-        out.push(Object.assign({ listedTimes: 1 }, result));
+    {
+      const _a109 = results;
+      if (Array.isArray(_a109)) for (let _i107 = 0; _i107 < _a109.length; _i107++) {
+        const result = _a109[_i107];
+        if (result == null) break;
+        if (out.length === 0) {
+          out.push(Object.assign({
+            listedTimes: 1
+          }, result));
+          continue;
+        }
+        const existing = out.find((added, idx) => added.accountName === result.accountName && added.priceCurrency === result.priceCurrency && added.priceAmount === result.priceAmount || added.accountName === result.accountName && out.length - idx <= 2);
+        if (existing) {
+          if (existing.stackSize) existing.stackSize += result.stackSize;else existing.listedTimes += 1;
+        } else {
+          out.push(Object.assign({
+            listedTimes: 1
+          }, result));
+        }
+      } else for (const result of _a109) {
+        if (result == null) break;
+        if (out.length === 0) {
+          out.push(Object.assign({
+            listedTimes: 1
+          }, result));
+          continue;
+        }
+        const existing = out.find((added, idx) => added.accountName === result.accountName && added.priceCurrency === result.priceCurrency && added.priceAmount === result.priceAmount || added.accountName === result.accountName && out.length - idx <= 2);
+        if (existing) {
+          if (existing.stackSize) existing.stackSize += result.stackSize;else existing.listedTimes += 1;
+        } else {
+          out.push(Object.assign({
+            listedTimes: 1
+          }, result));
+        }
       }
     }
     return out;

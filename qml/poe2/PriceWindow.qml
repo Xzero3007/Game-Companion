@@ -108,6 +108,22 @@ Panel {
             font.pixelSize: 12
             style: Theme.textStyle(); styleColor: Theme.shadow
         }
+        // Why a Ctrl+C in the game would not be heard (shown, not guessed).
+        Text {
+            width: parent.width
+            visible: text.length > 0
+            wrapMode: Text.WordWrap
+            text: {
+                if (!win.store) return ""
+                if (Poe2.watchError.length > 0) return "Copies can't be read: " + Poe2.watchError
+                if (!win.store.on && !win.v) return "Copies are read only while Path of Exile 2 runs and Game Companion sees it (the game row shows PATH OF EXILE 2)."
+                return ""
+            }
+            color: Poe2.watchError.length > 0 ? Theme.red : Theme.muted()
+            font.family: Theme.body
+            font.pixelSize: 11
+            style: Theme.textStyle(); styleColor: Theme.shadow
+        }
 
         // The league the trade site is asked for.
         Dropdown {
