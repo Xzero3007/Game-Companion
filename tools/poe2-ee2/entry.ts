@@ -29,6 +29,40 @@ const LANGUAGES = [
 ];
 
 let loaded = "";
+
+/** Game Companion's price check settings (Settings → Plugins → PoE 2). */
+export interface Prefs {
+  searchStatRange: number; // min = value − N % (EE2's default 10)
+  fillMax: boolean; // max = value + N % too
+  defaultAllSelected: boolean;
+  smartInitialSearch: boolean; // uniques and the like search at once
+  listingType: string; // "securable" (instant buyout), "available" (in person), "any"
+  currency: string; // "" (any), "exalted", "divine", "chaos"
+  collapseListings: "app" | "api";
+  showSeller: "account" | "ign" | "";
+  accountName: string;
+}
+const prefs: Prefs = {
+  searchStatRange: 10,
+  fillMax: false,
+  defaultAllSelected: false,
+  smartInitialSearch: true,
+  listingType: "securable",
+  currency: "",
+  collapseListings: "app",
+  showSeller: "account",
+  accountName: "",
+};
+/** Takes the settings over (missing ones keep EE2's defaults). */
+export function setPrefs(p: Partial<Prefs>) {
+  for (const k in p) if ((p as any)[k] !== undefined && k in prefs) (prefs as any)[k] = (p as any)[k];
+  const w = AppConfig("price-check");
+  w.searchStatRange = prefs.searchStatRange;
+  w.collapseListings = prefs.collapseListings;
+  w.defaultAllSelected = prefs.defaultAllSelected;
+  w.smartInitialSearch = prefs.smartInitialSearch;
+  AppConfig().accountName = prefs.accountName;
+}
 let leaguesLoaded = false;
 
 export function setup(h: HostApi) {
@@ -105,17 +139,26 @@ export async function check(text: string, league: string): Promise<any> {
   const item = parsed.value;
   const presets = createPresets(item, {
     league: lg.selected,
-    currency: undefined,
-    listingType: undefined,
-    collapseListings: "app",
+    currency: prefs.currency || undefined,
+    listingType: prefs.listingType || undefined,
+    collapseListings: prefs.collapseListings,
     activateStockFilter: false,
-    searchStatRange: AppConfig("price-check").searchStatRange,
+    searchStatRange: prefs.searchStatRange,
     useEn: true,
-    defaultAllSelected: false,
+    defaultAllSelected: prefs.defaultAllSelected,
   });
   current = { item, presets, run: 0 };
   const f = preset(current).filters;
   if (api(current) === "bulk") f.trade.listingType = "online";
+  if (prefs.fillMax) {
+    for (const st of preset(current).stats) {
+      if (st.roll && typeof st.roll.min === "number") {
+        const v = st.roll.value;
+        const d = Math.abs(v) * prefs.searchStatRange / 100;
+        st.roll.max = st.roll.dp ? Math.round((v + d) * 100) / 100 : Math.ceil(v + d);
+      }
+    }
+  }
   return view();
 }
 
@@ -126,6 +169,7 @@ function api(c: Checked) {
 
 /** Whether EE2 would search at once (uniques, unidentified and the like). */
 function searchesAtOnce(item: ParsedItem) {
+  if (!prefs.smartInitialSearch) return false;
   return Boolean(
     item.rarity === ItemRarity.Unique ||
       item.category === ItemCategory.Charm ||
@@ -188,8 +232,153 @@ export function view(): any {
       min: s.roll && typeof s.roll.min === "number" ? s.roll.min : null,
       max: s.roll && typeof s.roll.max === "number" ? s.roll.max : null,
       option: s.option ? s.option.value : null,
+      dp: !!(s.roll && s.roll.dp),
+      ...placeOf(s),
     })),
+    listingType: f.trade.listingType,
+    currency: f.trade.currency || "",
+    advanced: hasModInfo(it),
+    mods: hasModInfo(it) ? modsOf(it, p.stats) : [],
   };
+}
+
+// The item's mods as the game's advanced copy lists them (MN: "what is on
+// the item, what comes from prefixes, what from suffixes"): each with its
+// own lines (the rolled values with the tier's range in brackets, as the
+// game writes them), its tier, and the stat line that searches for it, or
+// where EE2 counted it instead (a total, the item's values).
+interface ModRow {
+  group: string;
+  name: string;
+  tier: number | null;
+  lines: { text: string; parts: Array<{ t: string; range: boolean }> }[];
+  filter: number | null;
+  folded: string;
+}
+function modsOf(item: ParsedItem, stats: StatFilter[]): ModRow[] {
+  const out: ModRow[] = [];
+  const used = new Set<object>();
+  const sections = item.rawText.split(/\r?\n--------\r?\n/);
+  const filterOf = (mod: object | null, text: string) => {
+    let filter: number | null = null;
+    let folded = "";
+    stats.forEach((st, i) => {
+      if (filter !== null) return;
+      const own = (st.sources || []).some((x) => x.modifier === mod);
+      const tag = st.tag as string;
+      if (tag === "property" || tag === "pseudo") {
+        if (own && !folded) folded = tag === "pseudo" ? "totals" : "values";
+        return;
+      }
+      if (own || (!mod && sameLine(st.text, text))) filter = i;
+    });
+    return { filter, folded: filter === null ? folded : "" };
+  };
+  for (const section of sections) {
+    const rows = section.split(/\r?\n/).filter((l) => l.length > 0);
+    if (!rows.some((l) => /^\{.*\}$/.test(l))) {
+      // A section of fixed lines without headers (runes, enchants).
+      for (const l of rows) {
+        const m = l.match(/^(.*\S) \(([^()]+)\)$/);
+        if (!m || !/^(rune|added rune|enchant|implicit|Rune|Verzauberung|implizit)$/i.test(m[2])) continue;
+        const text = m[1];
+        out.push({ group: "fixed", name: "", tier: null, lines: [line(text)], ...filterOf(null, text) });
+      }
+      continue;
+    }
+    let row: ModRow | null = null;
+    for (const l of rows) {
+      if (/^\{.*\}$/.test(l)) {
+        const name = (l.match(/"([^"]+)"/) || [])[1] || "";
+        const num = l.match(/\((?:[^():]+):\s*(\d+)\)/);
+        const tier = num ? Number(num[1]) : null;
+        const mod = item.newMods.find((m) => !used.has(m) && (m.info.name || "") === name && (name || m.info.tier === undefined || m.info.tier === tier) && (name !== "" || (m.info.type as string) !== "explicit"))
+          || item.newMods.find((m) => !used.has(m) && (m.info.name || "") === name);
+        if (mod) used.add(mod);
+        const type = mod ? (mod.info.type as string) : "";
+        const gen = mod ? mod.info.generation : undefined;
+        const group = gen === "prefix" || gen === "suffix" ? gen : type === "explicit" || type === "" ? "lines" : "fixed";
+        const tierNo = mod && typeof mod.info.tier === "number" ? mod.info.tier : tier;
+        row = { group, name, tier: tierNo, lines: [], filter: null, folded: "", mod } as any;
+        out.push(row!);
+        continue;
+      }
+      if (!row) continue;
+      row.lines.push(line(l.replace(/ \((implicit|enchant|rune|added rune|crafted|fractured|desecrated|implizit)\)$/i, "")));
+    }
+  }
+  for (const r of out as any[]) {
+    if (r.mod === undefined) continue;
+    const f = r.mod ? filterOf(r.mod, "") : filterOf(null, r.lines.length ? r.lines[0].text : "");
+    r.filter = f.filter;
+    r.folded = f.folded;
+    delete r.mod;
+  }
+  return out.filter((r) => r.lines.length > 0);
+}
+// A line split into the rolled text and the tier's ranges: "+33(31-35)%"
+// becomes "+33", range "31–35", "%".
+function line(text: string) {
+  const parts: Array<{ t: string; range: boolean }> = [];
+  const re = /(\d)\((-?[\d.]+)-(-?[\d.]+)\)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    parts.push({ t: text.slice(last, m.index + 1), range: false });
+    parts.push({ t: m[2] + "\u2013" + m[3], range: true });
+    last = m.index + m[0].length;
+  }
+  parts.push({ t: text.slice(last), range: false });
+  return { text: parts.filter((x) => !x.range).map((x) => x.t).join(""), parts };
+}
+function sameLine(template: string, text: string) {
+  const esc = template.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/#/g, "[+-]?[\\d.]+");
+  return new RegExp("^\\+?" + esc + "$").test(text);
+}
+
+// Where a line stands on the item, as the game's tooltip orders it: fixed
+// lines (implicit, enchant, runes), prefixes, suffixes, EE2's totals. The
+// prefix/suffix split, the tier and its range come only with the game's
+// advanced copy (Ctrl+C with Alt held); without it explicit lines are "lines".
+function placeOf(s: StatFilter): { group: string; tier: number | null; low: number | null; high: number | null } {
+  const src = s.sources && s.sources.length ? s.sources : [];
+  const types = src.map((x) => x.modifier.info.type as string);
+  const tag = s.tag as string;
+  let group = "lines";
+  if (tag === "property") group = "properties";
+  else if (tag === "pseudo") group = "totals";
+  else if (types.some((t) => t === "implicit" || t === "enchant" || t === "rune" || t === "added-rune" || t === "skill") || tag === "implicit" || tag === "enchant" || tag === "rune" || tag === "added-rune") group = "fixed";
+  else {
+    const gen = src.map((x) => x.modifier.info.generation).find((g) => g === "prefix" || g === "suffix");
+    if (gen) group = gen;
+    else if (tag === "fractured" || tag === "desecrated" || tag === "crafted") group = "lines";
+  }
+  let tier: number | null = null;
+  let low: number | null = null;
+  let high: number | null = null;
+  if (src.length === 1 && group !== "totals" && group !== "properties") {
+    const one = src[0];
+    if (typeof one.modifier.info.tier === "number") tier = one.modifier.info.tier;
+    const c = one.contributes;
+    if (c && typeof c.min === "number" && typeof c.max === "number" && (c.min !== c.max || tier !== null)) {
+      low = c.min;
+      high = c.max;
+    }
+  }
+  return { group, tier, low, high };
+}
+
+function hasModInfo(item: ParsedItem) {
+  return item.newMods.some((m) => typeof m.info.tier === "number" || m.info.generation === "prefix" || m.info.generation === "suffix");
+}
+
+/** Sets a trade choice of the checked item: listingType or currency. */
+export function setTrade(key: "listingType" | "currency", value: string) {
+  if (!current) return view();
+  const t = preset(current).filters.trade as any;
+  t[key] = value || undefined;
+  if (key === "listingType" && !value) t.listingType = "any";
+  return view();
 }
 
 // EE2's reasons for leaving a line out of the search at first, in its words.
@@ -232,7 +421,7 @@ function trade(r: any) {
     currency: r.priceCurrency,
     times: r.listedTimes || 1,
     stack: r.stackSize || 0,
-    account: r.accountName,
+    account: prefs.showSeller === "ign" ? (r.ign || r.accountName) : prefs.showSeller === "" ? "" : r.accountName,
     status: r.accountStatus,
     age: r.relativeDate,
     itemLevel: r.itemLevel || "",
@@ -259,6 +448,8 @@ export async function search(update: (r: any) => void): Promise<any> {
       const have = ["exalted", "divine"];
       const res = await execBulkSearch(c.item, p.filters, have, { accountName: AppConfig().accountName });
       if (run !== c.run || current !== c) return null;
+      const firstGroup = res.find((g) => g && g.queryId);
+      lastBulk = firstGroup ? { league: p.filters.trade.league, id: firstGroup.queryId } : null;
       const out = {
         kind,
         done: true,
@@ -270,7 +461,7 @@ export async function search(update: (r: any) => void): Promise<any> {
             exchangeAmount: r.exchangeAmount,
             itemAmount: r.itemAmount,
             stock: r.stock,
-            account: r.accountName,
+            account: prefs.showSeller === "ign" ? (r.ign || r.accountName) : prefs.showSeller === "" ? "" : r.accountName,
             status: r.accountStatus,
             age: r.relativeDate,
             mine: r.isMine,
@@ -350,6 +541,26 @@ function grouped(results: PricingResult[]) {
     }
   }
   return out;
+}
+
+let lastBulk: { league: string; id: string } | null = null;
+
+/**
+ * The trade site's page for this search (EE2's "open on the trade site"),
+ * opened in the person's browser only when they click it.
+ */
+export function tradeLink(): string {
+  const c = current;
+  if (!c) return "";
+  const p = preset(c);
+  const league = encodeURIComponent(p.filters.trade.league);
+  if (api(c) === "bulk") {
+    return lastBulk && lastBulk.league === p.filters.trade.league
+      ? `https://www.pathofexile.com/trade2/exchange/poe2/${league}/${encodeURIComponent(lastBulk.id)}`
+      : `https://www.pathofexile.com/trade2/exchange/poe2/${league}`;
+  }
+  const q = JSON.stringify(createTradeRequest(p.filters, p.stats, c.item));
+  return `https://www.pathofexile.com/trade2/search/poe2/${league}?q=${encodeURIComponent(q)}`;
 }
 
 /** Forgets the checked item. */

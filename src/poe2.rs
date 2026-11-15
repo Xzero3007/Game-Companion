@@ -178,6 +178,34 @@ fn cookie_jar() -> Option<PathBuf> {
     Some(PathBuf::from(dir).join("game-companion-poe2.cookies"))
 }
 
+/// The trade site's own pages for a search (opened in the person's browser
+/// when they press "Open on the trade site"; MN, 2026-11-15).
+pub fn trade_page_ok(url: &str) -> bool {
+    const PAGES: [&str; 2] = ["https://www.pathofexile.com/trade2/search/poe2/", "https://www.pathofexile.com/trade2/exchange/poe2/"];
+    PAGES.iter().any(|p| url.starts_with(p))
+        && url.len() < 16 * 1024
+        && url.bytes().all(|b| b.is_ascii_graphic())
+        && !url.contains("..")
+}
+
+/// Opens a trade page in the desktop's browser (xdg-open, not waited for).
+pub fn open_trade_page(url: &str) -> Result<(), String> {
+    if !trade_page_ok(url) {
+        return Err("not a trade site page".into());
+    }
+    let mut child = std::process::Command::new("xdg-open")
+        .arg(url)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| format!("xdg-open: {e}"))?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
 /// curl's output: the body, then our marker, the status and the headers
 /// as JSON (each name with a list of values).
 fn parse_output(out: &str) -> Result<Answer, String> {
@@ -343,6 +371,17 @@ mod tests {
         assert!(allowed(&league));
         assert_eq!(encode_address("a\"b{c}ä"), "a%22b%7Bc%7D%C3%A4");
         assert!(!allowed(&encode_address("https://www.pathofexile.com/api/trade2/search/../x")));
+    }
+
+    #[test]
+    fn trade_pages() {
+        assert!(trade_page_ok("https://www.pathofexile.com/trade2/search/poe2/Standard?q=%7B%22query%22%3A%7B%7D%7D"));
+        assert!(trade_page_ok("https://www.pathofexile.com/trade2/exchange/poe2/Runes%20of%20Aldur/abc123"));
+        assert!(!trade_page_ok("https://www.pathofexile.com/account/view-profile"));
+        assert!(!trade_page_ok("https://www.pathofexile.com.evil.example/trade2/search/poe2/x"));
+        assert!(!trade_page_ok("http://www.pathofexile.com/trade2/search/poe2/x"));
+        assert!(!trade_page_ok("https://www.pathofexile.com/trade2/search/poe2/x y"));
+        assert!(!trade_page_ok("https://www.pathofexile.com/trade2/search/poe2/../../x"));
     }
 
     #[test]

@@ -59,6 +59,11 @@ pub mod qobject {
         #[qsignal]
         fn kit_gone(self: Pin<&mut Poe2>, why: QString);
 
+        /// Opens a trade site page in the desktop's browser (only
+        /// www.pathofexile.com/trade2 search or exchange pages); false if refused.
+        #[qinvokable]
+        fn open_trade(self: &Poe2, url: &QString) -> bool;
+
         /// Looks at copied items or stops (the watcher starts on first use).
         #[qinvokable]
         fn watch(self: Pin<&mut Poe2>, on: bool);
@@ -141,6 +146,10 @@ impl qobject::Poe2 {
             s.poe2.clone()
         });
         self.as_mut().set_prefs(QString::from(&Value::Object(all).to_string()));
+    }
+
+    fn open_trade(&self, url: &QString) -> bool {
+        crate::poe2::open_trade_page(&url.to_string()).is_ok()
     }
 
     fn watch(mut self: Pin<&mut Self>, on: bool) {

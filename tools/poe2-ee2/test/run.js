@@ -39,6 +39,11 @@ function run(EE2, host, items, log, done) {
         EE2.check(items.RareItem, "Standard").then(function (v) {
             log("rare: " + v.name + " · " + v.rarity + " · api " + v.api + " · " + v.stats.length + " stats · filters " + v.filters.map(function (f) { return f.key }).join(","))
             v.stats.forEach(function (s) { log("   " + (s.disabled ? "[ ]" : "[x]") + " " + s.text + (s.min !== null ? " min " + s.min : "")) })
+            // The advanced copy's mods: prefixes and suffixes with tiers and ranges.
+            var mods = v.mods || []
+            log("mods: " + mods.map(function (m) { return m.group + (m.tier !== null ? " T" + m.tier : "") + " " + m.lines.map(function (l) { return l.text }).join(" / ") + (m.filter !== null ? " [" + m.filter + "]" : m.folded ? " (" + m.folded + ")" : "") }).join("; "))
+            if (!mods.some(function (m) { return m.group === "prefix" }) || !mods.some(function (m) { return m.group === "suffix" })) failed.push("mods: no prefixes or suffixes")
+            if (!mods.some(function (m) { return m.filter !== null })) failed.push("mods: none tied to a stat line")
             EE2.setStat(0, false)
             return EE2.search(function () { })
         }).then(function (r) {
@@ -49,12 +54,19 @@ function run(EE2, host, items, log, done) {
         }).then(function (r) {
             log("search again: " + (r.error ? "error " + r.error : r.total + " total"))
             if (r.error) failed.push("search: " + r.error)
+            var link = EE2.tradeLink()
+            log("trade link: " + link.slice(0, 90) + "…")
+            var q = link.split("?q=")[1]
+            if (link.indexOf("https://www.pathofexile.com/trade2/search/poe2/Standard?q=") !== 0 || !q || !JSON.parse(decodeURIComponent(q)).query)
+                failed.push("trade link: " + link.slice(0, 120))
             return EE2.check(items.UncutSkillGem, "Standard")
         }).then(function (v) {
             log("gem: " + v.name + " · api " + v.api)
             return EE2.search(function () { })
         }).then(function (r) {
             log("gem search: " + JSON.stringify(r).slice(0, 300))
+            log("gem trade link: " + EE2.tradeLink())
+            if (EE2.tradeLink().indexOf("https://www.pathofexile.com/trade2/exchange/poe2/Standard") !== 0) failed.push("gem trade link")
             log("requests: " + answers.map(function (u) { return u.replace(/\?.*/, "").replace("https://www.pathofexile.com", "") }).join(" "))
             done(failed.length === 0)
         }).catch(function (e) { log("ERROR " + e + (e && e.stack ? "\n" + e.stack : "")); done(false) })
