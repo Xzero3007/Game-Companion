@@ -24,6 +24,7 @@ mod market;
 mod meter_import;
 mod native;
 mod poe2;
+mod poe2_kit;
 mod poe2_object;
 mod protondb;
 mod radio;
@@ -44,6 +45,10 @@ mod voice_object;
 mod voice_overlay;
 
 fn main() {
+    // The PoE 2 price check's kit in its own process (src/poe2_kit.rs).
+    if std::env::args().nth(1).as_deref() == Some("--poe2-kit") {
+        std::process::exit(poe2_kit::main());
+    }
     // Qt's JavaScript without its JIT: Qt 6.12's JIT crashed in the PoE 2
     // price check's parser (Exiled Exchange 2's code; QA on Arch,
     // 2026-11-15: SIGSEGV in ArrayLiteral → newArrayObject, every run, none
@@ -81,6 +86,7 @@ fn main() {
     // Brave and Legcord back as they were; what Game Companion started for
     // them closes (unless the person chose otherwise).
     apps::quit();
+    poe2_kit::stop();
     voice_overlay::quit();
     std::process::exit(code);
 }

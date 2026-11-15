@@ -67,9 +67,14 @@ export async function leagues(chosen: string): Promise<{ list: Array<{ id: strin
     await l.load();
     leaguesLoaded = !l.error.value;
   }
+  // A saved league that the trade site lists stays chosen: EE2's load()
+  // replaced it by the list's third entry when its computed selectedId read
+  // stale (QA, 0.8.45: "Runes of Aldur" became Standard).
+  const listed = l.list.value.some((x) => x.id === chosen);
+  if (chosen && listed) setLeague(chosen);
   return {
     list: l.list.value.map((x) => ({ id: x.id, text: x.text })),
-    selected: l.selectedId.value || "",
+    selected: chosen && listed ? chosen : l.selectedId.value || "",
     error: l.error.value || "",
   };
 }
