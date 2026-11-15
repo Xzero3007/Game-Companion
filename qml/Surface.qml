@@ -39,8 +39,15 @@ Window {
     /// The window has had time to take the whole screen: pointer places
     /// are measured from it from now on (MoveArea ignores moves until then).
     property bool steady: false
-    onHeldChanged: { steady = false; if (held) settle.restart() }
+    onHeldChanged: { steady = false; if (held) settle.restart(); settling = true; settled.restart() }
     Timer { id: settle; interval: 120; onTriggered: surface.steady = true }
+    /// The window changes size for a grab or its end: a playing video draws
+    /// no frame meanwhile (MpvVideo.frozen). Qt may hand the compositor a
+    /// frame of the old size with the new size (or the other way round),
+    /// which showed the video stretched over the screen for a moment (MN,
+    /// only while it played).
+    property bool settling: false
+    Timer { id: settled; interval: 150; onTriggered: surface.settling = false }
 
     property bool attached: false
     transientParent: null

@@ -443,7 +443,7 @@ fn freetube_video(v: &Value) -> Option<Video> {
 }
 
 /// Milliseconds since 1970 as an ISO date-time (UTC).
-fn iso_of_ms(ms: u64) -> Option<String> {
+pub(crate) fn iso_of_ms(ms: u64) -> Option<String> {
     let secs = (ms / 1000) as i64;
     if secs <= 0 {
         return None;

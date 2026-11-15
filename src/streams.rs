@@ -571,7 +571,10 @@ pub fn search_entries(all: &Value) -> Vec<Value> {
                 "views": e.get("view_count").and_then(Value::as_u64).unwrap_or(0),
                 "live": e.get("live_status").and_then(Value::as_str) == Some("is_live"),
                 "short": e.get("url").and_then(Value::as_str).is_some_and(|u| u.contains("/shorts/")),
-                "published": "",
+                // yt-dlp's rough date from YouTube's "3 days ago" (English
+                // only; `approximate_date`).
+                "published": e.get("timestamp").and_then(Value::as_u64).and_then(|t| crate::library::iso_of_ms(t * 1000)).unwrap_or_default(),
+                "rough": e.get("timestamp").and_then(Value::as_u64).is_some(),
                 "picture": format!("https://i.ytimg.com/vi/{id}/mqdefault.jpg"),
             }))
         })
@@ -696,6 +699,7 @@ pub fn youtube_search_range(text: &str, sp: &str, first: usize, last: usize, lan
     };
     let mut cmd = Command::new("yt-dlp");
     cmd.args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-items", &format!("{first}-{last}"), "--dump-single-json"]);
+    cmd.args(["--extractor-args", "youtubetab:approximate_date"]);
     if valid_language(lang) && lang != "en" {
         cmd.args(["--extractor-args", &format!("youtube:lang={lang}")]);
     }
@@ -1065,7 +1069,8 @@ pub fn youtube_channel_range(channel: &str, first: usize, last: usize) -> Result
     }
     let out = run_with_timeout(
         Command::new("yt-dlp")
-            .args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-items", &format!("{}-{}", first.max(1), last.clamp(1, 600)), "--dump-single-json", "--"])
+            .args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-items", &format!("{}-{}", first.max(1), last.clamp(1, 600)), "--dump-single-json"])
+            .args(["--extractor-args", "youtubetab:approximate_date", "--"])
             .arg(format!("https://www.youtube.com/channel/{channel}/videos")),
         Duration::from_secs(40),
     )?;
@@ -1090,7 +1095,7 @@ pub fn youtube_channel_range(channel: &str, first: usize, last: usize) -> Result
 
 /// A channel's newest videos: its feed, or yt-dlp's look at its videos tab
 /// when the feed fails (some channels' feeds answer 404; MN, Level1Techs).
-/// yt-dlp's list has no dates.
+/// yt-dlp's list has rough dates only.
 pub fn youtube_channel_newest(channel: &str, n: usize) -> Result<Vec<Value>, String> {
     youtube_feed(channel).or_else(|e| youtube_channel_range(channel, 1, n).map_err(|_| e))
 }
@@ -1320,6 +1325,19 @@ pub fn indian_script(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn rough_dates_from_ytdlp() {
+        let all = serde_json::json!({ "entries": [
+            { "id": "dQw4w9WgXcQ", "title": "A", "timestamp": 1_700_000_000u64, "duration": 212.0 },
+            { "id": "aaaaaaaaaaa", "title": "B" }
+        ] });
+        let list = super::search_entries(&all);
+        assert_eq!(list[0]["published"], "2023-11-14T22:13:20Z");
+        assert_eq!(list[0]["rough"], true);
+        assert_eq!(list[1]["published"], "");
+        assert_eq!(list[1]["rough"], false);
+    }
+
     #[test]
     fn finds_indian_scripts() {
         assert!(super::indian_script("Minecraft लाइव स्ट्रीम"));

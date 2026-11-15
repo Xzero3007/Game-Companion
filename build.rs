@@ -26,6 +26,7 @@ fn main() {
         QmlFile::from("qml/Chip.qml"),
         QmlFile::from("qml/ChatPanel.qml"),
         QmlFile::from("qml/WheelScroll.qml"),
+        QmlFile::from("qml/VideoByline.qml"),
         QmlFile::from("qml/JellyfinSignIn.qml"),
         QmlFile::from("qml/Surface.qml"),
         QmlFile::from("qml/MoveArea.qml"),
