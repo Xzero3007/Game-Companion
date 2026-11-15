@@ -348,9 +348,10 @@ Panel {
                         required property var modelData
                         text: modelData.name
                         onClicked: {
-                            const id = modelData.id, name = modelData.name
-                            panel.adding = false
-                            panel.store.addCurrency(id, name || id, 1)
+                            // Closing the list destroys this chip: add first.
+                            const id = modelData.id, name = modelData.name, p = panel
+                            p.store.addCurrency(id, name || id, 1)
+                            p.adding = false
                         }
                     }
                 }
