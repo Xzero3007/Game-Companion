@@ -5,6 +5,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Channels
 
+- Characters in one view (branch `claude/project-thread-ykfdu6`, 2026-11-15, MN: "nimm die drei reiter von diesem fenster und verein sie"): the tabs Roster, Content and Limits are gone. Header with refill, resets and siege; the server's content as cards; one table, a row per character: the roster's columns, then SERVER-WIDE (Buy / Craft Odyle Energy of that character's server), THIS CHARACTER (Buy, Craft, Kinah, Abyss pts) and CONTENT LEFT (Nightmare, Ascension, Corridors); under it keys, entries and usage time of the character clicked in the table (`prefs.limitsOf`). Hidden ids kept ("c:", "o:", "t:", "m:"). Panel 1180 wide by default. `CK.compact` for narrow cells.
 - `main` = stable. Only what the person accepted lands there. Every push
   publishes release `v{version}-{run}` (latest).
 - `beta` = test builds. Every push publishes pre-release
