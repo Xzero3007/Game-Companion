@@ -368,6 +368,10 @@ void MpvVideo::setFrozen(bool on)
         m_missed = false;
         update();
     }
+    if (!on && m_positionMissed) {
+        m_positionMissed = false;
+        emit positionChanged();
+    }
     emit frozenChanged();
 }
 
@@ -671,7 +675,12 @@ void MpvVideo::readEvents()
                     emit volumeChanged();
                 } else if (name == "time-pos") {
                     m_position = v;
-                    emit positionChanged();
+                    // Frozen: the time and bar wait too (each would draw a frame).
+                    if (m_frozen) {
+                        m_positionMissed = true;
+                    } else {
+                        emit positionChanged();
+                    }
                 } else if (name == "duration") {
                     m_duration = v;
                     emit durationChanged();
