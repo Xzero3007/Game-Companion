@@ -1101,6 +1101,40 @@ pub fn youtube_channel_range(channel: &str, first: usize, last: usize) -> Result
     Ok(list)
 }
 
+/// When one video came out, as an ISO date (exact time where YouTube gives
+/// it): yt-dlp's look at the video itself, for a video its channel's feed no
+/// longer holds (a channel that uploads a lot; MN, tagesschau). Asked as the
+/// player that plays videos here; missing formats don't matter.
+pub fn youtube_video_date(id: &str) -> Result<String, String> {
+    if !valid_video_id(id) {
+        return Err("not a YouTube video".into());
+    }
+    let out = run_with_timeout(
+        Command::new("yt-dlp")
+            .args(["--ignore-config", "--no-warnings", "--skip-download", "--no-playlist", "--ignore-no-formats-error"])
+            .args(["--extractor-args", "youtube:player_client=visionos"])
+            .args(["--print", "%(timestamp)s %(upload_date)s", "--"])
+            .arg(format!("https://www.youtube.com/watch?v={id}")),
+        Duration::from_secs(40),
+    )?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        return Err(err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("yt-dlp failed").chars().take(300).collect());
+    }
+    video_date_of(&String::from_utf8_lossy(&out.stdout)).ok_or_else(|| "no date".into())
+}
+
+/// yt-dlp's "<timestamp> <upload_date>" (either may be "NA") as ISO.
+pub fn video_date_of(line: &str) -> Option<String> {
+    let mut parts = line.split_whitespace();
+    let stamp = parts.next().unwrap_or("NA");
+    let day = parts.next().unwrap_or("NA");
+    if let Some(iso) = stamp.parse::<u64>().ok().and_then(|t| crate::library::iso_of_ms(t.saturating_mul(1000))) {
+        return Some(iso);
+    }
+    (day.len() == 8 && day.bytes().all(|b| b.is_ascii_digit())).then(|| format!("{}-{}-{}", &day[..4], &day[4..6], &day[6..]))
+}
+
 /// A channel's newest videos: its feed, or yt-dlp's look at its videos tab
 /// when the feed fails (some channels' feeds answer 404; MN, Level1Techs).
 /// yt-dlp's list has rough dates only.
@@ -1340,6 +1374,14 @@ pub fn indian_script(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn video_dates_from_ytdlp() {
+        assert_eq!(video_date_of("NA 20261110\n").as_deref(), Some("2026-11-10"));
+        assert!(video_date_of("1762770000 20251110").is_some_and(|d| d.starts_with("2025-11-10")));
+        assert_eq!(video_date_of("NA NA"), None);
+        assert_eq!(video_date_of(""), None);
+    }
+
     #[test]
     fn channel_ids_in_full() {
         assert_eq!(super::full_channel_id("Xa4hXRHFYlbg_3A5Vh1Jbw"), "UCXa4hXRHFYlbg_3A5Vh1Jbw");

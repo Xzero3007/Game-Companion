@@ -980,10 +980,7 @@ fn apply_known_from(list: &mut [Value], known: &std::collections::HashMap<String
 
 /// Dates and lengths the feed cache knows, for videos that lack them.
 fn apply_known(list: &mut [Value]) {
-    let cache = read_feed_cache();
-    if !cache.is_empty() {
-        apply_known_from(list, &known_videos(&cache));
-    }
+    apply_known_from(list, &known_with_dates());
 }
 
 /// The orders a YouTube list can have (`settings.sorts`).
@@ -1003,6 +1000,66 @@ fn game_sp(st: &settings::StreamsSettings) -> &'static str {
         Some("views") => "CAM%3D",
         _ => "CAI%3D",
     }
+}
+
+/// Dates found by looking at single videos (`streams::youtube_video_date`),
+/// by video id: asked once each.
+fn date_cache_path() -> std::path::PathBuf {
+    crate::updater::cache_dir().join("youtube-dates.json")
+}
+
+fn read_date_cache() -> serde_json::Map<String, Value> {
+    std::fs::read_to_string(date_cache_path())
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| match v {
+            Value::Object(m) => Some(m),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+/// Writes the date cache, the newest 3000 kept.
+fn write_date_cache(cache: &mut serde_json::Map<String, Value>) {
+    if cache.len() > 3000 {
+        let mut all: Vec<(String, Value)> = std::mem::take(cache).into_iter().collect();
+        all.sort_by(|a, b| b.1.as_str().cmp(&a.1.as_str()));
+        all.truncate(3000);
+        cache.extend(all);
+    }
+    let path = date_cache_path();
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let tmp = path.with_extension("json.part");
+    if std::fs::write(&tmp, Value::Object(cache.clone()).to_string()).is_ok() {
+        let _ = std::fs::rename(&tmp, &path);
+    }
+}
+
+/// Every known video with a date: the feed cache's, then single looks'.
+fn known_with_dates() -> std::collections::HashMap<String, Value> {
+    let mut known = known_videos(&read_feed_cache());
+    for (id, date) in read_date_cache() {
+        known.entry(id).or_insert_with(|| json!({ "published": date }));
+    }
+    known
+}
+
+/// At most this many videos of one list are looked at one by one when no
+/// feed dates them.
+const DATES_SINGLE: usize = 6;
+
+/// The videos of `list` still without an exact date that are worth one look
+/// each: not live, not looked at before, at most `DATES_SINGLE`.
+fn videos_for_dates(list: &[Value], known: &std::collections::HashMap<String, Value>) -> Vec<String> {
+    list.iter()
+        .filter(|v| !has_exact_date(v) && v["live"].as_bool() != Some(true))
+        .filter_map(|v| v["id"].as_str())
+        .filter(|id| streams::valid_video_id(id) && !known.get(*id).is_some_and(has_exact_date))
+        .take(DATES_SINGLE)
+        .map(str::to_string)
+        .collect()
 }
 
 /// At most this many channels' feeds are asked for one list's dates.
@@ -1053,21 +1110,51 @@ fn dates_later(list: Vec<Value>, request: u64, thread: cxx_qt::CxxQtThread<qobje
             write_feed_cache(&mut cache, now);
         }
         // Only what this list wants goes to the Qt thread.
-        let all = known_videos(&cache);
-        let known: std::collections::HashMap<String, Value> =
-            list.iter().filter_map(|v| v["id"].as_str()).filter_map(|id| Some((id.to_string(), all.get(id)?.clone()))).collect();
-        if known.is_empty() {
+        let wanted = |all: &std::collections::HashMap<String, Value>| -> std::collections::HashMap<String, Value> {
+            list.iter().filter_map(|v| v["id"].as_str()).filter_map(|id| Some((id.to_string(), all.get(id)?.clone()))).collect()
+        };
+        let all = known_with_dates();
+        show_known(&thread, request, wanted(&all));
+        // Videos no feed holds any more (a channel that uploads a lot): a
+        // look at each, two at once, kept for good.
+        let single = videos_for_dates(&list, &all);
+        if single.is_empty() {
             return;
         }
-        let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
-            if obj.rust().youtube_request != request {
-                return;
-            }
-            let mut shown: Vec<Value> = serde_json::from_str(&obj.youtube().to_string()).unwrap_or_default();
-            if apply_known_from(&mut shown, &known) {
-                obj.as_mut().set_youtube(q(&Value::Array(shown).to_string()));
-            }
-        });
+        let found: Vec<(String, String)> = single
+            .chunks(2)
+            .flat_map(|two| {
+                std::thread::scope(|scope| {
+                    let jobs: Vec<_> = two.iter().map(|id| scope.spawn(move || (id.clone(), streams::youtube_video_date(id)))).collect();
+                    jobs.into_iter().filter_map(|j| j.join().ok()).filter_map(|(id, r)| r.ok().map(|d| (id, d))).collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        if found.is_empty() {
+            return;
+        }
+        let mut dates = read_date_cache();
+        for (id, date) in found {
+            dates.insert(id, json!(date));
+        }
+        write_date_cache(&mut dates);
+        show_known(&thread, request, wanted(&known_with_dates()));
+    });
+}
+
+/// Puts `known` dates and lengths into the shown list if it is still `request`'s.
+fn show_known(thread: &cxx_qt::CxxQtThread<qobject::Streams>, request: u64, known: std::collections::HashMap<String, Value>) {
+    if known.is_empty() {
+        return;
+    }
+    let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
+        if obj.rust().youtube_request != request {
+            return;
+        }
+        let mut shown: Vec<Value> = serde_json::from_str(&obj.youtube().to_string()).unwrap_or_default();
+        if apply_known_from(&mut shown, &known) {
+            obj.as_mut().set_youtube(q(&Value::Array(shown).to_string()));
+        }
     });
 }
 
@@ -2559,23 +2646,25 @@ mod tests {
         let a = "UCaaaaaaaaaaaaaaaaaaaaaa";
         let b = "UCbbbbbbbbbbbbbbbbbbbbbb";
         let list = vec![
-            json!({ "id": "1", "channelId": a }),
-            json!({ "id": "2", "channelId": a, "published": "2026-11-10", "rough": true }),
-            json!({ "id": "3", "channelId": b, "published": "2026-11-12T10:00:00+00:00" }),
-            json!({ "id": "4", "channelId": "bbbbbbbbbbbbbbbbbbbbbb" }),
-            json!({ "id": "5", "channelId": "nonsense" }),
+            json!({ "id": "video000001", "channelId": a }),
+            json!({ "id": "video000002", "channelId": a, "published": "2026-11-10", "rough": true }),
+            json!({ "id": "video000003", "channelId": b, "published": "2026-11-12T10:00:00+00:00" }),
+            json!({ "id": "video000004", "channelId": "bbbbbbbbbbbbbbbbbbbbbb" }),
+            json!({ "id": "video000005", "channelId": "nonsense" }),
         ];
         let mut cache = serde_json::Map::new();
         // Each channel once, a feed's id without "UC" in full.
         assert_eq!(channels_for_dates(&list, &cache, 10_000), [a, b]);
         // Asked within 15 minutes: not again.
-        cache.insert(a.to_string(), json!({ "at": 9_500, "videos": [{ "id": "1", "published": "2026-11-13T08:00:00+00:00" }] }));
+        cache.insert(a.to_string(), json!({ "at": 9_500, "videos": [{ "id": "video000001", "published": "2026-11-13T08:00:00+00:00" }] }));
         assert_eq!(channels_for_dates(&list, &cache, 10_000), [b]);
         let mut shown = list.clone();
         assert!(apply_known_from(&mut shown, &known_videos(&cache)));
         assert_eq!(shown[0]["published"], "2026-11-13T08:00:00+00:00");
         assert_eq!(shown[0]["rough"], false);
         assert!(!apply_known_from(&mut shown, &known_videos(&cache)));
+        // Still undated after the feeds: looked at one by one.
+        assert_eq!(videos_for_dates(&shown, &known_videos(&cache)), ["video000002", "video000004", "video000005"]);
     }
 
     #[test]
