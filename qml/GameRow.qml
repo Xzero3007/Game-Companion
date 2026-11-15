@@ -46,8 +46,13 @@ Item {
     property bool priceShown: false
     property bool priceOpen: false
     signal priceClicked
+    // PoE 2's session tracker (right-click: the session window).
+    property bool sessionShown: false
+    property bool sessionOpen: false
+    signal sessionClicked
+    signal sessionRightClicked
 
-    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || scheduleShown || bossShown || lootShown || armoryShown || priceShown
+    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || scheduleShown || bossShown || lootShown || armoryShown || priceShown || sessionShown
     readonly property bool pinned: Companion.pins.indexOf('"game-row"') >= 0
 
     implicitWidth: row.implicitWidth + 36
@@ -175,6 +180,15 @@ Item {
             active: strip.priceOpen
             tip: strip.gameName + ": the price check (hover an item in the game and press Ctrl+C)"
             onClicked: strip.priceClicked()
+        }
+        GameButton {
+            visible: strip.sessionShown
+            icon: "history"
+            label: "Session"
+            active: strip.sessionOpen
+            tip: strip.gameName + ": this play session (from the game's log; right-click: the session window)"
+            onClicked: strip.sessionClicked()
+            onRightClicked: strip.sessionRightClicked()
         }
 
         Rectangle { width: 1; height: 18; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }
