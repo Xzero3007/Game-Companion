@@ -33,7 +33,8 @@ var packages = [
         id: "poe2", name: "Path of Exile 2", game: true,
         about: "Loads only while Path of Exile 2 runs. Reads only what you copy: nothing is sent to the game.",
         plugins: [
-            { id: "poe2.price", short: "PC", name: "Price Check", about: "Hover an item in the game and press Ctrl+C: Exiled Exchange 2's price check shows the trade site's cheapest listings, with its filters and stat lines to switch. Asks www.pathofexile.com (the trade site's API) only.", built: true }
+            { id: "poe2.price", short: "PC", name: "Price Check", about: "Hover an item in the game and press Ctrl+C: Exiled Exchange 2's price check shows the trade site's cheapest listings, with its filters and stat lines to switch. Asks www.pathofexile.com (the trade site's API) only.", built: true },
+            { id: "poe2.session", short: "SE", name: "Session", about: "Your play sessions from the game's own log (Client.txt): time in maps, hideout, town and campaign, maps per hour and per map, level-ups and deaths; a new day or a pause of 30 min (or 1 h) starts a new session. A small window over the game shows the running one. Reads only areas, level-ups, your deaths and AFK: never chat or whispers. No network.", built: true }
         ]
     }
 ]

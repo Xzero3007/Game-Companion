@@ -757,6 +757,15 @@ learnt, so nothing has to be asked or worked out again.
   itself when XWayland's connection ends; `Poe2.watchError` shows in the
   window (0.8.44, MN: Ctrl+C did nothing). EE2's leagues come unencoded
   ("Runes of Aldur"): `encode_address` before `allowed`.
+  PoE 2 session tracker (MN 2026-11-15, plugin `poe2.session`; no network):
+  `src/poe2_log.rs` reads the game's own `logs/Client.txt` while PoE 2
+  runs (from its end; only area, level-up, own death and AFK lines, never
+  chat or whispers), `Poe2Log.heard`; rules in `qml/poe2/sessionkit.js`
+  (`node tools/poe2-session-test.js`), `SessionStore.qml`,
+  `SessionPanel.qml`, `SessionWindow.qml`; new session after 30 min / 1 h
+  of pause or at midnight. `GC_DEMO=session`. Details: docs/HANDOFF.md.
+  PoE 2 has no stash API (GGG: PoE 1 only): drops come later by Ctrl+C and
+  a currency list (poe.ninja); never read the game's memory.
   Path of Building is the third app (`pob`, `AppDef.args` "poe2",
   `AppDef.game` "poe2"; bar button while PoE 2 or PoB runs).
   Qt's JavaScript runs without its JIT (`main.rs` sets
