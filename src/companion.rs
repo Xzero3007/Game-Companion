@@ -76,6 +76,22 @@ pub mod qobject {
         #[qinvokable]
         fn toggle_pin(self: Pin<&mut Companion>, id: &QString);
 
+        /// One line into the app's log (src/log.rs): `area` names the part.
+        #[qinvokable]
+        fn log(self: &Companion, area: &QString, text: &QString);
+
+        /// Opens the log's folder in the file manager.
+        #[qinvokable]
+        fn open_log_folder(self: &Companion);
+
+        /// The log's last lines (for "Copy log").
+        #[qinvokable]
+        fn log_tail(self: &Companion, lines: i32) -> QString;
+
+        /// Where the log is, with the home folder as `~`.
+        #[qinvokable]
+        fn log_path(self: &Companion) -> QString;
+
         #[qinvokable]
         fn toggle_locked(self: Pin<&mut Companion>);
 
@@ -425,6 +441,7 @@ impl cxx_qt::Initialize for qobject::Companion {
                     },
                     move |id| {
                         let id = id.to_string();
+                        crate::log::write("shortcut", &format!("pressed: {id}"));
                         let _ = fire_thread.queue(move |obj: Pin<&mut qobject::Companion>| match id.as_str() {
                             "lock" => obj.toggle_locked(),
                             "toggle" => obj.toggle_shown(),
@@ -547,8 +564,28 @@ impl qobject::Companion {
             }
             // As Settings' "Turn off": mpv and the capture helper end with
             // the app.
-            tray::Action::Quit => crate::native::quit(),
+            tray::Action::OpenLog => crate::log::open_folder(),
+            tray::Action::Quit => {
+                crate::log::write("app", "quit: tray menu");
+                crate::native::quit()
+            }
         }
+    }
+
+    fn log(&self, area: &QString, text: &QString) {
+        crate::log::write(&area.to_string(), &text.to_string());
+    }
+
+    fn open_log_folder(&self) {
+        crate::log::open_folder();
+    }
+
+    fn log_tail(&self, lines: i32) -> QString {
+        QString::from(&crate::log::tail(lines.clamp(1, 5000) as usize))
+    }
+
+    fn log_path(&self) -> QString {
+        QString::from(&crate::log::clean(&crate::log::path().to_string_lossy()))
     }
 
     fn toggle_shown(self: Pin<&mut Self>) {

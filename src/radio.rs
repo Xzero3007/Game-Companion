@@ -200,6 +200,7 @@ impl Player {
                     format!("mpv did not start: {e}")
                 }
             })?;
+        crate::log::write("child", &format!("radio mpv started (pid {})", child.id()));
         let started = Instant::now();
         let stream = loop {
             match UnixStream::connect(&socket) {
@@ -219,6 +220,7 @@ impl Player {
                         on_event(event);
                     }
                 }
+                crate::log::write("child", "radio mpv gone");
                 on_event(Event::Gone);
             })
             .map_err(|e| e.to_string())?;

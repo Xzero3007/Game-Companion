@@ -190,6 +190,11 @@ fn run_with(
             .map_err(|e| e.to_string())?;
     }
 
+    // Log lines go to the app (which writes the crash log), never the texts.
+    let log = |out: &mut dyn Write, text: String| {
+        let _ = writeln!(out, "{}", serde_json::json!({ "kind": "log", "value": text }));
+        let _ = out.flush();
+    };
     let mut timers: BTreeMap<(Instant, u64), ()> = BTreeMap::new();
     let mut ids: BTreeMap<u64, Instant> = BTreeMap::new();
     loop {
@@ -208,6 +213,7 @@ fn run_with(
                 Some("request") => {
                     let rid = v["rid"].as_u64().unwrap_or(0);
                     let (url, method, body) = (str_of(&v["url"]), str_of(&v["method"]), str_of(&v["body"]));
+                    log(out, format!("request {rid}: {method} {}", crate::poe2_object::endpoint(&url)));
                     let tx = tx.clone();
                     let requester = requester.clone();
                     std::thread::spawn(move || {
@@ -226,8 +232,11 @@ fn run_with(
                         timers.remove(&(at, tid));
                     }
                 }
-                Some("log") => eprintln!("poe2 kit: {}", str_of(&v["value"])),
+                Some("log") => log(out, format!("kit: {}", str_of(&v["value"]))),
                 _ => {
+                    if v["kind"] != "progress" {
+                        log(out, format!("{} {}", str_of(&v["kind"]), v["id"]));
+                    }
                     let _ = writeln!(out, "{line}");
                     let _ = out.flush();
                 }
@@ -243,18 +252,28 @@ fn run_with(
             if at <= now {
                 timers.remove(&(at, tid));
                 ids.remove(&tid);
+                log(out, format!("timer {tid} fired"));
                 ctx.with(|ctx| call(&ctx, "__gcFire", (tid as f64,)));
                 continue;
             }
         }
         let wait = timers.keys().next().map(|(at, _)| at.saturating_duration_since(now)).unwrap_or(Duration::from_secs(5)).min(Duration::from_secs(5));
         match rx.recv_timeout(wait) {
-            Ok(Event::Line(l)) => ctx.with(|ctx| call(&ctx, "__gcCommand", (l,))),
+            Ok(Event::Line(l)) => {
+                let what = serde_json::from_str::<serde_json::Value>(&l).ok().map(|v| format!("{} {}", str_of(&v["fn"]), v["id"])).unwrap_or_default();
+                log(out, format!("call {what}"));
+                ctx.with(|ctx| call(&ctx, "__gcCommand", (l,)))
+            }
             Ok(Event::Answer(rid, answer)) => {
                 let (status, headers, body) = match answer {
                     Ok(a) => (f64::from(a.status), serde_json::Value::Object(a.headers).to_string(), a.body),
                     Err(e) => (0.0, "{}".to_string(), e),
                 };
+                if status == 0.0 {
+                    log(out, format!("request {rid}: no answer: {body}"));
+                } else {
+                    log(out, format!("request {rid}: HTTP {status}, {} bytes; answer into the kit", body.len()));
+                }
                 ctx.with(|ctx| call(&ctx, "__gcAnswer", (rid as f64, status, headers, body)));
             }
             Ok(Event::Closed) | Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
@@ -306,11 +325,18 @@ static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::
 /// that started the child.
 pub fn send(line: &str, said: impl Fn(String) + Send + 'static, gone: impl FnOnce(String) + Send + 'static) -> Result<(), String> {
     let mut slot = KIT_PROCESS.lock().map_err(|_| "kit lock".to_string())?;
-    let alive = match slot.as_mut() {
-        Some(k) => matches!(k.child.try_wait(), Ok(None)),
-        None => false,
+    let (alive, ended) = match slot.as_mut() {
+        Some(k) => match k.child.try_wait() {
+            Ok(None) => (true, None),
+            Ok(Some(status)) => (false, Some(status.to_string())),
+            Err(e) => (false, Some(e.to_string())),
+        },
+        None => (false, None),
     };
     if !alive {
+        if let Some(how) = ended {
+            crate::log::write("poe2", &format!("kit ended ({how}); kit restarted"));
+        }
         *slot = Some(start(said, gone)?);
     }
     let k = slot.as_mut().ok_or("no kit")?;
@@ -340,6 +366,7 @@ fn start(said: impl Fn(String) + Send + 'static, gone: impl FnOnce(String) + Sen
     }
     let mut child = cmd.spawn().map_err(|e| format!("PoE 2 kit: {e}"))?;
     let generation = GENERATION.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+    crate::log::write("poe2", &format!("kit started (pid {})", child.id()));
     let stdin = child.stdin.take().ok_or("kit stdin")?;
     let stdout = child.stdout.take().ok_or("kit stdout")?;
     std::thread::Builder::new()
@@ -347,10 +374,20 @@ fn start(said: impl Fn(String) + Send + 'static, gone: impl FnOnce(String) + Sen
         .spawn(move || {
             for line in std::io::BufReader::new(stdout).lines() {
                 match line {
-                    Ok(l) => said(l),
+                    Ok(l) => {
+                        // The kit's log lines go to the crash log, the rest to QML.
+                        if l.starts_with(r#"{"kind":"log""#) {
+                            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&l) {
+                                crate::log::write("poe2", v["value"].as_str().unwrap_or(""));
+                            }
+                        } else {
+                            said(l);
+                        }
+                    }
                     Err(_) => break,
                 }
             }
+            crate::log::write("poe2", &format!("kit ended (its output closed, generation {generation})"));
             if GENERATION.load(std::sync::atomic::Ordering::SeqCst) == generation {
                 gone("its process ended".into());
             }

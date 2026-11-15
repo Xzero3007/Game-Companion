@@ -82,12 +82,14 @@ QtObject {
         result = null
         busy = true
         shown = true
+        Companion.log("poe2", "check: start")
         kit("check", [text, league]).then(function (v) {
             busy = false
-            if (!v || v.error) { view = null; error = why(v ? v.error : "", v ? v.detail : ""); return }
+            if (!v || v.error) { Companion.log("poe2", "check: done, " + (v ? v.error : "no result")); view = null; error = why(v ? v.error : "", v ? v.detail : ""); return }
+            Companion.log("poe2", "check: done, item read" + (v.atOnce ? ", searching at once" : ""))
             view = v
             if (v.atOnce || demo.indexOf("results") >= 0) search()
-        }, function (e) { if (e.message === "gone") return; busy = false; view = null; error = String(e.message || e) })
+        }, function (e) { Companion.log("poe2", "check: failed: " + e); if (e.message === "gone") return; busy = false; view = null; error = String(e.message || e) })
     }
 
     function why(code, detail) {
@@ -103,10 +105,12 @@ QtObject {
         if (!view) return
         busy = true
         error = ""
-        kit("search", [], function (r) { if (r) result = r }).then(function (r) {
+        Companion.log("poe2", "search: start")
+        kit("search", [], function (r) { if (r) { Companion.log("poe2", "search: part of the results in"); result = r } }).then(function (r) {
             busy = false
+            Companion.log("poe2", "search: done" + (r && r.error ? ", " + r.error : ""))
             if (r && r.error) error = r.error
-        }, function (e) { if (e.message === "gone") return; busy = false; error = String(e.message || e) })
+        }, function (e) { Companion.log("poe2", "search: failed: " + e); if (e.message === "gone") return; busy = false; error = String(e.message || e) })
     }
 
     function toggleStat(i) {

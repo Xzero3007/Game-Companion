@@ -262,8 +262,13 @@ fn hear_clipboard(link: &ClipboardLink, on: &impl Fn() -> bool, copied: &impl Fn
                 if let Some(r) = reply {
                     if r.type_ == link.utf8 || r.type_ == u32::from(AtomEnum::STRING) {
                         let text = String::from_utf8_lossy(&r.value).replace("\r\n", "\n");
-                        if on() && looks_like_item(&text) {
-                            copied(text);
+                        if on() {
+                            let item = looks_like_item(&text);
+                            // Never the text itself: only whether it was an item.
+                            crate::log::write("poe2", &format!("copy seen: {} ({} bytes)", if item { "item, checking" } else { "not an item, ignored" }, text.len()));
+                            if item {
+                                copied(text);
+                            }
                         }
                     }
                 }
@@ -291,6 +296,7 @@ pub fn watch_clipboard(
             loop {
                 let why = hear_clipboard(&link, &on, &copied);
                 eprintln!("game-companion: PoE 2 clipboard: {why}");
+                crate::log::write("poe2", &format!("clipboard watcher: {why}; connecting again every 5 s"));
                 status(Some(why));
                 link = loop {
                     std::thread::sleep(Duration::from_secs(5));
@@ -302,6 +308,7 @@ pub fn watch_clipboard(
                         Err(e) => status(Some(e)),
                     }
                 };
+                crate::log::write("poe2", "clipboard watcher: connected again");
                 status(None);
             }
         })
