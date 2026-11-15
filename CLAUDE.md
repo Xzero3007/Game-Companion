@@ -757,9 +757,6 @@ learnt, so nothing has to be asked or worked out again.
   itself when XWayland's connection ends; `Poe2.watchError` shows in the
   window (0.8.44, MN: Ctrl+C did nothing). EE2's leagues come unencoded
   ("Runes of Aldur"): `encode_address` before `allowed`.
-
-  `cargo test poe2_kit` (an item, a search, EE2's 27 samples in QuickJS). Tests: `node tools/poe2-ee2/test/run.js`, the ignored
-  `copied_items_are_seen` under xvfb-run with xclip. `GC_DEMO=price[,results]`.
   PoE 2 session tracker (MN 2026-11-15, plugin `poe2.session`; no network):
   `src/poe2_log.rs` reads the game's own `logs/Client.txt` while PoE 2
   runs (from its end; only area, level-up, own death and AFK lines, never
