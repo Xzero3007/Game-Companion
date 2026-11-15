@@ -1301,7 +1301,8 @@ Panel {
         id: menu
         parent: panel
         z: 50
-        width: 220
+        // "Unsubscribe from <channel>" wants room for the name.
+        width: panel.menuKind === "unsub" ? 320 : 220
         maxHeight: 260
         current: ""
         onChosen: (id) => panel.menuChosen(id)

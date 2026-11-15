@@ -1033,27 +1033,25 @@ fn channels_for_dates(list: &[Value], cache: &serde_json::Map<String, Value>, no
 /// yt-dlp reads English time texts only (MN, 0.8.43: none on the game's
 /// search in German). The channels' feeds have them for their newest 15:
 /// asked in the background, stored in the feed cache, and put into the
-/// list when it still shows.
+/// list when it still shows. History and playlists keep what a video had
+/// when it was added (often no date): the cache dates them too.
 fn dates_later(list: Vec<Value>, request: u64, thread: cxx_qt::CxxQtThread<qobject::Streams>) {
     std::thread::spawn(move || {
         let now = unix_now();
-        let ids = channels_for_dates(&list, &read_feed_cache(), now);
-        if ids.is_empty() {
-            return;
-        }
-        let (got, _, _) = fetch_feeds_once(ids, |_, _| {});
-        if got.is_empty() {
-            return;
-        }
-        // Read again: another look may have stored something meanwhile.
         let mut cache = read_feed_cache();
-        for (id, videos) in got {
-            let merged = merge_videos(videos, cache.get(&id).map(|e| &e["videos"]));
-            let entry = cache.entry(id).or_insert_with(|| json!({}));
-            entry["at"] = json!(now);
-            entry["videos"] = json!(merged);
+        let ids = channels_for_dates(&list, &cache, now);
+        let got = if ids.is_empty() { Vec::new() } else { fetch_feeds_once(ids, |_, _| {}).0 };
+        if !got.is_empty() {
+            // Read again: another look may have stored something meanwhile.
+            cache = read_feed_cache();
+            for (id, videos) in got {
+                let merged = merge_videos(videos, cache.get(&id).map(|e| &e["videos"]));
+                let entry = cache.entry(id).or_insert_with(|| json!({}));
+                entry["at"] = json!(now);
+                entry["videos"] = json!(merged);
+            }
+            write_feed_cache(&mut cache, now);
         }
-        write_feed_cache(&mut cache, now);
         // Only what this list wants goes to the Qt thread.
         let all = known_videos(&cache);
         let known: std::collections::HashMap<String, Value> =
@@ -1612,6 +1610,10 @@ impl qobject::Streams {
             });
             let n = list.len();
             self.as_mut().rust_mut().youtube_request += 1;
+            let request = self.rust().youtube_request;
+            if !Self::demo_mode() {
+                dates_later(list.clone(), request, self.qt_thread());
+            }
             self.as_mut().set_youtube(q(&Value::Array(list).to_string()));
             self.as_mut().set_youtube_state(q("ready"));
             self.set_youtube_message(q(&format!("{n} videos")));

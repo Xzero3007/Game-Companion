@@ -319,7 +319,8 @@ learnt, so nothing has to be asked or worked out again.
   without dates (yt-dlp reads English time texts only): `dates_later`
   asks the feeds of up to 24 channels in the list not asked for 15 minutes,
   stores them in the feed cache and fills the shown list
-  (`apply_known_from`). Order (MN, 0.8.43): "Sort ▾" left of the arrows,
+  (`apply_known_from`; also History and playlists, whose entries keep what
+  a video had when added). Order (MN, 0.8.43): "Sort ▾" left of the arrows,
   settings `streams.sorts` per view (`Streams.setSort`, in `filters`);
   the game's search asks YouTube in its order (`game_sp`: relevance, date,
   views), the others are sorted as loaded (`StreamsPanel.youtubeShown`,
