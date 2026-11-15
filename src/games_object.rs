@@ -654,6 +654,7 @@ impl qobject::Games {
             settings::change(|s| s.games.last_played.insert(now.clone(), now_seconds()));
             self.as_mut().rebuild();
         }
+        crate::log::write("games", &format!("running game: {} → {}", if before.is_empty() { "none" } else { &before }, if now.is_empty() { "none" } else { &now }));
         self.as_mut().show_running(&now);
         if !before.is_empty() {
             let game = before.clone();

@@ -674,6 +674,7 @@ pub fn quit() {
     }
     for &(pid, start) in &closing {
         eprintln!("game-companion: closing pid {pid}");
+        crate::log::write("child", &format!("closing pid {pid} (started for an app)"));
         start_with::signal_program(pid, start, libc::SIGTERM);
     }
     for _ in 0..30 {
@@ -683,6 +684,7 @@ pub fn quit() {
         std::thread::sleep(Duration::from_millis(100));
     }
     for &(pid, start) in &closing {
+        crate::log::write("child", &format!("pid {pid} still running after 3 s: SIGKILL"));
         start_with::signal_program(pid, start, libc::SIGKILL);
     }
 }

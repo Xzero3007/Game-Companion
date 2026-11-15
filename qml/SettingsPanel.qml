@@ -626,12 +626,29 @@ Panel {
                     Hint { text: "Looks at Game Companion's own releases on GitHub when it starts and every 20 minutes. Nothing else is sent." }
 
                     Item { width: 1; height: 6 }
+                    Label { text: "Log" }
+                    Hint { text: "For finding faults: what Game Companion did, its warnings and, after a crash, where it happened. Kept on this computer only, in " + Companion.logPath() + " (at most about 4 MB). Never holds passwords, tokens, accounts, item or chat texts." }
+                    Row {
+                        spacing: 10
+                        TextButton {
+                            text: "Open log folder"
+                            onClicked: Companion.openLogFolder()
+                        }
+                        TextButton {
+                            id: copyLog
+                            property bool done: false
+                            text: done ? "Copied" : "Copy log"
+                            onClicked: { nativeWindow.copyText(Companion.logTail(300)); done = true }
+                        }
+                    }
+
+                    Item { width: 1; height: 6 }
                     Label { text: "Turn off" }
                     Hint { text: "Closes the hub completely, with the radio. Start it again from the application menu." }
                     TextButton {
                         text: "Turn off Game Companion"
                         danger: true
-                        onClicked: Qt.quit()
+                        onClicked: { Companion.log("app", "quit: Turn off in Settings"); Qt.quit() }
                     }
                 }
 

@@ -49,6 +49,8 @@ public:
     QString screenList() const;
     /// The screen the user picked by name ("" = KDE's primary screen).
     Q_INVOKABLE void setPreferredScreen(const QString &name);
+    // Puts text on the clipboard (Settings' "Copy log").
+    Q_INVOKABLE void copyText(const QString &text);
 
     /// Makes a part's window an overlay surface (before it is first shown).
     Q_INVOKABLE void attach(QQuickWindow *window);

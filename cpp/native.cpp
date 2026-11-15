@@ -18,10 +18,12 @@
 #include <QtCore/QTimer>
 #include <QtCore/QUrl>
 #include <QtGui/QFontDatabase>
+#include <QtGui/QClipboard>
 #include <QtGui/QGuiApplication>
 #include <QtGui/QSurfaceFormat>
 #include <QtGui/QRegion>
 #include <QtGui/QScreen>
+#include <cstdio>
 #include <QtQml/QQmlApplicationEngine>
 
 #include "icons.h"
@@ -37,7 +39,33 @@
 extern "C" {
 // src/native.rs: what the Rust side tidies when the app ends.
 void gc_about_to_quit();
+// src/log.rs: one Qt or QML message into the app's log.
+void gc_log_qt(int kind, const char *text);
+// src/log.rs: one line into the app's log.
+void gc_log(const char *area, const char *text);
 }
+
+namespace {
+QtMessageHandler previousHandler = nullptr;
+
+// Qt's and QML's messages go to the log too, and on to the terminal as
+// before.
+void logMessage(QtMsgType type, const QMessageLogContext &context, const QString &message)
+{
+    if (type != QtDebugMsg && type != QtInfoMsg) {
+        QString text = message;
+        if (context.file && type != QtFatalMsg) {
+            text += QStringLiteral(" (%1:%2)").arg(QString::fromUtf8(context.file)).arg(context.line);
+        }
+        gc_log_qt(int(type), text.toUtf8().constData());
+    }
+    if (previousHandler) {
+        previousHandler(type, context, message);
+    } else {
+        fprintf(stderr, "%s\n", qPrintable(message));
+    }
+}
+} // namespace
 
 #ifdef GC_LAYER_SHELL
 #include <LayerShellQt/window.h>
@@ -461,11 +489,17 @@ public:
 
 } // namespace
 
+void NativeWindow::copyText(const QString &text)
+{
+    QGuiApplication::clipboard()->setText(text);
+}
+
 int32_t gc_run()
 {
     static int argc = 1;
     static char name[] = "game-companion";
     static char *argv[] = {name, nullptr};
+    previousHandler = qInstallMessageHandler(logMessage);
 
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("Game Companion"));
@@ -483,6 +517,18 @@ int32_t gc_run()
     if (qEnvironmentVariableIsEmpty("QT_QUICK_BACKEND")) {
         QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     }
+    {
+        QStringList screens;
+        for (QScreen *screen : QGuiApplication::screens()) {
+            const QRect g = screen->geometry();
+            screens << QStringLiteral("%1 %2x%3 at %4,%5").arg(screen->name()).arg(g.width()).arg(g.height()).arg(g.x()).arg(g.y());
+        }
+        const QString info = QStringLiteral("Qt %1, platform %2, graphics %3; screens: %4")
+                                 .arg(QString::fromLatin1(qVersion()), QGuiApplication::platformName(),
+                                      qEnvironmentVariableIsEmpty("QT_QUICK_BACKEND") ? QStringLiteral("OpenGL") : qEnvironmentVariable("QT_QUICK_BACKEND"),
+                                      screens.join(QStringLiteral("; ")));
+        gc_log("app", info.toUtf8().constData());
+    }
     gc_register_video();
     gc_register_chat();
     // The parts' windows are see-through where nothing is drawn.
@@ -497,6 +543,7 @@ int32_t gc_run()
     engine.rootContext()->setContextProperty(QStringLiteral("nativeWindow"), &native);
     engine.load(QUrl(QStringLiteral("qrc:/qt/qml/GameCompanion/qml/Main.qml")));
     if (engine.rootObjects().isEmpty()) {
+        gc_log_qt(2, "the QML did not load");
         return 1;
     }
     // The parts' windows: when the last one closes, so does the app (none
