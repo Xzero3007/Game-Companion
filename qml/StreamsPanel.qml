@@ -40,7 +40,11 @@ Panel {
     /// others are sorted as loaded.
     readonly property var sortDefaults: ({ game: "date", subscriptions: "newest", channel: "newest", trending: "own", playlist: "own", history: "own" })
     readonly property string ytSort: (filters.sorts && filters.sorts[ytView]) || sortDefaults[ytView] || ""
-    readonly property var youtubeShown: ytView === "game" ? youtubeList : sortVideos(youtubeList, ytSort)
+    // The game's search comes in YouTube's order; "Newest first" is also
+    // sorted here by the dates as they come in (YouTube's upload-date order
+    // was loose, MN 0.8.51: "5 days ago" before "2 h ago").
+    readonly property var youtubeShown: ytView === "game" ? (ytSort === "date" ? sortVideos(youtubeList, "newest") : youtubeList)
+        : sortVideos(youtubeList, ytSort)
     function sortVideos(list, key) {
         if (!key || key === "own" || list.length < 2) return list
         const date = (v) => v.published || ""

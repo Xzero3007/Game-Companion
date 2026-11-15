@@ -91,7 +91,7 @@ Item {
     /// What comes next: in a playlist played through (`through`), or in
     /// the list the video was started from; null at the list's end.
     readonly property var nextInQueue: upNext.length > 0 ? upNext[0] : null
-    /// The next five, as { at, v }: the player's UP NEXT.
+    /// What follows, as { at, v } (up to 50): the player's UP NEXT.
     readonly property var upNext: {
         if (!item || item.kind !== "youtube" || !item.queue) return []
         const q = item.queue
@@ -99,7 +99,7 @@ Item {
         if (item.loop && q.length === 1) return [{ at: 0, v: q[0] }]
         const last = item.loop ? q.length - 1 : q.length - 1 - item.index
         const out = []
-        for (let k = 1; k <= last && out.length < 5; k++) {
+        for (let k = 1; k <= last && out.length < 50; k++) {
             const i = (item.index + k) % q.length
             out.push({ at: i, v: q[i] })
         }
@@ -275,7 +275,7 @@ Item {
         repeat: true
         // Not while Spectacle's selection holds the picture still: no
         // position comes then, and that is no stall.
-        running: win.active && win.item.kind !== "file" && !video.paused && !Apps.screenshot
+        running: win.active && win.item.kind !== "file" && !video.paused && !Apps.screenshot && video.frozen !== true
             && (video.state === "playing" || video.state === "buffering" || video.state === "loading")
         onRunningChanged: { win.stillFor = 0; win.lastPosition = video.position; win.nowMs = Date.now() }
         onTriggered: {
@@ -636,9 +636,11 @@ Item {
             MpvVideo {
                 opacity: win.videoOpacity
                 visible: drawable
-                // Still while a part is grabbed, and while Spectacle's
-                // selection lies over the frozen screen (Print).
-                frozen: Apps.screenshot || (!!win.Window.window && win.Window.window.settling === true)
+                // Still while it is dragged or resized (the sound plays on;
+                // a picture redrawn with every move made the move stutter,
+                // MN 0.8.49), and while Spectacle's selection lies over the
+                // frozen screen (Print).
+                frozen: Apps.screenshot || (!!win.Window.window && (win.Window.window.settling === true || win.Window.window.held === true))
                 hwdec: Streams.hwdec
                 levelling: Streams.evenLoudness
                 // Jellyfin: the home network's server, nothing else.
@@ -947,8 +949,9 @@ Item {
                 tip: "Next track"
                 onClicked: Jellyfin.findTrack(win.slot, win.item.item.albumId, win.item.id, 1)
             }
-            SeekButton { back: true; visible: !win.music && video.duration > 0 }
-            SeekButton { back: false; visible: !win.music && video.duration > 0 }
+            // Narrow, UP NEXT takes their room (the time line still jumps).
+            SeekButton { back: true; visible: !win.music && video.duration > 0 && (win.upNext.length === 0 || win.width >= 560) }
+            SeekButton { back: false; visible: !win.music && video.duration > 0 && (win.upNext.length === 0 || win.width >= 560) }
             IconButton {
                 id: nextButton
                 visible: !!win.nextInQueue
@@ -963,13 +966,14 @@ Item {
             TrackButton {
                 id: upNextButton
                 visible: win.upNext.length > 0
-                text: win.width >= 560 ? "UP NEXT" : ""
+                text: "UP NEXT"
                 picker: upNextPicker
             }
             // YouTube: the next video follows by itself at the end (also the
             // first row of UP NEXT, where the bar has no room for it).
             Item {
                 id: autoplayButton
+                // From 640 px; narrower, UP NEXT's header has it.
                 visible: win.upNext.length > 0 && !win.item.through && win.width >= 640
                 anchors.verticalCenter: parent.verticalCenter
                 width: autoRow.implicitWidth + 12
@@ -1330,18 +1334,183 @@ Item {
             }
         }
     }
-    Picker {
+    // UP NEXT: the videos that follow as tiles (picture, length, title,
+    // channel and date, as in the lists), scrolled by the wheel; a click
+    // plays one. AUTOPLAY's switch in its header (MN, 0.8.51).
+    Rectangle {
         id: upNextPicker
-        // Over its button, placed when it opens.
-        x: open ? Math.max(4, Math.min(win.width - width - 4, upNextButton.mapToItem(win, 0, 0).x)) : 4
+        property bool open: false
+        visible: open && win.upNext.length > 0
+        z: 30
+        anchors.right: parent.right
+        anchors.rightMargin: 4
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 40
-        width: Math.min(340, win.width - 8)
-        maxHeight: win.height - 80
-        options: !open ? [] : (win.item.through ? [] : [{ id: "autoplay", name: "■ AUTOPLAY " + (Streams.autoplay ? "ON" : "OFF") }])
-            .concat(win.upNext.map((n) => ({ id: String(n.at), name: (n.v.title || n.v.id) + (n.v.channel ? " · " + n.v.channel : "") })))
-        current: Streams.autoplay ? "autoplay" : ""
-        onChosen: (id) => id === "autoplay" ? Streams.saveAutoplay(!Streams.autoplay) : win.playAt(Number(id))
+        width: Math.min(380, win.width - 8)
+        height: Math.min(upNextHead.height + upNextView.contentHeight + 2, win.height - 80)
+        color: "#16151b"
+        border.color: Theme.divider
+        // Clicks and the wheel stay here (not the video's drag below).
+        MouseArea { anchors.fill: parent; hoverEnabled: true; onWheel: (w) => w.accepted = true }
+        Item {
+            id: upNextHead
+            x: 1
+            y: 1
+            width: parent.width - 2
+            height: 32
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: "UP NEXT · " + win.upNext.length
+                color: Theme.text()
+                font.family: Theme.display
+                font.pixelSize: 12
+                font.weight: Font.Bold
+                font.letterSpacing: 1.5
+            }
+            Item {
+                visible: !!win.item && !win.item.through
+                anchors.right: parent.right
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                width: headAuto.implicitWidth + 12
+                height: 26
+                Row {
+                    id: headAuto
+                    anchors.centerIn: parent
+                    spacing: 5
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 6
+                        height: 6
+                        color: Streams.autoplay ? Theme.accent : Theme.dim()
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "AUTOPLAY " + (Streams.autoplay ? "ON" : "OFF")
+                        color: Streams.autoplay ? Theme.accent : headAutoMouse.containsMouse ? Theme.text() : Theme.muted()
+                        font.family: Theme.display
+                        font.pixelSize: 12
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1
+                    }
+                }
+                MouseArea {
+                    id: headAutoMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Streams.saveAutoplay(!Streams.autoplay)
+                }
+                Accessible.role: Accessible.CheckBox
+                Accessible.checked: Streams.autoplay
+                Accessible.name: "Autoplay: the next video follows at the end"
+            }
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
+        }
+        ListView {
+            id: upNextView
+            x: 1
+            anchors.top: upNextHead.bottom
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 1
+            width: parent.width - 2
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            model: upNextPicker.open ? win.upNext : []
+            delegate: Item {
+                id: nextRow
+                required property var modelData
+                required property int index
+                readonly property var v: modelData.v
+                width: upNextView.width
+                // The whole title shows (MN): the row grows with it.
+                height: Math.max(66, nextText.implicitHeight + 12)
+                Rectangle {
+                    anchors.fill: parent
+                    color: nextMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : "transparent"
+                }
+                Rectangle {
+                    id: nextThumb
+                    x: 8
+                    y: 6
+                    width: 96
+                    height: 54
+                    color: "#1f1e25"
+                    clip: true
+                    Image {
+                        anchors.fill: parent
+                        asynchronous: true
+                        fillMode: Image.PreserveAspectCrop
+                        sourceSize.width: 192
+                        source: nextRow.v.picture || ""
+                    }
+                    Rectangle {
+                        visible: nextRow.v.duration > 0
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 3
+                        width: lengthText.implicitWidth + 6
+                        height: lengthText.implicitHeight + 2
+                        color: Qt.rgba(0, 0, 0, 0.75)
+                        Text {
+                            id: lengthText
+                            anchors.centerIn: parent
+                            text: win.clock(nextRow.v.duration)
+                            color: "#ffffff"
+                            font.family: Theme.body
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                        }
+                    }
+                }
+                Column {
+                    id: nextText
+                    anchors.left: nextThumb.right
+                    anchors.leftMargin: 10
+                    anchors.right: parent.right
+                    anchors.rightMargin: 10
+                    y: Math.max(6, (66 - implicitHeight) / 2)
+                    spacing: 3
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        width: parent.width
+                        text: nextRow.v.title || nextRow.v.id
+                        color: Theme.text()
+                        font.family: Theme.body
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                        wrapMode: Text.Wrap
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        width: parent.width
+                        text: [nextRow.v.channel || "", win.agoText(nextRow.v.published, nextRow.v.rough)].filter((t) => t).join(" · ")
+                        color: Theme.muted()
+                        font.family: Theme.body
+                        font.pixelSize: 11
+                        elide: Text.ElideRight
+                    }
+                }
+                MouseArea {
+                    id: nextMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        // Taken first: playing replaces the list, and this
+                        // row with it (0.8.51's list lost the click so).
+                        const at = nextRow.modelData.at
+                        const player = win
+                        const list = upNextPicker
+                        list.open = false
+                        player.playAt(at)
+                    }
+                }
+                Accessible.role: Accessible.Button
+                Accessible.name: "Play " + (nextRow.v.title || "")
+            }
+        }
+        WheelScroll { flick: upNextView }
     }
     Picker {
         id: speedPicker
@@ -1456,6 +1625,24 @@ Item {
         onChosen: (id) => win.setOpacity(Number(id) / 100)
     }
 
+    /// When a video came out, as the lists say it.
+    function agoText(iso, rough) {
+        if (!iso) return ""
+        const t = Date.parse(iso)
+        const sec = (Date.now() - t) / 1000
+        if (!(sec >= 0)) return ""
+        if (sec < 3600) return Math.max(1, Math.round(sec / 60)) + " min ago"
+        if (sec < 86400) return Math.round(sec / 3600) + " h ago"
+        const d = Math.round(sec / 86400)
+        if (d < 7) return d === 1 ? "yesterday" : d + " days ago"
+        if (rough) {
+            const plural = (n, w) => n + " " + w + (n === 1 ? "" : "s") + " ago"
+            return d < 30 ? plural(Math.round(d / 7), "week") : d < 365 ? plural(Math.round(d / 30), "month") : plural(Math.round(d / 365), "year")
+        }
+        const date = new Date(t)
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        return date.getDate() + " " + months[date.getMonth()] + (date.getFullYear() === new Date().getFullYear() ? "" : " " + date.getFullYear())
+    }
     function clock(s) {
         s = Math.max(0, Math.floor(s))
         const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60

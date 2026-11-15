@@ -165,6 +165,17 @@ pub fn belongs(app: &AppDef, win: &Win) -> bool {
     })
 }
 
+/// The desktop's own windows (Spectacle's selection, the panel, KRunner,
+/// the lock screen, password prompts): never a game. Spectacle's selection
+/// is full screen and takes the focus; taken for a game, it lost its
+/// full-screen mark while Brave was shown, took it back, lost it again
+/// (five times), and the screens flickered (MN, 0.8.51).
+pub fn desktop_tool(win: &Win) -> bool {
+    const TOOLS: [&str; 8] = ["spectacle", "plasmashell", "krunner", "ksmserver", "kscreenlocker", "polkit", "xdg-desktop-portal", "kwin"];
+    let k = format!("{} {}", win.app, win.cls).to_lowercase();
+    TOOLS.iter().any(|t| k.contains(t))
+}
+
 // ------------------------------------------------------------ events ----
 
 /// A window as the scripts describe it.
@@ -295,8 +306,10 @@ function gcHook(w) {{
         return;
     }}
     if (!gcWatched(w)) {{
-        // Any other window going full screen (a game taking its mark back).
-        if (w && w.normalWindow) w.fullScreenChanged.connect(function () {{ if (w.fullScreen) gcSend("full", gcInfo(w)); }});
+        // Any other window going full screen (a game taking its mark back);
+        // never Spectacle's (its selection isn't a game).
+        var tk = w ? (String(w.desktopFileName || "") + " " + String(w.resourceClass || "")).toLowerCase() : "";
+        if (w && w.normalWindow && tk.indexOf("spectacle") < 0) w.fullScreenChanged.connect(function () {{ if (w.fullScreen) gcSend("full", gcInfo(w)); }});
         return;
     }}
     gcSend("window", gcInfo(w));
@@ -747,6 +760,17 @@ mod tests {
     }
 
     #[test]
+    fn desktop_tools_are_no_games() {
+        let w = |app: &str, cls: &str| Win { app: app.into(), cls: cls.into(), normal: true, full: true, ..Default::default() };
+        assert!(desktop_tool(&w("org.kde.spectacle", "spectacle")));
+        assert!(desktop_tool(&w("", "plasmashell")));
+        assert!(desktop_tool(&w("org.kde.krunner", "")));
+        assert!(!desktop_tool(&w("", "aion2.exe")));
+        assert!(!desktop_tool(&w("", "steam_app_2694490")));
+        assert!(!desktop_tool(&w("com.brave.Browser", "brave-browser")));
+    }
+
+    #[test]
     fn events_come_from_the_scripts_json() {
         let e = parse_event("window", r#"{"id":"{a}","app":"legcord","normal":true,"x":5,"w":300,"out":"DP-2"}"#);
         let Some(Event::Window(w)) = e else { panic!("{e:?}") };
@@ -783,6 +807,7 @@ mod tests {
         let r = restore_body("{a}", &b);
         assert!(r.contains("w.opacity = 1;") && r.contains("width: 100") && r.contains("w.minimized = true"));
         assert!(w.contains(r#"gcSend("full", gcInfo(w))"#));
+        assert!(w.contains(r#"tk.indexOf("spectacle") < 0"#));
         let u = unfull_body("{g}");
         assert!(u.contains(r#"gcFind("{g}")"#) && u.contains("w.fullScreen = false") && u.contains("w.noBorder = true"));
         assert!(refull_body("{g}").contains("w.fullScreen = true"));
