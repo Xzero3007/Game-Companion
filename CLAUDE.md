@@ -263,7 +263,13 @@ learnt, so nothing has to be asked or worked out again.
   own height). Layouts (`settings.layouts`, the person, 2026-11-12) copy
   places, pins, alpha and the open panels (`Main.openPanels()`); loading one
   raises `Companion.layoutRevision`, and every panel places itself again.
-  Planned: a game can bring its own layout (step 4).
+  A game brings its own layout (MN, 2026-11-15): `games.layouts` by game
+  id, picked in Settings → Layouts ("Games", `Games.layoutGames` = the
+  watch list, built-in `known:` games too) or in the game's edit form;
+  `Main` `onStarted` keeps the arrangement (`Companion.keepBeforeGame`,
+  settings `before_game`/`before_game_for`, kept over a restart during
+  that game) and loads the layout; `onStopped` → `backFromGame` brings it
+  back if `layout_back` (default on).
 - Streams (`src/streams.rs`, `src/streams_object.rs`, `qml/StreamsPanel.qml`,
   `qml/VideoWindow.qml`): ported from meter patches 0047, 0059 to 0061, 0068
   and the plugin. Requests through curl with its settings on stdin

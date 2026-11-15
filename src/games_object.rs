@@ -57,6 +57,10 @@ pub mod qobject {
         /// (`launch` opens the launcher's install for it), `note` where it
         /// was found ("Known to Steam on this PC", ...).
         #[qproperty(QString, library)]
+        /// JSON `[{"id","name","layout"}]`: every game detection looks for
+        /// (installed library games and the built-in ones no launcher
+        /// lists), sorted by name, for Settings → Layouts.
+        #[qproperty(QString, layout_games)]
         /// The tab lists only installed games (settings
         /// `games.installed_only`).
         #[qproperty(bool, installed_only)]
@@ -147,6 +151,14 @@ pub mod qobject {
         /// The saved layout a game loads when it starts ("" = none).
         #[qinvokable]
         fn set_layout(self: Pin<&mut Games>, id: &QString, layout: &QString);
+
+        /// Layouts were renamed or deleted: the games' choices again.
+        #[qinvokable]
+        fn layouts_changed(self: Pin<&mut Games>);
+
+        /// The saved layout a game loads when it starts ("" = none).
+        #[qinvokable]
+        fn layout_of(self: &Games, id: &QString) -> QString;
 
         /// The answer to one of the launch option calls below. Those calls
         /// do their work on a worker thread (they read and write the
@@ -303,6 +315,7 @@ pub struct GamesRust {
     twitch_preset: QString,
     youtube_preset: QString,
     library: QString,
+    layout_games: QString,
     installed_only: bool,
     scanning: bool,
     download_covers: bool,
@@ -324,6 +337,7 @@ impl Default for GamesRust {
             twitch_preset: QString::default(),
             youtube_preset: QString::default(),
             library: QString::from("[]"),
+            layout_games: QString::from("[]"),
             installed_only: settings::read(|s| s.games.installed_only),
             scanning: false,
             download_covers: settings::read(|s| s.games.download_covers),
@@ -511,6 +525,25 @@ fn library_json(library: &[Game], settings: &GamesSettings) -> String {
     Value::Array(list).to_string()
 }
 
+/// The games a layout can be tied to: what detection looks for.
+fn layout_games_json(watch: &[Game], settings: &GamesSettings) -> String {
+    let mut list: Vec<&Game> = watch.iter().collect();
+    list.sort_by_cached_key(|g| (g.name.to_lowercase(), g.id.clone()));
+    let mut seen = std::collections::BTreeSet::new();
+    let list: Vec<Value> = list
+        .into_iter()
+        .filter(|g| seen.insert(g.id.clone()))
+        .map(|g| {
+            json!({
+                "id": g.id,
+                "name": g.name,
+                "layout": settings.layouts.get(&g.id).cloned().unwrap_or_default(),
+            })
+        })
+        .collect();
+    Value::Array(list).to_string()
+}
+
 /// A game's programs to start with it (settings `games.start_with`).
 fn start_with_list(id: &str) -> Vec<StartWith> {
     if demo_mode() {
@@ -624,7 +657,9 @@ impl qobject::Games {
         settings.last_played.insert(launch_demo::RACER.into(), now_seconds().saturating_sub(3 * 86_400));
         let list = games::compose(&scanned, &settings);
         self.as_mut().set_library(q(&library_json(&list, &settings)));
-        self.as_mut().rust_mut().watch = Arc::new(Matcher::new(games::watch_list(&list, &settings)));
+        let watch = games::watch_list(&list, &settings);
+        self.as_mut().set_layout_games(q(&layout_games_json(&watch, &settings)));
+        self.as_mut().rust_mut().watch = Arc::new(Matcher::new(watch));
         self.as_mut().rust_mut().composed = list;
         if std::env::var("GC_DEMO").is_ok_and(|d| d.contains("installedonly")) {
             self.as_mut().set_installed_only(true);
@@ -675,7 +710,9 @@ impl qobject::Games {
         }
         let settings = settings::read(|s| s.games.clone());
         let list = games::compose(&self.rust().scanned, &settings);
-        let matcher = Arc::new(Matcher::new(games::watch_list(&list, &settings)));
+        let watch = games::watch_list(&list, &settings);
+        self.as_mut().set_layout_games(q(&layout_games_json(&watch, &settings)));
+        let matcher = Arc::new(Matcher::new(watch));
         *watched().lock().unwrap_or_else(|p| p.into_inner()) = matcher.clone();
         self.as_mut().set_library(q(&library_json(&list, &settings)));
         self.as_mut().rust_mut().watch = matcher;
@@ -875,6 +912,15 @@ impl qobject::Games {
             }
         });
         self.rebuild();
+    }
+
+    fn layouts_changed(self: Pin<&mut Self>) {
+        self.rebuild();
+    }
+
+    fn layout_of(&self, id: &QString) -> QString {
+        let id = id.to_string();
+        q(&settings::read(|s| s.games.layouts.get(&id).cloned().unwrap_or_default()))
     }
 
     /// Runs a launch option job on a worker thread (one at a time, in the

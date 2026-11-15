@@ -194,6 +194,9 @@ Overlay {
             if (id === root.aionId && Aion2.active) { Aion2.stop(); root.aionId = "" }
             if (root.shownForGame && Companion.shown) Companion.toggleShown()
             root.shownForGame = false
+            // Its layout ends: the arrangement from before it comes back.
+            const back = Companion.backFromGame()
+            if (back.length > 0) root.openFrom(JSON.parse(back))
         }
         function onStarted(id) {
             Apps.gameStarted(Games.runningKnown)
@@ -204,8 +207,11 @@ Overlay {
                 || { name: Games.runningName, twitch: Games.twitchPreset, youtube: Games.youtubePreset, showOnStart: true, radioOnStart: false }
             if (g.twitch.length > 0 || g.youtube.length > 0) Streams.changeGame(g.name, g.twitch, g.youtube)
             if (Companion.showOnGame && g.showOnStart && !Companion.shown) { Companion.toggleShown(); root.shownForGame = true }
-            if (g.layout && g.layout.length > 0) {
-                const open = Companion.loadLayout(g.layout)
+            // Built-in games no launcher lists have their layout too.
+            const layout = Games.layoutOf(id)
+            if (layout.length > 0 && JSON.parse(Companion.layouts).indexOf(layout) >= 0) {
+                Companion.keepBeforeGame(id, JSON.stringify(root.openPanels()))
+                const open = Companion.loadLayout(layout)
                 if (open.length > 0) root.openFrom(JSON.parse(open))
             }
             if (g.radioOnStart) {

@@ -20,6 +20,10 @@ Panel {
     /// The layout being renamed ("" for none).
     property string renaming: ""
     property string layoutMessage: ""
+    /// The layout whose games are being picked ("" for none).
+    property string pickingGames: ""
+    /// Every game a layout can be tied to: [{id, name, layout}].
+    readonly property var layoutGames: JSON.parse(Games.layoutGames)
     minWidth: 400
     /// The Map panel: the overlay map's settings are kept in its own.
     property var mapSource: null
@@ -796,13 +800,19 @@ Panel {
                     }
                     Repeater {
                         model: settings.layouts
-                        delegate: Item {
+                        delegate: Column {
+                          id: layoutEntry
+                          required property string modelData
+                          readonly property var games: settings.layoutGames.filter((g) => g.layout === modelData)
+                          readonly property bool picking: settings.pickingGames === modelData
+                          width: parent.width
+                          spacing: 0
+                          Item {
                             id: layoutRow
-                            required property string modelData
+                            readonly property string modelData: layoutEntry.modelData
                             readonly property bool editing: settings.renaming === modelData
                             width: parent.width
                             height: 46
-                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
                             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                                 visible: !layoutRow.editing
                                 anchors.left: parent.left
@@ -840,6 +850,11 @@ Panel {
                                 }
                                 TextButton {
                                     visible: !layoutRow.editing
+                                    text: layoutEntry.picking ? "Done" : "Games"
+                                    onClicked: settings.pickingGames = layoutEntry.picking ? "" : layoutRow.modelData
+                                }
+                                TextButton {
+                                    visible: !layoutRow.editing
                                     text: "Rename"
                                     onClicked: settings.renaming = layoutRow.modelData
                                 }
@@ -850,7 +865,11 @@ Panel {
                                     onClicked: {
                                         const name = renameField.text.trim()
                                         if (name === layoutRow.modelData) { settings.renaming = ""; return }
-                                        if (Companion.renameLayout(layoutRow.modelData, name)) settings.renaming = ""
+                                        if (Companion.renameLayout(layoutRow.modelData, name)) {
+                                            if (settings.pickingGames === layoutRow.modelData) settings.pickingGames = name
+                                            settings.renaming = ""
+                                            Games.layoutsChanged()
+                                        }
                                         else settings.layoutMessage = name.length === 0 ? "A layout needs a name." : "\u201c" + name + "\u201d exists already."
                                     }
                                 }
@@ -868,13 +887,79 @@ Panel {
                                     hoverColor: Theme.red
                                     onClicked: {
                                         Companion.deleteLayout(layoutRow.modelData)
+                                        Games.layoutsChanged()
                                         settings.layoutMessage = "Deleted \u201c" + layoutRow.modelData + "\u201d."
                                     }
                                 }
                             }
+                          }
+                          // Which games load it when they start.
+                          Hint {
+                            visible: !layoutEntry.picking
+                            width: parent.width
+                            topPadding: 2
+                            bottomPadding: 10
+                            text: layoutEntry.games.length > 0
+                                ? "Loads when " + layoutEntry.games.map((g) => g.name).join(", ") + " starts."
+                                : "No game loads it. “Games” picks the ones that do."
+                            color: layoutEntry.games.length > 0 ? Theme.textSoft() : Theme.dim()
+                          }
+                          Flow {
+                            visible: layoutEntry.picking
+                            width: parent.width
+                            spacing: 8
+                            topPadding: 4
+                            bottomPadding: 10
+                            Repeater {
+                                model: layoutEntry.picking ? settings.layoutGames : []
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    readonly property bool on: modelData.layout === layoutEntry.modelData
+                                    width: gameChip.implicitWidth + 20
+                                    height: 28
+                                    color: gameMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.12) : "transparent"
+                                    border.color: on ? Theme.accent : Theme.track
+                                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                        id: gameChip
+                                        anchors.centerIn: parent
+                                        text: parent.modelData.name
+                                            + (!parent.on && parent.modelData.layout.length > 0 ? "  · " + parent.modelData.layout : "")
+                                        color: parent.on ? Theme.accent : Theme.textSoft()
+                                        font.family: Theme.body
+                                        font.pixelSize: 12
+                                    }
+                                    MouseArea {
+                                        id: gameMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: Games.setLayout(parent.modelData.id, parent.on ? "" : layoutEntry.modelData)
+                                    }
+                                    Accessible.role: Accessible.CheckBox
+                                    Accessible.name: modelData.name
+                                    Accessible.checked: on
+                                }
+                            }
+                          }
+                          Hint {
+                            visible: layoutEntry.picking
+                            width: parent.width
+                            bottomPadding: 10
+                            text: settings.layoutGames.length === 0
+                                ? "No installed game found yet (Games)."
+                                : "A game loads one layout: picking it here takes it from another."
+                          }
+                          Rectangle { width: parent.width; height: 1; color: Theme.rowLine }
                         }
                     }
-                    Hint { text: "Later, each game can bring its own layout, loaded when it starts." }
+                    Item { width: 1; height: 4 }
+                    OnOff {
+                        width: parent.width
+                        text: "Go back to the earlier arrangement when the game ends"
+                        on: Companion.layoutBack
+                        onToggled: Companion.setLayoutBackOn(!Companion.layoutBack)
+                    }
+                    Hint { text: "A game's layout loads when it starts. When it ends, what was open before comes back where it was. Changes made during the game are not saved into its layout: save it again under the same name for that." }
                 }
 
                 // Streams
