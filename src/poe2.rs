@@ -200,14 +200,19 @@ fn parse_output(out: &str) -> Result<Answer, String> {
     Ok(Answer { status, headers, body: body.to_string() })
 }
 
-/// Watches XWayland's clipboard (XFixes) on its own thread and hands every
-/// item text to `copied` while `on()` says so. The thread waits on the X
-/// connection: nothing runs between copies.
-pub fn watch_clipboard(on: impl Fn() -> bool + Send + 'static, copied: impl Fn(String) + Send + 'static) -> Result<(), String> {
+/// One XWayland connection that hears who owns the clipboard (XFixes).
+struct ClipboardLink {
+    conn: x11rb::rust_connection::RustConnection,
+    win: u32,
+    clipboard: u32,
+    utf8: u32,
+    prop: u32,
+}
+
+fn open_clipboard() -> Result<ClipboardLink, String> {
     use x11rb::connection::Connection;
     use x11rb::protocol::xfixes::{ConnectionExt as _, SelectionEventMask};
-    use x11rb::protocol::xproto::{AtomEnum, ConnectionExt as _, CreateWindowAux, EventMask, WindowClass};
-    use x11rb::protocol::Event;
+    use x11rb::protocol::xproto::{ConnectionExt as _, CreateWindowAux, EventMask, WindowClass};
 
     if std::env::var_os("DISPLAY").is_none() {
         return Err("no XWayland display (DISPLAY is not set)".into());
@@ -226,30 +231,78 @@ pub fn watch_clipboard(on: impl Fn() -> bool + Send + 'static, copied: impl Fn(S
     conn.xfixes_query_version(5, 0).map_err(|e| e.to_string())?.reply().map_err(|e| format!("XFixes: {e}"))?;
     conn.xfixes_select_selection_input(win, clipboard, SelectionEventMask::SET_SELECTION_OWNER).map_err(|e| e.to_string())?;
     conn.flush().map_err(|e| e.to_string())?;
-    std::thread::Builder::new()
-        .name("poe2-clipboard".into())
-        .spawn(move || loop {
-            let Ok(event) = conn.wait_for_event() else { return };
-            match event {
-                Event::XfixesSelectionNotify(e) if e.selection == clipboard => {
-                    if on() {
-                        let _ = conn.convert_selection(win, clipboard, utf8, prop, e.selection_timestamp);
-                        let _ = conn.flush();
-                    }
+    Ok(ClipboardLink { conn, win, clipboard, utf8, prop })
+}
+
+/// Hears copies until the connection ends; returns why it ended.
+fn hear_clipboard(link: &ClipboardLink, on: &impl Fn() -> bool, copied: &impl Fn(String)) -> String {
+    use x11rb::connection::Connection;
+    use x11rb::protocol::xproto::{AtomEnum, ConnectionExt as _};
+    use x11rb::protocol::Event;
+    let c = &link.conn;
+    loop {
+        let event = match c.wait_for_event() {
+            Ok(e) => e,
+            Err(e) => return format!("XWayland connection ended: {e}"),
+        };
+        match event {
+            Event::XfixesSelectionNotify(e) if e.selection == link.clipboard => {
+                if on() {
+                    let _ = c.convert_selection(link.win, link.clipboard, link.utf8, link.prop, e.selection_timestamp);
+                    let _ = c.flush();
                 }
-                Event::SelectionNotify(e) if e.requestor == win && e.property == prop => {
-                    let reply = conn.get_property(true, win, prop, AtomEnum::ANY, 0, 64 * 1024 / 4).ok().and_then(|c| c.reply().ok());
-                    let _ = conn.flush();
-                    if let Some(r) = reply {
-                        if r.type_ == utf8 || r.type_ == u32::from(AtomEnum::STRING) {
-                            let text = String::from_utf8_lossy(&r.value).replace("\r\n", "\n");
-                            if on() && looks_like_item(&text) {
-                                copied(text);
-                            }
+            }
+            Event::SelectionNotify(e) if e.requestor == link.win => {
+                if e.property != link.prop {
+                    // The owner gave no text (x11rb::NONE): nothing to read.
+                    continue;
+                }
+                let reply = c.get_property(true, link.win, link.prop, AtomEnum::ANY, 0, 64 * 1024 / 4).ok().and_then(|r| r.reply().ok());
+                let _ = c.flush();
+                if let Some(r) = reply {
+                    if r.type_ == link.utf8 || r.type_ == u32::from(AtomEnum::STRING) {
+                        let text = String::from_utf8_lossy(&r.value).replace("\r\n", "\n");
+                        if on() && looks_like_item(&text) {
+                            copied(text);
                         }
                     }
                 }
-                _ => {}
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Watches the clipboard on XWayland for the person's own Ctrl+C in the
+/// game (nothing is sent to the game). The first connection is made here
+/// (its failure is returned); when it ends later (XWayland restarted), the
+/// watcher thread connects again by itself, every 5 s while it is wanted,
+/// and tells `status` (None = listening, Some(why) = not).
+pub fn watch_clipboard(
+    on: impl Fn() -> bool + Send + 'static,
+    copied: impl Fn(String) + Send + 'static,
+    status: impl Fn(Option<String>) + Send + 'static,
+) -> Result<(), String> {
+    let first = open_clipboard()?;
+    std::thread::Builder::new()
+        .name("poe2-clipboard".into())
+        .spawn(move || {
+            let mut link = first;
+            loop {
+                let why = hear_clipboard(&link, &on, &copied);
+                eprintln!("game-companion: PoE 2 clipboard: {why}");
+                status(Some(why));
+                link = loop {
+                    std::thread::sleep(Duration::from_secs(5));
+                    if !on() {
+                        continue;
+                    }
+                    match open_clipboard() {
+                        Ok(l) => break l,
+                        Err(e) => status(Some(e)),
+                    }
+                };
+                status(None);
             }
         })
         .map_err(|e| e.to_string())?;
@@ -341,7 +394,7 @@ mod tests {
         use std::io::Write;
         use std::sync::mpsc;
         let (tx, rx) = mpsc::channel();
-        watch_clipboard(|| true, move |t| tx.send(t).unwrap()).expect("watcher");
+        watch_clipboard(|| true, move |t| tx.send(t).unwrap(), |_| {}).expect("watcher");
         std::thread::sleep(std::time::Duration::from_millis(200));
         let copy = |text: &str| {
             let mut c = std::process::Command::new("xclip")
