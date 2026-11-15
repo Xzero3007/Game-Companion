@@ -58,6 +58,9 @@ class MpvVideo : public QQuickFramebufferObject
     /// window changes size: a frame drawn meanwhile showed the whole window
     /// stretched over the screen, MN); what was missed comes when it ends.
     Q_PROPERTY(bool frozen READ frozen WRITE setFrozen NOTIFY frozenChanged)
+    /// Whether a picture is decoded (false while only sound plays: a
+    /// YouTube stream whose video part failed to open).
+    Q_PROPERTY(bool hasPicture READ hasPicture NOTIFY hasPictureChanged)
 
 public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
@@ -83,6 +86,7 @@ public:
     QString why() const { return m_why; }
     QString ytdlOptions() const { return m_ytdlOptions; }
     bool frozen() const { return m_frozen; }
+    bool hasPicture() const { return m_hasPicture; }
     void setFrozen(bool on);
     /// mpv has a new frame: drawn unless frozen.
     void newFrame();
@@ -131,6 +135,7 @@ signals:
     void whyChanged();
     void ytdlOptionsChanged();
     void frozenChanged();
+    void hasPictureChanged();
 
 protected:
     /// Moved to another window: draw there (a video waiting for its render
@@ -181,6 +186,8 @@ private:
     bool m_frozen = false;
     bool m_missed = false;
     bool m_positionMissed = false;
+    bool m_hasPicture = false;
+    void setHasPicture(bool on);
 };
 
 /// Registers MpvVideo for QML.

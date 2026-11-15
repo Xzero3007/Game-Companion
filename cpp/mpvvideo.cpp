@@ -323,6 +323,8 @@ bool MpvVideo::ensureStarted()
     mpv().observe_property(m_mpv, 0, "duration", MPV_FORMAT_DOUBLE);
     mpv().observe_property(m_mpv, 0, "chapter-list", MPV_FORMAT_NODE);
     mpv().observe_property(m_mpv, 0, "speed", MPV_FORMAT_DOUBLE);
+    // The decoded picture's width: none while only sound plays.
+    mpv().observe_property(m_mpv, 0, "width", MPV_FORMAT_INT64);
     mpv().set_wakeup_callback(m_mpv, onWakeup, this);
     m_core = std::make_shared<MpvCore>();
     m_core->handle = m_mpv;
@@ -373,6 +375,15 @@ void MpvVideo::setFrozen(bool on)
         emit positionChanged();
     }
     emit frozenChanged();
+}
+
+void MpvVideo::setHasPicture(bool on)
+{
+    if (m_hasPicture == on) {
+        return;
+    }
+    m_hasPicture = on;
+    emit hasPictureChanged();
 }
 
 void MpvVideo::newFrame()
@@ -654,10 +665,15 @@ void MpvVideo::readEvents()
                     m_duration = 0;
                     emit durationChanged();
                 }
+                if (p && qstrcmp(p->name, "width") == 0) {
+                    setHasPicture(false);
+                }
                 break;
             }
             const QByteArray name(p->name);
-            if (p->format == MPV_FORMAT_FLAG) {
+            if (p->format == MPV_FORMAT_INT64 && name == "width") {
+                setHasPicture(*static_cast<int64_t *>(p->data) > 0);
+            } else if (p->format == MPV_FORMAT_FLAG) {
                 const bool v = *static_cast<int *>(p->data) != 0;
                 if (name == "pause" && v != m_paused) {
                     m_paused = v;
