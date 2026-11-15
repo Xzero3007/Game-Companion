@@ -121,7 +121,6 @@ fn main() {
             "qml/aion2/mapkit.js",
             "qml/aion2/marketkit.js",
             "qml/aion2/charkit.js",
-            "qml/poe2/ee2kit.js",
             "qml/aion2/chartickets.js",
             "qml/aion2/schedule.js",
             "qml/aion2/timekit.js",

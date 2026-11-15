@@ -17466,12 +17466,14 @@ var EE2 = (() => {
         yield l.load();
         leaguesLoaded = !l.error.value;
       }
+      const listed = l.list.value.some(x => x.id === chosen);
+      if (chosen && listed) setLeague(chosen);
       return {
         list: l.list.value.map(x => ({
           id: x.id,
           text: x.text
         })),
-        selected: l.selectedId.value || "",
+        selected: chosen && listed ? chosen : l.selectedId.value || "",
         error: l.error.value || ""
       };
     });
