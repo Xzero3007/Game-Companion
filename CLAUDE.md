@@ -82,7 +82,17 @@ learnt, so nothing has to be asked or worked out again.
   Game Companion over a Unix socket; avatars are fetched by Legcord itself
   (its session, cdn.discordapp.com, as it does anyway). The PoE 2 price check (MN, 2026-11-15:
   "bau ee2 nach"): www.pathofexile.com/api/trade2/ only (search, fetch,
-  exchange, data; src/poe2.rs `allowed`), asked when an item is checked.
+  exchange, data; src/poe2.rs `allowed`), asked when an item is checked;
+  "Trade site ↗" opens the same search on www.pathofexile.com/trade2/
+  (search or exchange pages only, `trade_page_ok`) in the person's own
+  browser through xdg-open, only on a click (MN, 2026-11-15: "es muss nur
+  aufgehen wenn ich da was anklicken kann"). poe.ninja's PoE 2 economy
+  (poe.ninja/poe2/api/economy/ only: leagues, exchange, stash; GET, no
+  cookies; `ninja_allowed`), the league's currency overview once in 30
+  minutes when an item is checked, on by default, off under Settings →
+  Plugins → PoE 2 "poe.ninja prices" (MN, 2026-11-15: "standartmäßig an
+  kann man aber auch aus klicken"). poeprices.info: not until it
+  knows PoE 2 (MN chose so, 2026-11-15; EE2 itself switched it off).
   Brave Origin, Legcord and Rusty Path of Building are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
@@ -721,8 +731,32 @@ learnt, so nothing has to be asked or worked out again.
   a promise; if the child dies only the price check starts again
   (`kitGone`). GC_DEMO=price answers inside the child (`DEMO`). The kit is
   still built without array iterators (Babel pass in build.mjs). Tests:
-  `cargo test poe2_kit` (an item, a search, EE2's 27 samples in QuickJS). Tests: `node tools/poe2-ee2/test/run.js`, the ignored
-  `copied_items_are_seen` under xvfb-run with xclip. `GC_DEMO=price[,results]`.
+  `cargo test poe2_kit` (an item, a search, EE2's 27 samples in QuickJS).
+  Tests: `node tools/poe2-ee2/test/run.js`, the ignored
+  `copied_items_are_seen` under xvfb-run with xclip. `GC_DEMO=price[,results|,gloves]`,
+  `settings,poe2prefs`, `price,results,listing` (a listing's item shown),
+  `price,currency` (the exchange with poe.ninja's price). A click on a
+  listing shows its item under the row (`ListedItem.qml`, the kit's
+  `item` from EE2's DisplayItem: values, requirements, enchants, runes,
+  implicits, mods with tiers, in the trade site's colours; MN, 2026-11-15).
+  poe.ninja (`tools/poe2-ee2/ninja.ts`): the exchange's Currency overview
+  (`core.rates.exalted` = ex per divine, `lines[].primaryValue` in divines,
+  ids = the trade site's currency ids, `items[]` the names; shape from MN's
+  copy, Runes of Aldur); each listing's `norm` (in ex, from one divine up in
+  div), a currency item's `ninja` (div, ex, 7-day change) in the view and
+  the result. Layout like the game (MN, 2026-11-15): with the
+  advanced copy (Ctrl+C with Alt held) the kit's `view().mods` (from the
+  item text's `{ … }` headers, matched to EE2's mods by name and tier)
+  make the groups IMPLICIT · ENCHANT · RUNES, PREFIXES, SUFFIXES (each
+  line with the tier's range in brackets, its tier, the stat line that
+  searches for it, or "in the totals"/"in the item's values"); without it
+  EE2's stat lines in VALUES, LINES, TOTALS. Min/max per line
+  (`RangeField`, wheel works locked). EE2's settings in `PriceSettings.qml`
+  (window ⚙ and Settings → Plugins → PoE 2), kept in settings.poe2,
+  handed to the kit by `setPrefs`. The clipboard watcher connects again by
+  itself when XWayland's connection ends; `Poe2.watchError` shows in the
+  window (0.8.44, MN: Ctrl+C did nothing). EE2's leagues come unencoded
+  ("Runes of Aldur"): `encode_address` before `allowed`.
   Path of Building is the third app (`pob`, `AppDef.args` "poe2",
   `AppDef.game` "poe2"; bar button while PoE 2 or PoB runs).
   Qt's JavaScript runs without its JIT (`main.rs` sets

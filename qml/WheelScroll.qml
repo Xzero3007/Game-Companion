@@ -24,6 +24,9 @@ MouseArea {
     /// The glide's place; the list follows it while it glides.
     property real pos: 0
     property bool gliding: false
+    /// Optional: a function (x, y in this area) that says the wheel there
+    /// belongs to something under it (the price check's min/max fields).
+    property var passAt: null
 
     anchors.fill: flick
     visible: !!flick && flick.visible
@@ -39,6 +42,7 @@ MouseArea {
 
     onWheel: (wheel) => {
         if (!flick) return
+        if (passAt && passAt(wheel.x, wheel.y)) { wheel.accepted = false; return }
         const room = flick.contentHeight + flick.topMargin + flick.bottomMargin - flick.height
         if (room <= 0) { wheel.accepted = false; return }
         const top = flick.originY - flick.topMargin

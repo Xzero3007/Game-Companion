@@ -24,15 +24,28 @@ pub const TRADE_API: &str = "https://www.pathofexile.com/api/trade2/";
 
 /// Whether an address may be asked: the trade site's API, a plain path and
 /// query (no `..`, no fragment, no other host or port).
+/// poe.ninja's PoE 2 economy (MN, 2026-11-15: prices, on by default and
+/// switchable): read only, GET, no cookies.
+pub const NINJA_API: &str = "https://poe.ninja/poe2/api/economy/";
+
+/// Only poe.ninja's PoE 2 economy answers (leagues, the exchange's and the
+/// stash overviews).
+pub fn ninja_allowed(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix(NINJA_API) else { return false };
+    let path = rest.split('?').next().unwrap_or("");
+    let first = path.split('/').next().unwrap_or("");
+    ["leagues", "exchange", "stash"].contains(&first) && plain(rest)
+}
+
+fn plain(rest: &str) -> bool {
+    !rest.contains("..") && !rest.contains('#') && !rest.contains('\\') && !rest.chars().any(|c| c.is_control() || c == ' ')
+}
+
 pub fn allowed(url: &str) -> bool {
     let Some(rest) = url.strip_prefix(TRADE_API) else { return false };
     let path = rest.split('?').next().unwrap_or("");
     let first = path.split('/').next().unwrap_or("");
-    ["search", "fetch", "exchange", "data"].contains(&first)
-        && !rest.contains("..")
-        && !rest.contains('#')
-        && !rest.contains('\\')
-        && !rest.chars().any(|c| c.is_control() || c == ' ')
+    ["search", "fetch", "exchange", "data"].contains(&first) && plain(rest)
 }
 
 /// The folder with EE2's data: $GC_POE2_DATA, the installed one, else (a
@@ -108,6 +121,12 @@ pub fn encode_address(url: &str) -> String {
 /// Asks the trade site (GET, or POST with a JSON body).
 pub fn request(method: &str, url: &str, body: &str) -> Result<Answer, String> {
     let url = &encode_address(url);
+    if ninja_allowed(url) {
+        if method != "GET" {
+            return Err("only GET".into());
+        }
+        return fetch(&curl_config_with(method, url, body, false));
+    }
     if !allowed(url) {
         return Err("not the trade site's API".into());
     }
@@ -126,7 +145,16 @@ pub fn request(method: &str, url: &str, body: &str) -> Result<Answer, String> {
             });
         }
     }
-    let config = curl_config(method, url, body);
+    let answer = fetch(&curl_config(method, url, body))?;
+    if answer.status == 429 {
+        let wait = answer.headers.get("retry-after").and_then(|v| v.as_str()).and_then(|v| v.trim().parse::<u64>().ok()).unwrap_or(60);
+        *BLOCKED.lock().unwrap_or_else(|p| p.into_inner()) = Some(Instant::now() + Duration::from_secs(wait.clamp(1, 3600)));
+    }
+    Ok(answer)
+}
+
+/// Runs curl with `config` on stdin.
+fn fetch(config: &str) -> Result<Answer, String> {
     let mut child = Command::new("curl")
         .args(["-q", "--config", "-"])
         .stdin(Stdio::piped())
@@ -143,20 +171,21 @@ pub fn request(method: &str, url: &str, body: &str) -> Result<Answer, String> {
         let line = err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("no answer").trim().to_string();
         return Err(line.trim_start_matches("curl: ").chars().take(200).collect());
     }
-    let answer = parse_output(&String::from_utf8_lossy(&out.stdout))?;
-    if answer.status == 429 {
-        let wait = answer.headers.get("retry-after").and_then(|v| v.as_str()).and_then(|v| v.trim().parse::<u64>().ok()).unwrap_or(60);
-        *BLOCKED.lock().unwrap_or_else(|p| p.into_inner()) = Some(Instant::now() + Duration::from_secs(wait.clamp(1, 3600)));
-    }
-    Ok(answer)
+    parse_output(&String::from_utf8_lossy(&out.stdout))
 }
 
 fn curl_config(method: &str, url: &str, body: &str) -> String {
+    curl_config_with(method, url, body, true)
+}
+
+/// curl's settings; `cookies` only for the trade site (its Cloudflare
+/// cookies), never for poe.ninja.
+fn curl_config_with(method: &str, url: &str, body: &str, cookies: bool) -> String {
     use crate::streams::curl_quote;
     let mut c = String::from("silent\nshow-error\nproto = \"=https\"\nmax-time = 20\nmax-filesize = 16777216\ncompressed\n");
     c.push_str(&format!("user-agent = {}\n", curl_quote(&format!("GameCompanion/{} (Linux; PoE 2 price check)", env!("CARGO_PKG_VERSION")))));
     c.push_str("header = \"Accept: application/json\"\n");
-    if let Some(jar) = cookie_jar() {
+    if let Some(jar) = cookie_jar().filter(|_| cookies) {
         // The site's own cookies (Cloudflare's), kept for this session only.
         let jar = curl_quote(&jar.to_string_lossy());
         c.push_str(&format!("cookie = {jar}\ncookie-jar = {jar}\n"));
@@ -176,6 +205,34 @@ fn curl_config(method: &str, url: &str, body: &str) -> String {
 fn cookie_jar() -> Option<PathBuf> {
     let dir = std::env::var_os("XDG_RUNTIME_DIR")?;
     Some(PathBuf::from(dir).join("game-companion-poe2.cookies"))
+}
+
+/// The trade site's own pages for a search (opened in the person's browser
+/// when they press "Open on the trade site"; MN, 2026-11-15).
+pub fn trade_page_ok(url: &str) -> bool {
+    const PAGES: [&str; 2] = ["https://www.pathofexile.com/trade2/search/poe2/", "https://www.pathofexile.com/trade2/exchange/poe2/"];
+    PAGES.iter().any(|p| url.starts_with(p))
+        && url.len() < 16 * 1024
+        && url.bytes().all(|b| b.is_ascii_graphic())
+        && !url.contains("..")
+}
+
+/// Opens a trade page in the desktop's browser (xdg-open, not waited for).
+pub fn open_trade_page(url: &str) -> Result<(), String> {
+    if !trade_page_ok(url) {
+        return Err("not a trade site page".into());
+    }
+    let mut child = std::process::Command::new("xdg-open")
+        .arg(url)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| format!("xdg-open: {e}"))?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
 }
 
 /// curl's output: the body, then our marker, the status and the headers
@@ -343,6 +400,31 @@ mod tests {
         assert!(allowed(&league));
         assert_eq!(encode_address("a\"b{c}ä"), "a%22b%7Bc%7D%C3%A4");
         assert!(!allowed(&encode_address("https://www.pathofexile.com/api/trade2/search/../x")));
+    }
+
+    #[test]
+    fn only_poe_ninjas_poe2_economy() {
+        assert!(ninja_allowed("https://poe.ninja/poe2/api/economy/leagues"));
+        assert!(ninja_allowed(&encode_address("https://poe.ninja/poe2/api/economy/exchange/current/overview?league=Runes of Aldur&type=Currency")));
+        assert!(ninja_allowed("https://poe.ninja/poe2/api/economy/stash/current/item/overview?league=X&type=UniqueArmour"));
+        assert!(!ninja_allowed("https://poe.ninja/api/data/currencyoverview"));
+        assert!(!ninja_allowed("https://poe.ninja/poe2/api/economy/../../account"));
+        assert!(!ninja_allowed("https://poe.ninja/poe2/api/economy/builds"));
+        assert!(!ninja_allowed("https://poe.ninja.evil.example/poe2/api/economy/leagues"));
+        assert!(!ninja_allowed("http://poe.ninja/poe2/api/economy/leagues"));
+        assert!(!allowed("https://poe.ninja/poe2/api/economy/leagues"));
+        assert!(!curl_config_with("GET", "https://poe.ninja/poe2/api/economy/leagues", "", false).contains("cookie"));
+    }
+
+    #[test]
+    fn trade_pages() {
+        assert!(trade_page_ok("https://www.pathofexile.com/trade2/search/poe2/Standard?q=%7B%22query%22%3A%7B%7D%7D"));
+        assert!(trade_page_ok("https://www.pathofexile.com/trade2/exchange/poe2/Runes%20of%20Aldur/abc123"));
+        assert!(!trade_page_ok("https://www.pathofexile.com/account/view-profile"));
+        assert!(!trade_page_ok("https://www.pathofexile.com.evil.example/trade2/search/poe2/x"));
+        assert!(!trade_page_ok("http://www.pathofexile.com/trade2/search/poe2/x"));
+        assert!(!trade_page_ok("https://www.pathofexile.com/trade2/search/poe2/x y"));
+        assert!(!trade_page_ok("https://www.pathofexile.com/trade2/search/poe2/../../x"));
     }
 
     #[test]
