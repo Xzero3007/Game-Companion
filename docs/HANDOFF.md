@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.41 beta (2026-11-14): #91 Take over open Brave and Legcord again: run KWin scripts by start (PR #91) (entry below).
 - 0.8.40 beta (2026-11-14): #94 PoE 2 price check (Exiled Exchange 2 rebuilt) and Path of Building as the third app; JS runs interpreted (Arch's Qt 6.12 JIT crashed in the kit) (PR #94) (entry below).
 - 0.8.39 beta (2026-11-14): #92 Video: a grab freezes frames and position first, the surface changes size 40 ms later (PR #92) (entry below).
 - 0.8.38 beta (2026-11-14): #89 YouTube: lists keep their place, channel from a tile, lengths and dates, groups row; video frames held while its surface resizes (PR #89) (entry below).
@@ -979,6 +980,24 @@ nach". PoE 2 1.0 comes in December: everything must work by then.
   rate limits and Ctrl+C in the real game. QA and MN check those.
 - Later (asked, not built): poe.ninja estimates (needs MN's yes for the
   host), a Client.txt reader, filter manager, levelling guide.
+
+## Branch `claude/project-thread-6m4xx8` (from beta): open Brave and Legcord taken over again
+
+MN, 0.8.37: after an update (and after a restart from the tray) Game
+Companion no longer saw the open Brave and Legcord: "NOT RUNNING", and each
+press started another one. The watcher was loaded (`isScriptLoaded` true)
+but never ran: KWin gives a new script the number of scripts it holds, so
+once any script was unloaded (other KWin scripts, Game Companion's own
+one-off scripts) the new number's D-Bus path belonged to a script still
+loaded, and `run` reached that one. A fresh login has no gaps, hence "it
+worked before". Now every load also calls `/Scripting start` (runs every
+loaded script not yet running). Belt and braces: with no window known, a
+press asks KWin for the app's windows first (`scan_body`,
+`look_then_start`, `looked`) and loads the watcher again if it missed one;
+a game start does the same before starting apps set to start with it.
+Checked on the Arch bench: `arch-test/apps/holes.sh` (a gap in the ids:
+taken over, no second Brave, the watcher saw it itself), `restart.sh`
+(restart after SIGTERM and SIGKILL), `gc.sh` all pass.
 
 ## Testing
 

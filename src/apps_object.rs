@@ -459,7 +459,62 @@ impl qobject::Apps {
         } else if starting {
             // A second press while it starts: it will not be shown.
             self.as_mut().rust_mut().apps.get_mut(app.id).expect("every app has a state").starting = false;
+        } else if self.rust().available {
+            self.as_mut().look_then_start(app, &output);
         } else {
+            self.as_mut().start(app, &output, true);
+        }
+        self.refresh();
+    }
+
+    /// No window known: KWin is asked for the app's windows first, so one
+    /// already open is taken over rather than the program started again
+    /// (MN, 0.8.37: after an update the watcher told nothing, and every
+    /// press opened a new Brave). Windows found that way mean the watcher
+    /// missed them: it is loaded again.
+    fn look_then_start(mut self: Pin<&mut Self>, app: &'static AppDef, output: &str) {
+        let run = {
+            let mut rust = self.as_mut().rust_mut();
+            let s = rust.apps.get_mut(app.id).expect("every app has a state");
+            // While starting, the first window reported is shown (`on_event`).
+            s.starting = true;
+            s.starting_run += 1;
+            s.output = output.to_string();
+            s.why.clear();
+            s.starting_run
+        };
+        let thread = self.qt_thread();
+        let id = app.id;
+        let key = app.window;
+        self.kwin(move |k| {
+            let _ = k.scan(&[key]);
+            // The scan's windows came before its "done": they are queued
+            // ahead of this.
+            let _ = thread.queue(move |obj: Pin<&mut qobject::Apps>| obj.looked(id, run));
+        });
+    }
+
+    fn looked(mut self: Pin<&mut Self>, id: &'static str, run: u64) {
+        let Some(app) = find(id) else { return };
+        let (still, found, output) = {
+            let s = &self.rust().apps[id];
+            (s.starting && s.starting_run == run, !s.windows.is_empty(), s.output.clone())
+        };
+        if found {
+            eprintln!("game-companion: {} was open but not reported: watching again", app.name);
+            self.kwin(|k| {
+                let keys: Vec<&str> = APPS.iter().map(|a| a.window).collect();
+                if let Err(e) = k.watch(&keys) {
+                    eprintln!("game-companion: KWin did not take the window watcher: {e}");
+                }
+            });
+            if still {
+                // Found but not shown yet (a minimised window).
+                self.as_mut().rust_mut().apps.get_mut(id).expect("every app has a state").starting = false;
+                self.as_mut().show(app, &output);
+            }
+        } else if still {
+            self.as_mut().rust_mut().apps.get_mut(id).expect("every app has a state").starting = false;
             self.as_mut().start(app, &output, true);
         }
         self.refresh();
@@ -628,14 +683,38 @@ impl qobject::Apps {
 
     fn game_started(mut self: Pin<&mut Self>, game: &QString) {
         let game = game.to_string();
-        for app in &APPS {
-            let running = !self.rust().apps[app.id].windows.is_empty();
-            let fits = app.game.is_none_or(|g| g == game);
-            if apps::choice(app.id).with_game && !running && fits {
-                self.as_mut().start(app, "", false);
-            }
+        let wanted: Vec<&'static str> = APPS
+            .iter()
+            .filter(|a| apps::choice(a.id).with_game && self.rust().apps[a.id].windows.is_empty() && a.game.is_none_or(|g| g == game))
+            .map(|a| a.id)
+            .collect();
+        if wanted.is_empty() {
+            return;
         }
-        self.refresh();
+        if !self.rust().available {
+            for id in wanted {
+                if let Some(app) = find(id) {
+                    self.as_mut().start(app, "", false);
+                }
+            }
+            self.refresh();
+            return;
+        }
+        // KWin is asked first: one already open is not started again.
+        let thread = self.qt_thread();
+        self.kwin(move |k| {
+            let keys: Vec<&str> = wanted.iter().filter_map(|id| find(id)).map(|a| a.window).collect();
+            let _ = k.scan(&keys);
+            let _ = thread.queue(move |mut obj: Pin<&mut qobject::Apps>| {
+                for id in wanted {
+                    let Some(app) = find(id) else { continue };
+                    if obj.rust().apps[id].windows.is_empty() {
+                        obj.as_mut().start(app, "", false);
+                    }
+                }
+                obj.refresh();
+            });
+        });
     }
 
     fn game_stopped(mut self: Pin<&mut Self>) {
