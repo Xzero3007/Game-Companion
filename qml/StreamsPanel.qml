@@ -34,7 +34,34 @@ Panel {
     readonly property bool onTwitch: Streams.tab === "twitch"
     readonly property bool onJelly: Streams.tab === "jellyfin"
     readonly property var jellyList: JSON.parse(Jellyfin.items)
-    readonly property var listWanted: listKind === "jelly" ? jellyList : listKind === "playlists" ? playlistsShown : onTwitch ? twitchList : youtubeList
+    readonly property var listWanted: listKind === "jelly" ? jellyList : listKind === "playlists" ? playlistsShown : onTwitch ? twitchList : youtubeShown
+    /// The YouTube list in its chosen order (Streams' `filters.sorts`; MN,
+    /// 0.8.43): the game's search is asked of YouTube in its order, the
+    /// others are sorted as loaded.
+    readonly property var sortDefaults: ({ game: "date", subscriptions: "newest", channel: "newest", trending: "own", playlist: "own", history: "own" })
+    readonly property string ytSort: (filters.sorts && filters.sorts[ytView]) || sortDefaults[ytView] || ""
+    readonly property var youtubeShown: ytView === "game" ? youtubeList : sortVideos(youtubeList, ytSort)
+    function sortVideos(list, key) {
+        if (!key || key === "own" || list.length < 2) return list
+        const date = (v) => v.published || ""
+        const length = (v) => v.duration > 0 ? v.duration : 0
+        // Videos without a date or a length go last either way.
+        const by = key === "newest" ? (a, b) => date(a) === date(b) ? 0 : date(a) < date(b) ? 1 : -1
+                 : key === "oldest" ? (a, b) => !date(a) !== !date(b) ? (date(a) ? -1 : 1) : date(a) === date(b) ? 0 : date(a) < date(b) ? -1 : 1
+                 : key === "longest" ? (a, b) => length(b) - length(a)
+                 : (a, b) => !length(a) !== !length(b) ? (length(a) ? -1 : 1) : length(a) - length(b)
+        // Stable: equal ones keep the list's order.
+        return list.map((v, i) => [v, i]).sort((x, y) => by(x[0], y[0]) || x[1] - y[1]).map((x) => x[0])
+    }
+    function sortOptions(view) {
+        if (view === "game") return [{ id: "relevance", name: "Relevance" }, { id: "date", name: "Newest first" }, { id: "views", name: "Most viewed" }]
+        const own = { playlist: "Playlist order", history: "Last watched", trending: "Trending order" }[view]
+        if (!own && view !== "subscriptions" && view !== "channel") return []
+        let o = own ? [{ id: "own", name: own }] : []
+        return o.concat([{ id: "newest", name: "Newest first" }, { id: "oldest", name: "Oldest first" }, { id: "longest", name: "Longest" }, { id: "shortest", name: "Shortest" }])
+    }
+    readonly property var ytSortOptions: onTwitch || onJelly || listKind !== "video" ? [] : sortOptions(ytView)
+    readonly property string ytSortName: { const o = ytSortOptions.find((x) => x.id === ytSort); return o ? o.name : "" }
     /// What the list and the tiles show: set from `listWanted` by `swapList`,
     /// which keeps the place when the same list only grew or was refreshed
     /// (a new array would put a view back at its top).
@@ -43,7 +70,7 @@ Panel {
     readonly property string listKey: Streams.tab + "|" + listKind + "|"
         + (onJelly ? Jellyfin.view + "|" + (jfPath.length > 0 ? jfPath[jfPath.length - 1].id : "")
            : onTwitch ? twView + "|" + (arg ? arg.name || arg.login || "" : "")
-           : ytView + "|" + (arg ? arg.id || "" : "") + "|" + (channel ? channel.id : "") + "|" + (ytView === "trending" ? Streams.trendSection : ""))
+           : ytView + "|" + (arg ? arg.id || "" : "") + "|" + (channel ? channel.id : "") + "|" + (ytView === "trending" ? Streams.trendSection : "") + "|" + ytSort)
         + "|" + (searchShown ? search.text : "")
     property string modelKey: ""
     function itemKey(x) { return x ? String(x.id || x.login || x.name || "") : "" }
@@ -292,7 +319,7 @@ Panel {
     }
     property bool loopList: false
     function playAll(shuffle) {
-        let q = youtubeList.slice()
+        let q = youtubeShown.slice()
         if (q.length === 0) return
         if (shuffle) for (let i = q.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = q[i]; q[i] = q[j]; q[j] = t }
         if (arg) Library.played(arg.id)
@@ -330,7 +357,7 @@ Panel {
             let o = [{ id: "add", name: "Add to playlist ▸" }]
             if (ytView === "playlist" && arg) {
                 o.push({ id: "remove", name: "Remove from playlist" })
-                if (!tiles) o.push({ id: "up", name: "Move up" }, { id: "down", name: "Move down" })
+                if (!tiles && ytSort === "own") o.push({ id: "up", name: "Move up" }, { id: "down", name: "Move down" })
             }
             o.push({ id: "watched", name: m.done ? "Mark as not watched" : "Mark as watched" })
             if (ytView === "history") o.push({ id: "forget", name: "Remove from history" })
@@ -477,6 +504,19 @@ Panel {
                 anchors.rightMargin: -6
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
+                // The list's order (MN, 0.8.43).
+                Chip {
+                    id: ytSortChip
+                    visible: panel.ytSortOptions.length > 0
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Sort: " + panel.ytSortName + " ▾"
+                    onClicked: {
+                        const view = panel.ytView
+                        panel.openMenu(ytSortChip, "filter", { options: panel.ytSortOptions.map((o) => ({ id: o.id, name: (o.id === panel.ytSort ? "✓ " : "") + o.name })),
+                                                              choose: (id) => { Streams.setSort(view, id); if (view === "game") panel.reload() } })
+                    }
+                }
+                Item { visible: ytSortChip.visible; width: 8; height: 1 }
                 IconButton {
                     icon: "back"
                     iconSize: 16
@@ -605,7 +645,7 @@ Panel {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - gameTag.implicitWidth - changeGame.width - 46
                     elide: Text.ElideRight
-                    text: panel.onTwitch ? "Twitch category: " + panel.game.twitch : "Preset search: “" + panel.game.youtube + "”, newest first"
+                    text: panel.onTwitch ? "Twitch category: " + panel.game.twitch : "Preset search: “" + panel.game.youtube + "”, " + ({ relevance: "by relevance", views: "most viewed first" }[panel.ytSort] || "newest first")
                     color: "#d8d4e0"
                     font.family: Theme.body
                     font.pixelSize: 12
@@ -1261,7 +1301,8 @@ Panel {
         id: menu
         parent: panel
         z: 50
-        width: 220
+        // "Unsubscribe from <channel>" wants room for the name.
+        width: panel.menuKind === "unsub" ? 320 : 220
         maxHeight: 260
         current: ""
         onChosen: (id) => panel.menuChosen(id)
@@ -1406,7 +1447,7 @@ Panel {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: panel.ytView === "playlist" ? panel.playVideo(row.modelData, panel.youtubeList, row.index) : panel.playVideo(row.modelData)
+                onClicked: panel.ytView === "playlist" ? panel.playVideo(row.modelData, panel.youtubeShown, row.index) : panel.playVideo(row.modelData)
             }
             Thumb {
                 id: thumb
@@ -1720,7 +1761,7 @@ Panel {
             readonly property bool kept: !!modelData.channelId && panel.channels.some((c) => c.id === panel.chanId(modelData))
             readonly property var mark: Library.revision >= 0 ? JSON.parse(Library.mark(modelData.id)) : null
             picture: modelData.picture
-            onClicked: panel.ytView === "playlist" ? panel.playVideo(modelData, panel.youtubeList, index) : panel.playVideo(modelData)
+            onClicked: panel.ytView === "playlist" ? panel.playVideo(modelData, panel.youtubeShown, index) : panel.playVideo(modelData)
             YtProgress { parent: tile.thumb; mark: tile.mark }
             BookmarkButton {
                 parent: tile.thumb
