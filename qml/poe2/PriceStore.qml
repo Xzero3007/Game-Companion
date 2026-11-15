@@ -29,7 +29,25 @@ QtObject {
     readonly property string league: prefs.league || ""
     readonly property bool autoOpen: prefs.autoOpen !== false
 
+    readonly property bool showTiers: prefs.tiers !== false
     onOnChanged: Poe2.watch(on)
+    onPrefsChanged: kit("setPrefs", [kitPrefs()]).then(function () { }, function () { })
+    /// The settings as the kit names them (see PriceSettings.qml).
+    function kitPrefs() {
+        return {
+            searchStatRange: typeof prefs.statRange === "number" ? prefs.statRange : 10,
+            fillMax: prefs.fillMax === true,
+            defaultAllSelected: prefs.allSelected === true,
+            smartInitialSearch: prefs.atOnce !== false,
+            listingType: prefs.listingType || "securable",
+            currency: prefs.currency || "",
+            collapseListings: prefs.collapse === "api" ? "api" : "app",
+            showSeller: prefs.seller !== undefined ? prefs.seller : "account",
+            accountName: prefs.account || "",
+            ninja: prefs.ninja !== false
+        }
+    }
+    function setPref(key, value) { Poe2.setPref(key, JSON.stringify(value)) }
     Component.onCompleted: {
         if (on) Poe2.watch(true)
         if (demo.indexOf("price") >= 0) Qt.callLater(showDemo)
@@ -83,6 +101,7 @@ QtObject {
         busy = true
         shown = true
         Companion.log("poe2", "check: start")
+        kit("setPrefs", [kitPrefs()]).then(function () { }, function () { })
         kit("check", [text, league]).then(function (v) {
             busy = false
             if (!v || v.error) { Companion.log("poe2", "check: done, " + (v ? v.error : "no result")); view = null; error = why(v ? v.error : "", v ? v.detail : ""); return }
@@ -113,11 +132,34 @@ QtObject {
         }, function (e) { Companion.log("poe2", "search: failed: " + e); if (e.message === "gone") return; busy = false; error = String(e.message || e) })
     }
 
+    /// Opens this search on the trade site in the person's browser (only on
+    /// a click; MN, 2026-11-15).
+    function openTrade() {
+        if (!view) return
+        kit("tradeLink").then(function (url) {
+            if (!url || !Poe2.openTrade(url)) error = "The trade site could not be opened"
+        }, function () { error = "The trade site could not be opened" })
+    }
+
     function toggleStat(i) {
         const s = view && view.stats[i]
         if (!s) return
         result = null
         kit("setStat", [i, !s.disabled]).then(function (v) { if (v) view = v }, function () { })
+    }
+    /// A line's search range: min or max (a number, or null for none).
+    /// Narrowing a line ticks it.
+    function setRange(i, min, max) {
+        const s = view && view.stats[i]
+        if (!s) return
+        result = null
+        kit("setStat", [i, false, min, max]).then(function (v) { if (v) view = v }, function () { })
+    }
+    /// Listings (securable, available, any) or currency for this search.
+    function setTrade(key, value) {
+        if (!view) return
+        result = null
+        kit("setTrade", [key, value]).then(function (v) { if (v) view = v }, function () { })
     }
     function toggleFilter(key) {
         const f = view && view.filters.find(function (x) { return x.key === key })
@@ -149,5 +191,9 @@ QtObject {
     // made-up listings (src/poe2_kit.rs DEMO, no network).
     // (Exiled Exchange 2's own test item, specs/Parser/items.ts.)
     readonly property string demoItem: "Item Class: Bows\nRarity: Rare\nOblivion Strike\nRider Bow\n--------\nPhysical Damage: 36-61\nElemental Damage: 27-36 (fire), 9-13 (cold), 5-82 (lightning)\nCritical Hit Chance: 5.00%\nAttacks per Second: 1.20\n--------\nRequires: Level 51, 103 (augmented) Dex\n--------\nItem Level: 80\n--------\n{ Prefix Modifier \"Shocking\" (Tier: 4) \u2014 Damage, Elemental, Lightning, Attack }\nAdds 5(1-5) to 82(62-89) Lightning Damage\n{ Prefix Modifier \"Scorching\" (Tier: 5) \u2014 Damage, Elemental, Fire, Attack }\nAdds 27(20-30) to 36(31-46) Fire Damage\n{ Prefix Modifier \"Icy\" (Tier: 8) \u2014 Damage, Elemental, Cold, Attack }\nAdds 9(6-9) to 13(10-15) Cold Damage\n{ Suffix Modifier \"of Radiance\" (Tier: 1) \u2014 Attack }\n+57(41-60) to Accuracy Rating\n15% increased Light Radius\n"
-    function showDemo() { check(demoItem) }
+    // GC_DEMO=price,gloves: an armour piece with implicit, rune, prefixes and suffixes.
+    readonly property string demoGloves: "Item Class: Gloves\nRarity: Rare\nGrim Grip\nSpiked Bracers\n--------\nEvasion Rating: 631 (augmented)\n--------\nRequires: Level 78, 111 Dex\n--------\nSockets: S \n--------\nItem Level: 82\n--------\n+14% to Cold and Chaos Resistances (rune)\n--------\n{ Implicit Modifier }\nGain 1 Rage on Melee Hit (implicit)\n--------\n{ Prefix Modifier \"Agile\" (Tier: 2) \u2014 Defences }\n+120(111-130) to Evasion Rating\n{ Prefix Modifier \"Smouldering\" (Tier: 4) \u2014 Damage, Elemental, Fire, Attack }\nAdds 12(10-14) to 17(15-22) Fire damage to Attacks\n{ Suffix Modifier \"of the Ice\" (Tier: 3) \u2014 Elemental, Cold, Resistance }\n+33(31-35)% to Cold Resistance\n{ Suffix Modifier \"of Order\" (Tier: 4) \u2014 Chaos, Resistance }\n+11(9-12)% to Chaos Resistance\n{ Suffix Modifier \"of Plunder\" (Tier: 2) }\n17(15-18)% increased Rarity of Items found\n"
+    // GC_DEMO=price,currency: a currency item (the exchange and poe.ninja's price).
+    readonly property string demoCurrency: "Item Class: Stackable Currency\nRarity: Currency\nOrb of Annulment\n--------\nStack Size: 3/20\n--------\nRemoves a random modifier from an item\n--------\nRight click this item then left click a magic or rare item to apply it.\n"
+    function showDemo() { check(demo.indexOf("gloves") >= 0 ? demoGloves : demo.indexOf("currency") >= 0 ? demoCurrency : demoItem) }
 }

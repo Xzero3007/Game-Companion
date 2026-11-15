@@ -59,6 +59,11 @@ pub mod qobject {
         #[qsignal]
         fn kit_gone(self: Pin<&mut Poe2>, why: QString);
 
+        /// Opens a trade site page in the desktop's browser (only
+        /// www.pathofexile.com/trade2 search or exchange pages); false if refused.
+        #[qinvokable]
+        fn open_trade(self: &Poe2, url: &QString) -> bool;
+
         /// Looks at copied items or stops (the watcher starts on first use).
         #[qinvokable]
         fn watch(self: Pin<&mut Poe2>, on: bool);
@@ -143,6 +148,10 @@ impl qobject::Poe2 {
         self.as_mut().set_prefs(QString::from(&Value::Object(all).to_string()));
     }
 
+    fn open_trade(&self, url: &QString) -> bool {
+        crate::poe2::open_trade_page(&url.to_string()).is_ok()
+    }
+
     fn watch(mut self: Pin<&mut Self>, on: bool) {
         self.rust().on.store(on, Ordering::Relaxed);
         if on && !self.rust().started {
@@ -180,6 +189,10 @@ impl qobject::Poe2 {
 /// `/api/trade2/fetch/…` → `fetch`.
 pub(crate) fn endpoint(url: &str) -> String {
     let path = url.split(['?', '#']).next().unwrap_or("");
+    if let Some(rest) = path.strip_prefix(crate::poe2::NINJA_API) {
+        let part: String = rest.split('/').next().unwrap_or("").chars().filter(|c| c.is_ascii_alphanumeric()).take(20).collect();
+        return format!("ninja {part}");
+    }
     let after = path.split("/api/trade2/").nth(1).unwrap_or("");
     let part = after.split('/').next().unwrap_or("");
     if part.is_empty() { "other".into() } else { part.chars().filter(|c| c.is_ascii_alphanumeric()).take(20).collect() }
@@ -192,5 +205,6 @@ mod log_tests {
         assert_eq!(super::endpoint("https://www.pathofexile.com/api/trade2/fetch/abc,def?query=x"), "fetch");
         assert_eq!(super::endpoint("https://www.pathofexile.com/api/trade2/search/Rise%20of"), "search");
         assert_eq!(super::endpoint("https://example.com/"), "other");
+        assert_eq!(super::endpoint("https://poe.ninja/poe2/api/economy/exchange/current/overview?league=X"), "ninja exchange");
     }
 }

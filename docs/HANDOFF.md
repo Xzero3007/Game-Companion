@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.53 beta (2026-11-14): #121 PoE 2 price check: layout like the game with min/max, EE2 settings, Trade site, listings with mods and tiers, poe.ninja prices (entry below).
 - 0.8.52 beta (2026-11-14): #120 Print flicker (desktop tools never count as a full-screen game), newest first sorts by date, UP NEXT tiles and click fix, dragged video holds its picture (entry below).
 - 0.8.51 beta (2026-11-14): #116 Next video: the shown list goes along, ⏭, UP NEXT, AUTOPLAY, close the player when nothing follows (entry below).
 - 0.8.50 beta (2026-11-14): #114 (+ #113) Print/Spectacle: videos stand still and parts let clicks through while its selection is open; more YouTube dates via yt-dlp; kit tests without fixed sleeps (entry below).
@@ -1010,8 +1011,30 @@ nach". PoE 2 1.0 comes in December: everything must work by then.
   price and armory demos was the same or lower.
 - Not checked here (no network to the trade site): real searches, the
   rate limits and Ctrl+C in the real game. QA and MN check those.
-- Later (asked, not built): poe.ninja estimates (needs MN's yes for the
-  host), a Client.txt reader, filter manager, levelling guide.
+- Later (asked, not built): a Client.txt reader, filter manager,
+  levelling guide.
+- 2026-11-15, second round (MN: "Aufbau wie im Spiel", EE2's settings,
+  plan `/mnt/project-files/game-companion/poe2-price-plan.md`):
+  - Fixes for stable, each its own PR: #101 leagues with spaces (EE2
+    writes "Runes of Aldur" unencoded; `encode_address`, curl `globoff`),
+    #104 clipboard watcher connects again and `watchError` shows.
+  - Features (beta only, after the stable cut): `view().mods` groups
+    (implicit/enchant/runes, prefixes, suffixes, tiers and ranges as the
+    game writes them), min/max fields, `PriceSettings.qml` (window ⚙ and
+    Settings → Plugins → PoE 2), "Trade site ↗" (`tradeLink()`,
+    `Poe2.openTrade`, xdg-open, www.pathofexile.com/trade2 pages only).
+  - Third round (MN's test of 0.8.51: "ich muss die gelisteten items sehen
+    können"): a click on a listing shows its item (`ListedItem.qml`, the
+    kit's `item` from EE2's DisplayItem); poe.ninja prices
+    (`tools/poe2-ee2/ninja.ts`, `poe2::ninja_allowed`, setting `ninja`, on
+    by default): listings in ex/div, a currency's own price with its 7-day
+    change. Only the Currency overview so far; uniques and other exchange
+    kinds (fragments, runes, essences …) need their `type` names, unknown
+    here (poe.ninja is blocked in the sandbox and on the bench: MN ran the
+    curls for leagues and Currency).
+  - Next: best tier with its range (needs PoE 2 mod data whose licence
+    allows it; RePoE's data is GGG's); not poeprices.info until it knows
+    PoE 2.
 
 ## Branch `claude/project-thread-6m4xx8` (from beta): open Brave and Legcord taken over again
 

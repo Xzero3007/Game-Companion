@@ -684,6 +684,7 @@ Overlay {
             pinnable: false
             mapSource: mapPanel
             timerStore: timerStore
+            priceStore: priceStore
             defaultX: root.width - width - 24
             defaultY: 120
             onCloseClicked: root.settingsOpen = false
