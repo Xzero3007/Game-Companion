@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.55 beta (2026-11-14): #126 PoE 2 session part 2: loot by hand, + Session in the price check, worth from poe.ninja (entry below).
 - 0.8.54 beta (2026-11-14): #123 PoE 2 session tracker part 1: reads Client.txt (entry below).
 - 0.8.53 beta (2026-11-14): #121 PoE 2 price check: layout like the game with min/max, EE2 settings, Trade site, listings with mods and tiers, poe.ninja prices (entry below).
 - 0.8.52 beta (2026-11-14): #120 Print flicker (desktop tools never count as a full-screen game), newest first sorts by date, UP NEXT tiles and click fix, dragged video holds its picture (entry below).
@@ -1095,9 +1096,27 @@ project folder `poe2-session-plan.md`; no GGG API, no network). Part 1:
   `SessionWindow.qml` (one line over the game). Plugin `poe2.session`.
   Redraws on events and once a minute while shown and PoE 2 runs.
   `GC_DEMO=session`.
-- Part 2 (planned, after poe.ninja is in the price check): "+ Session" in
-  the price window and a currency list, worth via poe.ninja. Stash reading
-  is not possible for PoE 2 (GGG: account stashes PoE 1 only); to be
-  talked over with MN once everything else is done (BACKLOG L1b).
+- Part 1 is in beta as 0.8.54 (#125). Part 2, loot told by hand:
+  - sessionkit: `loot {cur, names, items}` per session, `addCurrency`
+    (never below 0), `addItem` (200 kept), `removeItem`, `medianDiv`,
+    `worth(s, rates)` → div, ex, unknown; `view` gives `loot`, `worth`,
+    `worthPerHour`. Tests in the same node file.
+  - SessionStore: poe.ninja's exchange overview through `Poe2.request`
+    (ids from 77000, `Poe2.answered`), the price check's league or
+    poe.ninja's first, only when the session holds loot, kept 30 min,
+    again after 4 min on failure; off with the price check's "poe.ninja
+    prices"; with no league chosen it takes the price check kit's pick
+    (the trade site's list, saved as the price check's league), poe.ninja's
+    leagues list only if that fails. `addFromPrice(view, result, text)`: a currency item (`ninja.id`)
+    adds the copied stack (`Stack Size:` / `Stapelgröße:`), another item
+    the median of the five cheapest listings in divines (or no price).
+  - SessionPanel LOOT: worth, per hour, items without price; Divine,
+    Exalted, Chaos and any held currency with − / +; "Add currency" from
+    poe.ninja's list; items with × to take one out. SessionWindow shows
+    "≈ X div". PriceWindow "+ Session" (says "In session ✓" until the next
+    item). `GC_DEMO=session` has loot and made-up rates.
+  - Stash reading is not possible for PoE 2 (GGG: account stashes PoE 1
+    only); to be talked over with MN once everything else is done
+    (BACKLOG L1b).
 - To check on the real game: the exact Client.txt lines of PoE 2 (area ids,
   "[SCENE]" lines, German texts), and that AFK turns on by itself.

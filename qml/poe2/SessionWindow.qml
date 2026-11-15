@@ -20,8 +20,8 @@ Panel {
 
     property var store: null
     property real now: Date.now()
-    Timer { interval: 60000; repeat: true; running: win.visible && !!win.store && win.store.on; onTriggered: win.now = Date.now() }
-    onVisibleChanged: now = Date.now()
+    Timer { interval: 60000; repeat: true; running: win.visible && !!win.store && win.store.on; onTriggered: { win.now = Date.now(); win.store.freshen() } }
+    onVisibleChanged: { now = Date.now(); if (visible && store) store.freshen() }
     Connections { target: win.store; function onUpdated() { win.now = Date.now() } }
     readonly property var v: store ? (store.revision, store.viewOf(store.session, now)) : null
 
@@ -72,6 +72,12 @@ Panel {
             }
             Pair { value: win.v ? String(win.v.mapCount) : "0"; unit: win.v && win.v.mapsPerHour ? "maps · " + win.v.mapsPerHour.toFixed(1) + "/h" : "maps" }
             Pair { visible: !!win.v && win.v.deaths > 0; value: win.v ? "✝" + win.v.deaths : ""; tint: "#ff8a7a" }
+            Pair {
+                visible: !!win.v && win.v.worth.any && win.v.worth.div > 0
+                value: win.v ? "≈" + (win.v.worth.div < 10 ? win.v.worth.div.toFixed(2) : win.v.worth.div.toFixed(1)) : ""
+                unit: "div"
+                tint: Theme.accent
+            }
             Pair {
                 visible: !!win.v && !!win.v.char && win.v.char.to > win.v.char.from
                 value: win.v && win.v.char ? "+" + (win.v.char.to - win.v.char.from) : ""

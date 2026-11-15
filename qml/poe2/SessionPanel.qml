@@ -24,8 +24,8 @@ Panel {
     property real pastStart: 0
 
     property real now: Date.now()
-    Timer { interval: 60000; repeat: true; running: panel.visible && !!panel.store && panel.store.on && panel.pastStart === 0; onTriggered: panel.now = Date.now() }
-    onVisibleChanged: now = Date.now()
+    Timer { interval: 60000; repeat: true; running: panel.visible && !!panel.store && panel.store.on && panel.pastStart === 0; onTriggered: { panel.now = Date.now(); panel.store.freshen() } }
+    onVisibleChanged: { now = Date.now(); if (visible && store) store.freshen() }
     Connections { target: panel.store; function onUpdated() { panel.now = Date.now() } }
 
     readonly property var shown: {
@@ -37,6 +37,27 @@ Panel {
         return store.session
     }
     readonly property var v: shown ? store.viewOf(shown, pastStart ? (shown.end || shown.start) : now) : null
+
+    /// A worth in divines, small ones in exalted.
+    function worthText(div) {
+        if (div == null) return "no price"
+        const ex = store && store.rates ? store.rates.exalted : 0
+        if (div < 1 && ex) return Math.round(div * ex) + " ex"
+        return (div < 10 ? div.toFixed(2) : div.toFixed(1)) + " div"
+    }
+    /// The currency rows: the usual three, then what the session holds.
+    readonly property var curRows: {
+        if (!store || !v) return []
+        const rows = store.usualCurrency.map((u) => ({ id: u[0], name: u[1] }))
+        const known = rows.map((r) => r.id)
+        for (const id in v.loot.cur) if (known.indexOf(id) < 0) rows.push({ id: id, name: v.loot.names[id] || id })
+        return rows
+    }
+    readonly property var addOptions: {
+        if (!store || !store.rates) return []
+        const have = curRows.map((r) => r.id)
+        return [{ id: "", name: "" }].concat(store.rates.list.filter((c) => have.indexOf(c.id) < 0).slice(0, 60).map((c) => ({ id: c.id, name: c.name })))
+    }
 
     function when(t) { return Qt.formatDateTime(new Date(t), "ddd d MMM, hh:mm") }
     function clockOf(t) { return Qt.formatDateTime(new Date(t), "hh:mm") }
@@ -216,6 +237,168 @@ Panel {
                     Small { text: modelData.name + "  " + SK.span(parent.ms); color: Theme.muted() }
                 }
             }
+        }
+
+        // Loot told by hand (Client.txt names no drops; PoE 2 has no stash API).
+        Item {
+            width: parent.width
+            height: 22
+            Head { anchors.bottom: parent.bottom; text: "LOOT" }
+            Line {
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                visible: !!panel.v && panel.v.worth.any
+                text: !panel.v ? "" : "≈ " + panel.worthText(panel.v.worth.div)
+                    + (panel.v.worthPerHour ? "  ·  " + panel.worthText(panel.v.worthPerHour) + " / h" : "")
+                    + (panel.v.worth.unknown ? "  ·  " + panel.v.worth.unknown + " without price" : "")
+                color: Theme.accent
+                font.family: Theme.display
+                font.weight: Font.Bold
+                font.pixelSize: 13
+            }
+        }
+        Grid {
+            id: curGrid
+            width: parent.width
+            columns: width >= 460 ? 2 : 1
+            columnSpacing: 12
+            rowSpacing: 3
+            Repeater {
+                model: panel.curRows
+                delegate: Item {
+                    required property var modelData
+                    readonly property int count: panel.v ? (panel.v.loot.cur[modelData.id] || 0) : 0
+                    readonly property var rate: panel.store && panel.store.rates ? panel.store.rates.byId[modelData.id] : null
+                    width: (curGrid.width - (curGrid.columns - 1) * curGrid.columnSpacing) / curGrid.columns
+                    height: 26
+                    Line {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - (worthNote.visible ? 160 : 100)
+                        text: modelData.name
+                        color: parent.count ? Theme.text() : Theme.muted()
+                    }
+                    Small {
+                        id: worthNote
+                        anchors.right: minus.left
+                        anchors.rightMargin: 40
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: parent.count > 0 && !!parent.rate && modelData.id !== "divine" && modelData.id !== "exalted"
+                        text: parent.rate ? panel.worthText(parent.count * parent.rate.div) : ""
+                    }
+                    Text {
+                        anchors.right: minus.left
+                        anchors.rightMargin: 8
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: String(parent.count)
+                        color: parent.count ? Theme.text() : Theme.dim()
+                        font.family: Theme.display
+                        font.pixelSize: 14
+                        font.weight: Font.Bold
+                        style: Theme.textStyle(); styleColor: Theme.shadow
+                    }
+                    Chip {
+                        id: minus
+                        anchors.right: plus.left
+                        anchors.rightMargin: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: panel.pastStart === 0
+                        enabled: parent.count > 0
+                        opacity: enabled ? 1 : 0.4
+                        text: "−"
+                        onClicked: panel.store.addCurrency(modelData.id, modelData.name, -1)
+                    }
+                    Chip {
+                        id: plus
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: panel.pastStart === 0
+                        text: "+"
+                        onClicked: panel.store.addCurrency(modelData.id, modelData.name, 1)
+                    }
+                }
+            }
+        }
+        Item {
+            width: parent.width
+            height: 32
+            z: 6
+            visible: panel.pastStart === 0
+            Dropdown {
+                id: addCur
+                visible: panel.addOptions.length > 1
+                width: Math.min(parent.width, 300)
+                label: "Add currency"
+                options: panel.addOptions
+                current: ""
+                onChosen: (id) => {
+                    const r = panel.store.rates.byId[id]
+                    if (id) panel.store.addCurrency(id, r ? r.name : id, 1)
+                }
+            }
+            Small {
+                visible: !addCur.visible
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width
+                wrapMode: Text.WordWrap
+                elide: Text.ElideNone
+                text: !panel.store ? "" : !panel.store.ninjaOn ? "poe.ninja prices are off (Settings → Plugins → PoE 2): currency is counted without worth."
+                    : panel.store.ratesAsking ? "Asking poe.ninja for prices…"
+                    : panel.store.ratesError ? "poe.ninja: " + panel.store.ratesError
+                    : "More currency to pick once poe.ninja's prices are in (asked when the session has loot)."
+            }
+        }
+        Repeater {
+            model: panel.v ? panel.v.loot.items.map((it, i) => ({ it: it, i: i })).reverse() : []
+            delegate: Rectangle {
+                required property var modelData
+                required property int index
+                width: parent ? parent.width : 0
+                height: 26
+                color: index % 2 ? "transparent" : Qt.rgba(1, 1, 1, 0.02)
+                Line {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - 200
+                    text: modelData.it.name || "Item"
+                }
+                Small {
+                    x: parent.width - 186
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: panel.clockOf(modelData.it.t)
+                }
+                Text {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 34
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: panel.worthText(modelData.it.div)
+                    color: modelData.it.div == null ? Theme.dim() : Theme.text()
+                    font.family: Theme.display
+                    font.pixelSize: 13
+                    font.weight: Font.Bold
+                    style: Theme.textStyle(); styleColor: Theme.shadow
+                }
+                IconButton {
+                    visible: panel.pastStart === 0
+                    anchors.right: parent.right
+                    anchors.rightMargin: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    icon: "close"
+                    tip: "Take out"
+                    width: 24
+                    height: 24
+                    iconSize: 11
+                    onClicked: panel.store.removeItem(modelData.i)
+                }
+            }
+        }
+        Small {
+            visible: !!panel.v && panel.v.loot.items.length === 0 && panel.pastStart === 0
+            width: parent.width
+            wrapMode: Text.WordWrap
+            elide: Text.ElideNone
+            text: "Items: copy one in the game (Ctrl+C) and press “+ Session” in the price check; its price is taken along. A copied currency stack adds its size above."
         }
 
         // The campaign's acts.

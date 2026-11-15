@@ -24,6 +24,10 @@ Panel {
     badge: store && store.busy ? "ASKING…" : ""
 
     property var store: null
+    /// The PoE 2 session tracker (its "+ Session" button), or null.
+    property var session: null
+    /// The view last put into the session (the button says so until the next item).
+    property var addedFor: null
     readonly property var v: store ? store.view : null
     readonly property var r: store ? store.result : null
     property bool showHidden: false
@@ -495,8 +499,22 @@ Panel {
                             text: "Trade site ↗"
                             onClicked: win.store.openTrade()
                         }
-                        Text {
+                        // Into the PoE 2 session's loot (a currency stack or the item with its price).
+                        TextButton {
+                            id: sessionButton
                             anchors.left: siteButton.right
+                            anchors.leftMargin: 6
+                            visible: !!win.session && (win.session.on || win.session.demoOn) && !!win.v
+                            width: visible ? implicitWidth : 0
+                            text: win.addedFor && win.addedFor === win.v ? "In session ✓" : "+ Session"
+                            onClicked: {
+                                if (win.addedFor === win.v) return
+                                win.session.addFromPrice(win.v, win.r, win.store.checkedText)
+                                win.addedFor = win.v
+                            }
+                        }
+                        Text {
+                            anchors.left: sessionButton.right
                             anchors.leftMargin: 12
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
