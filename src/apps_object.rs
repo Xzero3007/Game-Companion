@@ -350,6 +350,9 @@ impl qobject::Apps {
             }
             // Game Companion's own parts (KWin lists them as normal windows).
             Event::Active(Some(win)) if win.pid == std::process::id() as i32 => {}
+            // The desktop's own windows (Spectacle's selection above all):
+            // not a game, and not where the focus goes back to.
+            Event::Active(Some(win)) if apps::desktop_tool(&win) => {}
             Event::Active(Some(win)) => {
                 if let Some(app) = owner(&win) {
                     let mut rust = self.as_mut().rust_mut();
@@ -383,7 +386,7 @@ impl qobject::Apps {
                 }
             }
             // The game took its full screen back while an app is shown.
-            Event::Full(win) if win.pid == std::process::id() as i32 || owner(&win).is_some() => {}
+            Event::Full(win) if win.pid == std::process::id() as i32 || owner(&win).is_some() || apps::desktop_tool(&win) => {}
             Event::Full(win) => {
                 if self.rust().other == win.id {
                     self.as_mut().rust_mut().other_win = Some(win.clone());
