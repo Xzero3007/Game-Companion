@@ -325,6 +325,16 @@ learnt, so nothing has to be asked or worked out again.
   the game's search asks YouTube in its order (`game_sp`: relevance, date,
   views), the others are sorted as loaded (`StreamsPanel.youtubeShown`,
   `sortVideos`; playlist Move up/down only in the playlist's own order).
+  Videos no feed dates any more (a channel that uploads a lot) get one
+  yt-dlp look each (`youtube_video_date`, at most 6 per list, kept in
+  ~/.cache/game-companion/youtube-dates.json). Spectacle (Print): its
+  selection is a layer surface on the same overlay layer as our parts;
+  the apps watcher reports a "spectacle" window as big as its screen
+  (`gcShot`, event `shot`) → `Apps.screenshot`: videos frozen (watchdog
+  paused), every part's input region one pixel (Surface.applyInput), so
+  nothing flickers over its frozen picture and clicks are Spectacle's
+  (MN, 0.8.49). `GC_DEMO=…,shot` sets it (under xcb the one-pixel mask
+  also hides the windows: an X11 artifact).
   Lists keep their place when their array is replaced (load more, the
   background subscriptions look, lengths coming in; MN 0.8.37: jumped to
   the top): `StreamsPanel.listModel` is set by `swapList` from
