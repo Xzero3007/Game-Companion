@@ -781,6 +781,12 @@ own end and AUTOPLAY into the next video (the sandbox reaches no YouTube).
 Possible follow-up from QA (0.8.50 review): `gcShot` could also check
 `w.layer === 9` (overlay) so a full-screen Spectacle editor never counts.
 
+Beta fixes after 0.8.51 (MN, "alles abarbeiten"): Print flicker (Spectacle
+was taken for a full-screen game while Brave was shown: `desktop_tool`),
+"Newest first" sorted by date in the game's search, UP NEXT as tiles
+(click plays, whole titles, scrolls), a dragged video holds its picture
+still. The drag stutter note above is done with that, to be confirmed.
+
 ## Branch `claude/project-thread-pv2u8z` (from beta): Boss panel (A5)
 
 Boss Notes and Boss Callouts as one Boss window (canvas page "boss", MN's

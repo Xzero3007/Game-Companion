@@ -317,8 +317,12 @@ learnt, so nothing has to be asked or worked out again.
   (`starChannel`, menu kind `unsub`; MN, 0.8.43). A YouTube video
   started from a list takes the shown list along (`playVideo`: `queue`,
   `index`; `through` only for a playlist or "Play all", which go on at
-  once): the player's ⏭, "UP NEXT ▾" (`upNext`, the next five; its first
-  row and, from 640 px, the bar's AUTOPLAY switch `Streams.autoplay`,
+  once): the player's ⏭, "UP NEXT ▾" (`upNext`, up to 50 following, shown
+  as tiles with picture, length, the whole title, channel and date,
+  scrolled by the wheel, a click plays one; MN 0.8.51: the old picker
+  lost the click because closing it destroyed the row, so a handler that
+  closes its own list takes what it needs first), AUTOPLAY in its header
+  and from 640 px in the bar (`Streams.autoplay`,
   settings `streams.autoplay`, default off) and, with AUTOPLAY on, the
   5 s "NEXT:" note (`nextItem`, shared with Jellyfin's next episode).
   Settings → Streams → Videos "Close the player when nothing follows"
@@ -326,8 +330,12 @@ learnt, so nothing has to be asked or worked out again.
   → `closeIfEnded` (via `Qt.callLater`, never inside the player's own
   signal) → `stop()`, which lets mpv go as the close button does; for
   YouTube, Twitch and Jellyfin (after no next episode or track came).
-  Narrow windows: below 520 px with UP NEXT the speed button hides
-  (MN, 2026-11-15). `GC_DEMO=video,upnext[,upnextlist|,nextnote],unlocked`.
+  Narrow windows: with UP NEXT the time buttons hide below 560 px and
+  speed below 520 px (MN, 2026-11-15). The game's search with "Newest
+  first" is also sorted here by date (YouTube's own order was loose).
+  A video being dragged or resized stays still (`Surface.held` →
+  `MpvVideo.frozen`, sound plays on, watchdog paused): redrawn with every
+  move, the move stuttered (MN, 0.8.49). `GC_DEMO=video,upnext[,upnextlist|,nextnote],unlocked`.
   Searches asked in another language than English (`youtube:lang=`) come
   without dates (yt-dlp reads English time texts only): `dates_later`
   asks the feeds of up to 24 channels in the list not asked for 15 minutes,
@@ -346,7 +354,11 @@ learnt, so nothing has to be asked or worked out again.
   (`gcShot`, event `shot`) → `Apps.screenshot`: videos frozen (watchdog
   paused), every part's input region one pixel (Surface.applyInput), so
   nothing flickers over its frozen picture and clicks are Spectacle's
-  (MN, 0.8.49). `GC_DEMO=…,shot` sets it (under xcb the one-pixel mask
+  (MN, 0.8.49). Spectacle's selection is full screen and takes the
+  focus: `apps::desktop_tool` keeps it (and plasmashell, KRunner, the lock
+  screen, polkit) out of the full-screen game logic; taken for a game
+  while Brave was shown, it lost its full-screen mark, took it back, five
+  times, and the screens flickered (MN, 0.8.51). `GC_DEMO=…,shot` sets it (under xcb the one-pixel mask
   also hides the windows: an X11 artifact).
   Lists keep their place when their array is replaced (load more, the
   background subscriptions look, lengths coming in; MN 0.8.37: jumped to
