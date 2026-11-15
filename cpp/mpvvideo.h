@@ -49,6 +49,11 @@ class MpvVideo : public QQuickFramebufferObject
     /// it serves a stream only once its ad would have run, and mpv's ytdl
     /// hook waits that long (mpv 0.42+).
     Q_PROPERTY(qint64 heldUntil READ heldUntil NOTIFY heldChanged)
+    /// mpv's or yt-dlp's last warning about the video playing now ("" none).
+    Q_PROPERTY(QString why READ why NOTIFY whyChanged)
+    /// yt-dlp's own options for the next video (mpv's ytdl-raw-options,
+    /// "key=value,..."), "" none.
+    Q_PROPERTY(QString ytdlOptions READ ytdlOptions WRITE setYtdlOptions NOTIFY ytdlOptionsChanged)
 
 public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
@@ -71,6 +76,9 @@ public:
     QVariantList chapters() const { return m_chapters; }
     double speed() const { return m_speed; }
     qint64 heldUntil() const { return m_heldUntil; }
+    QString why() const { return m_why; }
+    QString ytdlOptions() const { return m_ytdlOptions; }
+    void setYtdlOptions(const QString &options);
     void setSpeed(double speed);
     void setHwdec(bool on);
     void setLevelling(bool on);
@@ -112,6 +120,8 @@ signals:
     void chaptersChanged();
     void speedChanged();
     void heldChanged();
+    void whyChanged();
+    void ytdlOptionsChanged();
 
 protected:
     /// Moved to another window: draw there (a video waiting for its render
@@ -145,6 +155,7 @@ private:
     /// mpv's or yt-dlp's last warning about the file playing now.
     QString m_why;
     qint64 m_heldUntil = 0;
+    QString m_ytdlOptions;
     void setHeldUntil(qint64 at);
     QString m_title;
     bool m_paused = false;

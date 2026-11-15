@@ -349,6 +349,15 @@ const char *MpvVideo::levellingFilter(bool on)
     return on ? "lavfi=[dynaudnorm=f=250:g=15]" : "";
 }
 
+void MpvVideo::setYtdlOptions(const QString &options)
+{
+    if (m_ytdlOptions == options) {
+        return;
+    }
+    m_ytdlOptions = options;
+    emit ytdlOptionsChanged();
+}
+
 void MpvVideo::setHeldUntil(qint64 at)
 {
     if (m_heldUntil == at) {
@@ -405,6 +414,7 @@ bool MpvVideo::loadPending()
     const QString &format = p.format;
     const double start = p.start;
     setMpv("ytdl-format", format.isEmpty() ? QStringLiteral("bestvideo[height<=?1080]+bestaudio/best") : format);
+    setMpv("ytdl-raw-options", m_ytdlOptions);
     // YouTube hands out a stream's address before it serves it (a few
     // seconds, or as long as the ad it would show first): mpv asked at once,
     // got 403 and played nothing. ffmpeg connects again, for YouTube alone
@@ -583,11 +593,13 @@ void MpvVideo::readEvents()
             if (isError || (!hadError && (fromYtdl || !m_why.startsWith(QLatin1String("yt-dlp"))))) {
                 QString text = line.section(QStringLiteral("; please report this issue"), 0, 0).trimmed();
                 m_why = (fromYtdl ? QStringLiteral("yt-dlp: ") + text : text).left(240);
+                emit whyChanged();
             }
             break;
         }
         case MPV_EVENT_START_FILE:
             m_why.clear();
+            emit whyChanged();
             setHeldUntil(0);
             setState(QStringLiteral("loading"));
             break;
