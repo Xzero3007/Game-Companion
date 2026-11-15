@@ -288,7 +288,15 @@ learnt, so nothing has to be asked or worked out again.
   `extractor-args=youtube:player_client=visionos`; MN's test: tv_samsung got
   a 6 to 15 s ad, visionos none); after a failure or a stall it lets yt-dlp
   choose (`anyPlayer`). "Stuck" names mpv's or yt-dlp's last warning
-  (`MpvVideo.why`).
+  (`MpvVideo.why`). A YouTube video that plays on with sound but no
+  picture for 3 s (`MpvVideo.hasPicture`, mpv's `width`) is loaded again
+  at the same spot with yt-dlp choosing the player (MN, 0.8.40: sound
+  only, Twitch fine). YouTube's feeds give the channel id at their top
+  without its "UC": `streams::full_channel_id` (and QML `chanId`) adds it,
+  an entry's own id and the asked channel win, stored videos are mended in
+  `cached_videos` (MN, 0.8.40: "Go to channel" said "not a YouTube
+  channel", "Channel into group" did nothing). With no group yet, "Channel
+  into group" opens the name field at once (`startGroup`).
   Lists keep their place when their array is replaced (load more, the
   background subscriptions look, lengths coming in; MN 0.8.37: jumped to
   the top): `StreamsPanel.listModel` is set by `swapList` from
