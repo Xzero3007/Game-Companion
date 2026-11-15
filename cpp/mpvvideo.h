@@ -45,6 +45,10 @@ class MpvVideo : public QQuickFramebufferObject
     Q_PROPERTY(QVariantList chapters READ chapters NOTIFY chaptersChanged)
     /// How fast it plays (1 = as recorded).
     Q_PROPERTY(double speed READ speed WRITE setSpeed NOTIFY speedChanged)
+    /// When YouTube lets the video start (ms since the epoch, 0 = not held):
+    /// it serves a stream only once its ad would have run, and mpv's ytdl
+    /// hook waits that long (mpv 0.42+).
+    Q_PROPERTY(qint64 heldUntil READ heldUntil NOTIFY heldChanged)
 
 public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
@@ -66,6 +70,7 @@ public:
     bool local() const { return m_local; }
     QVariantList chapters() const { return m_chapters; }
     double speed() const { return m_speed; }
+    qint64 heldUntil() const { return m_heldUntil; }
     void setSpeed(double speed);
     void setHwdec(bool on);
     void setLevelling(bool on);
@@ -106,6 +111,7 @@ signals:
     void localChanged();
     void chaptersChanged();
     void speedChanged();
+    void heldChanged();
 
 protected:
     /// Moved to another window: draw there (a video waiting for its render
@@ -138,6 +144,8 @@ private:
     QString m_error;
     /// mpv's or yt-dlp's last warning about the file playing now.
     QString m_why;
+    qint64 m_heldUntil = 0;
+    void setHeldUntil(qint64 at);
     QString m_title;
     bool m_paused = false;
     bool m_muted = false;

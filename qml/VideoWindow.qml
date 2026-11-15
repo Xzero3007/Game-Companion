@@ -193,20 +193,30 @@ Item {
     readonly property int boost: Streams.videoBoost
     onBoostChanged: if (video) video.volume = mpvVolume(volume)
     // Stuck: the time stands still for 4 seconds while it should play (20
-    // while it loads): a fresh address from yt-dlp (or Streamlink), at the
-    // same spot. Three tries in a row, then it says so.
+    // while it loads, 65 for YouTube, none while YouTube holds it back): a
+    // fresh address from yt-dlp (or Streamlink), at the same spot. Three
+    // tries in a row, then it says so.
     property real lastPosition: -1
     property int stillFor: 0
     property int tries: 0
     property int goodFor: 0
     property bool reconnecting: false
+    // YouTube serves a video only once its ad would have run; mpv waits that
+    // long (it says so, video.heldUntil) and the watchdog waits with it.
+    property real nowMs: 0
+    readonly property int heldFor: video.heldUntil > 0 ? Math.max(0, Math.ceil((video.heldUntil - nowMs) / 1000)) : 0
     Timer {
         interval: 1000
         repeat: true
         running: win.active && win.item.kind !== "file" && !video.paused
             && (video.state === "playing" || video.state === "buffering" || video.state === "loading")
-        onRunningChanged: { win.stillFor = 0; win.lastPosition = video.position }
+        onRunningChanged: { win.stillFor = 0; win.lastPosition = video.position; win.nowMs = Date.now() }
         onTriggered: {
+            win.nowMs = Date.now()
+            if (video.state === "loading" && win.heldFor > 0) {
+                win.stillFor = 0
+                return
+            }
             if (Math.abs(video.position - win.lastPosition) > 0.05 && video.state !== "loading") {
                 win.lastPosition = video.position
                 win.stillFor = 0
@@ -216,7 +226,10 @@ Item {
             }
             win.goodFor = 0
             win.stillFor++
-            if (win.stillFor >= (video.state === "loading" ? 20 : 4)) win.reconnect()
+            // Loading: an mpv older than 0.42 doesn't wait for YouTube by
+            // itself, ffmpeg knocks again for up to about a minute instead.
+            const youtube = win.item && win.item.kind === "youtube"
+            if (win.stillFor >= (video.state === "loading" ? (youtube ? 65 : 20) : 4)) win.reconnect()
         }
     }
     function reconnect() {
@@ -566,6 +579,7 @@ Item {
         property bool drawable: true
         property var chapters: []
         property real speed: 1
+        property real heldUntil: 0
         function play(url, format, start, header) { return false }
         function setTrack(kind, id) {}
         function addSubtitle(url) {}
@@ -581,6 +595,7 @@ Item {
         wrapMode: Text.WordWrap
         text: win.failure.length > 0 ? win.failure
             : win.playState === "failed" ? "Doesn't play: " + video.error
+            : win.playState === "loading" && win.heldFor > 0 ? "YouTube holds it back for its ad · starts in " + win.heldFor + " s"
             : win.reconnecting ? "RECONNECTING…"
             : win.playState === "loading" || win.preparing ? "LOADING…"
             : win.label.toUpperCase() + " VIDEO"
