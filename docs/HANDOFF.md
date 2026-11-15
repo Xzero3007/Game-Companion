@@ -769,6 +769,17 @@ Open, low priority (MN, 0.8.49, "nicht soooo schlimm"): dragging a video
 window while it plays still stutters a little (the grab freeze fixed the
 stretched frame, not the move itself).
 
+Next video (MN, 2026-11-15, "passt"): a YouTube video started from any
+list has ⏭ and "UP NEXT ▾" (the next five of the list as it was shown)
+and an AUTOPLAY switch (off by default; on, a 5 s "NEXT:" note, then the
+next one). Settings → Streams → Videos "Close the player when nothing
+follows" (off by default) closes a video window at the end, mpv with it.
+Checked under xvfb with a 3 s clip: the window closed, mpv's threads went
+(29 → 27 as before playing); off, it stays. Not checked online: YouTube's
+own end and AUTOPLAY into the next video (the sandbox reaches no YouTube).
+Possible follow-up from QA (0.8.50 review): `gcShot` could also check
+`w.layer === 9` (overlay) so a full-screen Spectacle editor never counts.
+
 ## Branch `claude/project-thread-pv2u8z` (from beta): Boss panel (A5)
 
 Boss Notes and Boss Callouts as one Boss window (canvas page "boss", MN's
