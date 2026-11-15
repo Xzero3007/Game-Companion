@@ -47,13 +47,89 @@ function newSession(now) {
         char: null,
         levels: 0,
         area: null,
-        idleSince: now
+        idleSince: now,
+        loot: { cur: {}, names: {}, items: [] }
     }
 }
 
 function copy(s) { return JSON.parse(JSON.stringify(s)) }
 
-function isEmpty(s) { return !s || (s.last == null && !s.maps.length && !s.deaths && !s.levels) }
+function lootOf(s) {
+    if (!s.loot) s.loot = { cur: {}, names: {}, items: [] }
+    return s.loot
+}
+
+function hasLoot(s) {
+    var l = s && s.loot
+    if (!l) return false
+    for (var k in l.cur) if (l.cur[k]) return true
+    return l.items.length > 0
+}
+
+function isEmpty(s) { return !s || (s.last == null && !s.maps.length && !s.deaths && !s.levels && !hasLoot(s)) }
+
+// ── Loot (part 2): what you picked up, told by hand ─────────────────────────
+// Client.txt names no drops and PoE 2 has no stash API, so currency is
+// counted with + and − (or a copied stack) and other items come from the
+// price check ("+ Session"), with their price in divines at that moment.
+
+// Adds (or takes away) currency by poe.ninja's id ("divine", "exalted").
+function addCurrency(s, id, name, n) {
+    var l = lootOf(s)
+    l.cur[id] = Math.max(0, (l.cur[id] || 0) + n)
+    if (name) l.names[id] = name
+    if (!l.cur[id]) delete l.cur[id]
+    return s
+}
+
+// Adds an item with its worth in divines (null when unknown).
+function addItem(s, item) {
+    var l = lootOf(s)
+    l.items.push({ t: item.t, name: String(item.name || "Item"), div: item.div == null ? null : Number(item.div), how: item.how || "" })
+    if (l.items.length > 200) l.items.shift()
+    return s
+}
+
+function removeItem(s, index) {
+    var l = lootOf(s)
+    if (index >= 0 && index < l.items.length) l.items.splice(index, 1)
+    return s
+}
+
+// The median of some prices in divines, by poe.ninja's rates
+// ({ byId: { id: div } }); null when none can be turned into divines.
+function medianDiv(prices, rates) {
+    var list = []
+    for (var i = 0; i < prices.length; i++) {
+        var p = prices[i]
+        var r = rates && rates.byId ? rates.byId[p.currency] : null
+        if (p.currency === "divine") list.push(p.amount)
+        else if (r && r.div > 0) list.push(p.amount * r.div)
+    }
+    if (!list.length) return null
+    list.sort(function (a, b) { return a - b })
+    var m = Math.floor(list.length / 2)
+    return list.length % 2 ? list[m] : (list[m - 1] + list[m]) / 2
+}
+
+// What the loot is worth now: currency by today's rates, items as priced.
+function worth(s, rates) {
+    var l = (s && s.loot) || { cur: {}, items: [] }
+    var div = 0, unknown = 0, any = false
+    for (var id in l.cur) {
+        if (!l.cur[id]) continue
+        any = true
+        var r = id === "divine" ? { div: 1 } : (rates && rates.byId ? rates.byId[id] : null)
+        if (r && r.div > 0) div += l.cur[id] * r.div
+        else unknown++
+    }
+    for (var i = 0; i < l.items.length; i++) {
+        any = true
+        if (l.items[i].div != null) div += l.items[i].div
+        else unknown++
+    }
+    return { any: any, div: div, exalted: rates && rates.exalted ? div * rates.exalted : 0, unknown: unknown, priced: !!(rates && rates.exalted) }
+}
 
 function dayKey(t) { var d = new Date(t); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate() }
 
@@ -173,7 +249,7 @@ function pause(s, t) {
 }
 
 // The numbers shown, with the area you are in counted up to `now`.
-function view(s, now) {
+function view(s, now, rates) {
     var v = copy(s)
     if (v.area && v.idleSince == null) advance(v, now)
     var played = 0
@@ -198,7 +274,10 @@ function view(s, now) {
         current: current,
         idle: v.idleSince != null,
         start: v.start,
-        end: v.end || v.last || v.start
+        end: v.end || v.last || v.start,
+        loot: v.loot || { cur: {}, names: {}, items: [] },
+        worth: worth(v, rates),
+        worthPerHour: played >= 5 * MIN ? worth(v, rates).div / (played / HOUR) : 0
     }
 }
 

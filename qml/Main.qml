@@ -140,7 +140,7 @@ Overlay {
         if (demo.indexOf("boss") >= 0) bossOpen = true
         if (demo.indexOf("armory") >= 0) armoryOpen = true
         if (demo.indexOf("loot") >= 0) lootOpen = demo.indexOf("shop") < 0 || demo.indexOf("panel") >= 0
-        if (demo.indexOf("session") >= 0) sessionOpen = true
+        if (demo.indexOf("session") >= 0 && demo.indexOf("price") < 0) sessionOpen = true
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("games") >= 0) games.demo(demo)
@@ -312,7 +312,7 @@ Overlay {
             readonly property bool onScreen: active && root.onScreen("game-row")
             x: Math.max(0, Math.min(root.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
             y: Companion.shown ? bar.height * bar.scale : 0
-            gameName: Games.runningName.length > 0 ? Games.runningName : (priceStore.shown ? "Path of Exile 2" : "AION 2")
+            gameName: Games.runningName.length > 0 ? Games.runningName : (priceStore.shown || sessionStore.demoOn ? "Path of Exile 2" : "AION 2")
             dpsShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.dps")) || root.dpsOpen
             dpsOpen: root.dpsOpen
             onDpsClicked: { root.dpsOpen = root.fromRow("dps", root.dpsOpen); root.dpsClosed = !root.dpsOpen }
@@ -508,6 +508,7 @@ Overlay {
         part: PriceWindow {
             id: priceWindow
             store: priceStore
+            session: sessionStore
             defaultX: Math.max(24, root.width - width - 80)
             defaultY: 160
             onCloseClicked: priceStore.close()

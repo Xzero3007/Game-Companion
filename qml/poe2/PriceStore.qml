@@ -94,8 +94,11 @@ QtObject {
     }
 
     /// Reads a copied item and opens the window.
+    /// The checked item's text (memory only: the session tracker reads its stack size).
+    property string checkedText: ""
     function check(text) {
         if (!autoOpen && !shown) return
+        checkedText = String(text || "").slice(0, 4000)
         error = ""
         result = null
         busy = true
