@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.42 beta (2026-11-14): #97 PoE 2 price check: real searches work again (rate limiter as a plain array), stat decimals kept (PR #97) (entry below).
 - 0.8.41 beta (2026-11-14): #91 Take over open Brave and Legcord again: run KWin scripts by start (PR #91) (entry below).
 - 0.8.40 beta (2026-11-14): #94 PoE 2 price check (Exiled Exchange 2 rebuilt) and Path of Building as the third app; JS runs interpreted (Arch's Qt 6.12 JIT crashed in the kit) (PR #94) (entry below).
 - 0.8.39 beta (2026-11-14): #92 Video: a grab freezes frames and position first, the surface changes size 40 ms later (PR #92) (entry below).

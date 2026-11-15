@@ -8,12 +8,15 @@
 var EXPECTED = ["TwoLineOneImplicitItem"]
 function run(EE2, host, items, log, done) {
     var answers = []
+    // The trade site's real limit headers (several windows per rule).
+    var limits = function (n) { return { "x-rate-limit-policy": "trade-search-request-limit", "x-rate-limit-rules": "Ip", "x-rate-limit-ip": "8:1:60,15:2:300,60:300:1800", "x-rate-limit-ip-state": n + ":1:0," + n + ":2:0," + n + ":300:0" } }
+    var searches = 0
     host.request = function (url, method, body) {
         answers.push(url)
         if (url.indexOf("/data/leagues") >= 0) return Promise.resolve({ status: 200, headers: {}, body: JSON.stringify({ result: [{ id: "Standard", text: "Standard" }, { id: "Hardcore", text: "Hardcore" }, { id: "Rise of the Abyssal", text: "Rise of the Abyssal" }] }) })
         if (url.indexOf("/data/stats") >= 0 || url.indexOf("/data/items") >= 0) return Promise.resolve({ status: 200, headers: {}, body: JSON.stringify({ result: [] }) })
-        if (url.indexOf("/search/") >= 0) return Promise.resolve({ status: 200, headers: { "X-Rate-Limit-Rules": "Ip", "X-Rate-Limit-Ip": "8:10:60", "X-Rate-Limit-Ip-State": "1:10:0" }, body: JSON.stringify({ id: "q1", total: 2, result: ["a", "b"] }) })
-        if (url.indexOf("/fetch/") >= 0) return Promise.resolve({ status: 200, headers: {}, body: JSON.stringify({ result: [listing("a", 3, "exalted", "Seller1"), listing("b", 1, "divine", "Seller2")] }) })
+        if (url.indexOf("/search/") >= 0) return Promise.resolve({ status: 200, headers: limits(++searches), body: JSON.stringify({ id: "q1", total: 2, result: ["a", "b"] }) })
+        if (url.indexOf("/fetch/") >= 0) return Promise.resolve({ status: 200, headers: { "x-rate-limit-rules": "Ip", "x-rate-limit-ip": "12:4:10,16:12:300", "x-rate-limit-ip-state": "1:4:0,1:12:0" }, body: JSON.stringify({ result: [listing("a", 3, "exalted", "Seller1"), listing("b", 1, "divine", "Seller2")] }) })
         if (url.indexOf("/exchange/") >= 0) return Promise.resolve({ status: 200, headers: {}, body: JSON.stringify({ id: "x1", total: 1, result: { r1: { id: "r1", listing: { indexed: new Date().toISOString(), account: { name: "Bulk1", lastCharacterName: "B", online: { league: "Standard" } }, offers: [{ exchange: { currency: "exalted", amount: 3 }, item: { currency: "x", amount: 1, stock: 20 } }] } } } }) })
         return Promise.resolve({ status: 404, headers: {}, body: "{}" })
     }
@@ -40,6 +43,12 @@ function run(EE2, host, items, log, done) {
             return EE2.search(function () { })
         }).then(function (r) {
             log("search: " + (r.error ? "error " + r.error : r.total + " total, " + r.listed.map(function (l) { return l.amount + " " + l.currency + " " + l.account + " " + l.age }).join("; ")))
+            if (r.error) failed.push("search: " + r.error)
+            // Again after the limits' windows passed (their handles leave the stack).
+            return new Promise(function (res) { host.timer(4000, res) }).then(function () { return EE2.check(items.UniqueItem, "Standard") }).then(function () { return EE2.search(function () { }) })
+        }).then(function (r) {
+            log("search again: " + (r.error ? "error " + r.error : r.total + " total"))
+            if (r.error) failed.push("search: " + r.error)
             return EE2.check(items.UncutSkillGem, "Standard")
         }).then(function (v) {
             log("gem: " + v.name + " · api " + v.api)
