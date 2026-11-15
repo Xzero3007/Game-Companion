@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.44 beta (2026-11-14): #101 PoE 2: searches in a league with spaces (Runes of Aldur) are encoded, not refused (entry below).
 - 0.8.43 beta (2026-11-14): #98 YouTube: a picture-less video reloads, Go to channel and Channel into group work with feed channel ids (PR #98) (entry below).
 - 0.8.42 beta (2026-11-14): #97 PoE 2 price check: real searches work again (rate limiter as a plain array), stat decimals kept (PR #97) (entry below).
 - 0.8.41 beta (2026-11-14): #91 Take over open Brave and Legcord again: run KWin scripts by start (PR #91) (entry below).
