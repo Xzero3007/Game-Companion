@@ -12,6 +12,18 @@ Column {
     spacing: 10
 
     function choose(key, value) { if (store) store.setPref(key, value) }
+    onVisibleChanged: if (visible && store && store.leagues.length === 0) store.loadLeagues()
+    Component.onCompleted: if (store && store.leagues.length === 0) store.loadLeagues()
+
+    // The trade site's league (MN, 0.8.55: here instead of the window).
+    PriceChoices {
+        width: ps.width
+        label: "League"
+        hint: ps.store && ps.store.leagues.length === 0 ? "The trade site's leagues come when the price check first asks it." : "The league the trade site and poe.ninja are asked for."
+        options: ps.store ? ps.store.leagues.map(function (l) { return { id: l.id, name: l.text } }) : []
+        current: ps.store ? ps.store.league : ""
+        onChosen: (v) => { if (ps.store) ps.store.chooseLeague(v) }
+    }
 
     PriceChoices {
         width: ps.width

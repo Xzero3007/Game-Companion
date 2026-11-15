@@ -399,14 +399,19 @@ function hiddenWhy(key: string) {
   return text && text !== key ? text : "left out at first";
 }
 
-/** Switches a stat line on or off; `min`/`max` (numbers or null) narrow it. */
-export function setStat(index: number, disabled: boolean, min?: number | null, max?: number | null) {
+/**
+ * Switches a stat line on or off; `min`/`max` (numbers, or null for none)
+ * narrow it. "keep" (or leaving it out) keeps that bound as it is: QML's
+ * `undefined` arrives here as null through JSON, which cleared the other
+ * bound (MN, 0.8.55).
+ */
+export function setStat(index: number, disabled: boolean, min?: number | null | "keep", max?: number | null | "keep") {
   if (!current) return view();
   const s = preset(current).stats[index];
   if (!s) return view();
   s.disabled = disabled;
-  if (s.roll && min !== undefined) s.roll.min = min === null ? "" : min;
-  if (s.roll && max !== undefined) s.roll.max = max === null ? "" : max;
+  if (s.roll && min !== undefined && min !== "keep") s.roll.min = min === null ? "" : min;
+  if (s.roll && max !== undefined && max !== "keep") s.roll.max = max === null ? "" : max;
   return view();
 }
 
@@ -626,7 +631,12 @@ export function tradeLink(): string {
       ? `https://www.pathofexile.com/trade2/exchange/poe2/${league}/${encodeURIComponent(lastBulk.id)}`
       : `https://www.pathofexile.com/trade2/exchange/poe2/${league}`;
   }
-  const q = JSON.stringify(createTradeRequest(p.filters, p.stats, c.item));
+  const req: any = createTradeRequest(p.filters, p.stats, c.item);
+  // The trade site's page shows a filter group without "disabled": false
+  // unticked (MN, 0.8.55: Evasion Rating's max under Equipment Filters).
+  const groups = (req && req.query && req.query.filters) || {};
+  for (const k of Object.keys(groups)) if (groups[k] && typeof groups[k] === "object" && groups[k].disabled === undefined) groups[k].disabled = false;
+  const q = JSON.stringify(req);
   return `https://www.pathofexile.com/trade2/search/poe2/${league}?q=${encodeURIComponent(q)}`;
 }
 

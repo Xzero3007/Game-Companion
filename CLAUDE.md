@@ -753,7 +753,13 @@ learnt, so nothing has to be asked or worked out again.
   EE2's stat lines in VALUES, LINES, TOTALS. Min/max per line
   (`RangeField`, wheel works locked). EE2's settings in `PriceSettings.qml`
   (window ⚙ and Settings → Plugins → PoE 2), kept in settings.poe2,
-  handed to the kit by `setPrefs`. The clipboard watcher connects again by
+  handed to the kit by `setPrefs`. The league is chosen there too (MN,
+  0.8.55: the window's dropdown opened under the chips). `setStat`'s
+  bound "keep" leaves it as it is (QML's `undefined` arrives as null
+  through JSON and cleared the other bound). `tradeLink` adds
+  `disabled: false` to every filter group (the site showed Equipment
+  Filters unticked). Dropdowns at a panel's end open past its surface:
+  use a list that opens in place (the session's "Add currency"). The clipboard watcher connects again by
   itself when XWayland's connection ends; `Poe2.watchError` shows in the
   window (0.8.44, MN: Ctrl+C did nothing). EE2's leagues come unencoded
   ("Runes of Aldur"): `encode_address` before `allowed`.

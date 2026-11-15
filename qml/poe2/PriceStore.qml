@@ -150,13 +150,13 @@ QtObject {
         result = null
         kit("setStat", [i, !s.disabled]).then(function (v) { if (v) view = v }, function () { })
     }
-    /// A line's search range: min or max (a number, or null for none).
-    /// Narrowing a line ticks it.
+    /// A line's search range: min or max (a number, or null for none;
+    /// undefined keeps that bound). Narrowing a line ticks it.
     function setRange(i, min, max) {
         const s = view && view.stats[i]
         if (!s) return
         result = null
-        kit("setStat", [i, false, min, max]).then(function (v) { if (v) view = v }, function () { })
+        kit("setStat", [i, false, min === undefined ? "keep" : min, max === undefined ? "keep" : max]).then(function (v) { if (v) view = v }, function () { })
     }
     /// Listings (securable, available, any) or currency for this search.
     function setTrade(key, value) {

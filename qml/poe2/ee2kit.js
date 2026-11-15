@@ -18072,8 +18072,8 @@ var EE2 = (() => {
     const s = preset(current).stats[index];
     if (!s) return view();
     s.disabled = disabled;
-    if (s.roll && min !== void 0) s.roll.min = min === null ? "" : min;
-    if (s.roll && max !== void 0) s.roll.max = max === null ? "" : max;
+    if (s.roll && min !== void 0 && min !== "keep") s.roll.min = min === null ? "" : min;
+    if (s.roll && max !== void 0 && max !== "keep") s.roll.max = max === null ? "" : max;
     return view();
   }
   function setFilter(key, disabled, value) {
@@ -18320,7 +18320,16 @@ var EE2 = (() => {
     if (api(c) === "bulk") {
       return lastBulk && lastBulk.league === p.filters.trade.league ? `https://www.pathofexile.com/trade2/exchange/poe2/${league}/${encodeURIComponent(lastBulk.id)}` : `https://www.pathofexile.com/trade2/exchange/poe2/${league}`;
     }
-    const q = JSON.stringify(createTradeRequest(p.filters, p.stats, c.item));
+    const req = createTradeRequest(p.filters, p.stats, c.item);
+    const groups = req && req.query && req.query.filters || {};
+    {
+      const _a117 = Object.keys(groups);
+      if (Array.isArray(_a117)) for (let _i115 = 0; _i115 < _a117.length; _i115++) {
+        const k = _a117[_i115];
+        if (groups[k] && typeof groups[k] === "object" && groups[k].disabled === void 0) groups[k].disabled = false;
+      } else for (const k of _a117) if (groups[k] && typeof groups[k] === "object" && groups[k].disabled === void 0) groups[k].disabled = false;
+    }
+    const q = JSON.stringify(req);
     return `https://www.pathofexile.com/trade2/search/poe2/${league}?q=${encodeURIComponent(q)}`;
   }
   function clear2() {
