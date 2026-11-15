@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.36 beta (2026-11-14): #83 YouTube subscriptions: 15 per channel, retries, kept on disk; 404 channels via yt-dlp; PLAYLIST in the video window (entry below).
 - 0.8.35 beta (2026-11-14): #81 YouTube: wait while YouTube holds a video back for its ad (countdown, no reload loop) (entry below).
 - 0.8.34 beta (2026-11-14): #79 Brave and Legcord stay over a full-screen game (entry below).
 - 0.8.33 beta (2026-11-14): #76 Settings scroll when taller than the screen; right Legcord plugin steps (entry below).
