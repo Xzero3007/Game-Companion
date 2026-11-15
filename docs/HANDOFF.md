@@ -24,6 +24,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.50 beta (2026-11-14): #114 (+ #113) Print/Spectacle: videos stand still and parts let clicks through while its selection is open; more YouTube dates via yt-dlp; kit tests without fixed sleeps (entry below).
 - 0.8.49 beta (2026-11-14): #110 YouTube: dates from the channels' feeds for searches, Trending, History and playlists; SORT button; wider unsubscribe menu (entry below).
 - 0.8.48 beta (2026-11-14): #107 PoE 2: the price check's kit runs in QuickJS in its own process; a crash there no longer takes Game Companion down; the saved league is kept (entry below).
 - 0.8.47 beta (2026-11-14): #103 YouTube: the star asks before it unsubscribes (Unsubscribe / Keep subscription) (entry below).
