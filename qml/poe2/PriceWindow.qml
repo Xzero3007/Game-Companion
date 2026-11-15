@@ -175,7 +175,10 @@ Panel {
                                 anchors.rightMargin: 8
                                 anchors.verticalCenter: parent.verticalCenter
                                 wrapMode: Text.WordWrap
-                                text: modelData.text.replace(/#/g, modelData.value !== null ? win.amount(modelData.value) : "#")
+                                // EE2's stat texts leave out the game's "+" ("# to
+                                // Accuracy Rating"): a positive flat "to" gets it back.
+                                text: (modelData.value > 0 ? modelData.text.replace(/^#(%?) to /, "+#$1 to ") : modelData.text)
+                                    .replace(/#/g, modelData.value !== null ? win.amount(modelData.value) : "#")
                                     + (modelData.hidden ? "  <font color=\"#8d8996\">(" + modelData.hidden + ")</font>" : "")
                                 textFormat: Text.StyledText
                                 color: modelData.disabled ? Theme.muted() : Theme.text()

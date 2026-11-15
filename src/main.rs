@@ -44,6 +44,15 @@ mod voice_object;
 mod voice_overlay;
 
 fn main() {
+    // Qt's JavaScript without its JIT: Qt 6.12's JIT crashed in the PoE 2
+    // price check's parser (Exiled Exchange 2's code; QA on Arch,
+    // 2026-11-15: SIGSEGV in ArrayLiteral → newArrayObject, every run, none
+    // with the interpreter). The interpreter cost no more CPU in the demos
+    // (most bindings are compiled ahead anyway). `GC_JIT=1` keeps the JIT.
+    // Set before any thread starts.
+    if std::env::var_os("GC_JIT").is_none() && std::env::var_os("QV4_FORCE_INTERPRETER").is_none() {
+        std::env::set_var("QV4_FORCE_INTERPRETER", "1");
+    }
     if std::env::args().any(|a| a == "--version") {
         println!("Game Companion {}", companion::version_text());
         return;

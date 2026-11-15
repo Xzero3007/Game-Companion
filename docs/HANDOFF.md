@@ -967,6 +967,12 @@ nach". PoE 2 1.0 comes in December: everything must work by then.
   poe2`, window `rusty-path-of-building-2`); `AppDef.args`, `AppDef.game`
   (With game only for PoE 2: `Apps.gameStarted(Games.runningKnown)`); bar
   button while PoE 2 runs or PoB runs; no shortcut. `GC_DEMO=apps,pob`.
+- QA 2026-11-15 (Arch, Qt 6.12): `GC_DEMO=price` crashed every run in
+  Qt's JIT (ArrayLiteral → newArrayObject → jump to 0x400000000), fine
+  with `QV4_FORCE_INTERPRETER=1`. Not reproduced with PySide's Qt 6.12.0
+  (also not with `QV4_JIT_CALL_THRESHOLD=0`), so the app now always runs
+  the interpreter (`main.rs`, `GC_JIT=1` to keep the JIT); CPU in the
+  price and armory demos was the same or lower.
 - Not checked here (no network to the trade site): real searches, the
   rate limits and Ctrl+C in the real game. QA and MN check those.
 - Later (asked, not built): poe.ninja estimates (needs MN's yes for the
