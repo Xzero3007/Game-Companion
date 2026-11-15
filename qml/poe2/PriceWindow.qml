@@ -116,7 +116,7 @@ Panel {
             text: {
                 if (!win.store) return ""
                 if (Poe2.watchError.length > 0) return "Copies can't be read: " + Poe2.watchError
-                if (!win.store.on) return "Copies are read only while Path of Exile 2 runs and Game Companion sees it (the game row shows PATH OF EXILE 2)."
+                if (!win.store.on && !win.v) return "Copies are read only while Path of Exile 2 runs and Game Companion sees it (the game row shows PATH OF EXILE 2)."
                 return ""
             }
             color: Poe2.watchError.length > 0 ? Theme.red : Theme.muted()
