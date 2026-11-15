@@ -1,0 +1,73 @@
+// Checks qml/poe2/ee2kit.js: every sample item (EE2's own test items,
+// specs/Parser/items.ts, MIT) is read and gets filters, and a search runs
+// against made-up trade answers. Runs under node:
+//   node tools/poe2-ee2/test/run.js
+// and the same code under Qt's JavaScript (see test/v4.qml).
+"use strict";
+// Known to fail outside EE2's own test data (a Tablet base newer than the shipped data).
+var EXPECTED = ["TwoLineOneImplicitItem"]
+function run(EE2, host, items, log, done) {
+    var answers = []
+    host.request = function (url, method, body) {
+        answers.push(url)
+        if (url.indexOf("/data/leagues") >= 0) return Promise.resolve({ status: 200, headers: {}, body: JSON.stringify({ result: [{ id: "Standard", text: "Standard" }, { id: "Hardcore", text: "Hardcore" }, { id: "Rise of the Abyssal", text: "Rise of the Abyssal" }] }) })
+        if (url.indexOf("/data/stats") >= 0 || url.indexOf("/data/items") >= 0) return Promise.resolve({ status: 200, headers: {}, body: JSON.stringify({ result: [] }) })
+        if (url.indexOf("/search/") >= 0) return Promise.resolve({ status: 200, headers: { "X-Rate-Limit-Rules": "Ip", "X-Rate-Limit-Ip": "8:10:60", "X-Rate-Limit-Ip-State": "1:10:0" }, body: JSON.stringify({ id: "q1", total: 2, result: ["a", "b"] }) })
+        if (url.indexOf("/fetch/") >= 0) return Promise.resolve({ status: 200, headers: {}, body: JSON.stringify({ result: [listing("a", 3, "exalted", "Seller1"), listing("b", 1, "divine", "Seller2")] }) })
+        if (url.indexOf("/exchange/") >= 0) return Promise.resolve({ status: 200, headers: {}, body: JSON.stringify({ id: "x1", total: 1, result: { r1: { id: "r1", listing: { indexed: new Date().toISOString(), account: { name: "Bulk1", lastCharacterName: "B", online: { league: "Standard" } }, offers: [{ exchange: { currency: "exalted", amount: 3 }, item: { currency: "x", amount: 1, stock: 20 } }] } } } }) })
+        return Promise.resolve({ status: 404, headers: {}, body: "{}" })
+    }
+    EE2.setup(host)
+    function listing(id, amount, currency, account) {
+        return { id: id, gone: false, listing: { indexed: new Date(Date.now() - 3600000).toISOString(), price: { type: "~price", amount: amount, currency: currency }, account: { name: account, lastCharacterName: account + "C", online: { league: "Standard" } } }, item: { ilvl: 80, frameType: 2, name: "", typeLine: "Test", properties: [] } }
+    }
+    var names = Object.keys(items), failed = [], i = 0
+    function next() {
+        if (i >= names.length) return finish()
+        var name = names[i++]
+        EE2.check(items[name], "Standard").then(function (v) {
+            if ((!v || v.error) && EXPECTED.indexOf(name) < 0) failed.push(name + ": " + (v ? v.error : "nothing"))
+            next()
+        }, function (e) { failed.push(name + ": " + e + (e && e.stack ? " " + e.stack.split("\n")[0] : "")); next() })
+    }
+    function finish() {
+        log("read " + (names.length - failed.length) + " of " + names.length + " items")
+        failed.forEach(function (f) { log("  FAILED " + f) })
+        EE2.check(items.RareItem, "Standard").then(function (v) {
+            log("rare: " + v.name + " · " + v.rarity + " · api " + v.api + " · " + v.stats.length + " stats · filters " + v.filters.map(function (f) { return f.key }).join(","))
+            v.stats.forEach(function (s) { log("   " + (s.disabled ? "[ ]" : "[x]") + " " + s.text + (s.min !== null ? " min " + s.min : "")) })
+            EE2.setStat(0, false)
+            return EE2.search(function () { })
+        }).then(function (r) {
+            log("search: " + (r.error ? "error " + r.error : r.total + " total, " + r.listed.map(function (l) { return l.amount + " " + l.currency + " " + l.account + " " + l.age }).join("; ")))
+            return EE2.check(items.UncutSkillGem, "Standard")
+        }).then(function (v) {
+            log("gem: " + v.name + " · api " + v.api)
+            return EE2.search(function () { })
+        }).then(function (r) {
+            log("gem search: " + JSON.stringify(r).slice(0, 300))
+            log("requests: " + answers.map(function (u) { return u.replace(/\?.*/, "").replace("https://www.pathofexile.com", "") }).join(" "))
+            done(failed.length === 0)
+        }).catch(function (e) { log("ERROR " + e + (e && e.stack ? "\n" + e.stack : "")); done(false) })
+    }
+    next()
+}
+
+if (typeof module !== "undefined" && typeof require !== "undefined" && require.main === module) {
+    var fs = require("fs"), path = require("path")
+    var repo = path.resolve(__dirname, "../../..")
+    var src = fs.readFileSync(path.join(repo, "qml/poe2/ee2kit.js"), "utf8").replace(/^\.pragma library/, "")
+    var EE2 = new Function(src + "\nreturn EE2;")()
+    var timers = {}, nextId = 1
+    var host = {
+        request: null,
+        timer: function (ms, cb) { var id = nextId++; timers[id] = setTimeout(function () { delete timers[id]; cb() }, ms); return id },
+        cancel: function (id) { clearTimeout(timers[id]); delete timers[id] },
+        readData: function (p) { return fs.readFileSync(path.join(repo, "data/poe2", p), "utf8") },
+        log: function (t) { console.log(t) },
+    }
+    EE2.setup(host)
+    var items = JSON.parse(fs.readFileSync(path.join(__dirname, "items.json"), "utf8"))
+    run(EE2, host, items, console.log, function (ok) { process.exit(ok ? 0 : 1) })
+}
+if (typeof module !== "undefined") module.exports = { run: run }

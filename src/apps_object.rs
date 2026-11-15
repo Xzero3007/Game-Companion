@@ -74,9 +74,10 @@ pub mod qobject {
         #[qinvokable]
         fn forget_place(self: Pin<&mut Apps>, id: &QString);
 
-        /// A game started: apps set to start with it start (not shown).
+        /// A game started (`game`: its built-in key, or ""): apps set to
+        /// start with it start (not shown).
         #[qinvokable]
-        fn game_started(self: Pin<&mut Apps>);
+        fn game_started(self: Pin<&mut Apps>, game: &QString);
 
         /// The game ended: every window Game Companion moved goes back to
         /// where and how it was.
@@ -143,6 +144,12 @@ impl Default for AppsRust {
             }
             if let Some(l) = me.apps.get_mut("legcord") {
                 l.windows = vec![win("{l1}")];
+            }
+            // `apps,pob`: Path of Building running too (its button shows).
+            if std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p == "pob")) {
+                if let Some(p) = me.apps.get_mut("pob") {
+                    p.windows = vec![win("{p1}")];
+                }
             }
             me.available = true;
         }
@@ -619,10 +626,12 @@ impl qobject::Apps {
         self.refresh();
     }
 
-    fn game_started(mut self: Pin<&mut Self>) {
+    fn game_started(mut self: Pin<&mut Self>, game: &QString) {
+        let game = game.to_string();
         for app in &APPS {
             let running = !self.rust().apps[app.id].windows.is_empty();
-            if apps::choice(app.id).with_game && !running {
+            let fits = app.game.is_none_or(|g| g == game);
+            if apps::choice(app.id).with_game && !running && fits {
                 self.as_mut().start(app, "", false);
             }
         }
