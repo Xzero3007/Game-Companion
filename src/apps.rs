@@ -51,9 +51,13 @@ pub struct AppDef {
     /// sits at the right edge (else the left).
     pub size: (i32, i32),
     pub right: bool,
+    /// What follows the program found on the PATH (not a chosen command).
+    pub args: &'static str,
+    /// The one game it starts with ("With game"), or None for any game.
+    pub game: Option<&'static str>,
 }
 
-pub const APPS: [AppDef; 2] = [
+pub const APPS: [AppDef; 3] = [
     AppDef {
         id: "brave",
         name: "Brave",
@@ -61,8 +65,22 @@ pub const APPS: [AppDef; 2] = [
         window: "brave",
         size: (560, 760),
         right: true,
+        args: "",
+        game: None,
     },
-    AppDef { id: "legcord", name: "Legcord", programs: &["legcord"], window: "legcord", size: (560, 640), right: false },
+    AppDef { id: "legcord", name: "Legcord", programs: &["legcord"], window: "legcord", size: (560, 640), right: false, args: "", game: None },
+    // Path of Building 2 in Rusty Path of Building's runtime (the person's,
+    // 2026-11-15): its window's app id is `rusty-path-of-building-2`.
+    AppDef {
+        id: "pob",
+        name: "PoB",
+        programs: &["rusty-path-of-building"],
+        window: "rusty-path-of-building",
+        size: (1280, 800),
+        right: false,
+        args: "poe2",
+        game: Some("poe2"),
+    },
 ];
 
 pub fn def(id: &str) -> Option<&'static AppDef> {
@@ -121,7 +139,7 @@ fn command_in(app: &AppDef, choice: &AppChoice, path: &std::ffi::OsStr) -> Optio
     app.programs
         .iter()
         .find(|p| std::env::split_paths(path).any(|dir| is_program(&dir.join(p))))
-        .map(|p| p.to_string())
+        .map(|p| if app.args.is_empty() { p.to_string() } else { format!("{p} {}", app.args) })
 }
 
 fn is_program(path: &Path) -> bool {
@@ -717,6 +735,15 @@ mod tests {
         let chosen = AppChoice { command: " brave-origin --x ".into(), ..Default::default() };
         assert_eq!(command_in(brave, &chosen, path).as_deref(), Some("brave-origin --x"));
         assert_eq!(command_in(def("legcord").unwrap(), &AppChoice::default(), path), None);
+        // Path of Building starts in its PoE 2 mode; a chosen command as it is.
+        let pob_program = dir.join("rusty-path-of-building");
+        std::fs::write(&pob_program, "#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&pob_program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let pob = def("pob").unwrap();
+        assert_eq!(command_in(pob, &AppChoice::default(), path).as_deref(), Some("rusty-path-of-building poe2"));
+        let chosen = AppChoice { command: "rusty-path-of-building poe1".into(), ..Default::default() };
+        assert_eq!(command_in(pob, &chosen, path).as_deref(), Some("rusty-path-of-building poe1"));
+        assert!(belongs(pob, &win("rusty-path-of-building-2", "")));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

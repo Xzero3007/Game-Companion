@@ -3,6 +3,7 @@ import GameCompanion
 import "theme.js" as Theme
 import "plugins.js" as Plugins
 import "aion2"
+import "poe2"
 
 // The overlay: every part (the bar, the player row, each panel, each
 // video) in a small window of its own on the overlay layer (Surface), as
@@ -187,7 +188,7 @@ Overlay {
             root.shownForGame = false
         }
         function onStarted(id) {
-            Apps.gameStarted()
+            Apps.gameStarted(Games.runningKnown)
             // AION 2's module reads while the game runs.
             if (Games.runningKnown === "aion2") root.aionStarted(id)
             // Built-in games no launcher lists (known:…) are not in the library.
@@ -298,7 +299,7 @@ Overlay {
             readonly property bool onScreen: active && root.onScreen("game-row")
             x: Math.max(0, Math.min(root.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
             y: Companion.shown ? bar.height * bar.scale : 0
-            gameName: Games.runningName.length > 0 ? Games.runningName : "AION 2"
+            gameName: Games.runningName.length > 0 ? Games.runningName : (priceStore.shown ? "Path of Exile 2" : "AION 2")
             dpsShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.dps")) || root.dpsOpen
             dpsOpen: root.dpsOpen
             onDpsClicked: { root.dpsOpen = root.fromRow("dps", root.dpsOpen); root.dpsClosed = !root.dpsOpen }
@@ -326,6 +327,9 @@ Overlay {
             armoryShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.armory")) || root.armoryOpen || armoryStore.demo
             armoryOpen: root.armoryOpen
             onArmoryClicked: root.armoryOpen = root.fromRow("armory", root.armoryOpen)
+            priceShown: (Games.runningKnown === "poe2" && Plugins.inBar(root.plugins, "poe2.price")) || priceStore.shown
+            priceOpen: priceStore.shown
+            onPriceClicked: if (priceStore.shown) priceStore.close(); else priceStore.shown = true
         }
     }
 
@@ -468,6 +472,28 @@ Overlay {
             defaultX: Math.max(24, (root.width - width) / 2 - 40)
             defaultY: 150
             onCloseClicked: root.charactersOpen = false
+        }
+    }
+
+    // PoE 2's price check (Exiled Exchange 2 rebuilt): looks at items
+    // copied in the game while PoE 2 runs; its window shows over the game,
+    // with the hub or without, and takes clicks also while locked.
+    readonly property bool priceUsable: Plugins.loads(plugins, "poe2") && Plugins.choice(plugins, "poe2.price").on
+    PriceStore {
+        id: priceStore
+        demo: nativeWindow.demo
+        on: root.priceUsable && Games.runningKnown === "poe2"
+    }
+    Surface {
+        wanted: priceStore.shown
+        stack: 5
+        lockItem: priceWindow
+        part: PriceWindow {
+            id: priceWindow
+            store: priceStore
+            defaultX: Math.max(24, root.width - width - 80)
+            defaultY: 160
+            onCloseClicked: priceStore.close()
         }
     }
 

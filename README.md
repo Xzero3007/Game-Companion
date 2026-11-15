@@ -203,10 +203,16 @@ to the game.
   turns it off.
 - **Turn off** in Settings → General (or Quit in the tray menu) closes the
   whole app, with the radio.
+- **PoE 2 price check** (while Path of Exile 2 runs, plugin "Price Check"):
+  press Ctrl+C over an item in the game and a window shows what it sells
+  for on the official trade site, with Exiled Exchange 2's filters (its
+  parser, built in; nothing needs to be installed or kept running). Path of
+  Building 2 (Rusty Path of Building) gets a bar button like Brave and Legcord.
 - **Nothing else goes online.** The fonts ship with the app, the shortcuts
   are local D-Bus; the only network use is the radio stream you pick, the
   streams you open, your Jellyfin server at home, the update check on
-  GitHub, and missing game covers from Steam's, Epic's and GOG's image servers.
+  GitHub, missing game covers from Steam's, Epic's and GOG's image servers,
+  and the PoE 2 trade site when you check an item.
 
 ## Coming next
 
@@ -273,12 +279,20 @@ Qt 6 / QML for the interface, Rust for the logic, joined by
 | `src/instance.rs` | One copy at a time; a second start asks the running one to show |
 | `src/radio.rs`, `src/radio_object.rs` | Stations, the radio's network guard, the mpv player, the `Radio` QML singleton |
 | `data/stations.json` | The station list |
+| `src/poe2.rs`, `src/poe2_object.rs`, `qml/poe2/` | PoE 2 price check: trade requests, the clipboard watcher, the window |
 | `cpp/native.cpp` | The Qt app; each part's window on KDE's overlay layer, its place and where it takes clicks |
 | `qml/Surface.qml` | One part of the overlay in a window of its own, as big as the part |
 | `qml/` | The interface (Edge HUD design, colours in `qml/theme.js`) |
 | `packaging/` | Desktop file and the Arch package |
 
 ## Licence
+
+PoE 2 price check: the item parser, filters and trade requests
+(`qml/poe2/ee2kit.js`, built by `tools/poe2-ee2/build.mjs`) and the item and
+stat data (`data/poe2/`) come from Exiled Exchange 2
+(`Kvan7/Exiled-Exchange-2`, MIT, a fork of Awakened PoE Trade by Alexander
+Drozdov); see `NOTICE-ExiledExchange2.txt`. Prices are asked from the
+official trade site (www.pathofexile.com) only.
 
 GPL-3.0-or-later (see `LICENSE`). Parts are adapted from the Clicktrough
 meter (`Xzero3007/A2Tools-DPS-Meter_Clicktrough`, GPL-3.0).

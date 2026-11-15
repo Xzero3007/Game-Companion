@@ -23,6 +23,8 @@ mod launch_options;
 mod market;
 mod meter_import;
 mod native;
+mod poe2;
+mod poe2_object;
 mod protondb;
 mod radio;
 mod radio_object;

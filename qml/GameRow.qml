@@ -42,8 +42,12 @@ Item {
     property bool armoryShown: false
     property bool armoryOpen: false
     signal armoryClicked
+    // PoE 2's price check (opens by itself when an item is copied).
+    property bool priceShown: false
+    property bool priceOpen: false
+    signal priceClicked
 
-    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || scheduleShown || bossShown || lootShown || armoryShown
+    readonly property bool active: dpsShown || mapShown || marketShown || charactersShown || scheduleShown || bossShown || lootShown || armoryShown || priceShown
     readonly property bool pinned: Companion.pins.indexOf('"game-row"') >= 0
 
     implicitWidth: row.implicitWidth + 36
@@ -163,6 +167,14 @@ Item {
             active: strip.armoryOpen
             tip: strip.gameName + ": your characters from NC's character pages, the builds they aim at and how far they are"
             onClicked: strip.armoryClicked()
+        }
+        GameButton {
+            visible: strip.priceShown
+            icon: "price"
+            label: "Price"
+            active: strip.priceOpen
+            tip: strip.gameName + ": the price check (hover an item in the game and press Ctrl+C)"
+            onClicked: strip.priceClicked()
         }
 
         Rectangle { width: 1; height: 18; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }

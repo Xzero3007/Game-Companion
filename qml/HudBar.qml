@@ -156,6 +156,8 @@ Item {
         }
         AppButton { id: braveButton; appId: "brave"; icon: "browser" }
         AppButton { id: legcordButton; appId: "legcord"; icon: "headset" }
+        // Path of Building 2: while PoE 2 runs, or while it runs itself.
+        AppButton { id: pobButton; appId: "pob"; icon: "tree"; visible: Games.runningKnown === "poe2" || info.running || bar.menuFor === "pob" }
 
         Rectangle { width: 1; height: 28; anchors.verticalCenter: parent.verticalCenter; color: Qt.rgba(1, 1, 1, 0.1) }
         Item { width: 6; height: 1 }
@@ -193,7 +195,7 @@ Item {
     Rectangle {
         id: appMenu
         readonly property var info: bar.app(bar.menuFor)
-        readonly property Item button: bar.menuFor === "legcord" ? legcordButton : braveButton
+        readonly property Item button: bar.menuFor === "legcord" ? legcordButton : bar.menuFor === "pob" ? pobButton : braveButton
         visible: bar.menuShown
         x: Math.max(0, Math.min(bar.width - width, button.mapToItem(bar, 0, 0).x + button.width / 2 - width / 2))
         y: bar.height + 4

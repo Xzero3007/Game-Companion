@@ -934,6 +934,44 @@ is shown (MN's TV has no VRR in KDE anyway). Checked on the Arch bench (KWin
 including the switch off. Not checked: a real Proton game asking for full
 screen again (to watch on MN's PC).
 
+## Branch `claude/project-thread-3oslcu` (from beta): PoE 2 price check and Path of Building
+
+MN, 2026-11-15: Exiled Exchange 2 was unreliable on KDE Wayland; "bau ee2
+nach". PoE 2 1.0 comes in December: everything must work by then.
+
+- `tools/poe2-ee2/build.mjs <EE2 checkout>` (needs `npm install
+  --ignore-scripts` in its renderer) bundles EE2's parser, filters and trade
+  code with esbuild for Qt's ES2016 JavaScript into `qml/poe2/ee2kit.js`
+  and copies its data (en, de) to `data/poe2/`. Shims in `shims/` replace
+  EE2's Electron parts (config, IPC, poe.ninja, i18n, luxon, BigInt hash);
+  look-behind and named groups are rewritten (PATCHES, `groupsCalls` →
+  `__gcMatch`/`__gcExec`); setInterval is a no-op (nothing ticks while
+  idle). `entry.ts` is the kit's API (`check`, `view`, `setStat`,
+  `setFilter`, `search`, `leagues`); its search reimplements EE2's
+  trade-api.ts without Vue computeds (they did not update under V4).
+  Tests: `node tools/poe2-ee2/test/run.js` (EE2's 27 sample items, mocked
+  trade answers) and `test/v4.qml` (the same under Qt's engine; needs a
+  runner that gives `gcHost.readFile`).
+- `src/poe2.rs`: requests to www.pathofexile.com/api/trade2/{search,fetch,
+  exchange,data} only (`allowed`), one at a time, curl with a cookie jar in
+  $XDG_RUNTIME_DIR, 429/Retry-After respected; EE2's own RateLimiter reads
+  the X-Rate-Limit headers. Clipboard: an x11rb XFixes watcher on
+  XWayland's CLIPBOARD (the game runs in Proton/XWayland; MN presses Ctrl+C
+  in the game, nothing is sent to the game); only texts that look like an
+  item are taken. `xvfb-run cargo test --no-default-features
+  copied_items_are_seen -- --ignored` (needs xclip).
+- `qml/poe2/PriceStore.qml` (brain, in Main) and `PriceWindow.qml` (panel
+  `poe2-price`); plugin `poe2.price` in the PoE 2 package; GameRow "Price".
+  `GC_DEMO=price[,results]`.
+- Path of Building: third app `pob` in `src/apps.rs` (`rusty-path-of-building
+  poe2`, window `rusty-path-of-building-2`); `AppDef.args`, `AppDef.game`
+  (With game only for PoE 2: `Apps.gameStarted(Games.runningKnown)`); bar
+  button while PoE 2 runs or PoB runs; no shortcut. `GC_DEMO=apps,pob`.
+- Not checked here (no network to the trade site): real searches, the
+  rate limits and Ctrl+C in the real game. QA and MN check those.
+- Later (asked, not built): poe.ninja estimates (needs MN's yes for the
+  host), a Client.txt reader, filter manager, levelling guide.
+
 ## Testing
 
 - Headless KWin 5.27 in the Ubuntu sandbox, with real frames, screenshots
