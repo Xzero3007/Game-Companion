@@ -77,6 +77,15 @@ pub struct Settings {
     /// Whether a game's package loads when the game runs, by the
     /// package's id; one not listed loads.
     pub packages: BTreeMap<String, bool>,
+    /// Brave and Legcord over the game (Settings → Apps), by the app's id
+    /// (`apps::APPS`); one not listed takes the defaults.
+    pub apps: BTreeMap<String, crate::apps::AppChoice>,
+    /// Brave and Legcord stay over a game in full screen: while one is shown,
+    /// the game's window loses its full-screen mark (same size, no border).
+    pub apps_over_full: bool,
+    /// The voice overlay's choices (Settings → Apps → Legcord), as QML
+    /// keeps them (`qml/VoiceOverlay.qml`); empty takes the defaults.
+    pub voice: serde_json::Map<String, serde_json::Value>,
 }
 
 /// One plugin's choice: on or off, and where its button sits.
@@ -327,6 +336,11 @@ pub struct RadioSettings {
     pub country: String,
     /// "" for all genres, else a genre id.
     pub genre: String,
+    /// Stations that played on none of their addresses here, last time
+    /// they were tried (MN, 2026-11-14: greyed and listed last).
+    pub dead: Vec<String>,
+    /// Leaves those out of the list.
+    pub hide_dead: bool,
 }
 
 impl Default for RadioSettings {
@@ -339,6 +353,8 @@ impl Default for RadioSettings {
             tab: "all".into(),
             country: String::new(),
             genre: String::new(),
+            dead: Vec::new(),
+            hide_dead: false,
         }
     }
 }
@@ -405,6 +421,9 @@ impl Default for Settings {
             games: Default::default(),
             plugins: BTreeMap::new(),
             packages: BTreeMap::new(),
+            apps: BTreeMap::new(),
+            apps_over_full: true,
+            voice: serde_json::Map::new(),
         }
     }
 }

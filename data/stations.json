@@ -63,6 +63,10 @@
    "name": "Electronic"
   },
   {
+   "id": "techno",
+   "name": "Techno"
+  },
+  {
    "id": "chill",
    "name": "Chill"
   },
@@ -791,6 +795,61 @@
    ]
   },
   {
+   "id": "181-the-beat",
+   "name": "181.FM The Beat",
+   "country": "US",
+   "info": "Internet radio, plays worldwide",
+   "genres": [
+    "rap",
+    "rnb"
+   ],
+   "streams": [
+    "https://listen.181fm.com/181-beat_128k.mp3",
+    "http://listen.181fm.com/181-beat_128k.mp3"
+   ]
+  },
+  {
+   "id": "181-the-box",
+   "name": "181.FM The Box",
+   "country": "US",
+   "info": "Internet radio, plays worldwide",
+   "genres": [
+    "rap"
+   ],
+   "streams": [
+    "https://listen.181fm.com/181-thebox_128k.mp3",
+    "http://listen.181fm.com/181-thebox_128k.mp3"
+   ]
+  },
+  {
+   "id": "181-jammin",
+   "name": "181.FM Jammin 181",
+   "country": "US",
+   "info": "Internet radio, plays worldwide",
+   "genres": [
+    "rnb"
+   ],
+   "streams": [
+    "https://listen.181fm.com/181-jammin_128k.mp3",
+    "http://listen.181fm.com/181-jammin_128k.mp3"
+   ]
+  },
+  {
+   "id": "181-old-school",
+   "name": "181.FM Old School HipHop/RnB",
+   "country": "US",
+   "info": "Internet radio, plays worldwide",
+   "genres": [
+    "oldschool",
+    "rap",
+    "rnb"
+   ],
+   "streams": [
+    "https://listen.181fm.com/181-oldschool_128k.mp3",
+    "http://listen.181fm.com/181-oldschool_128k.mp3"
+   ]
+  },
+  {
    "id": "1live",
    "name": "1LIVE",
    "country": "DE",
@@ -921,10 +980,24 @@
    "country": "DE",
    "info": "",
    "genres": [
-    "electronic"
+    "electronic",
+    "techno"
    ],
    "streams": [
     "https://stream.sunshine-live.de/techno/mp3-192/stream.sunshine-live.de/"
+   ]
+  },
+  {
+   "id": "techno-bunker",
+   "name": "Techno Bunker FM",
+   "country": "DE",
+   "info": "Techno and hard techno",
+   "genres": [
+    "electronic",
+    "techno"
+   ],
+   "streams": [
+    "https://stream.laut.fm/technobunkerfm"
    ]
   },
   {
@@ -957,7 +1030,8 @@
    "country": "DE",
    "info": "",
    "genres": [
-    "electronic"
+    "electronic",
+    "techno"
    ],
    "streams": [
     "https://stream.bigfm.de/deeptechhouse/mp3-128/stream.bigfm.de/"
@@ -1356,7 +1430,7 @@
   {
    "id": "soma-groove-salad",
    "name": "SomaFM Groove Salad",
-   "country": "INT",
+   "country": "US",
    "info": "San Francisco, internet radio",
    "genres": [
     "electronic",
@@ -1370,7 +1444,7 @@
   {
    "id": "soma-beat-blender",
    "name": "SomaFM Beat Blender",
-   "country": "INT",
+   "country": "US",
    "info": "Deep house, downtempo",
    "genres": [
     "electronic",
@@ -1384,7 +1458,7 @@
   {
    "id": "soma-defcon",
    "name": "SomaFM DEF CON Radio",
-   "country": "INT",
+   "country": "US",
    "info": "Music for hacking",
    "genres": [
     "electronic"
@@ -1397,7 +1471,7 @@
   {
    "id": "soma-the-trip",
    "name": "SomaFM The Trip",
-   "country": "INT",
+   "country": "US",
    "info": "Progressive house, trance",
    "genres": [
     "electronic"
@@ -1410,7 +1484,7 @@
   {
    "id": "soma-fluid",
    "name": "SomaFM Fluid",
-   "country": "INT",
+   "country": "US",
    "info": "Instrumental hip-hop",
    "genres": [
     "rap",
@@ -1424,7 +1498,7 @@
   {
    "id": "soma-space-station",
    "name": "SomaFM Space Station Soma",
-   "country": "INT",
+   "country": "US",
    "info": "Ambient, electronica",
    "genres": [
     "electronic",
@@ -1468,6 +1542,19 @@
    ],
    "streams": [
     "https://radiorecord.hostingradio.ru/rr_main96.aacp"
+   ]
+  },
+  {
+   "id": "radio-record-minimal",
+   "name": "Radio Record Minimal Tech",
+   "country": "INT",
+   "info": "St. Petersburg, minimal and tech house",
+   "genres": [
+    "electronic",
+    "techno"
+   ],
+   "streams": [
+    "https://radiorecord.hostingradio.ru/mini96.aacp"
    ]
   },
   {

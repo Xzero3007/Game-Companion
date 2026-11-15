@@ -73,13 +73,17 @@ to the game.
 - **Hide the hub, keep what you pin.** `Alt+Y` (or the eye in the bar)
   hides the bar and the panels; anything pinned (the pin in a panel's header,
   or at the end of the player row) stays on screen.
-- **Radio** (the bar's Radio button): 109 stations by country and genre,
-  favourites, recent, search, Best FM first. Played by your **mpv** in the
+- **Radio** (the bar's Radio button): 115 stations by country and genre,
+  favourites, recent, search, Best FM first. A station that doesn't play
+  from your connection is greyed and listed last next time; "Hide not
+  playing" leaves those out. Played by your **mpv** in the
   background, so it plays on with the panel closed or the hub hidden. Only
   the stations' own stream servers are played (a built-in list, checked
   before every address). The station list comes from the Clicktrough Radio
   plugin (`Xzero3007/A2Tools-Clicktrough-Plugins`, GPL-3.0); refresh it with
-  `node dev/stations-from-plugin.mjs <plugins/radio/stations.js>`.
+  `node dev/stations-from-plugin.mjs <plugins/radio/stations.js>` (then add again
+  the hand edits: the Techno genre and its two stations, SomaFM under USA,
+  the four 181.FM stations).
 - **Player row** under the bar while the radio plays: state, pause, volume
   as one bar (− and + step by 5, a click on the bar sets it, the wheel
   steps), stop.

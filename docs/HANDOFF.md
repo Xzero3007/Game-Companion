@@ -24,7 +24,38 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.36 beta (2026-11-14): #83 YouTube subscriptions: 15 per channel, retries, kept on disk; 404 channels via yt-dlp; PLAYLIST in the video window (entry below).
+- 0.8.35 beta (2026-11-14): #81 YouTube: wait while YouTube holds a video back for its ad (countdown, no reload loop) (entry below).
+- 0.8.34 beta (2026-11-14): #79 Brave and Legcord stay over a full-screen game (entry below).
+- 0.8.33 beta (2026-11-14): #76 Settings scroll when taller than the screen; right Legcord plugin steps (entry below).
+- 0.8.32 beta (2026-11-14): #72 Radio: four 181.FM stations under USA (entry below).
+- 0.8.31 beta (2026-11-14): #73 LOOT farm window: valuables split into MATS, ARTW, ORNG and VALU, each with its own switch (entry below).
+- 0.8.30 beta (2026-11-14): #71 Radio: stations that play on none of their addresses are greyed and listed last, HIDE NOT PLAYING switch (entry below).
+- 0.8.29 beta (2026-11-14): #68 Radio: Techno genre with Techno Bunker FM and Radio Record Minimal Tech, SomaFM under USA (entry below).
+- 0.8.28 beta (2026-11-14): #67 LOOT farm window: four-letter labels (WRTH, VALU, SHUG, INVA, NMAR, DAIL, BALA, FAFN, SUBJ, ASCE, CUBE) (entry below).
+- 0.8.27 beta (2026-11-14): #65 LOOT farm window: GOLD and VAL switched apart, ping green up to 100 ms, clearer Odyle energy, labels GOLD, CUBE, SHU, NMD (entry below).
+- 0.8.26 beta (2026-11-14): #62 Legcord voice overlay: who is in the voice channel and who talks (Legcord plugin over a Unix socket) (entry below).
+- 0.8.25 beta (2026-11-14): #57 Brave and Legcord over the game: bar buttons, right-click menu, Alt+B / Alt+N (KWin scripts) (entry below).
+- 0.8.24 beta (2026-11-14): #59 DPS: your own combat power and gear score when playing alone, combat power kept in a narrow window (entry below).
+- 0.8.23 beta (2026-11-14): #58 LOOT: right-click on Loot in the game row opens or closes the farm window in every mode (entry below).
 - 0.8.22 beta (2026-11-14): #54 LOOT: SHU, SHA and INV keys show the golden Shugo key icon (entry below).
+
+
+- Legcord voice overlay (2026-11-14, MN: N1 default, the others as
+  choices): Legcord plugin `legcord/game-companion-voice`,
+  `src/voice_overlay.rs`, `src/voice_object.rs`, `qml/VoiceOverlay.qml`,
+  Settings → Apps → "Legcord voice overlay". Checked end to end with
+  Electron 44 and a made-up Discord page; not yet with real Discord (the
+  store names are the risk): on MN's PC, Legcord 1.3.1.
+- Brave and Legcord over the game (branch `claude/project-thread-6m4xx8`,
+  2026-11-14, MN's choices A + C1, Alt+B / Alt+N): `src/apps.rs`,
+  `src/apps_object.rs`, HudBar `AppButton` + menu, Settings → Apps (tabs
+  now in a Flow, panel 540 px). The app quits tidily on SIGTERM/SIGINT/
+  SIGHUP now (`main.rs` `quit_on_signals`, 10 s fallback). Checked on the
+  Arch bench's KWin 6.8 with stand-in windows (`arch-test/apps/gc.sh`,
+  17 checks). Not checked: the real Brave Origin and Legcord app ids on
+  MN's PC (matching is by prefix `brave` / `legcord`).
+
 - 0.8.21 beta (2026-11-14): #52 LOOT: farm window fits its rows and grows by its corner, game key icons, merchant window stays open until zone change or 60 s (shop log) (entry below).
 - 0.8.20 beta (2026-11-14): #46 the open panels and the DPS panel closed by hand are kept across restarts and updates (entry below).
 - 0.8.19 beta (2026-11-14): #47 LOOT farm window compact (no header, one line), merchant menu keeps the shop window open, keys chosen, gold count gear only (entry below).
@@ -151,7 +182,7 @@ new session (or the same one after a usage limit) carries on from here.
   farm window is compact, design E5a (mockups in
   /mnt/project-files/game-companion/mockups/farm-e5-e2-keys.png): Panel
   `bare` (no header, no gold line), the Kinah bar with Kinah, share and
-  worth per hour in it, one line with GLD, VAL, Odyle, PING and the keys
+  worth per hour in it, one line with GOLD, MATS, ARTW, ORNG, VALU (valuables split per MN 0.8.27, per drop), ODYLE, PING and the keys (four-letter labels)
   MN ticks (DROPS → Farm window → Keys, settings `farmKeys`; three letters
   `keyAbbr`, game icons `keyIcon`; Key: Hidden Cube from the inventory).
   Gold items are gold gear only (ids 1xx–3xx, grade 4–6); other grade 4–6
@@ -838,6 +869,68 @@ keep `open_panels` (ids, None until first kept) and `dps_closed`
 (`Companion.openPanels` / `saveOpenPanels`, saved 500 ms after a change);
 Main restores them at start (not in demo mode). An update or restart
 brings back exactly the panels that were open.
+
+## Branch `radio-dead` (from beta): Techno genre, Electronic under USA
+
+MN (2026-11-14): many stations don't play, and Electronic and Techno were
+missing from the genre list. The genre list only shows genres found in the
+chosen country, and USA had no electronic station.
+
+- New genre `techno` (after Electronic): sunshine live Techno, bigFM Deep &
+  Tech House, and two new stations: Techno Bunker FM
+  (`stream.laut.fm/technobunkerfm`) and Radio Record Minimal Tech
+  (`radiorecord.hostingradio.ru/mini96.aacp`, same host as Radio Record).
+  Both found in public station lists; not playable from the sandbox.
+- SomaFM's six stations moved from World to USA (they are from San
+  Francisco and play worldwide), so Electronic shows under USA too.
+- Why stations don't play: the US ones on StreamTheWorld/iHeart only send to
+  US connections. What to do about them waits for MN's choice (mark and
+  sort last, replace and remove, or both).
+
+## Branch `radio-mark-dead` (from beta): stations that don't play
+
+MN chose (2026-11-14, card "Merken und ans Ende"): remember the stations
+that play on none of their addresses, grey them, list them last, and a
+switch hides them.
+
+- `settings.radio.dead` (ids) and `hide_dead`; `radio::mark_dead`,
+  `radio::station_at_fault` ("No sound device" is not the station's
+  fault). `try_stream` marks a station when its last address failed;
+  `Event::Playing` clears it (written only when it changes: Playing comes
+  again after every cache pause).
+- `Radio.dead` (JSON), `Radio.hideDead`, `Radio.setHideDeadTo`.
+- RadioPanel: `deadIds`; `shown` lists live stations first, dead ones
+  after ("Didn't play last time", 45 % opacity), left out while hidden
+  except the chosen one; "HIDE NOT PLAYING · n" with a switch right of the
+  tabs (only while some are marked; "HIDE · n" under 440 px).
+- Checked under xvfb: a click on WBLS (the sandbox reaches no stream)
+  marked it and moved it last.
+
+## Branch `radio-intl-us` (from beta): US hip-hop that plays worldwide
+
+MN chose (2026-11-14, card "Internationale Sender dazu") more US stations
+that play outside the US, instead of a proxy. Added four 181.FM stations
+(internet radio from Virginia, `listen.181fm.com`, https first, http as
+second address): The Beat, The Box, Jammin 181, Old School HipHop/RnB.
+Their host was confirmed in public station lists; the sandbox can't play
+them. A proxy only for the radio was offered and not chosen.
+
+## Branch `claude/project-thread-6m4xx8` (from beta): Brave stays over a full-screen game
+
+MN, 2026-11-14: Brave vanished on every click into AION 2, even with the
+game set to "borderless": Proton marks it as full screen, and KWin 6.8 puts
+an active full-screen window over keep-above windows. Now, while Brave or
+Legcord is shown, the game's window on that screen loses its full-screen
+mark (KWin script `unfull_body`: same size, no border) and gets it back when
+no app is shown, the game ends or Game Companion quits (`refull_body`,
+`Runtime.unfull`). If the game asks for full screen again (the watcher's new
+`full` event), the mark goes again, at most 5 times per show; then the old
+behaviour (apps minimised). Settings → Apps "Stay over a full-screen game"
+(`apps_over_full`, default on). Cost: VRR on "Automatic" pauses while an app
+is shown (MN's TV has no VRR in KDE anyway). Checked on the Arch bench (KWin
+6.8, stand-in game in full screen): `arch-test/apps/gc.sh`, all checks pass,
+including the switch off. Not checked: a real Proton game asking for full
+screen again (to watch on MN's PC).
 
 ## Testing
 

@@ -13,7 +13,7 @@ import "lootkit.js" as LK
 // when the LOOT store or the fight (ping, Odyle) changes.
 // Compact (MN, 0.8.16, design E5a): no header; the Kinah bar with Kinah and
 // worth per hour in it, and one line of values and the keys you chose
-// (the game's icon, three letters, the count).
+// (the game's icon, four letters, the count).
 Panel {
     id: win
     panelId: "farm-window"
@@ -60,6 +60,8 @@ Panel {
         property string value
         property string unit
         property color tint: Theme.text()
+        property color unitTint: Theme.muted()
+        property bool unitBold: false
         spacing: 3
         Text {
             visible: text.length > 0
@@ -77,8 +79,10 @@ Panel {
         Text {
             visible: text.length > 0
             anchors.baseline: parent.children[1].baseline
-            text: parent.unit; color: Theme.muted()
-            font.family: Theme.body; font.pixelSize: win.px
+            text: parent.unit; color: parent.unitTint
+            font.family: parent.unitBold ? Theme.display : Theme.body
+            font.pixelSize: parent.unitBold ? Math.round(12 * win.fs) : win.px
+            font.weight: parent.unitBold ? Font.Bold : Font.Normal
             style: Theme.textStyle(); styleColor: Theme.shadow
         }
     }
@@ -127,11 +131,11 @@ Panel {
         }
 
         // One line (design E5a): gold items, valuables, Odyle energy, ping,
-        // then the keys you chose (the game's icon, three letters, count);
+        // then the keys you chose (the game's icon, four letters, count);
         // it wraps when it does not fit.
         Item {
             id: values
-            readonly property bool anyValue: (!win.on("kinah") && win.on("perHour")) || win.on("gold") || win.on("odyle") || win.on("ping") || (win.dungeon && win.on("run"))
+            readonly property bool anyValue: (!win.on("kinah") && win.on("perHour")) || win.on("gold") || win.on("mats") || win.on("artwork") || win.on("orange") || win.on("valuables") || win.on("odyle") || win.on("ping") || (win.dungeon && win.on("run"))
             readonly property bool anyKey: win.on("keys") && !!win.f && win.f.keys.length > 0
             visible: anyValue || anyKey
             width: parent.width
@@ -142,41 +146,54 @@ Panel {
                 anchors.right: parent.right; anchors.rightMargin: 6
                 y: 3
                 spacing: 7
-                Pair { visible: win.dungeon && win.on("run"); label: "WTH"; value: win.f ? win.shortN(win.f.run.worth) : "" }
+                Pair { visible: win.dungeon && win.on("run"); label: "WRTH"; value: win.f ? win.shortN(win.f.run.worth) : "" }
                 Pair { visible: !win.on("kinah") && !win.dungeon && win.on("perHour"); label: "K/H"; value: win.f && win.f.perHour != null ? win.shortN(win.f.perHour) : "–" }
                 Pair {
                     visible: win.on("gold") || (win.dungeon && win.on("run"))
                     value: win.f ? String(win.dungeon ? win.f.run.gold : win.f.gold) : ""
-                    label: "GLD"
+                    label: "GOLD"
                     tint: win.f && (win.dungeon ? win.f.run.gold : win.f.gold) ? "#f2c46b" : Theme.text()
                 }
-                Pair {
-                    visible: (win.on("gold") || (win.dungeon && win.on("run"))) && !!win.f && (win.dungeon ? win.f.run.valuables : win.f.valuables) > 0
-                    value: win.f ? String(win.dungeon ? win.f.run.valuables : win.f.valuables) : ""
-                    label: "VAL"
-                    tint: "#f2c46b"
+                // Valuables in the parts MN chose (0.8.27), each on its own
+                // switch, counted per drop; VALU (the rest) only when some came.
+                Repeater {
+                    model: [["mats", "MATS", "#f2c46b"], ["artwork", "ARTW", "#f2c46b"], ["orange", "ORNG", "#ff9a4a"], ["valuables", "VALU", "#f2c46b"]]
+                    delegate: Pair {
+                        required property var modelData
+                        readonly property int n: win.f ? (win.dungeon ? win.f.run.values : win.f.values)[modelData[0]] || 0 : 0
+                        visible: win.on(modelData[0]) && !!win.f && (n > 0 || modelData[0] !== "valuables")
+                        value: String(n)
+                        label: modelData[1]
+                        tint: n ? modelData[2] : Theme.text()
+                    }
                 }
                 Row {
                     visible: win.on("odyle")
                     spacing: 3
                     Image {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: Math.round(13 * win.fs); height: width
+                        width: Math.round(17 * win.fs); height: width
                         sourceSize: Qt.size(26, 26)
                         source: "qrc:/qt/qml/GameCompanion/assets/aion2/odyle.png"
                         Accessible.ignored: true
                     }
                     Pair {
+                        // Easier to read (MN, 0.8.24): a word before it and
+                        // the charged part as bright as the energy itself.
+                        label: "ODYLE"
                         value: win.f && win.f.extras.odyle ? win.grouped(win.f.extras.odyle[0]) : "–"
                         unit: win.f && win.f.extras.odyle ? "+" + win.grouped(win.f.extras.odyle[1]) : ""
                         tint: Theme.purpleText
+                        unitTint: Theme.purpleText
+                        unitBold: true
                     }
                 }
                 Pair {
                     visible: win.on("ping")
                     value: win.f && win.f.extras.ping != null ? String(win.f.extras.ping) : "–"
                     label: "PING"
-                    tint: win.f && win.f.extras.ping > 150 ? Theme.red : Theme.text()
+                    // Green up to 100 ms, red above (MN, 0.8.24).
+                    tint: !win.f || win.f.extras.ping == null ? Theme.text() : win.f.extras.ping > 100 ? Theme.red : "#7fdc9a"
                 }
                 Rectangle {
                     visible: values.anyValue && values.anyKey

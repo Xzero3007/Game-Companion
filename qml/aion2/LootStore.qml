@@ -252,7 +252,7 @@ QtObject {
     // Modes (settings.farmMode): "always" while AION 2 runs (the default),
     // "popup" while farming (goes in a town, 10 minutes after the last gain
     // in the open world, or with its × until the next place), "off".
-    readonly property var farmRowList: [["kinah", "Kinah today"], ["perHour", "Worth per hour"], ["gold", "Gold items and valuables"], ["run", "Dungeon run"], ["keys", "Keys and tickets"], ["odyle", "Odyle energy"], ["ping", "Ping"]]
+    readonly property var farmRowList: [["kinah", "Kinah today"], ["perHour", "Worth per hour"], ["gold", "Gold items"], ["mats", "Boss materials (MATS)"], ["artwork", "Artwork and statues (ARTW)"], ["orange", "Orange items (ORNG)"], ["valuables", "Other valuables (VALU)"], ["run", "Dungeon run"], ["keys", "Keys and tickets"], ["odyle", "Odyle energy"], ["ping", "Ping"]]
     function farmMode() {
         const m = settings.farmMode
         if (m === "always" || m === "popup" || m === "off") return m
@@ -266,7 +266,10 @@ QtObject {
     property real zoneSince: 0
     property bool farmShown: false
     property bool farmDismissed: false
-    readonly property bool farmWanted: !farmDismissed && (settings.farmMode === "always" || (settings.farmMode == null && settings.farmWindow !== false) || (settings.farmMode === "popup" && farmShown))
+    /// Opened with a right-click on Loot in the game row (MN, 0.8.21): stays
+    /// in every mode, even Off, until its × or another right-click.
+    property bool farmByHand: false
+    readonly property bool farmWanted: !farmDismissed && (farmByHand || settings.farmMode === "always" || (settings.farmMode == null && settings.farmWindow !== false) || (settings.farmMode === "popup" && farmShown))
     property Timer farmIdle: Timer { interval: 600000; onTriggered: store.farmGone() }
     // Farming means gains coming in a row: the first 30 s in a place (a
     // login's or a teleport's items) don't count, then two gains open it
@@ -298,7 +301,13 @@ QtObject {
         farmDismissed = false
         farmGone()
     }
-    function dismissFarm() { farmDismissed = true; changed() }
+    function dismissFarm() { farmDismissed = true; farmByHand = false; changed() }
+    function toggleFarm() {
+        if (farmWanted) return dismissFarm()
+        farmDismissed = false
+        farmByHand = true
+        changed()
+    }
     /// Back after its × (MN, 0.8.14: "jetzt taucht es nicht auf").
     function showFarm() {
         farmDismissed = false
@@ -308,6 +317,25 @@ QtObject {
     function isGoldGrade(id) { const g = LK.C.grade(id); return g >= 4 && g < 7 && !LK.C.currency(id) }
     /// Weapons (1xx), armour (2xx) and accessories (3xx).
     function isGear(id) { return /^[123]/.test(String(id)) }
+    /// Valuables split as MN chose (0.8.27): boss materials (Ego, Will,
+    /// Mind and the orange Curse, Heartblood, Aura; Balaur scales and
+    /// leather are not), artwork and statues, orange (grade 5) of any kind,
+    /// and the rest. Counted per drop, not per piece.
+    function valueKind(id) {
+        const nm = LK.C.name(id)
+        if (/^6[136]0/.test(String(id)) && /^(Wrathful|Maddened|Rampaging) /.test(nm)) return "mats"
+        if (/^(Artwork|Statue):/.test(nm)) return "artwork"
+        return "valuables"
+    }
+    function valuesOf(list) {
+        const out = { mats: 0, artwork: 0, orange: 0, valuables: 0 }
+        for (const g of list) {
+            if (isGear(g[1])) continue
+            out[valueKind(g[1])]++
+            if (LK.C.grade(g[1]) === 5) out.orange++
+        }
+        return out
+    }
     /// What the farm window shows.
     function farmNow() {
         const d = farmDay && farmKey === currentKey() ? farmDay : null
@@ -324,10 +352,9 @@ QtObject {
         // entries no longer count either.
         const goldList = (d && d.gold || []).filter((g) => isGoldGrade(g[1]))
         const goldOf = (l) => l.filter((g) => isGear(g[1])).length
-        const valuablesOf = (l) => l.filter((g) => !isGear(g[1])).reduce((n, g) => n + (Number(g[2]) || 1), 0)
-        const gold = goldOf(goldList), valuables = valuablesOf(goldList)
+        const gold = goldOf(goldList), values = valuesOf(goldList)
         const hours = (open.active || 0) / 3600000
-        const run = { kinah: 0, gold: 0, valuables: 0, worth: 0, n: 0, from: null }
+        const run = { kinah: 0, gold: 0, values: valuesOf([]), worth: 0, n: 0, from: null }
         if (d && mode === "dungeon") for (const st of d.stints) {
             if (st.to < zoneSince - 1000 || st.zone !== Number(zone)) continue
             run.kinah += st.kinah || 0; run.gold += st.gold || 0; run.worth += st.worth || 0; run.n += st.n || 0
@@ -336,14 +363,14 @@ QtObject {
         if (run.from != null) {
             const inRun = goldList.filter((g) => g[0] >= run.from && Number(g[4]) === Number(zone))
             run.gold = goldOf(inRun)
-            run.valuables = valuablesOf(inRun)
+            run.values = valuesOf(inRun)
         }
         return {
             mode: mode, place: placeLabel(),
             kinah: d && d.counter ? d.counter.last : open.kinah, cap: LK.C.KINA_DAILY, capAt: d && d.cap ? d.cap.at : null,
             // Kinah and the loot's worth per hour of open-world farming.
             perHour: hours >= 0.05 ? (open.kinah + open.worth) / hours : null, hours: hours,
-            gold: gold, valuables: valuables, worth: worth, run: run, keys: farmKeys(), extras: farmExtras()
+            gold: gold, values: values, worth: worth, run: run, keys: farmKeys(), extras: farmExtras()
         }
     }
     /// Ping and Odyle energy, as the DPS meter's bar shows them (the engine
@@ -362,7 +389,8 @@ QtObject {
     readonly property var keyIds: ["7", "1", "8", "4", "101", "102", "103", "70000001", "80000001"]
     /// Three letters for each, so they read at a glance (MN, 0.8.16), and
     /// the matching ticket item's icon in the game.
-    readonly property var keyAbbr: ({ "7": "SHU", "1": "SHA", "8": "INV", "4": "NMR", "101": "DLY", "102": "BAL", "103": "FAF", "70000001": "SUB", "80000001": "ASC", "cube": "CUB" })
+    // Four letters each (MN, 0.8.24: easier to tell apart).
+    readonly property var keyAbbr: ({ "7": "SHUG", "1": "SHUG", "8": "INVA", "4": "NMAR", "101": "DAIL", "102": "BALA", "103": "FAFN", "70000001": "SUBJ", "80000001": "ASCE", "cube": "CUBE" })
     readonly property var keyIcon: ({
         // The golden key the game shows for the Shugo Festival (MN, 0.8.21);
         // the Invasion's keys get it too, as the game has no other found yet.
@@ -387,7 +415,7 @@ QtObject {
         const key = currentKey(), st = key ? stock(key) : null, inv = st && st.inv || {}
         let cubes = 0
         for (const id of cubeKeyIds) cubes += Number(inv[id] || inv[String(id)]) || 0
-        out.splice(3, 0, { id: "cube", abbr: "CUB", icon: keyIcon.cube, name: "Key: Hidden Cube", left: cubes, max: 0, server: false, known: !!st })
+        out.splice(3, 0, { id: "cube", abbr: keyAbbr.cube, icon: keyIcon.cube, name: "Key: Hidden Cube", left: cubes, max: 0, server: false, known: !!st })
         if (demo) for (const k of out) if (!k.known) { k.left = k.id === "cube" ? 4 : 3; k.known = true }
         return out
     }
@@ -1105,6 +1133,7 @@ QtObject {
                 const t = now - 2 * h + k * 3 * 60000
                 day = LK.F.addCounter(day, 18000 * (k + 1), t, 1, "Demo field")
                 day = LK.F.addItems(day, ev(t + 1000, pick(k % 7 === 0 ? 4 : 2, k), 1), 1, (it, n) => 20000 * n, "Demo field")
+                if (k % 10 === 3) day = LK.F.addItems(day, ev(t + 2000, [610511015, 514310198, 610511019][k / 10 | 0], 1), 1, (it, n) => 20000 * n, "Demo field")
             }
             zone = 1
             if (inDungeon) {

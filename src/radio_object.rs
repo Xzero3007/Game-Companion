@@ -40,6 +40,11 @@ pub mod qobject {
         #[qproperty(QString, tab)]
         #[qproperty(QString, country)]
         #[qproperty(QString, genre)]
+        /// JSON list of the stations that played on none of their
+        /// addresses here, last time they were tried.
+        #[qproperty(QString, dead)]
+        /// Leaves those out of the panel's list.
+        #[qproperty(bool, hide_dead)]
         type Radio = super::RadioRust;
 
         /// The station list for the panel, as JSON (no stream addresses).
@@ -74,6 +79,9 @@ pub mod qobject {
 
         #[qinvokable]
         fn set_view(self: Pin<&mut Radio>, tab: &QString, country: &QString, genre: &QString);
+
+        #[qinvokable]
+        fn set_hide_dead_to(self: Pin<&mut Radio>, hide: bool);
     }
 
     impl cxx_qt::Threading for Radio {}
@@ -90,6 +98,8 @@ pub struct RadioRust {
     tab: QString,
     country: QString,
     genre: QString,
+    dead: QString,
+    hide_dead: bool,
     player: Option<Player>,
     stream_index: usize,
     /// Counts loads, so a watchdog only acts on its own.
@@ -118,6 +128,8 @@ impl Default for RadioRust {
             tab: QString::from(&r.tab),
             country: QString::from(&r.country),
             genre: QString::from(&r.genre),
+            dead: list_json(&r.dead),
+            hide_dead: r.hide_dead,
             player: None,
             stream_index: 0,
             generation: 0,
@@ -175,6 +187,9 @@ impl qobject::Radio {
             if let Some(p) = &self.rust().player {
                 p.stop();
             }
+            if radio::station_at_fault(&why) {
+                self.as_mut().mark_dead(&id, true);
+            }
             self.set_state("failed", &why);
             return;
         };
@@ -205,7 +220,11 @@ impl qobject::Radio {
         let status = self.status().to_string();
         let active = matches!(status.as_str(), "connecting" | "playing" | "buffering");
         match event {
-            Event::Playing if active => self.set_state("playing", ""),
+            Event::Playing if active => {
+                let id = self.station().to_string();
+                self.as_mut().mark_dead(&id, false);
+                self.set_state("playing", "");
+            }
             Event::Buffering if active => self.set_state("buffering", ""),
             Event::Failed(why) if active => {
                 self.as_mut().set_why(QString::from(&why));
@@ -291,6 +310,23 @@ impl qobject::Radio {
             list.clone()
         });
         self.set_favourites(list_json(&favourites));
+    }
+
+    /// Remembers (or forgets) that a station plays on none of its addresses.
+    fn mark_dead(self: Pin<&mut Self>, id: &str, is_dead: bool) {
+        // Playing comes again after every pause for the cache: only write when it changes.
+        if settings::read(|s| s.radio.dead.iter().any(|d| d == id)) == is_dead {
+            return;
+        }
+        let changed = settings::change(|s| radio::mark_dead(&mut s.radio.dead, id, is_dead).then(|| s.radio.dead.clone()));
+        if let Some(dead) = changed {
+            self.set_dead(list_json(&dead));
+        }
+    }
+
+    fn set_hide_dead_to(mut self: Pin<&mut Self>, hide: bool) {
+        settings::change(|s| s.radio.hide_dead = hide);
+        self.as_mut().set_hide_dead(hide);
     }
 
     fn set_view(mut self: Pin<&mut Self>, tab: &QString, country: &QString, genre: &QString) {

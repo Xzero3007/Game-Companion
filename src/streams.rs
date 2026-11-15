@@ -1074,7 +1074,25 @@ pub fn youtube_channel_range(channel: &str, first: usize, last: usize) -> Result
         return Err(err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("yt-dlp failed").chars().take(300).collect());
     }
     let all: Value = serde_json::from_slice(&out.stdout).map_err(|e| e.to_string())?;
-    Ok(search_entries(&all))
+    // The channel's own name and id where an entry lacks them.
+    let name = all.get("channel").or_else(|| all.get("uploader")).and_then(Value::as_str).unwrap_or("");
+    let mut list = search_entries(&all);
+    for v in &mut list {
+        if v["channel"].as_str().is_some_and(str::is_empty) {
+            v["channel"] = json!(name);
+        }
+        if v["channelId"].as_str().is_some_and(str::is_empty) {
+            v["channelId"] = json!(channel);
+        }
+    }
+    Ok(list)
+}
+
+/// A channel's newest videos: its feed, or yt-dlp's look at its videos tab
+/// when the feed fails (some channels' feeds answer 404; MN, Level1Techs).
+/// yt-dlp's list has no dates.
+pub fn youtube_channel_newest(channel: &str, n: usize) -> Result<Vec<Value>, String> {
+    youtube_feed(channel).or_else(|e| youtube_channel_range(channel, 1, n).map_err(|_| e))
 }
 
 /// A channel picture's address as the app shows it: YouTube's picture

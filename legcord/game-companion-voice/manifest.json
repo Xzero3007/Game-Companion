@@ -1,0 +1,9 @@
+{
+  "id": "game-companion-voice",
+  "name": "Game Companion voice overlay",
+  "version": "1.0.0",
+  "description": "Tells Game Companion on this PC who is in your voice channel and who is talking. Reads only; sends nothing anywhere else.",
+  "author": "Game Companion",
+  "main": "main.mjs",
+  "renderer": "renderer.js"
+}

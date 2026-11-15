@@ -193,20 +193,30 @@ Item {
     readonly property int boost: Streams.videoBoost
     onBoostChanged: if (video) video.volume = mpvVolume(volume)
     // Stuck: the time stands still for 4 seconds while it should play (20
-    // while it loads): a fresh address from yt-dlp (or Streamlink), at the
-    // same spot. Three tries in a row, then it says so.
+    // while it loads, 65 for YouTube, none while YouTube holds it back): a
+    // fresh address from yt-dlp (or Streamlink), at the same spot. Three
+    // tries in a row, then it says so.
     property real lastPosition: -1
     property int stillFor: 0
     property int tries: 0
     property int goodFor: 0
     property bool reconnecting: false
+    // YouTube serves a video only once its ad would have run; mpv waits that
+    // long (it says so, video.heldUntil) and the watchdog waits with it.
+    property real nowMs: 0
+    readonly property int heldFor: video.heldUntil > 0 ? Math.max(0, Math.ceil((video.heldUntil - nowMs) / 1000)) : 0
     Timer {
         interval: 1000
         repeat: true
         running: win.active && win.item.kind !== "file" && !video.paused
             && (video.state === "playing" || video.state === "buffering" || video.state === "loading")
-        onRunningChanged: { win.stillFor = 0; win.lastPosition = video.position }
+        onRunningChanged: { win.stillFor = 0; win.lastPosition = video.position; win.nowMs = Date.now() }
         onTriggered: {
+            win.nowMs = Date.now()
+            if (video.state === "loading" && win.heldFor > 0) {
+                win.stillFor = 0
+                return
+            }
             if (Math.abs(video.position - win.lastPosition) > 0.05 && video.state !== "loading") {
                 win.lastPosition = video.position
                 win.stillFor = 0
@@ -216,7 +226,10 @@ Item {
             }
             win.goodFor = 0
             win.stillFor++
-            if (win.stillFor >= (video.state === "loading" ? 20 : 4)) win.reconnect()
+            // Loading: an mpv older than 0.42 doesn't wait for YouTube by
+            // itself, ffmpeg knocks again for up to about a minute instead.
+            const youtube = win.item && win.item.kind === "youtube"
+            if (win.stillFor >= (video.state === "loading" ? (youtube ? 65 : 20) : 4)) win.reconnect()
         }
     }
     function reconnect() {
@@ -566,6 +579,7 @@ Item {
         property bool drawable: true
         property var chapters: []
         property real speed: 1
+        property real heldUntil: 0
         function play(url, format, start, header) { return false }
         function setTrack(kind, id) {}
         function addSubtitle(url) {}
@@ -581,6 +595,7 @@ Item {
         wrapMode: Text.WordWrap
         text: win.failure.length > 0 ? win.failure
             : win.playState === "failed" ? "Doesn't play: " + video.error
+            : win.playState === "loading" && win.heldFor > 0 ? "YouTube holds it back for its ad · starts in " + win.heldFor + " s"
             : win.reconnecting ? "RECONNECTING…"
             : win.playState === "loading" || win.preparing ? "LOADING…"
             : win.label.toUpperCase() + " VIDEO"
@@ -598,7 +613,7 @@ Item {
         enabled: !Companion.locked
     }
     readonly property bool barsWanted: pointerOn.hovered || qualityPicker.open || opacityPicker.open || audioPicker.open || subtitlePicker.open
-        || speedPicker.open || chapterPicker.open
+        || speedPicker.open || chapterPicker.open || playlistPicker.open
     onBarsWantedChanged: if (!barsWanted) barsLinger.restart()
     Timer { id: barsLinger; interval: 700 }
 
@@ -619,7 +634,7 @@ Item {
     onShowBarsChanged: if (!showBars) closePickers()
     function closePickers() {
         qualityPicker.open = false; opacityPicker.open = false; audioPicker.open = false; subtitlePicker.open = false
-        speedPicker.open = false; chapterPicker.open = false
+        speedPicker.open = false; chapterPicker.open = false; playlistPicker.open = false
     }
     /// The chapter at a time ("" none).
     function chapterAt(t) {
@@ -743,6 +758,11 @@ Item {
                 color: on ? Theme.accent : Theme.muted()
                 tip: on ? "Remove from the bookmark list" : "Bookmark"
                 onClicked: Library.toggleQuick(win.videoJson())
+            }
+            TrackButton {
+                visible: !!win.item && win.item.kind === "youtube"
+                text: "PLAYLIST"
+                picker: playlistPicker
             }
             TrackButton {
                 visible: win.jelly && !!win.jf.tracks && win.jf.tracks.audio.length > 1
@@ -1014,7 +1034,7 @@ Item {
             onClicked: { const o = !parent.picker.open; win.closePickers(); parent.picker.open = o }
         }
         Accessible.role: Accessible.ComboBox
-        Accessible.name: text === "SOUND" ? "Sound track" : "Subtitles"
+        Accessible.name: text === "SOUND" ? "Sound track" : text === "PLAYLIST" ? "Add to playlist" : text === "SUBS" ? "Subtitles" : text
     }
 
     component SeekButton: Item {
@@ -1134,6 +1154,33 @@ Item {
         options: video.chapters.map((c, i) => ({ id: String(i), name: win.clock(c.time) + "  " + (c.title || "Chapter " + (i + 1)) }))
         current: { let at = -1; video.chapters.forEach((c, i) => { if (c.time <= video.position) at = i }); return String(at) }
         onChosen: (id) => video.seek(video.chapters[Number(id)].time, false)
+    }
+    // The video into one of the playlists or out (✓ = in it), or a new one.
+    Picker {
+        id: playlistPicker
+        anchors.right: parent.right
+        anchors.rightMargin: 36
+        y: 36
+        width: Math.min(260, win.width - 48)
+        maxHeight: win.height - y - 44
+        options: {
+            if (!open || !win.item || win.item.kind !== "youtube" || Library.revision < 0) return []
+            const lists = JSON.parse(Library.mark(win.item.id)).lists
+            return JSON.parse(Library.playlists).map((p) => ({ id: "to:" + p.id, name: (lists.indexOf(p.id) >= 0 ? "✓ " : "") + p.name }))
+                .concat([{ id: "new", name: "+ New playlist" }])
+        }
+        onChosen: (id) => {
+            if (!win.item) return
+            const json = win.videoJson()
+            if (id === "new") {
+                const pid = Library.create("Playlist " + (JSON.parse(Library.playlists).length + 1))
+                if (pid) Library.addTo(pid, json)
+            } else if (id.indexOf("to:") === 0) {
+                const pid = id.slice(3)
+                if (JSON.parse(Library.mark(win.item.id)).lists.indexOf(pid) >= 0) Library.removeFrom(pid, win.item.id)
+                else Library.addTo(pid, json)
+            }
+        }
     }
     Picker {
         id: speedPicker

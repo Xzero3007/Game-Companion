@@ -77,7 +77,10 @@ learnt, so nothing has to be asked or worked out again.
   or 15 while a boss alert waits; src/aion2timers.rs; the person,
   2026-11-13); the Armory's NC character pages (aion2.plaync.com,
   api-search.plaync.com, profileimg.plaync.com; read only, no account;
-  src/armory.rs `allowed`; MN, 2026-11-13). Brave Origin and Legcord are the
+  src/armory.rs `allowed`; MN, 2026-11-13). The Legcord voice overlay
+  (MN, 2026-11-14) opens no connection at all: its Legcord plugin talks to
+  Game Companion over a Unix socket; avatars are fetched by Legcord itself
+  (its session, cdn.discordapp.com, as it does anyway). Brave Origin and Legcord are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
 - **Game modules only read** (like the AION 2 meter): never send anything to
@@ -109,10 +112,12 @@ learnt, so nothing has to be asked or worked out again.
    category and YouTube search words; the Streams panel's first tab is the
    running game's (purple tag). Until game detection, AION 2 by default and
    changeable by hand.
-3. Brave Origin and Legcord: **on hold** (the person, 2026-11-12). Options
-   known: steer their real windows by KWin rules (as meter patch 0050), or
-   try a nested Wayland compositor (Qt Wayland Compositor) to show them
-   inside the app; test first.
+3. Brave Origin and Legcord (the person, 2026-11-14; plan and mockups in
+   the project folder `brave-legcord-plan.md`, `mockups/brave-legcord/`):
+   their real windows shown over the game by KWin scripts; bar buttons
+   BRAVE and LEGCORD next to TV (variant A), right-click menu (C1),
+   Alt+B / Alt+N; only over the game (no "screen 2"), they need not behave
+   like the overlay's parts, and Game Companion draws nothing for them.
 4. Game detection with autostart (as meter patch 0037: `/proc` every 3 s, a
    list of process names per game, Proton/Steam, Lutris, Heroic). AION 2 and
    Path of Exile 2 (PoE 2 brings its own helper programs: plan them then).
@@ -209,6 +214,10 @@ learnt, so nothing has to be asked or worked out again.
   on a socket, `--ytdl=no`, killed with the app through PR_SET_PDEATHSIG);
   `Player::load` refuses any address whose host is not in the station
   list. mpv's volume is cubic: `mpv_volume` maps the bar like a browser.
+  A station that plays on none of its addresses is remembered
+  (`settings.radio.dead`), greyed and listed last, hidden by the switch
+  right of the tabs (`hide_dead`); playing again clears it (MN,
+  2026-11-14).
 - Hub hidden (`Companion.shown` false): the bar, the welcome and settings go;
   panels and the player row stay if their id is in `pins`. Locked with the
   hub hidden, nothing takes clicks (Alt+Q / Alt+Y still work).
@@ -262,7 +271,13 @@ learnt, so nothing has to be asked or worked out again.
   `forward`). Videos: a watchdog reloads at the same spot after 4 s
   without progress (20 s loading, three tries); full screen fills the
   scene (z 100, Esc); SponsorBlock in `src/sponsorblock.rs`, segments by
-  `Streams.loadSegments`. Under xvfb (llvmpipe) a large video shows
+  `Streams.loadSegments`. YouTube serves a stream only once the ad it
+  would show first has run (yt-dlp's `available_at`, the ad's length; MN,
+  0.8.33: "Stuck" after three reloads): mpv 0.42's ytdl hook waits and logs
+  "Waiting N seconds…" (log level info, `MpvVideo.heldUntil`), the watchdog
+  waits with it and shows a countdown; for older mpv ffmpeg knocks again
+  for about a minute (`reconnect_delay_max=40`) and loading may take 65 s.
+  Under xvfb (llvmpipe) a large video shows
   stripes after some seconds (also without resizing): most likely a
   software-GL artifact; to be checked on the person's GPU. `GC_SCREENSHOT_DELAY` sets the screenshot's moment.
 - Jellyfin (`src/jellyfin.rs`, `src/jellyfin_object.rs`, the `Jellyfin`
@@ -336,13 +351,13 @@ learnt, so nothing has to be asked or worked out again.
   ways tried (`TWITCH_WAY`, e.g. the directory query's refusal); why a page failed shows under the
   list, `twitchMoreNote`;
   YouTube pages too: `load_more_youtube`, yt-dlp `--playlist-items`,
-  subscriptions 60 a page from the kept 200), channel pictures (0.8.4:
+  subscriptions 60 a page from the kept 300; each channel's feed gives its newest 15, a feed that fails is asked once more after 3 s, the rest shows as "N channels didn't answer", MN 0.8.33; each channel's last feed is kept in ~/.cache/game-companion/youtube-feeds.json: shown at once, not asked again within 15 minutes, kept when its feed fails, ↻ asks all, `FEEDS_FORCED`; some channels' feeds answer 404 for good (Level1Techs): yt-dlp looks at their videos tab instead, `youtube_channel_newest`, in Subscriptions at most 12 channels, 5 videos each, without dates), channel pictures (0.8.4:
   once per channel, FreeTube's profiles file first, else yt-dlp
   `--playlist-items 0` on the channel page, `streams::channel_picture`;
   settings `channel_pictures`, the `channelPictures` property, shown
   square in the Channels list; yt3.ggpht.com only), quality per channel, live notes (a thread every 120 s while
   on, generation `ALERTS_RUN`; red count, no pop-up). Videos: chapters
-  (mpv `chapter-list`), speed, queue (playlists played through, shuffle,
+  (mpv `chapter-list`), speed, "PLAYLIST ▾" (into a playlist or out), queue (playlists played through, shuffle,
   loop). `GC_DEMO=streams,yt-<view>` / `tw-<view>`, `news`, `groups`,
   `ytsettings`.
 - Twitch chat (`cpp/twitchchat.cpp`, `TwitchChat` in `GameCompanion.Chat`;
@@ -380,6 +395,60 @@ learnt, so nothing has to be asked or worked out again.
   delta too, which was taken for a touchpad (MN: scrolled far too little).
   Settings → Display "Scroll speed" (`Companion.wheelSpeed`, 50 to 500 %)
   scales every step. `GC_DEMO=settings,display`.
+- Brave and Legcord (`src/apps.rs`, `src/apps_object.rs`, the `Apps`
+  singleton; HudBar's `AppButton` and menu, Settings → Apps): a watcher
+  KWin script (loaded over `org.kde.KWin /Scripting`, name
+  `game-companion-apps`, only signals, no timer) reports the apps' windows
+  and every focus change by `callDBus` to this process's own unique bus
+  name (object `/io/github/xzero3007/GameCompanion/Apps`; calls from
+  anyone but KWin's owner are ignored); each action is a one-off script
+  (`command_script`: loaded, run, says "Done", unloaded) run on the
+  `apps-kwin` worker thread. Show: unminimise, keepAbove, opacity, place
+  on the overlay's screen (`nativeWindow.screenName`, place relative to it,
+  kept when moved by hand), focus. Hide: minimise, focus back to the last
+  other window. KWin 6.8 (Arch bench, 2026-11-14): a real full-screen game
+  with the focus lies over keep-above windows (ActiveLayer); a borderless
+  game window does not, and Proton marks a "borderless" game as full screen
+  too (MN, 2026-11-14). So while an app is shown, the game's window on its
+  screen loses its full-screen mark (`unfull_body`: same size, no border;
+  again when the game asks for it, the watcher's `full` event, at most 5
+  times per show) and gets it back when no app is shown (`refull_body`,
+  `Runtime.unfull`, also on game end and quit). Settings → Apps "Stay over
+  a full-screen game" (settings `apps_over_full`, default on); off, a
+  full-screen game taking the focus minimises the apps on its screen. Game ended or app quits: each moved window back
+  as it was (`Before`); `apps::quit` (main, after Qt) also closes what Game
+  Companion started (SIGTERM, SIGKILL after 3 s) unless "Close it when Game
+  Companion quits" is off; one the person started is never closed. Windows
+  match by app id or class prefix (`brave`, `legcord`; Chromium site apps
+  left out). `GC_DEMO=apps[,appmenu][,settings,appsettings]`. Check on the
+  Arch bench: `arch-test/apps/` (stand-in windows, `test.sh`).
+- Legcord voice overlay (MN, 2026-11-14; mockups and plan in the project
+  folder `legcord-voice-plan.md`, `mockups/legcord-voice/`; N1 is the
+  default, N2 to N5 are choices): `legcord/game-companion-voice/` is a
+  Legcord plugin (Legcord 1.3's own plugin system, folder
+  `~/.config/legcord/plugins/game-companion-voice`, switched on by the
+  person in Legcord: in 1.3.1 its Plugins page shows only after Settings →
+  Advanced → "Show experimental plugin menu"; "Extended plugin abilities"
+  is not needed). Its renderer part reads Discord's stores by name
+  through Legcord's built-in Shelter (`shelter.flux.storesFlat`:
+  SelectedChannelStore, VoiceStateStore, SpeakingStore, UserStore,
+  ChannelStore, GuildMemberStore; reports what it misses as `check`), and
+  its main part gets that through a DevTools binding `gcVoice` (fallback: a
+  console line tagged `\u0001gcvoice `). It hands it to Game Companion over
+  `$XDG_RUNTIME_DIR/game-companion-voice.sock`. Legcord cancels WebSockets
+  to localhost (except 1211, 1112, 6888) and its strict CSP leaves
+  127.0.0.1 out, so there is no TCP. `src/voice_overlay.rs`: socket
+  (peer uid checked), JSON lines `hello`/`check`/`state`/`picture`,
+  avatars written as PNG to `$XDG_RUNTIME_DIR/game-companion-voice/`,
+  shown by file URL (Qt's Image took no `data:` URL); plugin files built
+  in (`include_str!`), "Install plugin" writes them, every start refreshes
+  an installed copy. `src/voice_object.rs`: the `VoiceChat` singleton
+  (`state`, `pictures`, `prefs` = settings `voice`). `qml/VoiceOverlay.qml`:
+  its own surface, with the hub or without, no ground by default, moved
+  while unlocked; one single-shot timer only while a talk mark fades
+  ("Stays after talking"). `GC_DEMO=voice`. Check end to end: Electron 44
+  with Legcord's loader and a made-up Discord page (project folder
+  `mockups/legcord-voice/e2e/`).
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
 - Video loudness (MN, 2026-11-14: videos quieter than the radio, which is

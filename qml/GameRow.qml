@@ -37,6 +37,7 @@ Item {
     property bool lootShown: false
     property bool lootOpen: false
     signal lootClicked
+    signal lootRightClicked
 
     property bool armoryShown: false
     property bool armoryOpen: false
@@ -151,8 +152,9 @@ Item {
             icon: "loot"
             label: "Loot"
             active: strip.lootOpen
-            tip: strip.gameName + ": items, drops, Closet and Shugo Cards (listens only)"
+            tip: strip.gameName + ": items, drops, Closet and Shugo Cards (listens only; right-click: the farm window)"
             onClicked: strip.lootClicked()
+            onRightClicked: strip.lootRightClicked()
         }
         GameButton {
             visible: strip.armoryShown
