@@ -11586,7 +11586,7 @@ var EE2 = (() => {
     constructor(max, window2) {
       this.max = max;
       this.window = window2;
-      __publicField(this, "stack", (0, import_vue3.shallowReactive)([]));
+      __publicField(this, "stack", []);
       __publicField(this, "queue", (0, import_vue3.shallowRef)(0));
       __publicField(this, "_destroyed", false);
     }

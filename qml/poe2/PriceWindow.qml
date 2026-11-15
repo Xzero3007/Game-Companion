@@ -45,6 +45,8 @@ Panel {
         const names = { exalted: "ex", divine: "div", chaos: "chaos", "no price": "no price" }
         return names[c] || c
     }
+    // A stat's value as the game shows it (18.8 stays 18.8).
+    function statAmount(n) { return String(Math.round(n * 100) / 100) }
     function amount(n) { return Math.abs(n) < 10 ? String(Math.round(n * 100) / 100) : String(Math.round(n)) }
     function statusColour(s) { return s === "online" ? Theme.accent : s === "afk" ? Theme.muted() : "#5b5862" }
 
@@ -178,7 +180,7 @@ Panel {
                                 // EE2's stat texts leave out the game's "+" ("# to
                                 // Accuracy Rating"): a positive flat "to" gets it back.
                                 text: (modelData.value > 0 ? modelData.text.replace(/^#(%?) to /, "+#$1 to ") : modelData.text)
-                                    .replace(/#/g, modelData.value !== null ? win.amount(modelData.value) : "#")
+                                    .replace(/#/g, modelData.value !== null ? win.statAmount(modelData.value) : "#")
                                     + (modelData.hidden ? "  <font color=\"#8d8996\">(" + modelData.hidden + ")</font>" : "")
                                 textFormat: Text.StyledText
                                 color: modelData.disabled ? Theme.muted() : Theme.text()
@@ -191,7 +193,7 @@ Panel {
                                 anchors.right: parent.right
                                 anchors.verticalCenter: parent.verticalCenter
                                 visible: !modelData.disabled && modelData.min !== null
-                                text: "≥ " + (modelData.min !== null ? win.amount(modelData.min) : "")
+                                text: "≥ " + (modelData.min !== null ? win.statAmount(modelData.min) : "")
                                 color: Theme.accent
                                 font.family: Theme.display
                                 font.pixelSize: 13
