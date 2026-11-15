@@ -163,12 +163,18 @@ fn spawn(command: &str, home: Option<&Path>) -> Option<(i32, u64)> {
     match cmd.spawn() {
         Ok(mut child) => {
             let pid = child.id() as i32;
-            std::thread::spawn(move || child.wait());
+            let name = Path::new(program).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            crate::log::write("child", &format!("started {name} (pid {pid})"));
+            std::thread::spawn(move || {
+                let status = child.wait();
+                crate::log::write("child", &format!("{name} (pid {pid}) ended: {}", status.map(|s| s.to_string()).unwrap_or_else(|e| e.to_string())));
+            });
             let start = stat(Path::new("/proc"), pid).map(|(_, s)| s).unwrap_or(0);
             Some((pid, start))
         }
         Err(e) => {
             eprintln!("game-companion: cannot start {program}: {e}");
+            crate::log::write("child", &format!("cannot start {program}: {e}"));
             None
         }
     }

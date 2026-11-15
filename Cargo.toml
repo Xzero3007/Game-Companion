@@ -1,6 +1,6 @@
 [package]
 name = "game-companion"
-version = "0.8.37"
+version = "0.8.51"
 edition = "2021"
 license = "GPL-3.0-or-later"
 description = "An overlay for every game on Linux (KDE Plasma, Wayland)"
@@ -26,6 +26,11 @@ zbus = { version = "5", default-features = false, features = ["async-io", "block
 ksni = { version = "0.3", default-features = false, features = ["async-io", "blocking"] }
 rusqlite = { version = "0.42.0", features = ["bundled"] }
 aion2 = { path = "crates/aion2", features = ["live"] }
+# PoE 2 price check: XWayland's clipboard (XFixes), pure Rust (no libxcb).
+x11rb = { version = "0.13", default-features = false, features = ["xfixes"] }
+# PoE 2 price check: Exiled Exchange 2's code runs in QuickJS in a child
+# process (Qt's JavaScript crashed in it, MN 0.8.44).
+rquickjs = "0.9"
 
 [workspace]
 members = [".", "crates/aion2"]

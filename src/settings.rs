@@ -86,6 +86,9 @@ pub struct Settings {
     /// The voice overlay's choices (Settings → Apps → Legcord), as QML
     /// keeps them (`qml/VoiceOverlay.qml`); empty takes the defaults.
     pub voice: serde_json::Map<String, serde_json::Value>,
+    /// The PoE 2 price check's choices (league, on), as QML keeps them
+    /// (`qml/poe2/PriceStore.qml`); empty takes the defaults.
+    pub poe2: serde_json::Map<String, serde_json::Value>,
 }
 
 /// One plugin's choice: on or off, and where its button sits.
@@ -183,6 +186,12 @@ pub struct StreamsSettings {
     pub video_boost: u8,
     /// Quiet and loud passages of videos evened out (mpv's dynaudnorm).
     pub even_loudness: bool,
+    /// YouTube: the next video in the list it was started from plays by
+    /// itself at the end (the player's AUTOPLAY switch; MN, 2026-11-15).
+    pub autoplay: bool,
+    /// A video window closes at the end when nothing follows (Settings →
+    /// Streams → Videos; MN, 2026-11-15).
+    pub close_at_end: bool,
     /// The lists as tiles side by side (true) or as rows.
     pub grid: bool,
     /// How much of each video window shows, in percent (50 to 100), by slot.
@@ -201,6 +210,11 @@ pub struct StreamsSettings {
     /// Videos whose title or channel is written in an Indian script left
     /// out (the person, 2026-11-13).
     pub hide_indian: bool,
+    /// Each YouTube list's order, by view ("game": "relevance", "date" or
+    /// "views", asked of YouTube; the others sorted as loaded: "newest",
+    /// "oldest", "longest", "shortest", "own"). A view not in it keeps its
+    /// own default (MN, 0.8.43).
+    pub sorts: BTreeMap<String, String>,
     /// FreeTube's subscriptions are read from its file as they are (until
     /// they are taken over: then only `channels` count).
     pub freetube_live: bool,
@@ -266,6 +280,8 @@ impl Default for StreamsSettings {
             volume: 70,
             video_boost: 0,
             even_loudness: false,
+            autoplay: false,
+            close_at_end: false,
             grid: true,
             video_opacity: BTreeMap::new(),
             sponsorblock: Default::default(),
@@ -275,6 +291,7 @@ impl Default for StreamsSettings {
             hidden_channels: Vec::new(),
             hidden_words: Vec::new(),
             hide_indian: true,
+            sorts: BTreeMap::new(),
             freetube_live: true,
             group: String::new(),
             search: SearchFilter::default(),
@@ -424,6 +441,7 @@ impl Default for Settings {
             apps: BTreeMap::new(),
             apps_over_full: true,
             voice: serde_json::Map::new(),
+            poe2: serde_json::Map::new(),
         }
     }
 }

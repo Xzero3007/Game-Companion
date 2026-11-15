@@ -52,6 +52,18 @@ pub fn valid_channel_id(id: &str) -> bool {
     id.len() == 24 && id.starts_with("UC") && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
+/// A channel id as YouTube's feeds now give it at their top: without its
+/// "UC" (MN, 0.8.40: "Go to channel" said "not a YouTube channel"). Gives
+/// the full id, or the text as it was.
+pub fn full_channel_id(id: &str) -> String {
+    let id = id.trim();
+    if !valid_channel_id(id) && id.len() == 22 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        format!("UC{id}")
+    } else {
+        id.to_string()
+    }
+}
+
 /// The address mpv plays: a Twitch channel's page or a YouTube video's.
 pub fn stream_url(kind: &str, id: &str) -> Result<String, String> {
     match kind {
@@ -571,7 +583,10 @@ pub fn search_entries(all: &Value) -> Vec<Value> {
                 "views": e.get("view_count").and_then(Value::as_u64).unwrap_or(0),
                 "live": e.get("live_status").and_then(Value::as_str) == Some("is_live"),
                 "short": e.get("url").and_then(Value::as_str).is_some_and(|u| u.contains("/shorts/")),
-                "published": "",
+                // yt-dlp's rough date from YouTube's "3 days ago" (English
+                // only; `approximate_date`).
+                "published": e.get("timestamp").and_then(Value::as_u64).and_then(|t| crate::library::iso_of_ms(t * 1000)).unwrap_or_default(),
+                "rough": e.get("timestamp").and_then(Value::as_u64).is_some(),
                 "picture": format!("https://i.ytimg.com/vi/{id}/mqdefault.jpg"),
             }))
         })
@@ -646,12 +661,6 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
-/// YouTube's search through yt-dlp: the first 20 videos, newest uploads
-/// first if asked (YouTube's results page sorted by upload date).
-pub fn youtube_search(text: &str, newest: bool, lang: &str) -> Result<Vec<Value>, String> {
-    youtube_search_with(text, if newest { "CAI%3D" } else { "" }, 20, lang)
-}
-
 /// The video languages one can choose (YouTube's own codes), with the word
 /// that makes a search find videos in that language ("" none needed).
 pub const VIDEO_LANGUAGES: [(&str, &str); 8] =
@@ -696,6 +705,7 @@ pub fn youtube_search_range(text: &str, sp: &str, first: usize, last: usize, lan
     };
     let mut cmd = Command::new("yt-dlp");
     cmd.args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-items", &format!("{first}-{last}"), "--dump-single-json"]);
+    cmd.args(["--extractor-args", "youtubetab:approximate_date"]);
     if valid_language(lang) && lang != "en" {
         cmd.args(["--extractor-args", &format!("youtube:lang={lang}")]);
     }
@@ -828,7 +838,7 @@ fn xml_unescape(s: &str) -> String {
 /// A channel's public feed (Atom) as videos, newest first.
 pub fn parse_feed(xml: &str) -> Vec<Value> {
     let channel = xml_text(xml, "author").and_then(|a| xml_text(a, "name")).map(xml_unescape).unwrap_or_default();
-    let channel_id = xml_text(xml, "yt:channelId").unwrap_or("").to_string();
+    let channel_id = full_channel_id(xml_text(xml, "yt:channelId").unwrap_or(""));
     xml.split("<entry>")
         .skip(1)
         .filter_map(|entry| {
@@ -837,6 +847,8 @@ pub fn parse_feed(xml: &str) -> Vec<Value> {
                 return None;
             }
             let short = entry.contains("/shorts/");
+            // An entry's own id where it has one (it keeps its "UC").
+            let channel_id = xml_text(entry, "yt:channelId").map(full_channel_id).filter(|c| valid_channel_id(c)).unwrap_or_else(|| channel_id.clone());
             Some(json!({
                 "id": id,
                 "short": short,
@@ -1065,7 +1077,8 @@ pub fn youtube_channel_range(channel: &str, first: usize, last: usize) -> Result
     }
     let out = run_with_timeout(
         Command::new("yt-dlp")
-            .args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-items", &format!("{}-{}", first.max(1), last.clamp(1, 600)), "--dump-single-json", "--"])
+            .args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-items", &format!("{}-{}", first.max(1), last.clamp(1, 600)), "--dump-single-json"])
+            .args(["--extractor-args", "youtubetab:approximate_date", "--"])
             .arg(format!("https://www.youtube.com/channel/{channel}/videos")),
         Duration::from_secs(40),
     )?;
@@ -1088,9 +1101,43 @@ pub fn youtube_channel_range(channel: &str, first: usize, last: usize) -> Result
     Ok(list)
 }
 
+/// When one video came out, as an ISO date (exact time where YouTube gives
+/// it): yt-dlp's look at the video itself, for a video its channel's feed no
+/// longer holds (a channel that uploads a lot; MN, tagesschau). Asked as the
+/// player that plays videos here; missing formats don't matter.
+pub fn youtube_video_date(id: &str) -> Result<String, String> {
+    if !valid_video_id(id) {
+        return Err("not a YouTube video".into());
+    }
+    let out = run_with_timeout(
+        Command::new("yt-dlp")
+            .args(["--ignore-config", "--no-warnings", "--skip-download", "--no-playlist", "--ignore-no-formats-error"])
+            .args(["--extractor-args", "youtube:player_client=visionos"])
+            .args(["--print", "%(timestamp)s %(upload_date)s", "--"])
+            .arg(format!("https://www.youtube.com/watch?v={id}")),
+        Duration::from_secs(40),
+    )?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        return Err(err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("yt-dlp failed").chars().take(300).collect());
+    }
+    video_date_of(&String::from_utf8_lossy(&out.stdout)).ok_or_else(|| "no date".into())
+}
+
+/// yt-dlp's "<timestamp> <upload_date>" (either may be "NA") as ISO.
+pub fn video_date_of(line: &str) -> Option<String> {
+    let mut parts = line.split_whitespace();
+    let stamp = parts.next().unwrap_or("NA");
+    let day = parts.next().unwrap_or("NA");
+    if let Some(iso) = stamp.parse::<u64>().ok().and_then(|t| crate::library::iso_of_ms(t.saturating_mul(1000))) {
+        return Some(iso);
+    }
+    (day.len() == 8 && day.bytes().all(|b| b.is_ascii_digit())).then(|| format!("{}-{}-{}", &day[..4], &day[4..6], &day[6..]))
+}
+
 /// A channel's newest videos: its feed, or yt-dlp's look at its videos tab
 /// when the feed fails (some channels' feeds answer 404; MN, Level1Techs).
-/// yt-dlp's list has no dates.
+/// yt-dlp's list has rough dates only.
 pub fn youtube_channel_newest(channel: &str, n: usize) -> Result<Vec<Value>, String> {
     youtube_feed(channel).or_else(|e| youtube_channel_range(channel, 1, n).map_err(|_| e))
 }
@@ -1177,7 +1224,14 @@ pub fn youtube_feed(channel: &str) -> Result<Vec<Value>, String> {
     let mut config = curl_base();
     config.push_str(&format!("url = \"https://www.youtube.com/feeds/videos.xml?channel_id={channel}\"\n"));
     let bytes = curl(&config, Duration::from_secs(25)).map_err(|e| format!("YouTube: {e}"))?;
-    Ok(parse_feed(&String::from_utf8_lossy(&bytes)))
+    let mut list = parse_feed(&String::from_utf8_lossy(&bytes));
+    // The channel asked for is the one that answered.
+    for v in &mut list {
+        if !v["channelId"].as_str().is_some_and(valid_channel_id) {
+            v["channelId"] = json!(channel);
+        }
+    }
+    Ok(list)
 }
 
 /// The twitch.tv `auth-token` as pasted (with or without "OAuth ").
@@ -1320,6 +1374,39 @@ pub fn indian_script(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn video_dates_from_ytdlp() {
+        assert_eq!(video_date_of("NA 20261110\n").as_deref(), Some("2026-11-10"));
+        assert!(video_date_of("1762770000 20251110").is_some_and(|d| d.starts_with("2025-11-10")));
+        assert_eq!(video_date_of("NA NA"), None);
+        assert_eq!(video_date_of(""), None);
+    }
+
+    #[test]
+    fn channel_ids_in_full() {
+        assert_eq!(super::full_channel_id("Xa4hXRHFYlbg_3A5Vh1Jbw"), "UCXa4hXRHFYlbg_3A5Vh1Jbw");
+        assert_eq!(super::full_channel_id("UCXa4hXRHFYlbg_3A5Vh1Jbw"), "UCXa4hXRHFYlbg_3A5Vh1Jbw");
+        assert_eq!(super::full_channel_id("not one"), "not one");
+        // The feed's top gives the id without "UC"; an entry's own id wins.
+        let xml = "<feed><yt:channelId>Xa4hXRHFYlbg_3A5Vh1Jbw</yt:channelId><author><name>A</name></author>\
+            <entry><yt:videoId>dQw4w9WgXcQ</yt:videoId><title>T</title><published>2026-11-14T08:00:00+00:00</published></entry></feed>";
+        let v = super::parse_feed(xml);
+        assert_eq!(v[0]["channelId"], "UCXa4hXRHFYlbg_3A5Vh1Jbw");
+    }
+
+    #[test]
+    fn rough_dates_from_ytdlp() {
+        let all = serde_json::json!({ "entries": [
+            { "id": "dQw4w9WgXcQ", "title": "A", "timestamp": 1_700_000_000u64, "duration": 212.0 },
+            { "id": "aaaaaaaaaaa", "title": "B" }
+        ] });
+        let list = super::search_entries(&all);
+        assert_eq!(list[0]["published"], "2023-11-14T22:13:20Z");
+        assert_eq!(list[0]["rough"], true);
+        assert_eq!(list[1]["published"], "");
+        assert_eq!(list[1]["rough"], false);
+    }
+
     #[test]
     fn finds_indian_scripts() {
         assert!(super::indian_script("Minecraft लाइव स्ट्रीम"));
@@ -1513,7 +1600,7 @@ mod tests {
         let cards = twitch_cards(&twitch(&twitch_query("live", &json!("Just Chatting")).unwrap(), None).unwrap());
         assert!(!cards.is_empty(), "no live streams");
         assert!(cards[0]["live"].as_bool().unwrap());
-        let found = youtube_search("aion 2", true, "").unwrap();
+        let found = youtube_search_with("aion 2", "CAI%3D", 20, "").unwrap();
         assert!(!found.is_empty());
         let channel = found.iter().find_map(|v| v["channelId"].as_str().filter(|c| valid_channel_id(c))).unwrap().to_string();
         assert!(!youtube_feed(&channel).unwrap().is_empty());

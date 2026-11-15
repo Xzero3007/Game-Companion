@@ -62,6 +62,10 @@ pub mod qobject {
         #[qproperty(i32, video_boost)]
         /// Videos' quiet and loud passages evened out.
         #[qproperty(bool, even_loudness)]
+        /// YouTube: the next video in the list plays by itself at the end.
+        #[qproperty(bool, autoplay)]
+        /// A video window closes at the end when nothing follows.
+        #[qproperty(bool, close_at_end)]
         /// YouTube lists: what is left out. JSON `{"shorts", "watched",
         /// "channels": [{id, name}], "words": [..]}`.
         #[qproperty(QString, filters)]
@@ -170,6 +174,14 @@ pub mod qobject {
         #[qinvokable]
         fn save_even_loudness(self: Pin<&mut Streams>, on: bool);
 
+        /// The YouTube player's AUTOPLAY switch.
+        #[qinvokable]
+        fn save_autoplay(self: Pin<&mut Streams>, on: bool);
+
+        /// Settings → Streams → Videos "Close the player when nothing follows".
+        #[qinvokable]
+        fn save_close_at_end(self: Pin<&mut Streams>, on: bool);
+
         /// How much of a video window shows, in percent (50 to 100).
         #[qinvokable]
         fn opacity_of(self: &Streams, slot: &QString) -> i32;
@@ -208,6 +220,10 @@ pub mod qobject {
         /// Leaves Shorts out of the YouTube lists, or not.
         #[qinvokable]
         fn set_hide_shorts(self: Pin<&mut Streams>, on: bool);
+        /// A YouTube list's order (`filters.sorts`); the game's search is
+        /// asked again by the panel.
+        #[qinvokable]
+        fn set_sort(self: Pin<&mut Streams>, view: &QString, key: &QString);
         #[qinvokable]
         fn set_hide_watched(self: Pin<&mut Streams>, on: bool);
         /// Leaves videos in Indian scripts out, or not.
@@ -327,6 +343,8 @@ pub struct StreamsRust {
     hwdec: bool,
     video_boost: i32,
     even_loudness: bool,
+    autoplay: bool,
+    close_at_end: bool,
     filters: QString,
     groups: QString,
     group: QString,
@@ -406,7 +424,7 @@ fn groups_json(s: &settings::StreamsSettings) -> String {
 }
 
 fn filters_json(s: &settings::StreamsSettings) -> String {
-    json!({ "shorts": s.hide_shorts, "watched": s.hide_watched, "channels": s.hidden_channels, "words": s.hidden_words, "indian": s.hide_indian }).to_string()
+    json!({ "shorts": s.hide_shorts, "watched": s.hide_watched, "channels": s.hidden_channels, "words": s.hidden_words, "indian": s.hide_indian, "sorts": s.sorts }).to_string()
 }
 
 fn trend_words_json(s: &settings::StreamsSettings) -> String {
@@ -816,7 +834,19 @@ fn plan_feeds(ids: &[String], cache: &serde_json::Map<String, Value>, now: u64, 
 }
 
 fn cached_videos(ids: &[String], cache: &serde_json::Map<String, Value>) -> Vec<Value> {
-    ids.iter().filter_map(|id| cache.get(id)?["videos"].as_array().cloned()).flatten().collect()
+    ids.iter()
+        .filter_map(|id| {
+            let mut videos = cache.get(id)?["videos"].as_array().cloned()?;
+            // Stored before 0.8.41: a feed's id without its "UC".
+            for v in &mut videos {
+                if !v["channelId"].as_str().is_some_and(streams::valid_channel_id) {
+                    v["channelId"] = json!(id);
+                }
+            }
+            Some(videos)
+        })
+        .flatten()
+        .collect()
 }
 
 /// A channel's stored videos with the new ones of its feed: newest first,
@@ -860,6 +890,348 @@ fn update_feeds(ids: &[String], ask: Vec<String>, now: u64, progress: impl Fn(us
     (cached_videos(ids, &cache), failed.len(), why)
 }
 
+/// Whether a stored channel's videos want their lengths (YouTube's feeds
+/// have none): some of its newest 15 lack one, and its newest video changed
+/// since the last look (`lengths_for`; Shorts and past streams never get one
+/// from the videos tab, so they are not asked for again and again).
+fn needs_lengths(entry: Option<&Value>) -> bool {
+    let Some(videos) = entry.and_then(|e| e["videos"].as_array()) else { return false };
+    let Some(newest) = videos.first() else { return false };
+    entry.is_some_and(|e| e["lengths_for"] != newest["id"])
+        && videos.iter().take(15).any(|v| {
+            v["duration"].as_f64().unwrap_or(0.0) <= 0.0 && v["live"].as_bool() != Some(true) && v["short"].as_bool() != Some(true)
+        })
+}
+
+/// Puts the lengths of `from` into `videos` where they lack one (by id);
+/// says whether any came.
+fn apply_lengths(videos: &mut [Value], from: &[Value]) -> bool {
+    let mut changed = false;
+    for v in videos.iter_mut() {
+        if v["duration"].as_f64().unwrap_or(0.0) > 0.0 {
+            continue;
+        }
+        if let Some(d) = from.iter().find(|f| f["id"] == v["id"]).and_then(|f| f["duration"].as_f64()).filter(|d| *d > 0.0) {
+            v["duration"] = json!(d);
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// The lengths of the stored channels' newest videos, through yt-dlp's look
+/// at each channel's videos tab (one page each, three at once, at most
+/// `limit` channels a time), stored in the feed cache. Says whether any came.
+fn fill_lengths(ids: &[String], limit: usize) -> bool {
+    let cache = read_feed_cache();
+    let wanted: Vec<String> = ids.iter().filter(|id| needs_lengths(cache.get(id.as_str()))).take(limit).cloned().collect();
+    if wanted.is_empty() {
+        return false;
+    }
+    let found: Vec<(String, Vec<Value>)> = std::thread::scope(|scope| {
+        wanted
+            .chunks(3)
+            .flat_map(|three| {
+                let jobs: Vec<_> = three
+                    .iter()
+                    .map(|id| scope.spawn(move || (id.clone(), streams::youtube_channel_range(id, 1, 15))))
+                    .collect();
+                jobs.into_iter().filter_map(|j| j.join().ok()).collect::<Vec<_>>()
+            })
+            .filter_map(|(id, r)| r.ok().map(|v| (id, v)))
+            .collect()
+    });
+    // Read again: the feeds may have been stored meanwhile.
+    let mut cache = read_feed_cache();
+    let mut changed = false;
+    for (id, list) in found {
+        let Some(entry) = cache.get_mut(&id) else { continue };
+        let newest = entry["videos"][0]["id"].clone();
+        if let Some(videos) = entry["videos"].as_array_mut() {
+            changed |= apply_lengths(videos, &list);
+        }
+        entry["lengths_for"] = newest;
+    }
+    write_feed_cache(&mut cache, unix_now());
+    changed
+}
+
+/// Every video the feed cache holds, by id.
+fn known_videos(cache: &serde_json::Map<String, Value>) -> std::collections::HashMap<String, Value> {
+    cache
+        .values()
+        .filter_map(|e| e["videos"].as_array())
+        .flatten()
+        .filter_map(|v| Some((v["id"].as_str()?.to_string(), v.clone())))
+        .collect()
+}
+
+/// Whether a video has a date that isn't yt-dlp's rough one.
+fn has_exact_date(v: &Value) -> bool {
+    v["published"].as_str().is_some_and(|p| !p.is_empty()) && v["rough"].as_bool() != Some(true)
+}
+
+/// Dates and lengths from `known` for videos that lack them (a search's or
+/// a channel's videos tab has no dates, a feed no lengths); says whether
+/// any came.
+fn apply_known_from(list: &mut [Value], known: &std::collections::HashMap<String, Value>) -> bool {
+    let mut changed = false;
+    for v in list.iter_mut() {
+        let Some(k) = v["id"].as_str().and_then(|id| known.get(id)) else { continue };
+        // A feed's exact date beats yt-dlp's rough one.
+        if !has_exact_date(v) && has_exact_date(k) {
+            v["published"] = k["published"].clone();
+            v["rough"] = json!(false);
+            changed = true;
+        }
+        if v["duration"].as_f64().unwrap_or(0.0) <= 0.0 && k["duration"].as_f64().unwrap_or(0.0) > 0.0 {
+            v["duration"] = k["duration"].clone();
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Dates and lengths the feed cache knows, for videos that lack them.
+fn apply_known(list: &mut [Value]) {
+    apply_known_from(list, &known_with_dates());
+}
+
+/// The orders a YouTube list can have (`settings.sorts`).
+fn valid_sort(view: &str, key: &str) -> bool {
+    match view {
+        "game" => matches!(key, "relevance" | "date" | "views"),
+        "subscriptions" | "channel" | "trending" | "playlist" | "history" => matches!(key, "own" | "newest" | "oldest" | "longest" | "shortest"),
+        _ => false,
+    }
+}
+
+/// The game's search filter (`sp`) for its order: newest first unless
+/// chosen otherwise.
+fn game_sp(st: &settings::StreamsSettings) -> &'static str {
+    match st.sorts.get("game").map(String::as_str) {
+        Some("relevance") => "",
+        Some("views") => "CAM%3D",
+        _ => "CAI%3D",
+    }
+}
+
+/// Dates found by looking at single videos (`streams::youtube_video_date`),
+/// by video id: asked once each.
+fn date_cache_path() -> std::path::PathBuf {
+    crate::updater::cache_dir().join("youtube-dates.json")
+}
+
+fn read_date_cache() -> serde_json::Map<String, Value> {
+    std::fs::read_to_string(date_cache_path())
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| match v {
+            Value::Object(m) => Some(m),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+/// Writes the date cache, the newest 3000 kept.
+fn write_date_cache(cache: &mut serde_json::Map<String, Value>) {
+    if cache.len() > 3000 {
+        let mut all: Vec<(String, Value)> = std::mem::take(cache).into_iter().collect();
+        all.sort_by(|a, b| b.1.as_str().cmp(&a.1.as_str()));
+        all.truncate(3000);
+        cache.extend(all);
+    }
+    let path = date_cache_path();
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let tmp = path.with_extension("json.part");
+    if std::fs::write(&tmp, Value::Object(cache.clone()).to_string()).is_ok() {
+        let _ = std::fs::rename(&tmp, &path);
+    }
+}
+
+/// Every known video with a date: the feed cache's, then single looks'.
+fn known_with_dates() -> std::collections::HashMap<String, Value> {
+    let mut known = known_videos(&read_feed_cache());
+    for (id, date) in read_date_cache() {
+        known.entry(id).or_insert_with(|| json!({ "published": date }));
+    }
+    known
+}
+
+/// At most this many videos of one list are looked at one by one when no
+/// feed dates them.
+const DATES_SINGLE: usize = 6;
+
+/// The videos of `list` still without an exact date that are worth one look
+/// each: not live, not looked at before, at most `DATES_SINGLE`.
+fn videos_for_dates(list: &[Value], known: &std::collections::HashMap<String, Value>) -> Vec<String> {
+    list.iter()
+        .filter(|v| !has_exact_date(v) && v["live"].as_bool() != Some(true))
+        .filter_map(|v| v["id"].as_str())
+        .filter(|id| streams::valid_video_id(id) && !known.get(*id).is_some_and(has_exact_date))
+        .take(DATES_SINGLE)
+        .map(str::to_string)
+        .collect()
+}
+
+/// At most this many channels' feeds are asked for one list's dates.
+const DATES_CHANNELS: usize = 24;
+
+/// The channels whose feed may date the videos of `list` that have no
+/// exact date: not asked within 15 minutes, each once, at most
+/// `DATES_CHANNELS`.
+fn channels_for_dates(list: &[Value], cache: &serde_json::Map<String, Value>, now: u64) -> Vec<String> {
+    let mut ids: Vec<String> = Vec::new();
+    for v in list {
+        if has_exact_date(v) || v["live"].as_bool() == Some(true) {
+            continue;
+        }
+        let Some(id) = v["channelId"].as_str().map(streams::full_channel_id).filter(|id| streams::valid_channel_id(id)) else { continue };
+        let fresh = cache.get(&id).and_then(|e| e["at"].as_u64()).is_some_and(|at| now.saturating_sub(at) < KEEP_SUBSCRIPTIONS.as_secs());
+        if !fresh && !ids.contains(&id) {
+            ids.push(id);
+        }
+        if ids.len() == DATES_CHANNELS {
+            break;
+        }
+    }
+    ids
+}
+
+/// Searches asked in another language than English bring no dates, as
+/// yt-dlp reads English time texts only (MN, 0.8.43: none on the game's
+/// search in German). The channels' feeds have them for their newest 15:
+/// asked in the background, stored in the feed cache, and put into the
+/// list when it still shows. History and playlists keep what a video had
+/// when it was added (often no date): the cache dates them too.
+fn dates_later(list: Vec<Value>, request: u64, thread: cxx_qt::CxxQtThread<qobject::Streams>) {
+    std::thread::spawn(move || {
+        let now = unix_now();
+        let mut cache = read_feed_cache();
+        let ids = channels_for_dates(&list, &cache, now);
+        let got = if ids.is_empty() { Vec::new() } else { fetch_feeds_once(ids, |_, _| {}).0 };
+        if !got.is_empty() {
+            // Read again: another look may have stored something meanwhile.
+            cache = read_feed_cache();
+            for (id, videos) in got {
+                let merged = merge_videos(videos, cache.get(&id).map(|e| &e["videos"]));
+                let entry = cache.entry(id).or_insert_with(|| json!({}));
+                entry["at"] = json!(now);
+                entry["videos"] = json!(merged);
+            }
+            write_feed_cache(&mut cache, now);
+        }
+        // Only what this list wants goes to the Qt thread.
+        let wanted = |all: &std::collections::HashMap<String, Value>| -> std::collections::HashMap<String, Value> {
+            list.iter().filter_map(|v| v["id"].as_str()).filter_map(|id| Some((id.to_string(), all.get(id)?.clone()))).collect()
+        };
+        let all = known_with_dates();
+        show_known(&thread, request, wanted(&all));
+        // Videos no feed holds any more (a channel that uploads a lot): a
+        // look at each, two at once, kept for good.
+        let single = videos_for_dates(&list, &all);
+        if single.is_empty() {
+            return;
+        }
+        let found: Vec<(String, String)> = single
+            .chunks(2)
+            .flat_map(|two| {
+                std::thread::scope(|scope| {
+                    let jobs: Vec<_> = two.iter().map(|id| scope.spawn(move || (id.clone(), streams::youtube_video_date(id)))).collect();
+                    jobs.into_iter().filter_map(|j| j.join().ok()).filter_map(|(id, r)| r.ok().map(|d| (id, d))).collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        if found.is_empty() {
+            return;
+        }
+        let mut dates = read_date_cache();
+        for (id, date) in found {
+            dates.insert(id, json!(date));
+        }
+        write_date_cache(&mut dates);
+        show_known(&thread, request, wanted(&known_with_dates()));
+    });
+}
+
+/// Puts `known` dates and lengths into the shown list if it is still `request`'s.
+fn show_known(thread: &cxx_qt::CxxQtThread<qobject::Streams>, request: u64, known: std::collections::HashMap<String, Value>) {
+    if known.is_empty() {
+        return;
+    }
+    let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
+        if obj.rust().youtube_request != request {
+            return;
+        }
+        let mut shown: Vec<Value> = serde_json::from_str(&obj.youtube().to_string()).unwrap_or_default();
+        if apply_known_from(&mut shown, &known) {
+            obj.as_mut().set_youtube(q(&Value::Array(shown).to_string()));
+        }
+    });
+}
+
+/// Shows the subscriptions again after a look in the background (new
+/// videos, or their lengths), as many pages as show now, if they still
+/// show: a list cut back to its first page put the view back at its top.
+fn show_subscriptions_later(thread: &cxx_qt::CxxQtThread<qobject::Streams>, all: Vec<Value>, st: &settings::StreamsSettings, gone: usize, text: String) {
+    let (list, hidden) = filter_videos(all, st);
+    let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
+        if obj.rust().youtube_request != SUBS_REQUEST.load(Ordering::Relaxed) {
+            return;
+        }
+        let pages = match &obj.rust().youtube_more {
+            Some((v, _, p)) if v == "subscriptions" => *p,
+            // No next page: as many pages as show.
+            _ => serde_json::from_str::<Vec<Value>>(&obj.youtube().to_string()).map_or(0, |v| v.len()).div_ceil(60).max(1),
+        };
+        let mut list = list;
+        let more = list.len() > pages.saturating_mul(60);
+        list.truncate(pages.saturating_mul(60));
+        let message = subscriptions_message(list.len(), hidden, gone, false);
+        obj.as_mut().rust_mut().youtube_more = more.then(|| ("subscriptions".to_string(), text, pages));
+        obj.as_mut().set_youtube_has_more(more);
+        obj.as_mut().set_youtube(q(&Value::Array(list).to_string()));
+        obj.as_mut().set_youtube_state(q("ready"));
+        obj.set_youtube_message(q(&message));
+    });
+}
+
+/// A channel's videos from its feed have no lengths: yt-dlp's look at its
+/// videos tab brings them, put into the list when it still shows.
+fn channel_lengths_later(channel: String, request: u64, thread: cxx_qt::CxxQtThread<qobject::Streams>) {
+    std::thread::spawn(move || {
+        let Ok(from) = streams::youtube_channel_range(&channel, 1, 15) else { return };
+        let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
+            if obj.rust().youtube_request != request {
+                return;
+            }
+            let mut list: Vec<Value> = serde_json::from_str(&obj.youtube().to_string()).unwrap_or_default();
+            if apply_lengths(&mut list, &from) {
+                obj.as_mut().set_youtube(q(&Value::Array(list).to_string()));
+            }
+        });
+    });
+}
+
+/// Fills the subscriptions' lengths in the background (one look at a time)
+/// and shows them when some came.
+fn lengths_later(ids: Vec<String>, st: settings::StreamsSettings, thread: cxx_qt::CxxQtThread<qobject::Streams>, gone: usize, text: String) {
+    if LENGTHS_RUNNING.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    std::thread::spawn(move || {
+        let changed = fill_lengths(&ids, 40);
+        LENGTHS_RUNNING.store(false, Ordering::Relaxed);
+        if changed {
+            let all = newest_of(cached_videos(&ids, &read_feed_cache()), 300);
+            keep_subscriptions(&ids, &all, gone);
+            show_subscriptions_later(&thread, all, &st, gone, text);
+        }
+    });
+}
+
 /// "60 videos · 3 hidden · 2 channels didn't answer · looking for new ones…"
 fn subscriptions_message(n: usize, hidden: usize, missing: usize, updating: bool) -> String {
     let mut m = format!("{n} videos");
@@ -879,6 +1251,8 @@ fn subscriptions_message(n: usize, hidden: usize, missing: usize, updating: bool
 /// still fill; whether such a look runs.
 static SUBS_REQUEST: AtomicU64 = AtomicU64::new(0);
 static SUBS_UPDATING: AtomicBool = AtomicBool::new(false);
+/// Whether `lengths_later` runs.
+static LENGTHS_RUNNING: AtomicBool = AtomicBool::new(false);
 
 /// Set by ↻ (`forget`): the next subscriptions ask every channel again.
 static FEEDS_FORCED: AtomicBool = AtomicBool::new(false);
@@ -914,6 +1288,8 @@ impl Default for StreamsRust {
             hwdec: s.hwdec,
             video_boost: i32::from(s.video_boost),
             even_loudness: s.even_loudness,
+            autoplay: s.autoplay,
+            close_at_end: s.close_at_end,
             filters: q(&filters_json(&s)),
             groups: q(&groups_json(&s)),
             group: q(&s.group),
@@ -960,7 +1336,7 @@ impl StreamsRust {
             ("Raid boss walkthrough", "channel_name", 1865.0), ("First look at the new region", "third_channel", 3730.0)]
             .iter()
             .enumerate()
-            .map(|(i, (t, c, d))| json!({ "id": format!("demo000000{i}"), "title": t, "channel": c, "duration": d, "views": 0, "live": false,
+            .map(|(i, (t, c, d))| json!({ "id": format!("demo000000{i}"), "title": t, "channel": c, "channelId": format!("UCdemo{:0>18}", c.len()), "duration": d, "views": 0, "live": false,
                 "published": format!("2026-11-1{}T08:00:00Z", 2 - i.min(2)), "picture": "" }))
             .collect();
         self.twitch = q(&Value::Array(twitch).to_string());
@@ -1232,7 +1608,7 @@ impl qobject::Streams {
             let lang = st.video_languages.first().map(String::as_str).unwrap_or("");
             let mut last_page = false;
             let result = match view.as_str() {
-                "game" => streams::youtube_search_range(&st.game.youtube, "CAI%3D", page * 20 + 1, (page + 1) * 20, lang),
+                "game" => streams::youtube_search_range(&st.game.youtube, game_sp(&st), page * 20 + 1, (page + 1) * 20, lang),
                 "search" => {
                     let f = &st.search;
                     streams::youtube_search_range(&text, &streams::search_param(&f.sort, &f.date, &f.length), page * 30 + 1, (page + 1) * 30, lang)
@@ -1243,7 +1619,7 @@ impl qobject::Streams {
                     streams::youtube_trending_page(&part, &words, &st.video_languages, page)
                 }
                 // The feed gave the newest 15; then the videos tab, 30 at a time.
-                "channel" => streams::youtube_channel_range(text.trim(), 16 + (page - 1) * 30, 15 + page * 30),
+                "channel" => streams::youtube_channel_range(&streams::full_channel_id(&text), 16 + (page - 1) * 30, 15 + page * 30),
                 // More of the subscriptions already loaded (60 a page).
                 _ => {
                     let ids: Vec<String> = all_channels(&st)
@@ -1262,7 +1638,15 @@ impl qobject::Streams {
                     }
                 }
             };
-            let result = result.map(|list| if view == "subscriptions" { list } else { filter_videos(list, &st).0 });
+            let result = result.map(|mut list| {
+                if view == "subscriptions" {
+                    return list;
+                }
+                apply_known(&mut list);
+                let list = filter_videos(list, &st).0;
+                dates_later(list.clone(), request, thread.clone());
+                list
+            });
             let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
                 if obj.rust().youtube_request != request {
                     return;
@@ -1329,6 +1713,10 @@ impl qobject::Streams {
             });
             let n = list.len();
             self.as_mut().rust_mut().youtube_request += 1;
+            let request = self.rust().youtube_request;
+            if !Self::demo_mode() {
+                dates_later(list.clone(), request, self.qt_thread());
+            }
             self.as_mut().set_youtube(q(&Value::Array(list).to_string()));
             self.as_mut().set_youtube_state(q("ready"));
             self.set_youtube_message(q(&format!("{n} videos")));
@@ -1366,12 +1754,19 @@ impl qobject::Streams {
             let mut updating = false;
             let result = (|| -> Result<Vec<Value>, String> {
                 match view.as_str() {
-                    "game" => streams::youtube_search(&st.game.youtube, true, lang),
+                    "game" => streams::youtube_search_with(&st.game.youtube, game_sp(&st), 20, lang),
                     "search" => {
                         let f = &st.search;
                         streams::youtube_search_with(&text, &streams::search_param(&f.sort, &f.date, &f.length), 30, lang)
                     }
-                    "channel" => streams::youtube_channel_newest(text.trim(), 15),
+                    "channel" => {
+                        let channel = streams::full_channel_id(&text);
+                        let list = streams::youtube_channel_newest(&channel, 15)?;
+                        if list.iter().any(|v| v["duration"].as_f64().unwrap_or(0.0) <= 0.0) {
+                            channel_lengths_later(channel, request, thread.clone());
+                        }
+                        Ok(list)
+                    }
                     "trending" => {
                         let part = if streams::TREND_SECTIONS.contains(&text.as_str()) { text.clone() } else { st.trend_section.clone() };
                         let words = st.trend_words.get(&part).cloned().unwrap_or_else(|| streams::trend_words(&part));
@@ -1396,6 +1791,7 @@ impl qobject::Streams {
                         if !force {
                             if let Some((kept, gone)) = kept_subscriptions(&ids) {
                                 missing = gone;
+                                lengths_later(ids.clone(), st.clone(), thread.clone(), gone, text.clone());
                                 return Ok(kept);
                             }
                         }
@@ -1405,6 +1801,7 @@ impl qobject::Streams {
                         let stored = newest_of(cached_videos(&ids, &cache), 300);
                         if ask.is_empty() {
                             keep_subscriptions(&ids, &stored, 0);
+                            lengths_later(ids.clone(), st.clone(), thread.clone(), 0, text.clone());
                             return Ok(stored);
                         }
                         if !stored.is_empty() {
@@ -1420,20 +1817,8 @@ impl qobject::Streams {
                                     SUBS_UPDATING.store(false, Ordering::Relaxed);
                                     let all = newest_of(all, 300);
                                     keep_subscriptions(&ids, &all, gone);
-                                    let (mut list, hidden) = filter_videos(all, &st);
-                                    let more = list.len() > 60;
-                                    list.truncate(60);
-                                    let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
-                                        if obj.rust().youtube_request != SUBS_REQUEST.load(Ordering::Relaxed) {
-                                            return;
-                                        }
-                                        let message = subscriptions_message(list.len(), hidden, gone, false);
-                                        obj.as_mut().rust_mut().youtube_more = more.then(|| ("subscriptions".to_string(), text, 1));
-                                        obj.as_mut().set_youtube_has_more(more);
-                                        obj.as_mut().set_youtube(q(&Value::Array(list).to_string()));
-                                        obj.as_mut().set_youtube_state(q("ready"));
-                                        obj.set_youtube_message(q(&message));
-                                    });
+                                    show_subscriptions_later(&thread, all, &st, gone, text.clone());
+                                    lengths_later(ids, st, thread, gone, text);
                                 });
                             }
                             return Ok(stored);
@@ -1459,12 +1844,19 @@ impl qobject::Streams {
                         missing = gone;
                         let all = newest_of(all, 300);
                         keep_subscriptions(&ids, &all, missing);
+                        lengths_later(ids.clone(), st.clone(), thread.clone(), missing, text.clone());
                         Ok(all)
                     }
                 }
             })();
-            let result = result.map(|list| {
+            let result = result.map(|mut list| {
+                if view != "subscriptions" {
+                    apply_known(&mut list);
+                }
                 let (mut kept, gone) = filter_videos(list, &st);
+                if view != "subscriptions" {
+                    dates_later(kept.clone(), request, thread.clone());
+                }
                 let more = if view == "subscriptions" { kept.len() > 60 } else { !kept.is_empty() && matches!(view.as_str(), "game" | "search" | "trending" | "channel") };
                 kept.truncate(if view == "subscriptions" { 60 } else { kept.len() });
                 (kept, gone, more)
@@ -1532,7 +1924,7 @@ impl qobject::Streams {
     }
 
     fn toggle_channel(mut self: Pin<&mut Self>, id: &QString, name: &QString) {
-        let id = id.to_string();
+        let id = streams::full_channel_id(&id.to_string());
         if !streams::valid_channel_id(&id) {
             return;
         }
@@ -1703,6 +2095,16 @@ impl qobject::Streams {
         self.set_even_loudness(on);
     }
 
+    fn save_autoplay(self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.streams.autoplay = on);
+        self.set_autoplay(on);
+    }
+
+    fn save_close_at_end(self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.streams.close_at_end = on);
+        self.set_close_at_end(on);
+    }
+
     fn save_hwdec(self: Pin<&mut Self>, on: bool) {
         settings::change(|s| s.streams.hwdec = on);
         self.set_hwdec(on);
@@ -1818,6 +2220,18 @@ impl qobject::Streams {
         self.set_filters(q(&j));
     }
 
+    fn set_sort(self: Pin<&mut Self>, view: &QString, key: &QString) {
+        let (view, key) = (view.to_string(), key.to_string());
+        if !valid_sort(&view, &key) {
+            return;
+        }
+        let j = settings::change(|s| {
+            s.streams.sorts.insert(view, key);
+            filters_json(&s.streams)
+        });
+        self.set_filters(q(&j));
+    }
+
     fn set_hide_indian(self: Pin<&mut Self>, on: bool) {
         let j = settings::change(|s| {
             s.streams.hide_indian = on;
@@ -1835,7 +2249,7 @@ impl qobject::Streams {
     }
 
     fn toggle_hidden_channel(self: Pin<&mut Self>, id: &QString, name: &QString) {
-        let (id, name) = (id.to_string(), name.to_string().trim().chars().filter(|c| !c.is_control()).take(100).collect::<String>());
+        let (id, name) = (streams::full_channel_id(&id.to_string()), name.to_string().trim().chars().filter(|c| !c.is_control()).take(100).collect::<String>());
         if !streams::valid_channel_id(&id) && (!id.is_empty() || name.is_empty()) {
             return;
         }
@@ -1874,7 +2288,7 @@ impl qobject::Streams {
     }
 
     fn toggle_channel_group(mut self: Pin<&mut Self>, id: &QString, group: &QString) {
-        let id = id.to_string();
+        let id = streams::full_channel_id(&id.to_string());
         let group: String = group.to_string().trim().chars().filter(|c| !c.is_control()).take(40).collect();
         if !streams::valid_channel_id(&id) || group.is_empty() {
             return;
@@ -2231,6 +2645,52 @@ mod tests {
         assert_eq!(ask.len(), 3);
         assert_eq!(cached_videos(&ids, &cache).len(), 3);
         assert_eq!(cached_videos(&["UCc".to_string()], &cache).len(), 0);
+    }
+
+    #[test]
+    fn lengths_asked_once_per_newest() {
+        let v = |id: &str, d: f64, short: bool| json!({ "id": id, "duration": d, "short": short, "live": false });
+        let entry = json!({ "at": 1, "videos": [v("a", 0.0, false), v("b", 300.0, false)] });
+        assert!(needs_lengths(Some(&entry)));
+        // Looked at since the newest came: not again.
+        let mut seen = entry.clone();
+        seen["lengths_for"] = json!("a");
+        assert!(!needs_lengths(Some(&seen)));
+        // Only Shorts lack a length: nothing to ask.
+        let shorts = json!({ "at": 1, "videos": [v("s", 0.0, true), v("b", 300.0, false)] });
+        assert!(!needs_lengths(Some(&shorts)));
+        assert!(!needs_lengths(None));
+        let mut videos = vec![v("a", 0.0, false), v("b", 300.0, false)];
+        assert!(apply_lengths(&mut videos, &[v("a", 61.0, false), v("b", 1.0, false)]));
+        assert_eq!(videos[0]["duration"], 61.0);
+        assert_eq!(videos[1]["duration"], 300.0);
+        assert!(!apply_lengths(&mut videos, &[v("c", 5.0, false)]));
+    }
+
+    #[test]
+    fn dates_from_feeds() {
+        let a = "UCaaaaaaaaaaaaaaaaaaaaaa";
+        let b = "UCbbbbbbbbbbbbbbbbbbbbbb";
+        let list = vec![
+            json!({ "id": "video000001", "channelId": a }),
+            json!({ "id": "video000002", "channelId": a, "published": "2026-11-10", "rough": true }),
+            json!({ "id": "video000003", "channelId": b, "published": "2026-11-12T10:00:00+00:00" }),
+            json!({ "id": "video000004", "channelId": "bbbbbbbbbbbbbbbbbbbbbb" }),
+            json!({ "id": "video000005", "channelId": "nonsense" }),
+        ];
+        let mut cache = serde_json::Map::new();
+        // Each channel once, a feed's id without "UC" in full.
+        assert_eq!(channels_for_dates(&list, &cache, 10_000), [a, b]);
+        // Asked within 15 minutes: not again.
+        cache.insert(a.to_string(), json!({ "at": 9_500, "videos": [{ "id": "video000001", "published": "2026-11-13T08:00:00+00:00" }] }));
+        assert_eq!(channels_for_dates(&list, &cache, 10_000), [b]);
+        let mut shown = list.clone();
+        assert!(apply_known_from(&mut shown, &known_videos(&cache)));
+        assert_eq!(shown[0]["published"], "2026-11-13T08:00:00+00:00");
+        assert_eq!(shown[0]["rough"], false);
+        assert!(!apply_known_from(&mut shown, &known_videos(&cache)));
+        // Still undated after the feeds: looked at one by one.
+        assert_eq!(videos_for_dates(&shown, &known_videos(&cache)), ["video000002", "video000004", "video000005"]);
     }
 
     #[test]

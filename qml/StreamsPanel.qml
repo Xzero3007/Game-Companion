@@ -34,7 +34,70 @@ Panel {
     readonly property bool onTwitch: Streams.tab === "twitch"
     readonly property bool onJelly: Streams.tab === "jellyfin"
     readonly property var jellyList: JSON.parse(Jellyfin.items)
-    readonly property var listModel: listKind === "jelly" ? jellyList : listKind === "playlists" ? playlistsShown : onTwitch ? twitchList : youtubeList
+    readonly property var listWanted: listKind === "jelly" ? jellyList : listKind === "playlists" ? playlistsShown : onTwitch ? twitchList : youtubeShown
+    /// The YouTube list in its chosen order (Streams' `filters.sorts`; MN,
+    /// 0.8.43): the game's search is asked of YouTube in its order, the
+    /// others are sorted as loaded.
+    readonly property var sortDefaults: ({ game: "date", subscriptions: "newest", channel: "newest", trending: "own", playlist: "own", history: "own" })
+    readonly property string ytSort: (filters.sorts && filters.sorts[ytView]) || sortDefaults[ytView] || ""
+    readonly property var youtubeShown: ytView === "game" ? youtubeList : sortVideos(youtubeList, ytSort)
+    function sortVideos(list, key) {
+        if (!key || key === "own" || list.length < 2) return list
+        const date = (v) => v.published || ""
+        const length = (v) => v.duration > 0 ? v.duration : 0
+        // Videos without a date or a length go last either way.
+        const by = key === "newest" ? (a, b) => date(a) === date(b) ? 0 : date(a) < date(b) ? 1 : -1
+                 : key === "oldest" ? (a, b) => !date(a) !== !date(b) ? (date(a) ? -1 : 1) : date(a) === date(b) ? 0 : date(a) < date(b) ? -1 : 1
+                 : key === "longest" ? (a, b) => length(b) - length(a)
+                 : (a, b) => !length(a) !== !length(b) ? (length(a) ? -1 : 1) : length(a) - length(b)
+        // Stable: equal ones keep the list's order.
+        return list.map((v, i) => [v, i]).sort((x, y) => by(x[0], y[0]) || x[1] - y[1]).map((x) => x[0])
+    }
+    function sortOptions(view) {
+        if (view === "game") return [{ id: "relevance", name: "Relevance" }, { id: "date", name: "Newest first" }, { id: "views", name: "Most viewed" }]
+        const own = { playlist: "Playlist order", history: "Last watched", trending: "Trending order" }[view]
+        if (!own && view !== "subscriptions" && view !== "channel") return []
+        let o = own ? [{ id: "own", name: own }] : []
+        return o.concat([{ id: "newest", name: "Newest first" }, { id: "oldest", name: "Oldest first" }, { id: "longest", name: "Longest" }, { id: "shortest", name: "Shortest" }])
+    }
+    readonly property var ytSortOptions: onTwitch || onJelly || listKind !== "video" ? [] : sortOptions(ytView)
+    readonly property string ytSortName: { const o = ytSortOptions.find((x) => x.id === ytSort); return o ? o.name : "" }
+    /// What the list and the tiles show: set from `listWanted` by `swapList`,
+    /// which keeps the place when the same list only grew or was refreshed
+    /// (a new array would put a view back at its top).
+    property var listModel: []
+    /// Which list it is: a different one starts at its top.
+    readonly property string listKey: Streams.tab + "|" + listKind + "|"
+        + (onJelly ? Jellyfin.view + "|" + (jfPath.length > 0 ? jfPath[jfPath.length - 1].id : "")
+           : onTwitch ? twView + "|" + (arg ? arg.name || arg.login || "" : "")
+           : ytView + "|" + (arg ? arg.id || "" : "") + "|" + (channel ? channel.id : "") + "|" + (ytView === "trending" ? Streams.trendSection : "") + "|" + ytSort)
+        + "|" + (searchShown ? search.text : "")
+    property string modelKey: ""
+    function itemKey(x) { return x ? String(x.id || x.login || x.name || "") : "" }
+    onListWantedChanged: swapList()
+    function swapList() {
+        const v = listArea.shown
+        const sameList = listKey === modelKey && v && (v === list || v === grid) && listModel && listModel.length > 0
+        let keep = null
+        if (sameList && v.contentY - v.originY > 1) {
+            // The first row seen and how far it is scrolled past.
+            const at = v.indexAt(v.width / 2, v.contentY + 1)
+            const first = at >= 0 ? itemKey(listModel[at]) : ""
+            if (first) {
+                const item = v.itemAtIndex(at)
+                keep = { key: first, at: at, off: item ? v.contentY - item.y : 0 }
+            }
+        }
+        modelKey = listKey
+        listModel = listWanted
+        if (!keep) return
+        const index = listWanted.findIndex((x) => itemKey(x) === keep.key)
+        if (index < 0) return
+        if (index !== keep.at) (v === list ? listWheel : gridWheel).stop()
+        v.forceLayout()
+        v.positionViewAtIndex(index, ListView.Beginning)
+        v.contentY += keep.off
+    }
     readonly property var jfAccount: Jellyfin.account.length > 0 ? JSON.parse(Jellyfin.account) : null
     /// Jellyfin's libraries: the way in (library, show, season), each
     /// `{ id, type, collection, seriesId, name }`.
@@ -148,7 +211,7 @@ Panel {
 
     property bool loadedOnce: false
     onVisibleChanged: if (visible && !loadedOnce) firstLoad()
-    Component.onCompleted: if (visible && !loadedOnce) firstLoad()
+    Component.onCompleted: { swapList(); if (visible && !loadedOnce) firstLoad() }
     function firstLoad() {
         loadedOnce = true
         Streams.refreshAccount()
@@ -192,14 +255,36 @@ Panel {
         }
         go({ tab: Streams.tab, view: "search", text: text, channel: null })
     }
-    function ago(iso) {
+    /// When a video came out: within a week how long ago, after that its
+    /// date ("12 Oct", with the year when not this one). A rough date
+    /// (yt-dlp's reading of YouTube's "3 weeks ago") stays rough.
+    function ago(iso, rough) {
         if (!iso) return ""
-        const s = (Date.now() - Date.parse(iso)) / 1000
+        const t = Date.parse(iso)
+        const s = (Date.now() - t) / 1000
         if (!(s >= 0)) return ""
         if (s < 3600) return Math.max(1, Math.round(s / 60)) + " min ago"
         if (s < 86400) return Math.round(s / 3600) + " h ago"
         const d = Math.round(s / 86400)
-        return d === 1 ? "yesterday" : d + " days ago"
+        if (d < 7) return d === 1 ? "yesterday" : d + " days ago"
+        if (rough) {
+            const plural = (n, w) => n + " " + w + (n === 1 ? "" : "s") + " ago"
+            return d < 30 ? plural(Math.round(d / 7), "week") : d < 365 ? plural(Math.round(d / 30), "month") : plural(Math.round(d / 365), "year")
+        }
+        const date = new Date(t)
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        return date.getDate() + " " + months[date.getMonth()] + (date.getFullYear() === new Date().getFullYear() ? "" : " " + date.getFullYear())
+    }
+    /// A video's channel id in full: YouTube's feeds give it without its
+    /// "UC" at their top (stored so before 0.8.41).
+    function chanId(v) {
+        const id = v && v.channelId ? String(v.channelId) : ""
+        return id.length === 22 && id.indexOf("UC") !== 0 ? "UC" + id : id
+    }
+    /// Opens a video's channel (its videos, newest first).
+    function openChannelOf(v) {
+        const id = chanId(v)
+        if (id) go({ tab: "youtube", view: "channel", text: "", channel: { id: id, name: v.channel || "" } })
     }
     function clock(sec) {
         sec = Math.floor(sec || 0)
@@ -227,14 +312,25 @@ Panel {
         return (m >= 60 ? Math.floor(m / 60) + " h " + (m % 60) + " min" : m + " min") + " left"
     }
     /// Plays a YouTube video; inside a playlist (or a list played through)
-    /// the rest follows.
-    function playVideo(v, queue, index) {
+    /// the rest follows at once (`through`). Started from any other list,
+    /// the videos after it in the shown order are what comes next: the
+    /// player's NEXT and UP NEXT, and with AUTOPLAY on they follow too.
+    function playVideo(v, queue, index, through) {
+        let q = queue || null
+        let at = index || 0
+        if (!q) {
+            q = youtubeShown.filter((x) => !!x.id && (!x.live || x.id === v.id))
+            at = q.findIndex((x) => x.id === v.id)
+            if (at < 0) { q = null; at = 0 }
+        }
+        const all = through !== false && !!queue
         panel.playRequested({ kind: "youtube", id: v.id, title: v.title, name: v.channel, video: v,
-                              queue: queue || null, index: index || 0, loop: loopList, playlist: arg && ytView === "playlist" ? arg.id : "" })
+                              queue: q, index: at, through: all, loop: all && loopList,
+                              playlist: arg && ytView === "playlist" ? arg.id : "" })
     }
     property bool loopList: false
     function playAll(shuffle) {
-        let q = youtubeList.slice()
+        let q = youtubeShown.slice()
         if (q.length === 0) return
         if (shuffle) for (let i = q.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = q[i]; q[i] = q[j]; q[j] = t }
         if (arg) Library.played(arg.id)
@@ -272,16 +368,24 @@ Panel {
             let o = [{ id: "add", name: "Add to playlist ▸" }]
             if (ytView === "playlist" && arg) {
                 o.push({ id: "remove", name: "Remove from playlist" })
-                if (!tiles) o.push({ id: "up", name: "Move up" }, { id: "down", name: "Move down" })
+                if (!tiles && ytSort === "own") o.push({ id: "up", name: "Move up" }, { id: "down", name: "Move down" })
             }
             o.push({ id: "watched", name: m.done ? "Mark as not watched" : "Mark as watched" })
             if (ytView === "history") o.push({ id: "forget", name: "Remove from history" })
+            if (w.channelId && !(ytView === "channel" && channel && channel.id === chanId(w))) o.push({ id: "channel", name: "Go to channel" })
+            if (w.channelId) o.push({ id: "groups", name: "Channel into group ▸" })
             if (w.channelId || w.channel) o.push({ id: "hide", name: "Hide this channel" })
             return o
         }
         if (kind === "add") {
             let o = playlists.map((p) => ({ id: "to:" + p.id, name: (JSON.parse(Library.mark(w.id)).lists.indexOf(p.id) >= 0 ? "✓ " : "") + p.name }))
             o.push({ id: "new", name: "+ New playlist" })
+            return o
+        }
+        if (kind === "videogroups") {
+            const c = channels.find((x) => x.id === chanId(w))
+            let o = groups.map((g) => ({ id: "group:" + g, name: (c && c.groups.indexOf(g) >= 0 ? "✓ " : "") + g }))
+            o.push({ id: "newgroup", name: "+ New group" })
             return o
         }
         if (kind === "twitch") {
@@ -299,6 +403,7 @@ Panel {
         if (kind === "playlist") {
             return [{ id: "rename", name: "Rename" }, { id: "quick", name: w.quick ? "✓ Bookmark list" : "Make bookmark list" }, { id: "delete", name: "Delete…" }]
         }
+        if (kind === "unsub") return [{ id: "unsub", name: "Unsubscribe from " + (w.name || "this channel") }, { id: "keep", name: "Keep subscription" }]
         if (kind === "filter") return w.options
         return []
     }
@@ -315,7 +420,19 @@ Panel {
             else if (id === "down" && index >= 0 && index < youtubeList.length - 1) Library.moveIn(arg.id, index, index + 1)
             else if (id === "watched") Library.setWatched(json, !JSON.parse(Library.mark(w.id)).done)
             else if (id === "forget") { Library.forget(w.id); Streams.loadYoutube("history", search.text) }
-            else if (id === "hide") { Streams.toggleHiddenChannel(w.channelId || "", w.channel || ""); reload() }
+            else if (id === "hide") { Streams.toggleHiddenChannel(chanId(w), w.channel || ""); reload() }
+            else if (id === "channel") openChannelOf(w)
+            else if (id === "groups") {
+                // No group yet: straight to naming the first one.
+                if (groups.length === 0) startGroup(w)
+                else { Qt.callLater(() => openMenu(menuButton, "videogroups", w)); return }
+            }
+        } else if (menuKind === "videogroups") {
+            if (id.indexOf("group:") === 0) {
+                // Into a group subscribes too: a group holds one's channels.
+                if (!channels.some((c) => c.id === chanId(w))) Streams.toggleChannel(chanId(w), w.channel || "")
+                Streams.toggleChannelGroup(chanId(w), id.slice(6))
+            } else if (id === "newgroup") startGroup(w)
         } else if (menuKind === "add") {
             if (id === "new") {
                 const pid = Library.create("Playlist " + (playlists.length + 1))
@@ -337,12 +454,26 @@ Panel {
             if (id === "rename") { renaming = true; renameField.text = w.name; renameField.focusInput() }
             else if (id === "quick") Library.makeQuick(w.id)
             else if (id === "delete") deleting = true
+        } else if (menuKind === "unsub") {
+            if (id === "unsub") Streams.toggleChannel(w.id, w.name)
         } else if (menuKind === "filter") {
             w.choose(id)
         }
     }
     property Item menuButton: null
+    /// The star beside a video or channel: subscribes at once, asks before
+    /// unsubscribing (MN: one click took a channel off every tile).
+    function starChannel(button, id, name) {
+        if (channels.some((c) => c.id === id && !c.freetube)) openMenu(button, "unsub", { id: id, name: name || "" })
+        else Streams.toggleChannel(id, name || "")
+    }
     property var groupFor: null
+    /// Names a new group for a video's channel (subscribed on Add).
+    function startGroup(w) {
+        groupFor = { id: chanId(w), name: w.channel || "", groups: [], subscribe: true }
+        newGroup.text = ""
+        newGroup.focusInput()
+    }
     property bool renaming: false
     property bool deleting: false
     property bool naming: false
@@ -384,6 +515,19 @@ Panel {
                 anchors.rightMargin: -6
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
+                // The list's order (MN, 0.8.43).
+                Chip {
+                    id: ytSortChip
+                    visible: panel.ytSortOptions.length > 0
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Sort: " + panel.ytSortName + " ▾"
+                    onClicked: {
+                        const view = panel.ytView
+                        panel.openMenu(ytSortChip, "filter", { options: panel.ytSortOptions.map((o) => ({ id: o.id, name: (o.id === panel.ytSort ? "✓ " : "") + o.name })),
+                                                              choose: (id) => { Streams.setSort(view, id); if (view === "game") panel.reload() } })
+                    }
+                }
+                Item { visible: ytSortChip.visible; width: 8; height: 1 }
                 IconButton {
                     icon: "back"
                     iconSize: 16
@@ -512,7 +656,7 @@ Panel {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - gameTag.implicitWidth - changeGame.width - 46
                     elide: Text.ElideRight
-                    text: panel.onTwitch ? "Twitch category: " + panel.game.twitch : "Preset search: “" + panel.game.youtube + "”, newest first"
+                    text: panel.onTwitch ? "Twitch category: " + panel.game.twitch : "Preset search: “" + panel.game.youtube + "”, " + ({ relevance: "by relevance", views: "most viewed first" }[panel.ytSort] || "newest first")
                     color: "#d8d4e0"
                     font.family: Theme.body
                     font.pixelSize: 12
@@ -686,11 +830,15 @@ Panel {
             }
         }
 
-        // Subscriptions and channels: one group of them, or all.
+        // Subscriptions and channels: one group of them, or all. Shown
+        // without groups too, saying how to make one (MN couldn't find them).
         Flow {
-            visible: !panel.onTwitch && !panel.onJelly && (panel.ytView === "subscriptions" || panel.ytView === "channels") && panel.groups.length > 0
+            visible: !panel.onTwitch && !panel.onJelly && (panel.ytView === "subscriptions" || panel.ytView === "channels")
             width: parent.width
             spacing: 6
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                height: 24; verticalAlignment: Text.AlignVCenter; rightPadding: 2
+                text: "GROUPS"; color: Theme.dim(); font.family: Theme.display; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.2 }
             Chip { text: "All"; on: !Streams.group; onClicked: { Streams.chooseGroup(""); panel.reload() } }
             Repeater {
                 model: panel.groups
@@ -701,6 +849,10 @@ Panel {
                     onClicked: { Streams.chooseGroup(modelData); if (panel.ytView === "subscriptions") panel.reload() }
                 }
             }
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                height: 24; verticalAlignment: Text.AlignVCenter; leftPadding: 4
+                text: panel.groups.length === 0 ? "None yet: ⋯ beside a channel or a video → + New group" : "⋯ beside a channel or a video sorts it in"
+                color: Theme.dim(); font.family: Theme.body; font.pixelSize: 11 }
         }
 
         // A new group for a channel (from its menu).
@@ -709,7 +861,14 @@ Panel {
             width: parent.width
             spacing: 8
             Field { id: newGroup; width: parent.width - groupOk.width - groupCancel.width - 16; placeholder: "New group for " + (panel.groupFor ? panel.groupFor.name : ""); onAccepted: groupOk.clicked() }
-            TextButton { id: groupOk; text: "Add"; onClicked: { if (newGroup.text.trim()) Streams.toggleChannelGroup(panel.groupFor.id, newGroup.text); panel.groupFor = null } }
+            TextButton { id: groupOk; text: "Add"; onClicked: {
+                const c = panel.groupFor
+                if (newGroup.text.trim()) {
+                    if (c.subscribe && !panel.channels.some((x) => x.id === c.id)) Streams.toggleChannel(c.id, c.name)
+                    Streams.toggleChannelGroup(c.id, newGroup.text)
+                }
+                panel.groupFor = null
+            } }
             TextButton { id: groupCancel; text: "Cancel"; onClicked: panel.groupFor = null }
         }
 
@@ -1025,8 +1184,8 @@ Panel {
                 model: visible ? panel.channelsShown : []
                 delegate: channelTile
             }
-            WheelScroll { flick: list; step: 79 * 2 }
-            WheelScroll { flick: grid; step: grid.cellHeight }
+            WheelScroll { id: listWheel; flick: list; step: 79 * 2 }
+            WheelScroll { id: gridWheel; flick: grid; step: grid.cellHeight }
             WheelScroll { flick: channelList; step: 58 * 3 }
             WheelScroll { flick: channelGrid; step: 72 * 2 }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
@@ -1153,7 +1312,8 @@ Panel {
         id: menu
         parent: panel
         z: 50
-        width: 220
+        // "Unsubscribe from <channel>" wants room for the name.
+        width: panel.menuKind === "unsub" ? 320 : 220
         maxHeight: 260
         current: ""
         onChosen: (id) => panel.menuChosen(id)
@@ -1285,7 +1445,7 @@ Panel {
             height: 79
             required property int index
             readonly property bool current: panel.playingYoutube === modelData.id
-            readonly property bool kept: !!modelData.channelId && panel.channels.some((c) => c.id === modelData.channelId)
+            readonly property bool kept: !!modelData.channelId && panel.channels.some((c) => c.id === panel.chanId(modelData))
             readonly property var mark: Library.revision >= 0 ? JSON.parse(Library.mark(modelData.id)) : null
             Rectangle {
                 anchors.fill: parent
@@ -1298,7 +1458,7 @@ Panel {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: panel.ytView === "playlist" ? panel.playVideo(row.modelData, panel.youtubeList, row.index) : panel.playVideo(row.modelData)
+                onClicked: panel.ytView === "playlist" ? panel.playVideo(row.modelData, panel.youtubeShown, row.index) : panel.playVideo(row.modelData)
             }
             Thumb {
                 id: thumb
@@ -1343,21 +1503,12 @@ Panel {
                     font.weight: Font.DemiBold
                     lineHeight: 1.1
                 }
-                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                VideoByline {
                     width: parent.width
-                    elide: Text.ElideRight
-                    text: [row.modelData.channel, panel.ago(row.modelData.published)].filter((t) => t).join(" · ")
-                        + (row.current ? " · " : "")
-                    color: Theme.dim()
-                    font.family: Theme.body
-                    font.pixelSize: 11
-                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                        anchors.left: parent.right
-                        visible: row.current
-                        text: "watching"
-                        color: Theme.accent
-                        font: parent.font
-                    }
+                    video: row.modelData
+                    when: panel.ago(row.modelData.published, row.modelData.rough)
+                    tail: row.current ? "watching" : ""
+                    onOpenChannel: panel.openChannelOf(row.modelData)
                 }
             }
             Row {
@@ -1367,6 +1518,7 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
                 BookmarkButton { video: row.modelData; mark: row.mark; width: 30; height: 34 }
                 IconButton {
+                    id: rowStar
                     visible: !!row.modelData.channelId
                     width: 30
                     height: 34
@@ -1375,9 +1527,9 @@ Panel {
                     filled: row.kept
                     color: row.kept ? Theme.accent : Theme.dim()
                     tip: row.kept ? "Unsubscribe from " + row.modelData.channel : "Subscribe to " + row.modelData.channel
-                    onClicked: Streams.toggleChannel(row.modelData.channelId, row.modelData.channel)
+                    onClicked: panel.starChannel(rowStar, panel.chanId(row.modelData), row.modelData.channel)
                 }
-                IconButton { id: rowMore; width: 26; height: 34; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Playlists, watched, hide"
+                IconButton { id: rowMore; width: 26; height: 34; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Playlists, channel, groups, watched, hide"
                     onClicked: panel.openMenu(rowMore, "video", row.modelData) }
             }
         }
@@ -1440,6 +1592,7 @@ Panel {
                 anchors.rightMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
                 IconButton {
+                    id: chStar
                     width: 32
                     height: 34
                     icon: "star"
@@ -1447,7 +1600,7 @@ Panel {
                     filled: !row.modelData.freetube
                     color: row.modelData.freetube ? Theme.dim() : Theme.accent
                     tip: row.modelData.freetube ? "Subscribe here (not only in FreeTube)" : "Unsubscribe"
-                    onClicked: Streams.toggleChannel(row.modelData.id, row.modelData.name)
+                    onClicked: panel.starChannel(chStar, row.modelData.id, row.modelData.name)
                 }
                 IconButton { id: chMore; width: 26; height: 34; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Groups, hide"
                     onClicked: panel.openMenu(chMore, "channel", row.modelData) }
@@ -1616,10 +1769,10 @@ Panel {
             required property var modelData
             required property int index
             current: panel.playingYoutube === modelData.id
-            readonly property bool kept: !!modelData.channelId && panel.channels.some((c) => c.id === modelData.channelId)
+            readonly property bool kept: !!modelData.channelId && panel.channels.some((c) => c.id === panel.chanId(modelData))
             readonly property var mark: Library.revision >= 0 ? JSON.parse(Library.mark(modelData.id)) : null
             picture: modelData.picture
-            onClicked: panel.ytView === "playlist" ? panel.playVideo(modelData, panel.youtubeList, index) : panel.playVideo(modelData)
+            onClicked: panel.ytView === "playlist" ? panel.playVideo(modelData, panel.youtubeShown, index) : panel.playVideo(modelData)
             YtProgress { parent: tile.thumb; mark: tile.mark }
             BookmarkButton {
                 parent: tile.thumb
@@ -1679,13 +1832,11 @@ Panel {
                     font.weight: Font.DemiBold
                     lineHeight: 1.05
                 }
-                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                VideoByline {
                     width: parent.width
-                    elide: Text.ElideRight
-                    text: [tile.modelData.channel, panel.ago(tile.modelData.published)].filter((t) => t).join(" · ")
-                    color: Theme.dim()
-                    font.family: Theme.body
-                    font.pixelSize: 11
+                    video: tile.modelData
+                    when: panel.ago(tile.modelData.published, tile.modelData.rough)
+                    onOpenChannel: panel.openChannelOf(tile.modelData)
                 }
             }
             Row {
@@ -1694,6 +1845,7 @@ Panel {
                 anchors.rightMargin: -6
                 y: -6
                 IconButton {
+                    id: tileStarButton
                     visible: !!tile.modelData.channelId
                     width: visible ? 26 : 0
                     height: 30
@@ -1702,9 +1854,9 @@ Panel {
                     filled: tile.kept
                     color: tile.kept ? Theme.accent : Theme.dim()
                     tip: tile.kept ? "Unsubscribe from " + tile.modelData.channel : "Subscribe to " + tile.modelData.channel
-                    onClicked: Streams.toggleChannel(tile.modelData.channelId, tile.modelData.channel)
+                    onClicked: panel.starChannel(tileStarButton, panel.chanId(tile.modelData), tile.modelData.channel)
                 }
-                IconButton { id: tileMore; width: 24; height: 30; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Playlists, watched, hide"
+                IconButton { id: tileMore; width: 24; height: 30; icon: "more"; iconSize: 15; color: Theme.dim(); tip: "Playlists, channel, groups, watched, hide"
                     onClicked: panel.openMenu(tileMore, "video", tile.modelData) }
             }
         }

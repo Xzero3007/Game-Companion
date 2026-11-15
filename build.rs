@@ -26,6 +26,7 @@ fn main() {
         QmlFile::from("qml/Chip.qml"),
         QmlFile::from("qml/ChatPanel.qml"),
         QmlFile::from("qml/WheelScroll.qml"),
+        QmlFile::from("qml/VideoByline.qml"),
         QmlFile::from("qml/JellyfinSignIn.qml"),
         QmlFile::from("qml/Surface.qml"),
         QmlFile::from("qml/MoveArea.qml"),
@@ -73,6 +74,8 @@ fn main() {
         QmlFile::from("qml/aion2/ArmorySkillRow.qml"),
         QmlFile::from("qml/aion2/ArmoryGearDetails.qml"),
         QmlFile::from("qml/aion2/FarmWindow.qml"),
+        QmlFile::from("qml/poe2/PriceStore.qml"),
+        QmlFile::from("qml/poe2/PriceWindow.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();
@@ -86,7 +89,7 @@ fn main() {
         .qt_module("OpenGL")
         .qt_module("Network")
         .qt_module("Svg")
-        .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/streams_object.rs", "src/library_object.rs", "src/jellyfin_object.rs", "src/games_object.rs", "src/aion2_object.rs", "src/apps_object.rs", "src/voice_object.rs", "src/native.rs"])
+        .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/streams_object.rs", "src/library_object.rs", "src/jellyfin_object.rs", "src/games_object.rs", "src/aion2_object.rs", "src/apps_object.rs", "src/voice_object.rs", "src/poe2_object.rs", "src/native.rs"])
         .cpp_file("cpp/native.h")
         .cpp_file("cpp/native.cpp")
         .cpp_file("cpp/mpvvideo.h")

@@ -24,6 +24,20 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.51 beta (2026-11-14): #116 Next video: the shown list goes along, ⏭, UP NEXT, AUTOPLAY, close the player when nothing follows (entry below).
+- 0.8.50 beta (2026-11-14): #114 (+ #113) Print/Spectacle: videos stand still and parts let clicks through while its selection is open; more YouTube dates via yt-dlp; kit tests without fixed sleeps (entry below).
+- 0.8.49 beta (2026-11-14): #110 YouTube: dates from the channels' feeds for searches, Trending, History and playlists; SORT button; wider unsubscribe menu (entry below).
+- 0.8.48 beta (2026-11-14): #107 PoE 2: the price check's kit runs in QuickJS in its own process; a crash there no longer takes Game Companion down; the saved league is kept (entry below).
+- 0.8.47 beta (2026-11-14): #103 YouTube: the star asks before it unsubscribes (Unsubscribe / Keep subscription) (entry below).
+- 0.8.46 beta (2026-11-14): #105 Crash log: ~/.cache/game-companion/game-companion.log with the PoE 2 steps, Qt warnings and a backtrace on a crash (entry below).
+- 0.8.45 beta (2026-11-14): #104 PoE 2: the clipboard watcher connects again after XWayland went, the price window says why copies aren't heard; the price kit avoids Qt's array iterators (crash in 0.8.43) (entry below).
+- 0.8.44 beta (2026-11-14): #101 PoE 2: searches in a league with spaces (Runes of Aldur) are encoded, not refused (entry below).
+- 0.8.43 beta (2026-11-14): #98 YouTube: a picture-less video reloads, Go to channel and Channel into group work with feed channel ids (PR #98) (entry below).
+- 0.8.42 beta (2026-11-14): #97 PoE 2 price check: real searches work again (rate limiter as a plain array), stat decimals kept (PR #97) (entry below).
+- 0.8.41 beta (2026-11-14): #91 Take over open Brave and Legcord again: run KWin scripts by start (PR #91) (entry below).
+- 0.8.40 beta (2026-11-14): #94 PoE 2 price check (Exiled Exchange 2 rebuilt) and Path of Building as the third app; JS runs interpreted (Arch's Qt 6.12 JIT crashed in the kit) (PR #94) (entry below).
+- 0.8.39 beta (2026-11-14): #92 Video: a grab freezes frames and position first, the surface changes size 40 ms later (PR #92) (entry below).
+- 0.8.38 beta (2026-11-14): #89 YouTube: lists keep their place, channel from a tile, lengths and dates, groups row; video frames held while its surface resizes (PR #89) (entry below).
 - 0.8.37 beta (2026-11-14): #86 YouTube: visionOS player first, patient watchdog until a video moves; subscriptions as a stored list (PR #86) (entry below).
 - 0.8.36 beta (2026-11-14): #83 YouTube subscriptions: 15 per channel, retries, kept on disk; 404 channels via yt-dlp; PLAYLIST in the video window (entry below).
 - 0.8.35 beta (2026-11-14): #81 YouTube: wait while YouTube holds a video back for its ad (countdown, no reload loop) (entry below).
@@ -752,6 +766,21 @@ Untested online (the sandbox reaches neither YouTube nor Twitch): Trending
 searches, Twitch GQL fields for categories/VODs/clips/filters, chat login
 and emotes. The person tests these.
 
+Open, low priority (MN, 0.8.49, "nicht soooo schlimm"): dragging a video
+window while it plays still stutters a little (the grab freeze fixed the
+stretched frame, not the move itself).
+
+Next video (MN, 2026-11-15, "passt"): a YouTube video started from any
+list has ⏭ and "UP NEXT ▾" (the next five of the list as it was shown)
+and an AUTOPLAY switch (off by default; on, a 5 s "NEXT:" note, then the
+next one). Settings → Streams → Videos "Close the player when nothing
+follows" (off by default) closes a video window at the end, mpv with it.
+Checked under xvfb with a 3 s clip: the window closed, mpv's threads went
+(29 → 27 as before playing); off, it stays. Not checked online: YouTube's
+own end and AUTOPLAY into the next video (the sandbox reaches no YouTube).
+Possible follow-up from QA (0.8.50 review): `gcShot` could also check
+`w.layer === 9` (overlay) so a full-screen Spectacle editor never counts.
+
 ## Branch `claude/project-thread-pv2u8z` (from beta): Boss panel (A5)
 
 Boss Notes and Boss Callouts as one Boss window (canvas page "boss", MN's
@@ -932,6 +961,68 @@ is shown (MN's TV has no VRR in KDE anyway). Checked on the Arch bench (KWin
 6.8, stand-in game in full screen): `arch-test/apps/gc.sh`, all checks pass,
 including the switch off. Not checked: a real Proton game asking for full
 screen again (to watch on MN's PC).
+
+## Branch `claude/project-thread-3oslcu` (from beta): PoE 2 price check and Path of Building
+
+MN, 2026-11-15: Exiled Exchange 2 was unreliable on KDE Wayland; "bau ee2
+nach". PoE 2 1.0 comes in December: everything must work by then.
+
+- `tools/poe2-ee2/build.mjs <EE2 checkout>` (needs `npm install
+  --ignore-scripts` in its renderer) bundles EE2's parser, filters and trade
+  code with esbuild for Qt's ES2016 JavaScript into `qml/poe2/ee2kit.js`
+  and copies its data (en, de) to `data/poe2/`. Shims in `shims/` replace
+  EE2's Electron parts (config, IPC, poe.ninja, i18n, luxon, BigInt hash);
+  look-behind and named groups are rewritten (PATCHES, `groupsCalls` →
+  `__gcMatch`/`__gcExec`); setInterval is a no-op (nothing ticks while
+  idle). `entry.ts` is the kit's API (`check`, `view`, `setStat`,
+  `setFilter`, `search`, `leagues`); its search reimplements EE2's
+  trade-api.ts without Vue computeds (they did not update under V4).
+  Tests: `node tools/poe2-ee2/test/run.js` (EE2's 27 sample items, mocked
+  trade answers) and `test/v4.qml` (the same under Qt's engine; needs a
+  runner that gives `gcHost.readFile`).
+- `src/poe2.rs`: requests to www.pathofexile.com/api/trade2/{search,fetch,
+  exchange,data} only (`allowed`), one at a time, curl with a cookie jar in
+  $XDG_RUNTIME_DIR, 429/Retry-After respected; EE2's own RateLimiter reads
+  the X-Rate-Limit headers. Clipboard: an x11rb XFixes watcher on
+  XWayland's CLIPBOARD (the game runs in Proton/XWayland; MN presses Ctrl+C
+  in the game, nothing is sent to the game); only texts that look like an
+  item are taken. `xvfb-run cargo test --no-default-features
+  copied_items_are_seen -- --ignored` (needs xclip).
+- `qml/poe2/PriceStore.qml` (brain, in Main) and `PriceWindow.qml` (panel
+  `poe2-price`); plugin `poe2.price` in the PoE 2 package; GameRow "Price".
+  `GC_DEMO=price[,results]`.
+- Path of Building: third app `pob` in `src/apps.rs` (`rusty-path-of-building
+  poe2`, window `rusty-path-of-building-2`); `AppDef.args`, `AppDef.game`
+  (With game only for PoE 2: `Apps.gameStarted(Games.runningKnown)`); bar
+  button while PoE 2 runs or PoB runs; no shortcut. `GC_DEMO=apps,pob`.
+- QA 2026-11-15 (Arch, Qt 6.12): `GC_DEMO=price` crashed every run in
+  Qt's JIT (ArrayLiteral → newArrayObject → jump to 0x400000000), fine
+  with `QV4_FORCE_INTERPRETER=1`. Not reproduced with PySide's Qt 6.12.0
+  (also not with `QV4_JIT_CALL_THRESHOLD=0`), so the app now always runs
+  the interpreter (`main.rs`, `GC_JIT=1` to keep the JIT); CPU in the
+  price and armory demos was the same or lower.
+- Not checked here (no network to the trade site): real searches, the
+  rate limits and Ctrl+C in the real game. QA and MN check those.
+- Later (asked, not built): poe.ninja estimates (needs MN's yes for the
+  host), a Client.txt reader, filter manager, levelling guide.
+
+## Branch `claude/project-thread-6m4xx8` (from beta): open Brave and Legcord taken over again
+
+MN, 0.8.37: after an update (and after a restart from the tray) Game
+Companion no longer saw the open Brave and Legcord: "NOT RUNNING", and each
+press started another one. The watcher was loaded (`isScriptLoaded` true)
+but never ran: KWin gives a new script the number of scripts it holds, so
+once any script was unloaded (other KWin scripts, Game Companion's own
+one-off scripts) the new number's D-Bus path belonged to a script still
+loaded, and `run` reached that one. A fresh login has no gaps, hence "it
+worked before". Now every load also calls `/Scripting start` (runs every
+loaded script not yet running). Belt and braces: with no window known, a
+press asks KWin for the app's windows first (`scan_body`,
+`look_then_start`, `looked`) and loads the watcher again if it missed one;
+a game start does the same before starting apps set to start with it.
+Checked on the Arch bench: `arch-test/apps/holes.sh` (a gap in the ids:
+taken over, no second Brave, the watcher saw it itself), `restart.sh`
+(restart after SIGTERM and SIGKILL), `gc.sh` all pass.
 
 ## Testing
 

@@ -34,6 +34,8 @@ MouseArea {
         SmoothedAnimation { id: glide; velocity: -1; duration: 180 }
     }
     onPosChanged: if (gliding && flick) flick.contentY = pos
+    /// Ends a glide (the list was put elsewhere: the next notch starts there).
+    function stop() { glide.stop(); gliding = false }
 
     onWheel: (wheel) => {
         if (!flick) return

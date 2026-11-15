@@ -51,9 +51,13 @@ pub struct AppDef {
     /// sits at the right edge (else the left).
     pub size: (i32, i32),
     pub right: bool,
+    /// What follows the program found on the PATH (not a chosen command).
+    pub args: &'static str,
+    /// The one game it starts with ("With game"), or None for any game.
+    pub game: Option<&'static str>,
 }
 
-pub const APPS: [AppDef; 2] = [
+pub const APPS: [AppDef; 3] = [
     AppDef {
         id: "brave",
         name: "Brave",
@@ -61,8 +65,22 @@ pub const APPS: [AppDef; 2] = [
         window: "brave",
         size: (560, 760),
         right: true,
+        args: "",
+        game: None,
     },
-    AppDef { id: "legcord", name: "Legcord", programs: &["legcord"], window: "legcord", size: (560, 640), right: false },
+    AppDef { id: "legcord", name: "Legcord", programs: &["legcord"], window: "legcord", size: (560, 640), right: false, args: "", game: None },
+    // Path of Building 2 in Rusty Path of Building's runtime (the person's,
+    // 2026-11-15): its window's app id is `rusty-path-of-building-2`.
+    AppDef {
+        id: "pob",
+        name: "PoB",
+        programs: &["rusty-path-of-building"],
+        window: "rusty-path-of-building",
+        size: (1280, 800),
+        right: false,
+        args: "poe2",
+        game: Some("poe2"),
+    },
 ];
 
 pub fn def(id: &str) -> Option<&'static AppDef> {
@@ -121,7 +139,7 @@ fn command_in(app: &AppDef, choice: &AppChoice, path: &std::ffi::OsStr) -> Optio
     app.programs
         .iter()
         .find(|p| std::env::split_paths(path).any(|dir| is_program(&dir.join(p))))
-        .map(|p| p.to_string())
+        .map(|p| if app.args.is_empty() { p.to_string() } else { format!("{p} {}", app.args) })
 }
 
 fn is_program(path: &Path) -> bool {
@@ -186,6 +204,8 @@ pub enum Event {
     Full(Win),
     /// The watcher has reported every window there was.
     Ready,
+    /// Spectacle's full-screen selection opened (true) or every one closed.
+    Shot(bool),
 }
 
 pub fn parse_event(kind: &str, data: &str) -> Option<Event> {
@@ -198,6 +218,10 @@ pub fn parse_event(kind: &str, data: &str) -> Option<Event> {
         "active" => Some(Event::Active(serde_json::from_str::<Win>(data).ok().filter(|w| !w.id.is_empty()))),
         "full" => serde_json::from_str::<Win>(data).ok().filter(|w| !w.id.is_empty()).map(Event::Full),
         "ready" => Some(Event::Ready),
+        "shot" => {
+            let v: Value = serde_json::from_str(data).ok()?;
+            Some(Event::Shot(v.get("on")?.as_bool()?))
+        }
         _ => None,
     }
 }
@@ -246,7 +270,30 @@ function gcWatched(w) {{
     for (var i = 0; i < GC_KEYS.length; i++) if (k.indexOf(GC_KEYS[i]) >= 0) return true;
     return false;
 }}
+// Spectacle's selection (Print): a window over a whole screen, on the same
+// overlay layer as Game Companion's parts. While one is open the parts
+// stand still and let clicks through (MN, 0.8.49: flicker over its frozen
+// picture). Its own result window is left alone.
+var gcShots = [];
+function gcShot(w) {{
+    if (!w) return false;
+    var k = (String(w.desktopFileName || "") + " " + String(w.resourceClass || "") + " " + String(w.resourceName || "")).toLowerCase();
+    if (k.indexOf("spectacle") < 0) return false;
+    var o = w.output, g = w.frameGeometry;
+    return w.fullScreen || (!!o && g.width >= o.geometry.width && g.height >= o.geometry.height);
+}}
+function gcShotGone(w) {{
+    var i = gcShots.indexOf(w);
+    if (i < 0) return;
+    gcShots.splice(i, 1);
+    if (gcShots.length === 0) gcSend("shot", "{{\"on\":false}}");
+}}
 function gcHook(w) {{
+    if (gcShot(w)) {{
+        gcShots.push(w);
+        gcSend("shot", "{{\"on\":true}}");
+        return;
+    }}
     if (!gcWatched(w)) {{
         // Any other window going full screen (a game taking its mark back).
         if (w && w.normalWindow) w.fullScreenChanged.connect(function () {{ if (w.fullScreen) gcSend("full", gcInfo(w)); }});
@@ -259,16 +306,36 @@ function gcHook(w) {{
     w.fullScreenChanged.connect(function () {{ gcSend("window", gcInfo(w)); }});
 }}
 workspace.windowAdded.connect(gcHook);
-workspace.windowRemoved.connect(function (w) {{ if (gcWatched(w)) gcSend("removed", JSON.stringify({{ id: String(w.internalId) }})); }});
+workspace.windowRemoved.connect(function (w) {{
+    gcShotGone(w);
+    if (gcWatched(w)) gcSend("removed", JSON.stringify({{ id: String(w.internalId) }}));
+}});
 workspace.windowActivated.connect(function (w) {{ gcSend("active", w && w.normalWindow ? gcInfo(w) : "{{}}"); }});
 var gcAll = workspace.windowList();
 for (var i = 0; i < gcAll.length; i++) gcHook(gcAll[i]);
+if (gcShots.length === 0) gcSend("shot", "{{\"on\":false}}");
 var gcNow = workspace.activeWindow;
 gcSend("active", gcNow && gcNow.normalWindow ? gcInfo(gcNow) : "{{}}");
 gcSend("ready", "{{}}");
 "#,
             keys = js(keys)
         )
+}
+
+/// Reports every window of the apps with `keys` as the watcher would (a
+/// look of its own when the watcher may have missed them).
+pub fn scan_body(keys: &[&str]) -> String {
+    let keys: Vec<String> = keys.iter().map(|k| k.to_lowercase()).collect();
+    format!(
+        r#"var keys = {keys}, a = workspace.windowList();
+for (var i = 0; i < a.length; i++) {{
+    var w = a[i];
+    if (!w.normalWindow || w.transient) continue;
+    var k = (String(w.desktopFileName || "") + " " + String(w.resourceClass || "")).toLowerCase();
+    for (var j = 0; j < keys.length; j++) if (k.indexOf(keys[j]) >= 0) {{ callDBus(GC_BUS, GC_PATH, GC_IFACE, "Event", "window", gcInfo(w)); break; }}
+}}"#,
+        keys = js(keys)
+    )
 }
 
 /// A one-off script: `body` runs with `gcFind(id)` and `gcOutput(name)`,
@@ -508,9 +575,16 @@ impl Kwin {
         if id < 0 {
             return Err(zbus::Error::Failure(format!("KWin did not load {name}")));
         }
+        // KWin numbers a new script by how many it holds, so once another
+        // script went, the number (and its D-Bus path) can be one still in
+        // use: `run` there reaches that other script, and ours never ran
+        // (MN, 0.8.37: the watcher loaded but told nothing). `start` runs
+        // every loaded script that is not running yet, ours included.
         let path = format!("/Scripting/Script{id}");
-        let script = zbus::blocking::Proxy::new(&self.conn, "org.kde.KWin", path.as_str(), "org.kde.kwin.Script")?;
-        let () = script.call("run", &())?;
+        if let Ok(script) = zbus::blocking::Proxy::new(&self.conn, "org.kde.KWin", path.as_str(), "org.kde.kwin.Script") {
+            let _: zbus::Result<()> = script.call("run", &());
+        }
+        let () = scripting.call("start", &())?;
         Ok(())
     }
 
@@ -528,6 +602,13 @@ impl Kwin {
         let result = self.load(&file, WATCHER);
         let _ = std::fs::remove_file(&file);
         result
+    }
+
+    /// Asks KWin for the apps' windows now (`scan_body`); they come as
+    /// window events before this returns.
+    pub fn scan(&self, keys: &[&str]) -> zbus::Result<()> {
+        self.find_kwin()?;
+        self.run(&scan_body(keys))
     }
 
     pub fn stop_watching(&self) {
@@ -626,6 +707,7 @@ pub fn quit() {
     }
     for &(pid, start) in &closing {
         eprintln!("game-companion: closing pid {pid}");
+        crate::log::write("child", &format!("closing pid {pid} (started for an app)"));
         start_with::signal_program(pid, start, libc::SIGTERM);
     }
     for _ in 0..30 {
@@ -635,6 +717,7 @@ pub fn quit() {
         std::thread::sleep(Duration::from_millis(100));
     }
     for &(pid, start) in &closing {
+        crate::log::write("child", &format!("pid {pid} still running after 3 s: SIGKILL"));
         start_with::signal_program(pid, start, libc::SIGKILL);
     }
 }
@@ -670,6 +753,9 @@ mod tests {
         assert_eq!((w.id.as_str(), w.x, w.w, w.out.as_str()), ("{a}", 5, 300, "DP-2"));
         assert_eq!(parse_event("removed", r#"{"id":"{a}"}"#), Some(Event::Removed("{a}".into())));
         assert_eq!(parse_event("active", "{}"), Some(Event::Active(None)));
+        assert_eq!(parse_event("shot", r#"{"on":true}"#), Some(Event::Shot(true)));
+        assert_eq!(parse_event("shot", r#"{"on":false}"#), Some(Event::Shot(false)));
+        assert_eq!(parse_event("shot", "{}"), None);
         assert_eq!(parse_event("ready", "{}"), Some(Event::Ready));
         let e = parse_event("full", r#"{"id":"{g}","cls":"aion2.exe","normal":true,"full":true,"out":"DP-2"}"#);
         let Some(Event::Full(g)) = e else { panic!("{e:?}") };
@@ -700,6 +786,8 @@ mod tests {
         let u = unfull_body("{g}");
         assert!(u.contains(r#"gcFind("{g}")"#) && u.contains("w.fullScreen = false") && u.contains("w.noBorder = true"));
         assert!(refull_body("{g}").contains("w.fullScreen = true"));
+        let s = command_script(":1.42", "7-2", &scan_body(&["Brave"]));
+        assert!(s.contains(r#"var keys = ["brave"]"#) && s.contains(r#""Event", "window", gcInfo(w)"#));
     }
 
     #[test]
@@ -717,6 +805,15 @@ mod tests {
         let chosen = AppChoice { command: " brave-origin --x ".into(), ..Default::default() };
         assert_eq!(command_in(brave, &chosen, path).as_deref(), Some("brave-origin --x"));
         assert_eq!(command_in(def("legcord").unwrap(), &AppChoice::default(), path), None);
+        // Path of Building starts in its PoE 2 mode; a chosen command as it is.
+        let pob_program = dir.join("rusty-path-of-building");
+        std::fs::write(&pob_program, "#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&pob_program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let pob = def("pob").unwrap();
+        assert_eq!(command_in(pob, &AppChoice::default(), path).as_deref(), Some("rusty-path-of-building poe2"));
+        let chosen = AppChoice { command: "rusty-path-of-building poe1".into(), ..Default::default() };
+        assert_eq!(command_in(pob, &chosen, path).as_deref(), Some("rusty-path-of-building poe1"));
+        assert!(belongs(pob, &win("rusty-path-of-building-2", "")));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

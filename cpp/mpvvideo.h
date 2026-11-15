@@ -54,6 +54,13 @@ class MpvVideo : public QQuickFramebufferObject
     /// yt-dlp's own options for the next video (mpv's ytdl-raw-options,
     /// "key=value,..."), "" none.
     Q_PROPERTY(QString ytdlOptions READ ytdlOptions WRITE setYtdlOptions NOTIFY ytdlOptionsChanged)
+    /// No new frame is drawn and the position holds still while true (its
+    /// window changes size: a frame drawn meanwhile showed the whole window
+    /// stretched over the screen, MN); what was missed comes when it ends.
+    Q_PROPERTY(bool frozen READ frozen WRITE setFrozen NOTIFY frozenChanged)
+    /// Whether a picture is decoded (false while only sound plays: a
+    /// YouTube stream whose video part failed to open).
+    Q_PROPERTY(bool hasPicture READ hasPicture NOTIFY hasPictureChanged)
 
 public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
@@ -78,6 +85,11 @@ public:
     qint64 heldUntil() const { return m_heldUntil; }
     QString why() const { return m_why; }
     QString ytdlOptions() const { return m_ytdlOptions; }
+    bool frozen() const { return m_frozen; }
+    bool hasPicture() const { return m_hasPicture; }
+    void setFrozen(bool on);
+    /// mpv has a new frame: drawn unless frozen.
+    void newFrame();
     void setYtdlOptions(const QString &options);
     void setSpeed(double speed);
     void setHwdec(bool on);
@@ -122,6 +134,8 @@ signals:
     void heldChanged();
     void whyChanged();
     void ytdlOptionsChanged();
+    void frozenChanged();
+    void hasPictureChanged();
 
 protected:
     /// Moved to another window: draw there (a video waiting for its render
@@ -169,6 +183,11 @@ private:
     bool m_local = false;
     QVariantList m_chapters;
     double m_speed = 1.0;
+    bool m_frozen = false;
+    bool m_missed = false;
+    bool m_positionMissed = false;
+    bool m_hasPicture = false;
+    void setHasPicture(bool on);
 };
 
 /// Registers MpvVideo for QML.

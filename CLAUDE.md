@@ -80,7 +80,10 @@ learnt, so nothing has to be asked or worked out again.
   src/armory.rs `allowed`; MN, 2026-11-13). The Legcord voice overlay
   (MN, 2026-11-14) opens no connection at all: its Legcord plugin talks to
   Game Companion over a Unix socket; avatars are fetched by Legcord itself
-  (its session, cdn.discordapp.com, as it does anyway). Brave Origin and Legcord are the
+  (its session, cdn.discordapp.com, as it does anyway). The PoE 2 price check (MN, 2026-11-15:
+  "bau ee2 nach"): www.pathofexile.com/api/trade2/ only (search, fetch,
+  exchange, data; src/poe2.rs `allowed`), asked when an item is checked.
+  Brave Origin, Legcord and Rusty Path of Building are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
 - **Game modules only read** (like the AION 2 meter): never send anything to
@@ -183,6 +186,22 @@ learnt, so nothing has to be asked or worked out again.
   start prints "already running" and ends. Ending cleanly: mpv children die
   with the app (PR_SET_PDEATHSIG); for an update the app quits and, if Qt
   hangs, exits after 5 s anyway (the installer waits for its pid).
+- The app's log (`src/log.rs`, MN 2026-11-15: "bau ein log ein", "nein zu
+  persönlichen daten und mehr daten als nötig"):
+  `~/.cache/game-companion/game-companion.log`, moved to `.log.1` past 2 MB,
+  each line written at once. Start (version, Qt, platform, screens), end
+  and why (signal, tray, Turn off, update), an unclean last session (the
+  `running` marker), Qt warnings and errors (`gc_log_qt` from the message
+  handler in cpp/native.cpp; each kind once per session, the JS lint never),
+  a crash's signal and backtrace (handler with `write`/`backtrace_symbols_fd`
+  only, then the signal goes on: core dump as before), the PoE 2 steps
+  (copy seen item yes/no and its length, check, search, each trade request's
+  endpoint kind and HTTP status, timers), children started and ended,
+  shortcuts, the running game, the AION 2 meter. Never item or chat texts,
+  tokens, accounts or request bodies; `log::clean` writes the home folder as
+  `~` and cuts values after token marks. QML: `Companion.log(area, text)`.
+  Settings → General "Log" (Open log folder, Copy log = last 300 lines),
+  tray "Open log folder". `GC_LOG=stderr` mirrors it, `GC_LOG=off` stops it.
 - `src/companion.rs`: the `Companion` QML singleton (CXX-Qt). The shortcut
   thread queues onto the Qt thread (`qt_thread().queue`).
 - `src/shortcuts.rs`: the GlobalShortcuts portal, adapted from the meter's
@@ -285,7 +304,73 @@ learnt, so nothing has to be asked or worked out again.
   `extractor-args=youtube:player_client=visionos`; MN's test: tv_samsung got
   a 6 to 15 s ad, visionos none); after a failure or a stall it lets yt-dlp
   choose (`anyPlayer`). "Stuck" names mpv's or yt-dlp's last warning
-  (`MpvVideo.why`).
+  (`MpvVideo.why`). A YouTube video that plays on with sound but no
+  picture for 3 s (`MpvVideo.hasPicture`, mpv's `width`) is loaded again
+  at the same spot with yt-dlp choosing the player (MN, 0.8.40: sound
+  only, Twitch fine). YouTube's feeds give the channel id at their top
+  without its "UC": `streams::full_channel_id` (and QML `chanId`) adds it,
+  an entry's own id and the asked channel win, stored videos are mended in
+  `cached_videos` (MN, 0.8.40: "Go to channel" said "not a YouTube
+  channel", "Channel into group" did nothing). With no group yet, "Channel
+  into group" opens the name field at once (`startGroup`). The star beside a
+  video or channel subscribes at once and asks before unsubscribing
+  (`starChannel`, menu kind `unsub`; MN, 0.8.43). A YouTube video
+  started from a list takes the shown list along (`playVideo`: `queue`,
+  `index`; `through` only for a playlist or "Play all", which go on at
+  once): the player's ⏭, "UP NEXT ▾" (`upNext`, the next five; its first
+  row and, from 640 px, the bar's AUTOPLAY switch `Streams.autoplay`,
+  settings `streams.autoplay`, default off) and, with AUTOPLAY on, the
+  5 s "NEXT:" note (`nextItem`, shared with Jellyfin's next episode).
+  Settings → Streams → Videos "Close the player when nothing follows"
+  (`Streams.closeAtEnd`, `close_at_end`, default off): `nothingFollows`
+  → `closeIfEnded` (via `Qt.callLater`, never inside the player's own
+  signal) → `stop()`, which lets mpv go as the close button does; for
+  YouTube, Twitch and Jellyfin (after no next episode or track came).
+  Narrow windows: below 520 px with UP NEXT the speed button hides
+  (MN, 2026-11-15). `GC_DEMO=video,upnext[,upnextlist|,nextnote],unlocked`.
+  Searches asked in another language than English (`youtube:lang=`) come
+  without dates (yt-dlp reads English time texts only): `dates_later`
+  asks the feeds of up to 24 channels in the list not asked for 15 minutes,
+  stores them in the feed cache and fills the shown list
+  (`apply_known_from`; also History and playlists, whose entries keep what
+  a video had when added). Order (MN, 0.8.43): "Sort ▾" left of the arrows,
+  settings `streams.sorts` per view (`Streams.setSort`, in `filters`);
+  the game's search asks YouTube in its order (`game_sp`: relevance, date,
+  views), the others are sorted as loaded (`StreamsPanel.youtubeShown`,
+  `sortVideos`; playlist Move up/down only in the playlist's own order).
+  Videos no feed dates any more (a channel that uploads a lot) get one
+  yt-dlp look each (`youtube_video_date`, at most 6 per list, kept in
+  ~/.cache/game-companion/youtube-dates.json). Spectacle (Print): its
+  selection is a layer surface on the same overlay layer as our parts;
+  the apps watcher reports a "spectacle" window as big as its screen
+  (`gcShot`, event `shot`) → `Apps.screenshot`: videos frozen (watchdog
+  paused), every part's input region one pixel (Surface.applyInput), so
+  nothing flickers over its frozen picture and clicks are Spectacle's
+  (MN, 0.8.49). `GC_DEMO=…,shot` sets it (under xcb the one-pixel mask
+  also hides the windows: an X11 artifact).
+  Lists keep their place when their array is replaced (load more, the
+  background subscriptions look, lengths coming in; MN 0.8.37: jumped to
+  the top): `StreamsPanel.listModel` is set by `swapList` from
+  `listWanted`, which finds the first row seen in the new array by
+  `itemKey` when `listKey` (tab, view, arg, channel, search) is the same.
+  Lengths: feeds have none, so `lengths_later` → `fill_lengths` asks yt-dlp
+  for each stored channel's videos tab (15, 3 at once, 40 channels a time)
+  when its newest video changed since (`lengths_for` in the feed cache);
+  the channel view fills its own (`channel_lengths_later`). Dates: yt-dlp
+  flat lists ask `youtubetab:approximate_date` (English time texts only),
+  marked `rough`; `apply_known` takes the feed cache's exact dates and
+  lengths. `ago(iso, rough)`: within a week how long ago, then the date (a
+  rough one stays "3 weeks ago"). `VideoByline.qml`: channel name opens
+  the channel (also ⋯ "Go to channel", "Channel into group ▸", which
+  subscribes first); the GROUPS row shows in Subscriptions and Channels
+  even without groups, saying how to make one. A grab first freezes a
+  playing video (`Surface.settling` → `MpvVideo.frozen`: no frames, no
+  position updates) and changes the surface's size 40 ms later
+  (`holdLater`), unfrozen 250 ms after: a frame drawn at the old size and
+  committed with the new one showed the whole window stretched over the
+  screen (MN; Sway bench, about every second grab while playing, never
+  paused; 0.8.38's freeze at the same moment as the resize didn't help).
+  Bench check: `arch-test/video-drag.sh` (project folder).
   Under xvfb (llvmpipe) a large video shows
   stripes after some seconds (also without resizing): most likely a
   software-GL artifact; to be checked on the person's GPU. `GC_SCREENSHOT_DELAY` sets the screenshot's moment.
@@ -412,7 +497,13 @@ learnt, so nothing has to be asked or worked out again.
   name (object `/io/github/xzero3007/GameCompanion/Apps`; calls from
   anyone but KWin's owner are ignored); each action is a one-off script
   (`command_script`: loaded, run, says "Done", unloaded) run on the
-  `apps-kwin` worker thread. Show: unminimise, keepAbove, opacity, place
+  `apps-kwin` worker thread. Every load ends with `/Scripting start`:
+  KWin numbers a new script by how many it holds, so after another script
+  went the number's D-Bus path can be another script's, and `run` there
+  never ran ours (MN, 0.8.37: watcher loaded, no windows reported, every
+  press started Brave again; `arch-test/apps/holes.sh`). With no window
+  known, a press first asks KWin (`scan_body`, `look_then_start`) and loads
+  the watcher again if it missed one; so does a game start. Show: unminimise, keepAbove, opacity, place
   on the overlay's screen (`nativeWindow.screenName`, place relative to it,
   kept when moved by hand), focus. Hide: minimise, focus back to the last
   other window. KWin 6.8 (Arch bench, 2026-11-14): a real full-screen game
@@ -597,6 +688,38 @@ learnt, so nothing has to be asked or worked out again.
   file in Downloads (`armory-*.json`, `src/armory.rs`). Battle History
   entries carry `players` [[name, damage]] for HISTORY's boss fights.
   `GC_DEMO=armory[,gear[,compare]|,soul[,pick]|,askills|,daev|,stats|,goals|,builds|,ahistory]`.
+
+- PoE 2 price check (MN 2026-11-15, Exiled Exchange 2 rebuilt because
+  EE2 was unreliable on KDE Wayland): `tools/poe2-ee2/build.mjs <EE2
+  checkout>` makes `qml/poe2/ee2kit.js` (EE2's parser, filters and trade
+  code for Qt's ES2016: shims, polyfills, look-behind patch, named groups
+  through `__gcMatch`/`__gcExec`, no setInterval) and `data/poe2/` (en, de;
+  installed to /usr/share/game-companion/poe2, `GC_POE2_DATA`). Rebuild it
+  when EE2 brings a new league's data (1.0 in December). `src/poe2.rs`:
+  trade requests (one at a time, 429 respected, cookie jar in
+  $XDG_RUNTIME_DIR) and the XFixes clipboard watcher on XWayland (the
+  person's own Ctrl+C in the game; nothing is sent to the game).
+  `qml/poe2/PriceStore.qml` + `PriceWindow.qml`, plugin `poe2.price`, only
+  while PoE 2 runs. The kit does **not** run in Qt's JavaScript (Arch's Qt
+  6.12 crashed in it, JIT and interpreter; MN 0.8.44, reproduced by QA):
+  `src/poe2_kit.rs` runs it in QuickJS (rquickjs) in a child process
+  (`/proc/self/exe --poe2-kit`, JSON lines on stdin/stdout,
+  PR_SET_PDEATHSIG from the Qt thread, ends when stdin closes or the
+  parent goes, `poe2_kit::stop` on quit); `PriceStore.kit(fn, args)` gives
+  a promise; if the child dies only the price check starts again
+  (`kitGone`). GC_DEMO=price answers inside the child (`DEMO`). The kit is
+  still built without array iterators (Babel pass in build.mjs). Tests:
+  `cargo test poe2_kit` (an item, a search, EE2's 27 samples in QuickJS). Tests: `node tools/poe2-ee2/test/run.js`, the ignored
+  `copied_items_are_seen` under xvfb-run with xclip. `GC_DEMO=price[,results]`.
+  Path of Building is the third app (`pob`, `AppDef.args` "poe2",
+  `AppDef.game` "poe2"; bar button while PoE 2 or PoB runs).
+  Qt's JavaScript runs without its JIT (`main.rs` sets
+  `QV4_FORCE_INTERPRETER=1`, `GC_JIT=1` keeps it): Arch's Qt 6.12 JIT
+  crashed in the kit every run (QA 2026-11-15), Qt 6.12.0 from PySide did
+  not; the interpreter cost no more CPU in the demos. Run Qt 6.12 in the
+  sandbox from a PySide6-Essentials venv (`LD_LIBRARY_PATH`,
+  `QT_PLUGIN_PATH`, `QML_IMPORT_PATH` to its `Qt/` folders): the app built
+  on 6.4 runs on it.
 
 ## Checking a change
 

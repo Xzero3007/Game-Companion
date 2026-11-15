@@ -291,7 +291,7 @@ Panel {
                     width: parent.width
                     spacing: 10
                     readonly property var state: JSON.parse(Apps.state)
-                    Hint { text: "Brave and Legcord stay your own programs, with all their extensions and settings. Their button in the bar (or the shortcut) puts the real window over the game, with the focus, where you left it last time; pressing again minimises it and gives the focus back to the game. Move and resize it by its own edges while it is shown: Game Companion keeps the place. When the game ends, it goes back where and how it was." }
+                    Hint { text: "Brave, Legcord and Path of Building stay your own programs, with all their extensions and settings. Their button in the bar (or the shortcut) puts the real window over the game, with the focus, where you left it last time; pressing again minimises it and gives the focus back to the game. Move and resize it by its own edges while it is shown: Game Companion keeps the place. When the game ends, it goes back where and how it was." }
                     OnOff {
                         visible: appsPage.state.available === true
                         width: parent.width
@@ -308,7 +308,7 @@ Panel {
                         color: appsPage.state.available ? Theme.dim() : Theme.red
                     }
                     Repeater {
-                        model: ["brave", "legcord"]
+                        model: ["brave", "legcord", "pob"]
                         delegate: Column {
                             id: appBox
                             required property string modelData
@@ -347,7 +347,7 @@ Panel {
                             }
                             OnOff {
                                 width: parent.width
-                                text: "Start when a game starts (not shown)"
+                                text: appBox.modelData === "pob" ? "Start when Path of Exile 2 starts (not shown)" : "Start when a game starts (not shown)"
                                 on: appBox.info.withGame === true
                                 onToggled: Apps.setWithGame(appBox.modelData, !appBox.info.withGame)
                             }
@@ -358,6 +358,10 @@ Panel {
                                 onToggled: Apps.setCloseOnQuit(appBox.modelData, !appBox.info.closeOnQuit)
                             }
                             Hint { text: "Only if Game Companion started it. One you started yourself is never closed." }
+                            Hint {
+                                visible: appBox.modelData === "pob"
+                                text: "Path of Building 2 in Rusty Path of Building (found as \"rusty-path-of-building poe2\"). Its button shows in the bar while Path of Exile 2 runs, or while it runs itself."
+                            }
                             Row {
                                 spacing: 10
                                 TextButton {
@@ -367,6 +371,7 @@ Panel {
                                 }
                                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                                     anchors.verticalCenter: parent.verticalCenter
+                                    visible: appBox.modelData !== "pob" || settings.keyOf(appBox.modelData).length > 0
                                     text: "Shortcut " + (settings.keyOf(appBox.modelData).length > 0 ? settings.keyOf(appBox.modelData).toUpperCase() : "—") + " (Shortcuts tab)"
                                     color: Theme.dim()
                                     font.family: Theme.body
@@ -621,12 +626,29 @@ Panel {
                     Hint { text: "Looks at Game Companion's own releases on GitHub when it starts and every 20 minutes. Nothing else is sent." }
 
                     Item { width: 1; height: 6 }
+                    Label { text: "Log" }
+                    Hint { text: "For finding faults: what Game Companion did, its warnings and, after a crash, where it happened. Kept on this computer only, in " + Companion.logPath() + " (at most about 4 MB). Never holds passwords, tokens, accounts, item or chat texts." }
+                    Row {
+                        spacing: 10
+                        TextButton {
+                            text: "Open log folder"
+                            onClicked: Companion.openLogFolder()
+                        }
+                        TextButton {
+                            id: copyLog
+                            property bool done: false
+                            text: done ? "Copied" : "Copy log"
+                            onClicked: { nativeWindow.copyText(Companion.logTail(300)); done = true }
+                        }
+                    }
+
+                    Item { width: 1; height: 6 }
                     Label { text: "Turn off" }
                     Hint { text: "Closes the hub completely, with the radio. Start it again from the application menu." }
                     TextButton {
                         text: "Turn off Game Companion"
                         danger: true
-                        onClicked: Qt.quit()
+                        onClicked: { Companion.log("app", "quit: Turn off in Settings"); Qt.quit() }
                     }
                 }
 
@@ -1261,6 +1283,13 @@ Panel {
                         onToggled: Streams.saveEvenLoudness(!Streams.evenLoudness)
                     }
                     Hint { text: "Quiet videos and quiet passages get louder, loud ones softer, as they play: one stream sounds much like the next. Costs mpv a little processor time. Changes take hold at once." }
+                    OnOff {
+                        width: parent.width
+                        text: "Close the player when nothing follows"
+                        on: Streams.closeAtEnd
+                        onToggled: Streams.saveCloseAtEnd(!Streams.closeAtEnd)
+                    }
+                    Hint { text: "On: a video window closes by itself at the end of a video, a past broadcast, an episode or a stream, unless something follows (the next in a playlist played through, AUTOPLAY's next video, Jellyfin's next episode). Closing ends its mpv, as the close button does." }
                     }
                 }
 
