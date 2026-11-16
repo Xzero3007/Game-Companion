@@ -38,6 +38,9 @@ pub mod qobject {
         #[qproperty(QString, hearing)]
         /// A snapshot for the sound log is being written.
         #[qproperty(bool, reporting)]
+        /// The channels' levels, 0 to 100, in CHANNELS' order (game, chat,
+        /// media, music), as "a,b,c,d" (only while the meters run).
+        #[qproperty(QString, channel_levels)]
         type Sound = super::SoundRust;
 
         /// Starts the worker (once, from Main).
@@ -101,6 +104,10 @@ pub mod qobject {
         #[qinvokable]
         fn close_easy_effects(self: Pin<&mut Sound>);
 
+        /// The channels' meters: on only while the MIXER shows.
+        #[qinvokable]
+        fn set_channel_meters(self: Pin<&mut Sound>, on: bool);
+
         /// Writes a snapshot of the graph into the sound log (`reporting`
         /// is true until it is there).
         #[qinvokable]
@@ -122,6 +129,9 @@ pub struct SoundRust {
     talking: bool,
     hearing: QString,
     reporting: bool,
+    channel_levels: QString,
+    levels: [u8; 4],
+    channel_meters_on: bool,
     tx: Option<Sender<Cmd>>,
     running: bool,
     why: String,
@@ -137,7 +147,7 @@ impl Default for SoundRust {
         if demo() {
             return Self::demo(s);
         }
-        let mut me = Self { state: QString::default(), apps: QString::from("[]"), prefs: QString::from(&json_of(&s)), level: 0, talking: false, hearing: QString::default(), reporting: false, tx: None, running: false, why: String::new(), easy: false, mics: Vec::new(), meter_on: false };
+        let mut me = Self { state: QString::default(), apps: QString::from("[]"), prefs: QString::from(&json_of(&s)), level: 0, talking: false, hearing: QString::default(), reporting: false, channel_levels: QString::from("0,0,0,0"), levels: [0; 4], channel_meters_on: false, tx: None, running: false, why: String::new(), easy: false, mics: Vec::new(), meter_on: false };
         me.state = QString::from(&me.state_json(&s));
         me
     }
@@ -184,6 +194,9 @@ impl SoundRust {
             talking: true,
             hearing: QString::default(),
             reporting: false,
+            channel_levels: QString::from("62,30,0,48"),
+            levels: [62, 30, 0, 48],
+            channel_meters_on: false,
             tx: None,
             running: true,
             why: String::new(),
@@ -280,6 +293,9 @@ impl qobject::Sound {
         if self.rust().meter_on {
             self.send(Cmd::Meter(true));
         }
+        if self.rust().channel_meters_on {
+            self.send(Cmd::ChannelMeters(true));
+        }
     }
 
     fn take(mut self: Pin<&mut Self>, e: Event) {
@@ -295,6 +311,15 @@ impl qobject::Sound {
                 }
                 if self.rust().talking != voice {
                     self.as_mut().set_talking(voice);
+                }
+                return;
+            }
+            Event::ChannelLevel(i, level) => {
+                let i = usize::from(i);
+                if i < 4 && self.rust().levels[i] != level {
+                    self.as_mut().rust_mut().levels[i] = level;
+                    let l = self.rust().levels;
+                    self.as_mut().set_channel_levels(QString::from(&format!("{},{},{},{}", l[0], l[1], l[2], l[3])));
                 }
                 return;
             }
@@ -482,6 +507,12 @@ impl qobject::Sound {
 
     fn hear(self: Pin<&mut Self>) {
         self.send(Cmd::Hear);
+    }
+
+    fn set_channel_meters(mut self: Pin<&mut Self>, on: bool) {
+        // Kept: the worker may not run yet (begin sends it then).
+        self.as_mut().rust_mut().channel_meters_on = on;
+        self.send(Cmd::ChannelMeters(on));
     }
 
     fn report(mut self: Pin<&mut Self>) {
