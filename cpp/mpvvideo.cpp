@@ -2,6 +2,7 @@
 
 #include <QtCore/QByteArray>
 #include <QtCore/QDateTime>
+#include <QtCore/QElapsedTimer>
 #include <QtCore/QMetaObject>
 #include <QtGui/QOpenGLContext>
 #include <QtOpenGL/QOpenGLFramebufferObject>
@@ -38,6 +39,9 @@ struct Mpv
     decltype(&mpv_render_context_render) render_render = nullptr;
     decltype(&mpv_render_context_set_update_callback) render_set_update_callback = nullptr;
     decltype(&mpv_render_context_update) render_update = nullptr;
+    // Only for the log's play statistics (optional).
+    decltype(&mpv_get_property_string) get_property_string = nullptr;
+    decltype(&mpv_free) free = nullptr;
     bool ok = false;
 };
 
@@ -69,6 +73,8 @@ const Mpv &mpv()
         GC_SYM(render_render, "mpv_render_context_render");
         GC_SYM(render_set_update_callback, "mpv_render_context_set_update_callback");
         GC_SYM(render_update, "mpv_render_context_update");
+        GC_SYM(get_property_string, "mpv_get_property_string");
+        GC_SYM(free, "mpv_free");
 #undef GC_SYM
         m.ok = m.create && m.initialize && m.terminate_destroy && m.set_option_string && m.set_property_string
             && m.command && m.observe_property && m.wait_event && m.set_wakeup_callback && m.error_string
@@ -167,7 +173,15 @@ public:
             {MPV_RENDER_PARAM_FLIP_Y, &flipY},
             {MPV_RENDER_PARAM_INVALID, nullptr},
         };
+        // GC_DEBUG_RENDER=1: when each frame was drawn and how long mpv took
+        // (it must not wait in here: video-timing-offset).
+        static const bool debug = qEnvironmentVariableIsSet("GC_DEBUG_RENDER");
+        static QElapsedTimer clock;
+        const qint64 from = debug ? (clock.isValid() ? clock.nsecsElapsed() : (clock.start(), 0)) : 0;
         mpv().render_render(m_render, params);
+        if (debug) {
+            qInfo("render at=%.1f took=%.1f", from / 1e6, (clock.nsecsElapsed() - from) / 1e6);
+        }
         QQuickOpenGLUtils::resetOpenGLState();
     }
 
@@ -283,6 +297,13 @@ bool MpvVideo::ensureStarted()
         // Room for Settings → Streams "Video loudness" (+9 dB is 141).
         {"volume-max", "150"},
         {"title", "Game Companion"},
+        // Qt Quick draws each frame when it is due and shows it at the next
+        // screen refresh. With mpv's default (0.05) every render call held
+        // Qt's render thread until the frame's time: about 36 of every 42 ms
+        // at 24 fps (measured), frames came late and uneven, and the window
+        // could draw nothing else meanwhile (MN: Jellyfin didn't play
+        // smoothly). 0 renders at once, as libmpv's render.h advises.
+        {"video-timing-offset", "0"},
     };
     for (const auto &o : options) {
         mpv().set_option_string(m_mpv, o[0], o[1]);
@@ -499,6 +520,24 @@ void MpvVideo::stop()
         mpv().command(m_mpv, args);
     }
     setState(QStringLiteral("idle"));
+}
+
+QString MpvVideo::playStats() const
+{
+    if (!m_mpv || !mpv().get_property_string || !mpv().free) {
+        return QString();
+    }
+    auto get = [this](const char *name) {
+        char *v = mpv().get_property_string(m_mpv, name);
+        const QString s = v ? QString::fromUtf8(v) : QStringLiteral("-");
+        if (v) {
+            mpv().free(v);
+        }
+        return s;
+    };
+    return QStringLiteral("codec %1 %2x%3 %4 fps, hwdec %5, dropped %6 (decoder %7), late %8")
+        .arg(get("video-format"), get("width"), get("height"), get("container-fps"), get("hwdec-current"),
+             get("frame-drop-count"), get("decoder-frame-drop-count"), get("vo-delayed-frame-count"));
 }
 
 void MpvVideo::seek(double seconds, bool relative)
