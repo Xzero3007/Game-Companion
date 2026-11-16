@@ -768,7 +768,7 @@ dependencies = [
 
 [[package]]
 name = "game-companion"
-version = "0.8.63"
+version = "0.8.64"
 dependencies = [
  "aion2",
  "cxx",
