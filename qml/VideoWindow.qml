@@ -696,6 +696,7 @@ Item {
                 levelling: Streams.evenLoudness
                 // Jellyfin: the home network's server, nothing else.
                 local: win.jelly
+                audioName: "Game Companion · " + (win.jelly ? "Jellyfin" : win.slot === "twitch" ? "Twitch" : "YouTube")
             }
         }
     }

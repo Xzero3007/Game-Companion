@@ -189,7 +189,10 @@ impl SoundRust {
         let apps = json!([
             { "index": 41, "name": "Path of Exile 2", "binary": "PathOfExileSteam.exe", "program": "PathOfExileSteam.exe", "channel": "game", "fixed": false },
             { "index": 42, "name": "Legcord", "binary": "legcord", "program": "legcord", "channel": "chat", "fixed": false },
-            { "index": 43, "name": "Game Companion radio", "binary": "mpv", "program": "mpv", "channel": "music", "fixed": false },
+            { "index": 43, "name": "Game Companion · Radio", "binary": "mpv", "program": "mpv", "channel": "music", "fixed": false },
+            { "index": 46, "name": "Game Companion · YouTube", "binary": "game-companion", "program": "game-companion", "channel": "media", "fixed": false },
+            { "index": 47, "name": "Game Companion · Twitch", "binary": "game-companion", "program": "game-companion", "channel": "media", "fixed": false },
+            { "index": 48, "name": "Path of Exile 2", "binary": "PathOfExileSteam.exe", "program": "PathOfExileSteam.exe", "channel": "game", "fixed": false },
             { "index": 44, "name": "Brave · YouTube", "binary": "brave", "program": "brave", "channel": "music", "fixed": true },
             { "index": 45, "name": "System sounds", "binary": "", "program": "System sounds", "channel": "media", "fixed": false }
         ]);
@@ -246,6 +249,7 @@ impl SoundRust {
             "micPresets": mic_presets,
             "micEq": s.mic_eq(),
             "limiter": inst.limiter.is_some(),
+            "levelGate": inst.level_gate.is_some(),
         })
         .to_string()
     }
@@ -358,7 +362,7 @@ impl qobject::Sound {
                     .iter()
                     .map(|(a, key)| {
                         let program = if a.binary.is_empty() { &a.name } else { &a.binary };
-                        json!({ "index": a.index, "name": a.name, "binary": a.binary, "program": program, "channel": key, "fixed": routes.contains_key(program.as_str()) })
+                        json!({ "index": a.index, "name": sound::label(a), "binary": a.binary, "program": program, "channel": key, "fixed": routes.contains_key(program.as_str()) })
                     })
                     .collect();
                 let text = Value::Array(apps).to_string();
@@ -430,13 +434,22 @@ impl qobject::Sound {
             threshold: before.threshold,
             grace: before.grace,
             gain: before.gain,
+            min_level: before.min_level,
             eq_preset: before.eq_preset.clone(),
             eq: before.eq,
+            duck: before.duck,
+            duck_db: before.duck_db,
+            voice: before.voice,
+            even_out: before.even_out,
             ..mic.clone()
         } == before;
+        mic.duck_db = sound::duck_db(mic.duck_db);
         let s = self.as_mut().change(|s| s.mic = mic.clone());
         if live_only {
-            self.send(Cmd::Gate(mic.threshold, mic.grace, mic.gain, s.mic_eq()));
+            self.send(Cmd::Gate(Box::new(mic.clone()), s.mic_eq()));
+            if mic.duck != before.duck || mic.duck_db != before.duck_db {
+                self.send(Cmd::DuckPrefs(mic.duck, mic.duck_db));
+            }
             self.show_state();
         } else {
             self.send(Cmd::Apply(Box::new(s)));

@@ -60,6 +60,12 @@ pub const PRESETS: [(&str, [f64; 6]); 5] = [
 /// UR22 (2026-11-16, 0.8.60).
 pub const ECHO_REF: &str = "gc_aec.reference";
 pub const MIC: &str = "gc_mic";
+/// The mic chain's end in the chains' child, linked by us to the front's
+/// `MIC_FEED`, which plays into `MIC`. The front never restarts with the
+/// chains, so OBS and Legcord keep `gc_mic` (MN, 2026-11-16: OBS lost
+/// the mic after every change).
+pub const MIC_RAW: &str = "gc_mic.raw";
+pub const MIC_FEED: &str = "gc_mic.feed";
 /// The stream mix: OBS records the source `gc_stream`; the sources play
 /// into the sink `gc_stream_in`.
 pub const STREAM: &str = "gc_stream";
@@ -134,9 +140,17 @@ pub struct Mic {
     pub threshold: f64,
     /// How long it stays open after the last word (ms).
     pub grace: u32,
-    /// Voice EQ (high-pass 80 Hz, presence) and, if installed, a gentle
-    /// compressor.
+    /// Clean up: a high-pass at 80 Hz (hum and rumble out).
     pub voice: bool,
+    /// Even out: swh's sc4m compressor, gentle (it was part of Clean up
+    /// until MN heard the voice pump with it, 2026-11-16).
+    pub even_out: bool,
+    /// Duck while I talk: the channels go quieter by `duck_db` while the
+    /// mic is open, so less of the speakers reaches the mic and the echo
+    /// canceller has less to take out (MN's HS7 monitors, 2026-11-16).
+    pub duck: bool,
+    /// How much quieter, dB (-3 to -30).
+    pub duck_db: f64,
     /// 1 once the gate's old defaults (85 %, 300 ms) were moved to the
     /// new ones; missing in older settings, so 0 there.
     #[serde(default)]
@@ -154,11 +168,16 @@ pub struct Mic {
     pub extra_ns: bool,
     /// WebRTC's automatic level (as EasyEffects' auto gain did).
     pub auto_level: bool,
+    /// The level gate: the mic opens only above this level (dBFS, after
+    /// the noise filter); -70 is off. Keeps the hiss and the speakers'
+    /// rest out between words (MN, 0.8.66: Legcord showed a constant
+    /// floor). Old settings get the default.
+    pub min_level: f64,
 }
 
 impl Default for Mic {
     fn default() -> Self {
-        Self { on: false, device: String::new(), channel: "FL".into(), echo: true, threshold: 60.0, grace: 500, voice: true, gate_v: 1, gain: MIC_GAIN, eq_preset: "Clear voice".into(), eq: [0.0; 5], extra_ns: false, auto_level: false }
+        Self { on: false, device: String::new(), channel: "FL".into(), echo: true, threshold: 60.0, grace: 500, voice: true, even_out: false, duck: false, duck_db: DUCK_DB, gate_v: 1, gain: MIC_GAIN, eq_preset: "Clear voice".into(), eq: [0.0; 5], extra_ns: false, auto_level: false, min_level: MIN_LEVEL }
     }
 }
 
@@ -217,6 +236,22 @@ impl SoundSettings {
         let m = &self.mic;
         clamp_voice(if m.eq_preset.is_empty() { m.eq } else { voice_preset(&self.mic_presets, &m.eq_preset).unwrap_or(m.eq) })
     }
+}
+
+/// The level gate's threshold to begin with and its range, dBFS.
+pub const MIN_LEVEL: f64 = -50.0;
+pub const MIN_LEVEL_OFF: f64 = -70.0;
+const LEVEL_GATE: &str = "/usr/lib/ladspa/gate_1410.so";
+
+/// Duck while I talk: how much quieter by default, and the bounds.
+pub const DUCK_DB: f64 = -12.0;
+
+pub fn duck_db(db: f64) -> f64 {
+    if db.is_finite() { db.clamp(-30.0, -3.0) } else { DUCK_DB }
+}
+
+fn min_level(db: f64) -> f64 {
+    if db.is_finite() { db.clamp(MIN_LEVEL_OFF, -10.0) } else { MIN_LEVEL }
 }
 
 /// The mic's gain to begin with, dB.
@@ -314,12 +349,14 @@ pub struct Installed {
     pub compressor: Option<PathBuf>,
     /// swh-plugins' look-ahead limiter (beside sc4m).
     pub limiter: Option<PathBuf>,
+    /// swh-plugins' gate (the level gate).
+    pub level_gate: Option<PathBuf>,
 }
 
 impl Installed {
     pub fn look() -> Self {
         let found = |p: &str| Some(PathBuf::from(p)).filter(|p| p.exists());
-        Self { rnnoise: found(RNNOISE), compressor: found(SC4M), limiter: found(LIMITER) }
+        Self { rnnoise: found(RNNOISE), compressor: found(SC4M), limiter: found(LIMITER), level_gate: found(LEVEL_GATE) }
     }
 }
 
@@ -345,9 +382,7 @@ fn is_pro(device: &str) -> bool {
     device.contains(".pro-input") || device.contains(".pro-output")
 }
 
-/// The child's whole PipeWire config.
-pub fn config(s: &SoundSettings, inst: &Installed) -> String {
-    let mut c = String::new();
+fn head(c: &mut String) {
     c.push_str("# Made by Game Companion (sound module) for its own `pipewire -c` child.\n");
     c.push_str("# Not read by the system's PipeWire; changes here are overwritten.\n");
     let _ = writeln!(c, "context.properties = {{ log.level = 2 core.daemon = false core.name = {} }}", sj(CLIENT));
@@ -357,6 +392,43 @@ pub fn config(s: &SoundSettings, inst: &Installed) -> String {
     c.push_str("  { name = libpipewire-module-protocol-native }\n");
     c.push_str("  { name = libpipewire-module-client-node }\n");
     c.push_str("  { name = libpipewire-module-adapter }\n");
+}
+
+/// The front: what other programs pick (the mic `gc_mic`, the stream mix
+/// `gc_stream`), in a child of its own that restarts only when one of
+/// them comes or goes. "" when there is nothing to hold.
+pub fn front_config(s: &SoundSettings) -> String {
+    let mic = s.mic.on && !s.mic.device.is_empty();
+    if !mic && !s.stream.on {
+        return String::new();
+    }
+    let mut c = String::new();
+    head(&mut c);
+    if mic {
+        // A copy: its input is linked by us (passive: the chain runs only
+        // while someone records the mic).
+        let _ = writeln!(
+            c,
+            "  {{ name = libpipewire-module-filter-chain\n    args = {{\n      node.description = {}\n      media.name = {}\n      filter.graph = {{ nodes = [ {{ type = builtin name = copy label = copy }} ] }}\n      audio.channels = 1\n      audio.rate = 48000\n      capture.props = {{ node.name = {} audio.position = [ MONO ] node.autoconnect = false node.passive = true }}\n      playback.props = {{ node.name = {} node.description = {} media.class = Audio/Source audio.position = [ MONO ] {LOW} }}\n    }}\n  }}",
+            sj("Game Companion Mikro"),
+            sj("Game Companion Mikro"),
+            sj(MIC_FEED),
+            sj(MIC),
+            sj("Game Companion Mikro"),
+        );
+    }
+    if s.stream.on {
+        stream_mix(&mut c);
+    }
+    c.push_str("]\n");
+    c
+}
+
+/// The chains' child's whole PipeWire config (channels, echo canceller,
+/// mic chain, sends); restarted when it changes.
+pub fn config(s: &SoundSettings, inst: &Installed) -> String {
+    let mut c = String::new();
+    head(&mut c);
     let echo = s.mic.on && s.mic.echo && !s.mic.device.is_empty();
     if echo {
         echo_cancel(&mut c, &s.mic);
@@ -376,9 +448,6 @@ pub fn config(s: &SoundSettings, inst: &Installed) -> String {
             let send = s.stream.sources.get("mic").cloned().unwrap_or_default();
             sendto(&mut c, "mic", MIC, "Game Companion Mikro", false, &send);
         }
-    }
-    if s.stream.on {
-        stream_mix(&mut c);
     }
     c.push_str("]\n");
     c
@@ -416,8 +485,10 @@ fn channel(c: &mut String, key: &str, node: &str, desc: &str, eq: &[f64; 6]) {
     for (i, (name, label, freq, q)) in BANDS.iter().enumerate() {
         let _ = writeln!(c, "          {{ type = builtin name = {name} label = {label} control = {{ \"Freq\" = {freq:.1} \"Q\" = {q:.2} \"Gain\" = {:.2} }} }}", eq[i + 1]);
     }
+    // Duck while I talk: 1 unless the mic is open (set live).
+    c.push_str("          { type = builtin name = duck label = linear control = { \"Mult\" = 1.0 \"Add\" = 0.0 } }\n");
     c.push_str("        ]\n        links = [\n");
-    let names = ["pre", "b1", "b2", "b3", "b4", "b5"];
+    let names = ["pre", "b1", "b2", "b3", "b4", "b5", "duck"];
     for w in names.windows(2) {
         let _ = writeln!(c, "          {{ output = \"{}:Out\" input = \"{}:In\" }}", w[0], w[1]);
     }
@@ -443,22 +514,37 @@ fn mic_chain(c: &mut String, mic: &Mic, eq: &[f64; 5], echo: bool, inst: &Instal
         ));
         chain.push(("rn", "Input", "Output"));
     }
+    if let Some(g) = &inst.level_gate {
+        // After the noise filter: what is left between words (hiss, the
+        // speakers' rest) is quiet, a voice at the mic is not. Quick to
+        // open, holds 300 ms, closes over 150 ms.
+        nodes.push(format!(
+            "          {{ type = ladspa name = lvl plugin = {} label = gate control = {{ \"LF key filter (Hz)\" = 100.0 \"HF key filter (Hz)\" = 8000.0 \"Threshold (dB)\" = {:.1} \"Attack (ms)\" = 2.0 \"Hold (ms)\" = 300.0 \"Decay (ms)\" = 150.0 \"Range (dB)\" = -90.0 \"Output select (-1 = key listen, 0 = gate, 1 = bypass)\" = 0 }} }}",
+            sj(&g.display().to_string()),
+            min_level(mic.min_level)
+        ));
+        chain.push(("lvl", "Input", "Output"));
+    }
     // The mic EQ: always there (flat costs nearly nothing), so a change
     // is live.
     for (i, (name, label, freq, q)) in VOICE_BANDS.iter().enumerate() {
         nodes.push(format!("          {{ type = builtin name = {name} label = {label} control = {{ \"Freq\" = {freq:.1} \"Q\" = {q:.2} \"Gain\" = {:.2} }} }}", eq[i]));
         chain.push((name, "In", "Out"));
     }
-    if mic.voice {
-        nodes.push("          { type = builtin name = hp label = bq_highpass control = { \"Freq\" = 80.0 \"Q\" = 0.70 } }".into());
-        chain.push(("hp", "In", "Out"));
-        if let Some(sc4) = &inst.compressor {
-            nodes.push(format!(
-                "          {{ type = ladspa name = comp plugin = {} label = sc4m control = {{ \"RMS/peak\" = 0.5 \"Attack time (ms)\" = 10.0 \"Release time (ms)\" = 150.0 \"Threshold level (dB)\" = -20.0 \"Ratio (1:n)\" = 3.0 \"Knee radius (dB)\" = 6.0 \"Makeup gain (dB)\" = 4.0 }} }}",
-                sj(&sc4.display().to_string())
-            ));
-            chain.push(("comp", "Input", "Output"));
-        }
+    // Clean up and Even out are always in the chain and switched live
+    // (`gate_params`): a switch must not restart the chains.
+    nodes.push(format!("          {{ type = builtin name = hp label = bq_highpass control = {{ \"Freq\" = {:.1} \"Q\" = 0.70 }} }}", hp_freq(mic.voice)));
+    chain.push(("hp", "In", "Out"));
+    if let Some(sc4) = &inst.compressor {
+        // Gentle: RMS, 2:1 above -24 dB with a soft knee, slow to let go
+        // (300 ms), so the voice does not pump (the old 3:1 with 150 ms
+        // did, MN 2026-11-16). Off = 1:1 and no makeup.
+        let (ratio, makeup) = comp_values(mic.even_out);
+        nodes.push(format!(
+            "          {{ type = ladspa name = comp plugin = {} label = sc4m control = {{ \"RMS/peak\" = 0.0 \"Attack time (ms)\" = 20.0 \"Release time (ms)\" = 300.0 \"Threshold level (dB)\" = -24.0 \"Ratio (1:n)\" = {ratio:.1} \"Knee radius (dB)\" = 8.0 \"Makeup gain (dB)\" = {makeup:.1} }} }}",
+            sj(&sc4.display().to_string())
+        ));
+        chain.push(("comp", "Input", "Output"));
     }
     if let Some(lim) = &inst.limiter {
         // Never past -1 dBFS, however loud the gain makes it.
@@ -501,7 +587,8 @@ fn mic_chain(c: &mut String, mic: &Mic, eq: &[f64; 5], echo: bool, inst: &Instal
     };
     let pos = if ["FL", "FR", "AUX0", "AUX1", "MONO"].contains(&pos) { pos } else { "FL" };
     let _ = writeln!(c, "      capture.props = {{ node.name = \"gc_mic.in\" target.object = {} audio.position = [ {pos} ] stream.dont-remix = true node.passive = true }}", sj(&source));
-    let _ = writeln!(c, "      playback.props = {{ node.name = {} node.description = {} media.class = Audio/Source audio.position = [ MONO ] {LOW} }}\n    }}\n  }}", sj(MIC), sj("Game Companion Mikro"));
+    // Not a source of its own: a plain output, linked by us to the front.
+    let _ = writeln!(c, "      playback.props = {{ node.name = {} audio.position = [ MONO ] node.autoconnect = false node.passive = true }}\n    }}\n  }}", sj(MIC_RAW));
 }
 
 /// The stream mix: a sink the sources play into and a source OBS records
@@ -548,16 +635,33 @@ pub fn eq_params(eq: &[f64; 6]) -> String {
     p
 }
 
-/// `pw-cli set-param` Props for the voice gate.
-pub fn gate_params(threshold: f64, grace: u32, gain: f64, eq: &[f64; 5]) -> String {
+/// Clean up's high-pass: 80 Hz on, 5 Hz (nothing heard) off.
+fn hp_freq(on: bool) -> f64 {
+    if on { 80.0 } else { 5.0 }
+}
+
+/// Even out's ratio and makeup: on 2:1 +3 dB, off 1:1 (passes as it is).
+fn comp_values(on: bool) -> (f64, f64) {
+    if on { (2.0, 3.0) } else { (1.0, 0.0) }
+}
+
+/// `pw-cli set-param` Props for the mic chain's live values (gain, gate,
+/// floor, EQ, Clean up, Even out when the compressor is there).
+pub fn gate_params(mic: &Mic, eq: &[f64; 5], comp: bool) -> String {
     let mut p = format!(
-        "{{ params = [ \"gain:Mult\" {:.6} \"rn:VAD Threshold (%)\" {:.1} \"rn:VAD Grace Period (ms)\" {:.1}",
-        db_to_linear(mic_gain(gain)),
-        threshold.clamp(0.0, 99.0),
-        f64::from(grace.min(2000))
+        "{{ params = [ \"gain:Mult\" {:.6} \"rn:VAD Threshold (%)\" {:.1} \"rn:VAD Grace Period (ms)\" {:.1} \"lvl:Threshold (dB)\" {:.1}",
+        db_to_linear(mic_gain(mic.gain)),
+        mic.threshold.clamp(0.0, 99.0),
+        f64::from(mic.grace.min(2000)),
+        min_level(mic.min_level)
     );
     for (i, (name, _, _, _)) in VOICE_BANDS.iter().enumerate() {
         let _ = write!(p, " \"{name}:Gain\" {:.2}", clamp_voice(*eq)[i]);
+    }
+    let _ = write!(p, " \"hp:Freq\" {:.1}", hp_freq(mic.voice));
+    if comp {
+        let (ratio, makeup) = comp_values(mic.even_out);
+        let _ = write!(p, " \"comp:Ratio (1:n)\" {ratio:.1} \"comp:Makeup gain (dB)\" {makeup:.1}");
     }
     p.push_str(" ] }");
     p
@@ -613,6 +717,15 @@ pub fn parse_apps(inputs: &str, sinks: &str) -> Vec<App> {
         })
         .filter(|a| !is_own(a))
         .collect()
+}
+
+/// The name shown for a stream: Game Companion's own say what they are.
+pub fn label(app: &App) -> String {
+    match app.name.as_str() {
+        "game-companion-radio" => "Game Companion · Radio".into(),
+        "Game Companion" => "Game Companion · Video".into(),
+        _ => app.name.clone(),
+    }
 }
 
 /// Our own chains' streams and EasyEffects' are never moved.
@@ -799,7 +912,7 @@ pub enum Cmd {
     /// Channel volumes and ChatMix, live.
     Volumes(Box<SoundSettings>),
     /// The voice gate, live.
-    Gate(f64, u32, f64, [f64; 5]),
+    Gate(Box<Mic>, [f64; 5]),
     /// A stream-mix source, live: key, send.
     Send(String, Send),
     /// The running game changed.
@@ -824,6 +937,10 @@ pub enum Cmd {
     ChannelLevel(u8, u8),
     /// Write a snapshot of the graph into the sound log ("Copy sound log").
     Report,
+    /// Duck while I talk: on, how much (dB), live.
+    DuckPrefs(bool, f64),
+    /// From the ducker: the channels' duck now, dB (0 = not ducked).
+    Duck(f64),
     /// From the snapshot's thread: done.
     Reported,
 }
@@ -880,6 +997,12 @@ struct Worker<F: Fn(Event)> {
     /// The channels' meters (`parec` of each channel's monitor).
     channel_meters: Vec<std::process::Child>,
     channel_meters_wanted: bool,
+    /// Duck while I talk: `parec` of the finished mic, and the duck set now.
+    ducker: Option<std::process::Child>,
+    ducked: f64,
+    /// The front's child (gc_mic, gc_stream) and its config.
+    front: Option<std::process::Child>,
+    front_conf: String,
 }
 
 fn tool(name: &str) -> std::process::Command {
@@ -900,9 +1023,9 @@ fn quiet(name: &str, args: &[&str]) -> bool {
 }
 
 /// The child's config file: in the runtime dir, never in ~/.config.
-fn conf_path() -> Option<PathBuf> {
+fn conf_path(name: &str) -> Option<PathBuf> {
     let dir = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).filter(|p| p.is_absolute())?;
-    Some(dir.join("game-companion-sound.conf"))
+    Some(dir.join(name))
 }
 
 fn ours(node: &str) -> bool {
@@ -911,7 +1034,7 @@ fn ours(node: &str) -> bool {
 
 impl<F: Fn(Event)> Worker<F> {
     fn new(tell: F, me: std::sync::mpsc::Sender<Cmd>) -> Self {
-        Self { tell, me, settings: SoundSettings::default(), game: GameAudio::default(), child: None, watcher: None, running_conf: String::new(), ids: BTreeMap::new(), proc_root: PathBuf::from("/proc"), pinned: BTreeMap::new(), meter: None, meter_wanted: false, hearing: false, channel_meters: Vec::new(), channel_meters_wanted: false }
+        Self { tell, me, settings: SoundSettings::default(), game: GameAudio::default(), child: None, watcher: None, running_conf: String::new(), ids: BTreeMap::new(), proc_root: PathBuf::from("/proc"), pinned: BTreeMap::new(), meter: None, meter_wanted: false, hearing: false, channel_meters: Vec::new(), channel_meters_wanted: false, ducker: None, ducked: 0.0, front: None, front_conf: String::new() }
     }
 
     fn run(mut self, rx: std::sync::mpsc::Receiver<Cmd>) {
@@ -935,7 +1058,12 @@ impl<F: Fn(Event)> Worker<F> {
                         self.settings.chatmix = s.chatmix;
                         self.volumes();
                     }
-                    Cmd::Gate(t, g, gain, eq) => self.set_props(MIC, &gate_params(*t, *g, *gain, eq)),
+                    Cmd::Gate(mic, eq) => {
+                        let comp = Installed::look().compressor.is_some();
+                        self.settings.mic.voice = mic.voice;
+                        self.settings.mic.even_out = mic.even_out;
+                        self.set_props(MIC_RAW, &gate_params(mic, eq, comp));
+                    }
                     Cmd::Send(key, send) => {
                         let channels = if key == "mic" { 1 } else { 2 };
                         self.set_props(&format!("gc_send_{key}.out"), &send_params(send, channels));
@@ -968,6 +1096,17 @@ impl<F: Fn(Event)> Worker<F> {
                     }
                     Cmd::ChannelLevel(i, level) => (self.tell)(Event::ChannelLevel(*i, *level)),
                     Cmd::Report => self.report(0),
+                    Cmd::DuckPrefs(on, db) => {
+                        let changed = self.settings.mic.duck != *on || self.settings.mic.duck_db != *db;
+                        self.settings.mic.duck = *on;
+                        self.settings.mic.duck_db = *db;
+                        if changed {
+                            crate::log::sound(&format!("duck while talking: {} ({:.0} dB)", if *on { "on" } else { "off" }, duck_db(*db)));
+                            self.stop_ducker();
+                            self.ducker();
+                        }
+                    }
+                    Cmd::Duck(db) => self.duck(*db),
                     Cmd::Reported => (self.tell)(Event::Reporting(false)),
                     Cmd::CloseEasyEffects => {
                         quiet("easyeffects", &["--quit"]);
@@ -996,15 +1135,20 @@ impl<F: Fn(Event)> Worker<F> {
         }
         let inst = Installed::look();
         let conf = config(s, &inst);
+        let front_new = self.front_up(&front_config(s));
         let alive = self.child.as_mut().is_some_and(|c| matches!(c.try_wait(), Ok(None)));
         if alive && conf == self.running_conf {
+            if front_new {
+                self.link_mic();
+            }
             self.volumes();
             self.streams(true);
+            self.ducker();
             return;
         }
         self.stop_child();
         crate::log::sound(&format!(
-            "== start: mic {} (device {}, input {}, echo {} (extra ns {}, auto level {}), gain {:+.0} dB, eq {:?} {:?}, gate {:.0} % / {} ms, voice {}), stream mix {}, chatmix {}, rnnoise {}, compressor {}, limiter {}",
+            "== start: mic {} (device {}, input {}, echo {} (extra ns {}, auto level {}), gain {:+.0} dB, floor {:.0} dBFS, eq {:?} {:?}, gate {:.0} % / {} ms, clean up {}, even out {}, duck {} ({:.0} dB)), stream mix {}, chatmix {}, rnnoise {}, compressor {}, limiter {}",
             s.mic.on,
             if s.mic.device.is_empty() { "-" } else { &s.mic.device },
             s.mic.channel,
@@ -1012,11 +1156,15 @@ impl<F: Fn(Event)> Worker<F> {
             s.mic.extra_ns,
             s.mic.auto_level,
             s.mic.gain,
+            s.mic.min_level,
             s.mic.eq_preset,
             s.mic_eq(),
             s.mic.threshold,
             s.mic.grace,
             s.mic.voice,
+            s.mic.even_out,
+            s.mic.duck,
+            duck_db(s.mic.duck_db),
             s.stream.on,
             s.chatmix,
             inst.rnnoise.is_some(),
@@ -1031,6 +1179,7 @@ impl<F: Fn(Event)> Worker<F> {
         match self.spawn(&conf) {
             Ok(()) => {
                 crate::log::sound("chains running");
+                self.link_mic();
                 self.report(8);
                 self.running_conf = conf;
                 (self.tell)(Event::Running(true, String::new()));
@@ -1039,6 +1188,7 @@ impl<F: Fn(Event)> Worker<F> {
                 self.streams(true);
                 self.meter();
                 self.channel_meters();
+                self.ducker();
             }
             Err(why) => {
                 crate::log::write("sound", &format!("chains did not start: {why}"));
@@ -1049,8 +1199,83 @@ impl<F: Fn(Event)> Worker<F> {
     }
 
     fn spawn(&mut self, conf: &str) -> Result<(), String> {
+        let names: Vec<&str> = CHANNELS.iter().map(|(_, n, _)| *n).collect();
+        let child = self.launch("game-companion-sound.conf", conf, &names, "sound chains")?;
+        self.child = Some(child);
+        Ok(())
+    }
+
+    /// The front's child: started, restarted when its config changed, or
+    /// ended when there is nothing to hold. True when it (re)started.
+    fn front_up(&mut self, conf: &str) -> bool {
+        let alive = self.front.as_mut().is_some_and(|c| matches!(c.try_wait(), Ok(None)));
+        if alive && conf == self.front_conf {
+            return false;
+        }
+        self.stop_front();
+        if conf.is_empty() {
+            return false;
+        }
+        let mut names = Vec::new();
+        if conf.contains(&sj(MIC_FEED)) {
+            names.push(MIC);
+        }
+        if conf.contains(&sj(STREAM)) {
+            names.push(STREAM);
+        }
+        crate::log::sound(&format!("== front: {}\n{conf}== end of front", names.join(", ")));
+        match self.launch("game-companion-sound-front.conf", conf, &names, "sound front") {
+            Ok(child) => {
+                self.front = Some(child);
+                self.front_conf = conf.to_string();
+                true
+            }
+            Err(why) => {
+                crate::log::sound(&format!("front did not start: {why}"));
+                false
+            }
+        }
+    }
+
+    fn stop_front(&mut self) {
+        if let Some(mut c) = self.front.take() {
+            let _ = c.kill();
+            let _ = c.wait();
+            crate::log::write("child", "sound front ended");
+        }
+        self.front_conf.clear();
+    }
+
+    /// Links the mic chain's end to the front's mic (passive: it runs only
+    /// while someone records `gc_mic`). After either child (re)started.
+    fn link_mic(&mut self) {
+        if self.child.is_none() || self.front.is_none() || !self.settings.mic.on {
+            return;
+        }
+        let started = std::time::Instant::now();
+        loop {
+            let outs = output("pw-link", &["-o"]).unwrap_or_default();
+            let ins = output("pw-link", &["-i"]).unwrap_or_default();
+            let from = outs.lines().map(str::trim).find(|l| l.starts_with(&format!("{MIC_RAW}:output")));
+            let to = ins.lines().map(str::trim).find(|l| l.starts_with(&format!("{MIC_FEED}:input")));
+            if let (Some(from), Some(to)) = (from, to) {
+                let ok = quiet("pw-link", &["-P", from, to]);
+                crate::log::sound(&format!("mic linked to the front: {}", if ok { "yes" } else { "FAILED" }));
+                return;
+            }
+            if started.elapsed() > std::time::Duration::from_secs(3) {
+                crate::log::sound(&format!("mic not linked: {} {}", if from.is_some() { "" } else { MIC_RAW }, if to.is_some() { "" } else { MIC_FEED }));
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    }
+
+    /// Starts a `pipewire -c` child with `conf` (written to the runtime dir
+    /// as `file`) and waits until the nodes `names` exist.
+    fn launch(&mut self, file: &str, conf: &str, names: &[&str], what: &str) -> Result<std::process::Child, String> {
         use std::os::unix::process::CommandExt;
-        let path = conf_path().ok_or("no XDG_RUNTIME_DIR")?;
+        let path = conf_path(file).ok_or("no XDG_RUNTIME_DIR")?;
         std::fs::write(&path, conf).map_err(|e| e.to_string())?;
         let before_sink = output("pactl", &["get-default-sink"]).unwrap_or_default().trim().to_string();
         let before_source = output("pactl", &["get-default-source"]).unwrap_or_default().trim().to_string();
@@ -1064,10 +1289,11 @@ impl<F: Fn(Event)> Worker<F> {
             });
         }
         let mut child = cmd.spawn().map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { "pipewire is not installed".to_string() } else { e.to_string() })?;
-        crate::log::write("child", &format!("sound chains started (pid {})", child.id()));
+        crate::log::write("child", &format!("{what} started (pid {})", child.id()));
         // PipeWire's own warnings and errors (xruns, failed links) into the
         // sound log, at most 400 lines per run.
         if let Some(err) = child.stderr.take() {
+            let what = what.to_string();
             std::thread::Builder::new()
                 .name("sound-stderr".into())
                 .spawn(move || {
@@ -1076,16 +1302,16 @@ impl<F: Fn(Event)> Worker<F> {
                     for line in std::io::BufReader::new(err).lines().map_while(Result::ok) {
                         n += 1;
                         if n <= 400 {
-                            crate::log::sound(&format!("pipewire: {line}"));
+                            crate::log::sound(&format!("pipewire ({what}): {line}"));
                         } else if n == 401 {
-                            crate::log::sound("pipewire: (more lines left out)");
+                            crate::log::sound(&format!("pipewire ({what}): (more lines left out)"));
                         }
                     }
-                    crate::log::sound("pipewire child ended");
+                    crate::log::sound(&format!("pipewire child ended ({what})"));
                 })
                 .ok();
         }
-        // Wait until the channels exist (or the child ends: a bad config).
+        // Wait until the nodes exist (or the child ends: a bad config).
         let started = std::time::Instant::now();
         loop {
             if let Ok(Some(status)) = child.try_wait() {
@@ -1093,18 +1319,17 @@ impl<F: Fn(Event)> Worker<F> {
             }
             if let Some(dump) = output("pw-dump", &[]) {
                 self.ids = node_ids(&dump);
-                if CHANNELS.iter().all(|(_, n, _)| self.ids.contains_key(*n)) {
+                if names.iter().all(|n| self.ids.contains_key(*n)) {
                     break;
                 }
             }
             if started.elapsed() > std::time::Duration::from_secs(5) {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err("the channels did not appear".into());
+                return Err(format!("{} did not appear", names.join(", ")));
             }
             std::thread::sleep(std::time::Duration::from_millis(150));
         }
-        self.child = Some(child);
         // A virtual sink or source must never become the default (its sound
         // goes to the default: a loop). Put back what was there.
         let now_sink = output("pactl", &["get-default-sink"]).unwrap_or_default().trim().to_string();
@@ -1115,7 +1340,7 @@ impl<F: Fn(Event)> Worker<F> {
         if ours(&now_source) && !before_source.is_empty() && !ours(&before_source) {
             quiet("pactl", &["set-default-source", &before_source]);
         }
-        Ok(())
+        Ok(child)
     }
 
     /// `pactl subscribe` while the chains run: a new stream → look again.
@@ -1343,7 +1568,7 @@ impl<F: Fn(Event)> Worker<F> {
         if self.hearing || self.child.is_none() || !self.settings.mic.on {
             return;
         }
-        let Some(dir) = conf_path().and_then(|p| p.parent().map(Path::to_path_buf)) else { return };
+        let Some(dir) = conf_path("game-companion-sound.conf").and_then(|p| p.parent().map(Path::to_path_buf)) else { return };
         let file = dir.join("game-companion-mic-test.wav");
         let me = self.me.clone();
         self.hearing = true;
@@ -1400,7 +1625,77 @@ impl<F: Fn(Event)> Worker<F> {
             .ok();
     }
 
+    /// Duck while I talk: a `parec` of the finished mic (8 kHz mono, 40 ms
+    /// blocks) read on its own thread; `Ducking` turns its blocks into the
+    /// channels' duck, told only when it changes.
+    fn ducker(&mut self) {
+        use std::io::Read;
+        use std::os::unix::process::CommandExt;
+        let want = self.settings.mic.duck && self.settings.mic.on && self.child.is_some();
+        if !want {
+            self.stop_ducker();
+            return;
+        }
+        if self.ducker.as_mut().is_some_and(|c| matches!(c.try_wait(), Ok(None))) {
+            return;
+        }
+        let mut cmd = tool("parec");
+        cmd.args(["--raw", "--format=s16le", "--rate=8000", "--channels=1", "--latency-msec=40", &format!("--device={MIC}")]).stdout(std::process::Stdio::piped());
+        // SAFETY: as above.
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                Ok(())
+            });
+        }
+        let Ok(mut child) = cmd.spawn() else { return };
+        let Some(mut out) = child.stdout.take() else { return };
+        let me = self.me.clone();
+        let mut ducking = Ducking::new(duck_db(self.settings.mic.duck_db));
+        std::thread::Builder::new()
+            .name("sound-duck".into())
+            .spawn(move || {
+                let mut buf = vec![0u8; 640];
+                while out.read_exact(&mut buf).is_ok() {
+                    let (_, voice) = level_of(&buf);
+                    if let Some(db) = ducking.step(voice, 40) {
+                        if me.send(Cmd::Duck(db)).is_err() {
+                            break;
+                        }
+                    }
+                }
+            })
+            .ok();
+        self.ducker = Some(child);
+    }
+
+    fn stop_ducker(&mut self) {
+        if let Some(mut d) = self.ducker.take() {
+            let _ = d.kill();
+            let _ = d.wait();
+        }
+        self.duck(0.0);
+    }
+
+    /// Sets every channel's duck (dB, 0 = full).
+    fn duck(&mut self, db: f64) {
+        if (db - self.ducked).abs() < 0.01 || self.child.is_none() {
+            self.ducked = if self.child.is_none() { 0.0 } else { self.ducked };
+            return;
+        }
+        self.ducked = db;
+        let props = format!("{{ params = [ \"duck:Mult\" {:.6} ] }}", db_to_linear(db));
+        for (_, node, _) in CHANNELS {
+            self.set_props(node, &props);
+        }
+    }
+
     fn stop_child(&mut self) {
+        if let Some(mut d) = self.ducker.take() {
+            let _ = d.kill();
+            let _ = d.wait();
+        }
+        self.ducked = 0.0;
         for mut m in self.channel_meters.drain(..) {
             let _ = m.kill();
             let _ = m.wait();
@@ -1420,6 +1715,7 @@ impl<F: Fn(Event)> Worker<F> {
 
     fn stop(&mut self) {
         self.stop_child();
+        self.stop_front();
         if let Some(mut w) = self.watcher.take() {
             let _ = w.kill();
             let _ = w.wait();
@@ -1508,6 +1804,33 @@ pub fn held_params(text: &str) -> String {
     }
 }
 
+/// Duck while I talk: down at once when the mic opens, held 500 ms after
+/// the last word, back up 4 dB per 40 ms (about 120 ms from -12 dB).
+pub struct Ducking {
+    target: f64,
+    hold_ms: u32,
+    now: f64,
+}
+
+impl Ducking {
+    pub fn new(target: f64) -> Self {
+        Self { target, hold_ms: 0, now: 0.0 }
+    }
+
+    /// One block: whether a voice passes, its length. The new duck (dB)
+    /// when it changed.
+    pub fn step(&mut self, voice: bool, block_ms: u32) -> Option<f64> {
+        self.hold_ms = if voice { 500 } else { self.hold_ms.saturating_sub(block_ms) };
+        let goal = if self.hold_ms > 0 { self.target } else { 0.0 };
+        let next = if goal < self.now { goal } else { (self.now + 4.0).min(goal) };
+        if (next - self.now).abs() < 0.01 {
+            return None;
+        }
+        self.now = next;
+        Some(next)
+    }
+}
+
 pub fn level_of(pcm: &[u8]) -> (u8, bool) {
     let n = pcm.len() / 2;
     if n == 0 {
@@ -1526,7 +1849,7 @@ fn same_target(a: &Cmd, b: &Cmd) -> bool {
         (Cmd::Eq(x, _), Cmd::Eq(y, _)) | (Cmd::Send(x, _), Cmd::Send(y, _)) => x == y,
         (Cmd::Move(x, _), Cmd::Move(y, _)) => x == y,
         (Cmd::ChannelLevel(x, _), Cmd::ChannelLevel(y, _)) => x == y,
-        (Cmd::ChannelMeters(_), Cmd::ChannelMeters(_)) => true,
+        (Cmd::ChannelMeters(_), Cmd::ChannelMeters(_)) | (Cmd::Duck(_), Cmd::Duck(_)) | (Cmd::DuckPrefs(..), Cmd::DuckPrefs(..)) => true,
         (Cmd::Apply(_), Cmd::Apply(_)) | (Cmd::Level(..), Cmd::Level(..)) | (Cmd::Meter(_), Cmd::Meter(_)) | (Cmd::Volumes(_), Cmd::Volumes(_)) | (Cmd::Gate(..), Cmd::Gate(..)) | (Cmd::Game(_), Cmd::Game(_)) => true,
         _ => false,
     }
@@ -1601,7 +1924,7 @@ mod tests {
         s.mic.device = "alsa_input.usb-Yamaha_Corporation_Steinberg_UR22mkII-00.pro-input-0".into();
         s.mic.channel = "AUX0".into();
         s.stream.on = true;
-        let inst = Installed { rnnoise: Some(PathBuf::from("/x/rn.so")), compressor: None, limiter: Some(PathBuf::from("/x/lim.so")) };
+        let inst = Installed { rnnoise: Some(PathBuf::from("/x/rn.so")), compressor: None, limiter: Some(PathBuf::from("/x/lim.so")), level_gate: Some(PathBuf::from("/x/gate.so")) };
         let c = config(&s, &inst);
         assert!(c.contains("libpipewire-module-echo-cancel"));
         assert!(c.contains("audio.position = [ AUX0 AUX1 ]"));
@@ -1614,7 +1937,9 @@ mod tests {
         assert!(!c.contains("target.object = \"gc_aec.reference\""));
         assert!(c.contains("\"VAD Threshold (%)\" = 60.0 \"VAD Grace Period (ms)\" = 500 \"Retroactive VAD Grace (ms)\" = 100"));
         assert!(c.contains("webrtc.noise_suppression = false webrtc.gain_control = false"));
-        assert!(c.contains("{ output = \"rn:Output\" input = \"m1:In\" }"));
+        assert!(c.contains("{ output = \"rn:Output\" input = \"lvl:Input\" }"));
+        assert!(c.contains("{ output = \"lvl:Output\" input = \"m1:In\" }"));
+        assert!(c.contains("\"Threshold (dB)\" = -50.0"));
         // The gain comes first (12 dB), the limiter last.
         assert!(c.contains("name = gain label = linear control = { \"Mult\" = 3.981072"));
         assert!(c.contains("{ output = \"gain:Out\" input = \"rn:Input\" }"));
@@ -1624,13 +1949,56 @@ mod tests {
         assert!(c.contains("inputs = [ \"gain:In\" ]\n        outputs = [ \"lim:Output 1\" ]"));
         // The default mic preset ("Clear voice") in the voice bands.
         assert!(c.contains("name = m4 label = bq_peaking control = { \"Freq\" = 4000.0 \"Q\" = 1.00 \"Gain\" = 3.00 }"));
-        assert!(c.contains("node.name = \"gc_mic\""));
+        // The chain ends in a plain output; the mic others pick is the
+        // front's, which never restarts with the chains.
+        assert!(c.contains("playback.props = { node.name = \"gc_mic.raw\" audio.position = [ MONO ] node.autoconnect = false node.passive = true }"));
+        assert!(!c.contains("node.name = \"gc_mic\""));
+        let f = front_config(&s);
+        assert!(f.contains("capture.props = { node.name = \"gc_mic.feed\" audio.position = [ MONO ] node.autoconnect = false node.passive = true }"));
+        assert!(f.contains("node.name = \"gc_mic\" node.description = \"Game Companion Mikro\" media.class = Audio/Source"));
+        assert!(f.contains("node.name = \"gc_stream\" node.description = \"Game Companion Stream\" media.class = Audio/Source"));
+        assert!(!c.contains("node.name = \"gc_stream\""));
+        assert_eq!(f.matches('{').count(), f.matches('}').count());
+        assert_eq!(front_config(&SoundSettings::default()), "");
         // Music is not in the stream by default.
         assert!(c.contains("node.name = \"gc_send_music.out\" target.object = \"gc_stream_in\" node.passive = true channelmix.normalize = false channelVolumes = [ 0.0000 0.0000 ]"));
-        assert!(c.contains("node.name = \"gc_stream\" node.description = \"Game Companion Stream\" media.class = Audio/Source"));
+        // Every channel has its duck, last, at full.
+        assert!(c.contains("{ output = \"b5:Out\" input = \"duck:In\" }"));
+        assert_eq!(c.matches("name = duck label = linear control = { \"Mult\" = 1.0").count(), CHANNELS.len());
         // Braces balance (a broken file would stop the child).
         assert_eq!(c.matches('{').count(), c.matches('}').count());
         assert_eq!(c.matches('[').count(), c.matches(']').count());
+        // Even out is its own switch: off by default, then the gentle sc4m.
+        let mut inst = inst;
+        inst.compressor = Some(PathBuf::from("/x/sc4m.so"));
+        let c = config(&s, &inst);
+        assert!(c.contains("\"Ratio (1:n)\" = 1.0 \"Knee radius (dB)\" = 8.0 \"Makeup gain (dB)\" = 0.0"));
+        assert!(c.contains("{ output = \"hp:Out\" input = \"comp:Input\" }"));
+        assert!(c.contains("{ output = \"comp:Output\" input = \"lim:Input 2\" }"));
+        s.mic.even_out = true;
+        s.mic.voice = false;
+        let c = config(&s, &inst);
+        assert!(c.contains("\"Ratio (1:n)\" = 2.0"));
+        assert!(c.contains("label = bq_highpass control = { \"Freq\" = 5.0"));
+    }
+
+    #[test]
+    fn ducking_goes_down_at_once_and_back_slowly() {
+        let mut d = Ducking::new(-12.0);
+        assert_eq!(d.step(false, 40), None);
+        assert_eq!(d.step(true, 40), Some(-12.0));
+        assert_eq!(d.step(true, 40), None);
+        // Held 500 ms after the last word.
+        let mut held = 0;
+        while d.step(false, 40).is_none() {
+            held += 40;
+        }
+        assert!((440..=520).contains(&held), "{held}");
+        assert_eq!(d.step(false, 40), Some(-4.0));
+        assert_eq!(d.step(false, 40), Some(0.0));
+        assert_eq!(d.step(false, 40), None);
+        assert_eq!(duck_db(-50.0), -30.0);
+        assert_eq!(duck_db(0.0), -3.0);
     }
 
     #[test]
@@ -1672,9 +2040,16 @@ mod tests {
         assert!(p.starts_with("{ params = [ \"pre:Mult\" 0.562341"));
         assert!(p.contains("\"b5:Gain\" 12.00"));
         assert_eq!(send_params(&Send { on: false, volume: 100 }, 2), "{ channelVolumes = [ 0.0000, 0.0000 ] }");
-        assert!(gate_params(150.0, 300, 12.0, &[0.0; 5]).contains("99.0"));
-        assert!(gate_params(60.0, 500, 99.0, &[0.0, 0.0, 0.0, 3.0, 20.0]).contains("\"m4:Gain\" 3.00 \"m5:Gain\" 12.00"));
-        assert!(gate_params(60.0, 500, 99.0, &[0.0; 5]).starts_with("{ params = [ \"gain:Mult\" 31.622777"));
+        let mic = |threshold: f64, gain: f64, min: f64| Mic { threshold, gain, min_level: min, ..Mic::default() };
+        assert!(gate_params(&mic(150.0, 12.0, -50.0), &[0.0; 5], false).contains("99.0"));
+        assert!(gate_params(&mic(60.0, 99.0, -50.0), &[0.0, 0.0, 0.0, 3.0, 20.0], false).contains("\"m4:Gain\" 3.00 \"m5:Gain\" 12.00"));
+        assert!(gate_params(&mic(60.0, 99.0, -50.0), &[0.0; 5], false).starts_with("{ params = [ \"gain:Mult\" 31.622777"));
+        assert!(gate_params(&mic(60.0, 12.0, -200.0), &[0.0; 5], false).contains("\"lvl:Threshold (dB)\" -70.0"));
+        let mut m = mic(60.0, 12.0, -50.0);
+        assert!(gate_params(&m, &[0.0; 5], true).ends_with("\"hp:Freq\" 80.0 \"comp:Ratio (1:n)\" 1.0 \"comp:Makeup gain (dB)\" 0.0 ] }"));
+        m.voice = false;
+        m.even_out = true;
+        assert!(gate_params(&m, &[0.0; 5], true).ends_with("\"hp:Freq\" 5.0 \"comp:Ratio (1:n)\" 2.0 \"comp:Makeup gain (dB)\" 3.0 ] }"));
     }
 
     #[test]
@@ -1767,4 +2142,7 @@ fn write_config_for_bench() {
     s.stream.on = true;
     let path = std::env::var("GC_SOUND_CONF").expect("GC_SOUND_CONF");
     std::fs::write(path, config(&s, &Installed::look())).unwrap();
+    if let Ok(front) = std::env::var("GC_SOUND_FRONT") {
+        std::fs::write(front, front_config(&s)).unwrap();
+    }
 }
