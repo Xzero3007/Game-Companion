@@ -592,6 +592,13 @@ learnt, so nothing has to be asked or worked out again.
   multisampled layer per icon (shapes alone were not clipped by a list's
   clip in the software renderer), which cost video memory. Needs qt6-svg
   (sandbox: `apt install qt6-svg-dev`).
+- Video timing (MN, 2026-11-16: Jellyfin didn't play smoothly): mpv runs
+  with `video-timing-offset=0`. With mpv's default (0.05) every
+  `render_render` waited on Qt's render thread for the frame's time, about
+  36 of every 42 ms at 24 fps (`GC_DEBUG_RENDER=1` prints each frame's
+  render time). On stop or switch each video window logs `[video]` with
+  `MpvVideo.playStats()` (codec, size, fps, hwdec, dropped and late
+  frames).
 - The video player (`MpvVideo`) exists only while something plays (a
   Loader in `VideoWindow`; `idleVideo` stands in): closing frees mpv and
   its video memory.
