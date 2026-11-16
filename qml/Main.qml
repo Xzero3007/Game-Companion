@@ -693,6 +693,16 @@ Overlay {
     }
     LootStore { id: lootStore; book: priceBook }
 
+    // The app ends without its windows being taken down (the Wayland
+    // connection broke at logout): write what waits to be written.
+    Connections {
+        target: nativeWindow
+        function onEnding() {
+            if (!lootStore.demo) lootStore.flush()
+            sessionStore.flush()
+        }
+    }
+
     // The Armory: characters from NC's official pages and the builds they
     // aim at; it notes the game's own numbers while the app runs.
     ArmoryStore { id: armoryStore; book: priceBook; on: root.lootOn("aion2.armory") }

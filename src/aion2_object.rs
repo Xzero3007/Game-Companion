@@ -376,6 +376,14 @@ impl qobject::Aion2 {
         }
         crate::log::write("aion2", "meter starts (capture helper)");
         let engine = Arc::new(Engine::start(&helper(), &aion2::data_dir(), "en", &history::default_dir()));
+        // Without Qt's way out (the session ends) the battle history is
+        // saved and the helper ended all the same.
+        let weak = Arc::downgrade(&engine);
+        crate::ending::add(move || {
+            if let Some(engine) = weak.upgrade() {
+                engine.stop();
+            }
+        });
         let stop = Arc::new(AtomicBool::new(false));
         self.as_mut().rust_mut().engine = Some(engine.clone());
         self.as_mut().rust_mut().watching = Some(stop.clone());

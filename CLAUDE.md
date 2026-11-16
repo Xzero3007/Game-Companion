@@ -204,6 +204,20 @@ learnt, so nothing has to be asked or worked out again.
   KWin kept its bus name but stopped answering and `apps::quit` hung (MN,
   0.8.57). Check: `dbus-run-session` with a made-up KWin that stops
   answering, then SIGTERM (project folder `arch-test/quit-hang/`).
+  Logout on KDE (MN, 0.8.64) ends KWin first: Qt's Wayland connection
+  breaks. KDE sets `QT_WAYLAND_RECONNECT`, Qt then connected again to
+  nothing and `_exit`ed without a word (no end in the log, the next start
+  "not clean"). `main.rs` takes that variable away (`GC_WAYLAND_RECONNECT=1`
+  keeps it), so a broken connection reaches the message handler
+  (cpp/native.cpp `logMessage`): `nativeWindow.ending` (Main.qml flushes
+  LootStore and SessionStore), then `gc_display_lost` → `ending::run_hooks`
+  (the meter's engine), `tidy()` as after Qt, `ending::children` (every
+  child still in our session: SIGTERM, SIGKILL after 1.5 s; `setsid`
+  programs such as the installer, Brave or Legcord are left to their own
+  rules), `end: exit code 0`, `_exit(0)` (Qt's own clean-up would talk to
+  the gone display). A KWin crash now also ends the app. Check: headless
+  weston + Qt 6.12 from the PySide venv, end weston (project folder
+  `arch-test/wayland-lost/`).
 - The app's log (`src/log.rs`, MN 2026-11-15: "bau ein log ein", "nein zu
   persönlichen daten und mehr daten als nötig"):
   `~/.cache/game-companion/game-companion.log`, moved to `.log.1` past 2 MB,
