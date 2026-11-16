@@ -744,8 +744,10 @@ learnt, so nothing has to be asked or worked out again.
   Release lists kept in ~/.cache/game-companion/proton-releases.json.
   Steam restarts after an install (MN, 2026-11-16; settings
   `proton_restart_steam`, default on, the box under GET PROTON;
-  `restart_steam`: `steam -shutdown`, up to 40 s, then `steam -silent` in
-  its own session, flatpak if no `steam`), never while a Steam game runs
+  `restart_steam`: one detached `sh` (`RESTART_SCRIPT`, own session, so
+  it finishes when the app quits meanwhile): `steam -shutdown`, up to 40 s
+  (pgrep), then `steam -silent`; flatpak if no `steam`; the app only
+  watches for Steam to come back), never while a Steam game runs
   (a "SteamLaunch" reaper, `steam_game_running`); then "Restart Steam"
   shows beside OK. A look also removes half downloads when no job runs.
   `GC_DEMO=games,proton[,protonjob]`; `GC_PROTON_FAKE=<dir>` reads

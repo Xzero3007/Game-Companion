@@ -475,10 +475,25 @@ pub fn steam_game_running(proc_root: &Path) -> bool {
     })
 }
 
-/// Restarts Steam so it sees a new Proton: asks it to shut down (`steam
-/// -shutdown`), waits up to 40 s for it to end and starts it again in the
-/// tray (`steam -silent`, its own session: it outlives Game Companion).
-/// Never while a Steam game runs. Ok(false): Steam wasn't running.
+/// The restart in one detached shell (its own session), so it finishes
+/// even when Game Companion quits meanwhile (QA on #161: quitting during
+/// the wait left Steam closed). `$@` is the Steam command.
+pub const RESTART_SCRIPT: &str = r#""$@" -shutdown
+i=0
+while pgrep -x steam >/dev/null; do
+  i=$((i+1))
+  [ "$i" -ge 80 ] && exit 1
+  sleep 0.5
+done
+sleep 1
+exec "$@" -silent
+"#;
+
+/// Restarts Steam so it sees a new Proton: a detached shell asks it to
+/// shut down (`steam -shutdown`), waits up to 40 s for it to end and
+/// starts it again in the tray (`steam -silent`). Never while a Steam game
+/// runs. This side only watches for Steam to come back (the shell goes on
+/// if the app quits). Ok(false): Steam wasn't running.
 pub fn restart_steam(home: &Path) -> Result<bool, String> {
     let proc_root = Path::new("/proc");
     if !steam_running(proc_root) {
@@ -488,30 +503,37 @@ pub fn restart_steam(home: &Path) -> Result<bool, String> {
         return Err("a game runs: restart Steam yourself after playing".into());
     }
     let flatpak = !which("steam") && home.join(".var/app/com.valvesoftware.Steam").is_dir();
-    let command = |args: &[&str]| {
-        let mut c = if flatpak {
-            let mut c = Command::new("flatpak");
-            c.args(["run", "com.valvesoftware.Steam"]);
-            c
-        } else {
-            Command::new("steam")
-        };
-        c.args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-        c
-    };
+    let mut helper = Command::new("/bin/sh");
+    helper.arg("-c").arg(RESTART_SCRIPT).arg("game-companion-steam-restart");
+    if flatpak {
+        helper.args(["flatpak", "run", "com.valvesoftware.Steam"]);
+    } else {
+        helper.arg("steam");
+    }
+    helper.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     crate::log::write("proton", "restarting Steam for the new Proton");
-    let mut shutdown = command(&["-shutdown"]);
-    detached(&mut shutdown).map_err(|e| format!("Steam couldn't be asked to close ({e})"))?;
-    let deadline = Instant::now() + Duration::from_secs(40);
+    detached(&mut helper).map_err(|e| format!("Steam couldn't be restarted ({e})"))?;
+    // Watch: gone within 42 s, back within 20 s after that.
+    let deadline = Instant::now() + Duration::from_secs(42);
     while steam_running(proc_root) {
-        if Instant::now() > deadline || CANCEL.load(Ordering::SeqCst) {
+        if Instant::now() > deadline {
             return Err("Steam didn't close: restart it yourself".into());
+        }
+        if CANCEL.load(Ordering::SeqCst) {
+            return Ok(true);
         }
         std::thread::sleep(Duration::from_millis(500));
     }
-    std::thread::sleep(Duration::from_secs(1));
-    let mut start = command(&["-silent"]);
-    detached(&mut start).map_err(|e| format!("Steam didn't start again ({e})"))?;
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !steam_running(proc_root) {
+        if Instant::now() > deadline {
+            return Err("Steam closed but didn't start again: start it yourself".into());
+        }
+        if CANCEL.load(Ordering::SeqCst) {
+            return Ok(true);
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
     crate::log::write("proton", "Steam started again");
     Ok(true)
 }
@@ -1054,6 +1076,24 @@ mod tests {
         assert!(!steam_game_running(&root));
         put("12", "reaper\n", b"/home/me/.steam/steam/ubuntu12_32/reaper\0SteamLaunch\0AppId=2694490\0--\0");
         assert!(steam_game_running(&root));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn restart_finishes_on_its_own() {
+        // A stand-in "steam": -shutdown ends the running one, -silent
+        // starts it; the script restarts it with nothing watching.
+        let root = std::env::temp_dir().join(format!("gc-steamrestart-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let log = root.join("log");
+        let fake = root.join("fake-steam");
+        std::fs::write(&fake, format!("#!/bin/sh\necho \"$1\" >> {}\n", log.display())).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let ok = Command::new("/bin/sh").arg("-c").arg(RESTART_SCRIPT).arg("t").arg(&fake).status().unwrap().success();
+        assert!(ok);
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), "-shutdown\n-silent\n");
         let _ = std::fs::remove_dir_all(&root);
     }
 
