@@ -1,0 +1,1131 @@
+# History of the work
+
+Moved word for word from docs/HANDOFF.md (2026-11-16). New entries go at
+the end.
+
+- Characters in one view (branch `claude/project-thread-ykfdu6`, 2026-11-15, MN: "nimm die drei reiter von diesem fenster und verein sie"): the tabs Roster, Content and Limits are gone. Header with refill, resets and siege; the server's content as cards; one table, a row per character: the roster's columns, then SERVER-WIDE (Buy / Craft Odyle Energy of that character's server), THIS CHARACTER (Buy, Craft, Kinah, Abyss pts) and CONTENT LEFT (Nightmare, Ascension, Corridors); under it keys, entries and usage time of the character clicked in the table (`prefs.limitsOf`). Hidden ids kept ("c:", "o:", "t:", "m:"). Panel 1180 wide by default. `CK.compact` for narrow cells.
+
+## Done
+
+- 0.8.69 beta (2026-11-14): #158 mic floor: a level gate after rnnoise (entry below).
+- 0.8.68 beta (2026-11-14): #156 #156 mic gain, mic EQ with presets, limiter, extra noise suppression and auto level switches (entry below).
+- 0.8.67 beta (2026-11-14): #154 #154 PoE 2: the trade site's leagues only while PoE 2 runs (no request at every start) (entry below).
+- 0.8.66 beta (2026-11-14): #152 end cleanly when the Wayland connection breaks (logout) (entry below).
+- 0.8.65 beta (2026-11-14): #150 sound presets lift audibly, mic gate catches the first word, WebRTC noise suppression (entry below).
+- 0.8.64 beta (2026-11-14): #148 sound-only strip at the top opens its lists below (entry below).
+- 0.8.63 beta (2026-11-14): #146 Videos: sound only is a slim player strip (entry below).
+- 0.8.62 beta (2026-11-14): #144 mic through the echo canceller whole again (1920-frame blocks); #143 Streams: group stays, reload chip with time, Channels keep place, sound only hides with the hub (entry below).
+- 0.8.61 beta (2026-11-14): #141 echo canceller listens only (no distortion), sound log (entry below).
+- 0.8.60 beta (2026-11-16): #138 quit cleanly when the session ends (KWin calls time out after 2 s); QML warnings; Armory portrait address; #134 sound module (off by default) with the SOUND panel; #139 Desktop layout, layouts keep the videos' see-through (entry below).
+- 0.8.59 beta (2026-11-14): #136 #132 video play statistics also after a file's end; Characters: note for a character without keys, shorter charged note (entry below).
+- 0.8.58 beta (2026-11-16): #131 #132 #133 layouts tied to games, back to the earlier arrangement when a game ends; AION 2 Characters in one view; videos no longer wait inside Qt's render (entry below).
+- 0.8.57 beta (2026-11-14): #129 PoE 2: league under settings, min and max both kept, Evasion in the trade link, session currency chips, WHERE tile (entry below).
+- 0.8.56 beta (2026-11-14): #119 DPS meter closes when AION 2 ends (entry below).
+- 0.8.55 beta (2026-11-14): #126 PoE 2 session part 2: loot by hand, + Session in the price check, worth from poe.ninja (entry below).
+- 0.8.54 beta (2026-11-14): #123 PoE 2 session tracker part 1: reads Client.txt (entry below).
+- 0.8.53 beta (2026-11-14): #121 PoE 2 price check: layout like the game with min/max, EE2 settings, Trade site, listings with mods and tiers, poe.ninja prices (entry below).
+- 0.8.52 beta (2026-11-14): #120 Print flicker (desktop tools never count as a full-screen game), newest first sorts by date, UP NEXT tiles and click fix, dragged video holds its picture (entry below).
+- 0.8.51 beta (2026-11-14): #116 Next video: the shown list goes along, ⏭, UP NEXT, AUTOPLAY, close the player when nothing follows (entry below).
+- 0.8.50 beta (2026-11-14): #114 (+ #113) Print/Spectacle: videos stand still and parts let clicks through while its selection is open; more YouTube dates via yt-dlp; kit tests without fixed sleeps (entry below).
+- 0.8.49 beta (2026-11-14): #110 YouTube: dates from the channels' feeds for searches, Trending, History and playlists; SORT button; wider unsubscribe menu (entry below).
+- 0.8.48 beta (2026-11-14): #107 PoE 2: the price check's kit runs in QuickJS in its own process; a crash there no longer takes Game Companion down; the saved league is kept (entry below).
+- 0.8.47 beta (2026-11-14): #103 YouTube: the star asks before it unsubscribes (Unsubscribe / Keep subscription) (entry below).
+- 0.8.46 beta (2026-11-14): #105 Crash log: ~/.cache/game-companion/game-companion.log with the PoE 2 steps, Qt warnings and a backtrace on a crash (entry below).
+- 0.8.45 beta (2026-11-14): #104 PoE 2: the clipboard watcher connects again after XWayland went, the price window says why copies aren't heard; the price kit avoids Qt's array iterators (crash in 0.8.43) (entry below).
+- 0.8.44 beta (2026-11-14): #101 PoE 2: searches in a league with spaces (Runes of Aldur) are encoded, not refused (entry below).
+- 0.8.43 beta (2026-11-14): #98 YouTube: a picture-less video reloads, Go to channel and Channel into group work with feed channel ids (PR #98) (entry below).
+- 0.8.42 beta (2026-11-14): #97 PoE 2 price check: real searches work again (rate limiter as a plain array), stat decimals kept (PR #97) (entry below).
+- 0.8.41 beta (2026-11-14): #91 Take over open Brave and Legcord again: run KWin scripts by start (PR #91) (entry below).
+- 0.8.40 beta (2026-11-14): #94 PoE 2 price check (Exiled Exchange 2 rebuilt) and Path of Building as the third app; JS runs interpreted (Arch's Qt 6.12 JIT crashed in the kit) (PR #94) (entry below).
+- 0.8.39 beta (2026-11-14): #92 Video: a grab freezes frames and position first, the surface changes size 40 ms later (PR #92) (entry below).
+- 0.8.38 beta (2026-11-14): #89 YouTube: lists keep their place, channel from a tile, lengths and dates, groups row; video frames held while its surface resizes (PR #89) (entry below).
+- 0.8.37 beta (2026-11-14): #86 YouTube: visionOS player first, patient watchdog until a video moves; subscriptions as a stored list (PR #86) (entry below).
+- 0.8.36 beta (2026-11-14): #83 YouTube subscriptions: 15 per channel, retries, kept on disk; 404 channels via yt-dlp; PLAYLIST in the video window (entry below).
+- 0.8.35 beta (2026-11-14): #81 YouTube: wait while YouTube holds a video back for its ad (countdown, no reload loop) (entry below).
+- 0.8.34 beta (2026-11-14): #79 Brave and Legcord stay over a full-screen game (entry below).
+- 0.8.33 beta (2026-11-14): #76 Settings scroll when taller than the screen; right Legcord plugin steps (entry below).
+- 0.8.32 beta (2026-11-14): #72 Radio: four 181.FM stations under USA (entry below).
+- 0.8.31 beta (2026-11-14): #73 LOOT farm window: valuables split into MATS, ARTW, ORNG and VALU, each with its own switch (entry below).
+- 0.8.30 beta (2026-11-14): #71 Radio: stations that play on none of their addresses are greyed and listed last, HIDE NOT PLAYING switch (entry below).
+- 0.8.29 beta (2026-11-14): #68 Radio: Techno genre with Techno Bunker FM and Radio Record Minimal Tech, SomaFM under USA (entry below).
+- 0.8.28 beta (2026-11-14): #67 LOOT farm window: four-letter labels (WRTH, VALU, SHUG, INVA, NMAR, DAIL, BALA, FAFN, SUBJ, ASCE, CUBE) (entry below).
+- 0.8.27 beta (2026-11-14): #65 LOOT farm window: GOLD and VAL switched apart, ping green up to 100 ms, clearer Odyle energy, labels GOLD, CUBE, SHU, NMD (entry below).
+- 0.8.26 beta (2026-11-14): #62 Legcord voice overlay: who is in the voice channel and who talks (Legcord plugin over a Unix socket) (entry below).
+- 0.8.25 beta (2026-11-14): #57 Brave and Legcord over the game: bar buttons, right-click menu, Alt+B / Alt+N (KWin scripts) (entry below).
+- 0.8.24 beta (2026-11-14): #59 DPS: your own combat power and gear score when playing alone, combat power kept in a narrow window (entry below).
+- 0.8.23 beta (2026-11-14): #58 LOOT: right-click on Loot in the game row opens or closes the farm window in every mode (entry below).
+- 0.8.22 beta (2026-11-14): #54 LOOT: SHU, SHA and INV keys show the golden Shugo key icon (entry below).
+
+
+- Legcord voice overlay (2026-11-14, MN: N1 default, the others as
+  choices): Legcord plugin `legcord/game-companion-voice`,
+  `src/voice_overlay.rs`, `src/voice_object.rs`, `qml/VoiceOverlay.qml`,
+  Settings → Apps → "Legcord voice overlay". Checked end to end with
+  Electron 44 and a made-up Discord page; not yet with real Discord (the
+  store names are the risk): on MN's PC, Legcord 1.3.1.
+- Brave and Legcord over the game (branch `claude/project-thread-6m4xx8`,
+  2026-11-14, MN's choices A + C1, Alt+B / Alt+N): `src/apps.rs`,
+  `src/apps_object.rs`, HudBar `AppButton` + menu, Settings → Apps (tabs
+  now in a Flow, panel 540 px). The app quits tidily on SIGTERM/SIGINT/
+  SIGHUP now (`main.rs` `quit_on_signals`, 10 s fallback). Checked on the
+  Arch bench's KWin 6.8 with stand-in windows (`arch-test/apps/gc.sh`,
+  17 checks). Not checked: the real Brave Origin and Legcord app ids on
+  MN's PC (matching is by prefix `brave` / `legcord`).
+
+- 0.8.21 beta (2026-11-14): #52 LOOT: farm window fits its rows and grows by its corner, game key icons, merchant window stays open until zone change or 60 s (shop log) (entry below).
+- 0.8.20 beta (2026-11-14): #46 the open panels and the DPS panel closed by hand are kept across restarts and updates (entry below).
+- 0.8.19 beta (2026-11-14): #47 LOOT farm window compact (no header, one line), merchant menu keeps the shop window open, keys chosen, gold count gear only (entry below).
+- 0.8.18 beta (2026-11-14): #48 the 2 px where the gold line was stay as clear room (panel sizes as in 0.8.16), Surface as in 0.8.16 (entry below).
+- 0.8.17 beta (2026-11-14): #44 gold line on top of windows removed, a window left screen-sized after a drag is placed again (entry below).
+- 0.8.16 QA collection (2026-11-14, MN's test of 0.8.14): #42 LOOT shop window stays open while browsing, farm window opacity/text/height and Show now, card rounds parsed (UTF-8 decoder) (entry below).
+- 0.8.15 QA collection (2026-11-14, MN's urgent report): #40 parts never take the game's focus or mouse on their own (keys only after a click into a part; input region set before the first show) (entry below).
+- 0.8.14 QA collection (2026-11-14): #36 GAMES tab WITH GAME (programs that start and close with a game, the old meter's watcher taken over), #37 LOOT after MN's test of 0.8.13 (farm window settings, Odyle energy and ping, shop window closing by the merchant, pets on every tab, icon retry, wider card limits), #38 videos louder (Video loudness +3/+6/+9 dB, Even out loudness) (entries below).
+- 0.8.13 QA collection (2026-11-14, MN's test of 0.8.12): #31 boss voice beeps and says when speech-dispatcher is missing, #32 Armory several gear slots open and the old Armory's data, #33 Twitch All live more streams from the top categories, #34 LOOT farm window, shop pets, cards with icons (entries below).
+- 0.8.12 QA collection (2026-11-13): #29 AION 2 Armory with builds tied to characters (entry below).
+- 0.8.11 QA collection (2026-11-13): #27 no gold frames left on video windows (entry below).
+- 0.8.10 QA collection (2026-11-13): #24 LOOT after MN's 0.8.6 test: shop window only at the merchant, farm window, the meter's data taken over (entries below).
+- 0.8.9 QA collection (2026-11-13): #22 game row opens panels while the hub is hidden, #23 no gold edge on video windows while unlocked (entries below).
+- No gold frames on any video (2026-11-13, MN: "alle goldenen rahmen entfernen auch bei youtube videos und wenn es bei jelly einen gibt"). Twitch, YouTube and Jellyfin share `VideoWindow`, so the top line went for all three in 0.8.9; now also Jellyfin's SKIP INTRO button has no gold border (gold label only) and the "next episode" card no gold top line.
+- Video windows without the gold edge (branch `video-edges`, 2026-11-13, MN: "diese goldenen ränder bei geöffnetem schloss bitte entfernen das stört wenn ich in vollbild gucke"). The 2 px gold line along a video's top while unlocked is gone (also in full screen); the gold size corner shows only with the bars, while the pointer is on the video (or while it is dragged), never in full screen.
+- 0.8.8 QA collection (2026-11-13): #19 Twitch All live through the directory query, #20 Boss cheat sheet preview (entries below).
+- 0.8.7 QA collection (2026-11-13): #17 game row input (entry below).
+- 0.8.6 QA collection (2026-11-13, MN: "dann beheb den engpass"): QA
+  merges green PRs together and sets the version once; dev threads no
+  longer rebase or bump. In it: #15 Pet Finder filters, #10 Event Timers
+  (Schedule), #11 Boss panel, #12 LOOT (entries below).
+- LOOT (backlog A9, branch `claude/project-thread-5i91bs`, 2026-11-13; MN
+  approved canvas page "Besitz und Beute", boards L1Items to L4Cards, "ja
+  a": all four tabs; the shop window shows pets too and has an on/off
+  switch). One panel `qml/aion2/LootPanel.qml` (id `loot`, GameRow button
+  LOOT) with ITEMS (inventory, character and server storage), DROPS
+  (session, farm days, dungeon runs against the game's drop rates),
+  CLOSET (merchant, missing, combine and extract) and CARDS (last round,
+  gold, places, items); the Closet's shop window `ClosetWindow.qml`
+  (panel id `closet-shop`; opens at the Black Cloud shop and the closet
+  when "Open at the shop" is on, goes after 6 m, a zone change, 3 min or
+  ×; takes the mouse while it shows, also locked: `Surface.lockItem`).
+  State in `LootStore.qml` (one in Main), kept in
+  `~/.local/share/game-companion/aion2/loot/` (`Aion2.loadLoot`/`keepLoot`,
+  keys `settings`, `chars`, `session`, `sessions`, `s-<char>`,
+  `acc-<server>`, `f-<char>[-<yyyymmdd>]`, `d-<char>`, `closet`, `cards`).
+  Logic and data: `qml/aion2/lootkit.js`, generated by
+  `tools/aion2-loot-import.py` from the Clicktrough Inventory, Closet and
+  Shugo Cards plugins (GPL-3.0; their notices and READMEs in
+  `crates/aion2/data/loot/`), item catalogue = Market's MARKET_ITEMS.
+  Prices: `PriceBook.qml`, the Market's sources and kept files, asked only
+  while LOOT or the shop window shows. The game frames these plugins read
+  (`gathered`, `closet-list`, `closet-add`, `shop`, `shop-open`, `round`)
+  come from `crates/aion2/src/decoders.rs` (the meter's decoder, fed from
+  the engine's frame tap) → `Aion2.decoded`; the items event →
+  `Aion2.itemsEvent` / `itemsNow()`. Pet status in the shop window reads
+  Pet Finder's `Aion2.pets`/`petData()` when present (by name). Limits,
+  Kinah today and Abyss Points stay in Characters. Left out: the plugins'
+  floater, notifications (no pop-ups), the Map's region names (zone names
+  instead). `GC_DEMO=loot[,items|drops|closet|cards][,days|dungeons|missing|combine|gold|places|itemlist|char|acc][,shop]`;
+  the rules without Qt: `node tools/lootkit-test.js`.
+  MN's test of 0.8.6 (2026-11-13), PR after #12: the shop window opens at
+  the merchant again (its 6 m were taken as 6 cm: positions are in cm);
+  own switches "Open at the merchant" (default on) and "Open at the
+  Market" (off; the Market sends the same `shop-open` frame, so one with
+  no merchant stock within 4 s counts as the Market, `marketTimer`); the
+  window is one list (420 px + its grow) that scrolls and grows, the
+  Exchange rows have icons, "Pets you still need" (Pet Finder's level-0
+  pets, chests first, `petsNeeded`), and `Surface` re-applies the input
+  region when the lock item changes size. Combine and extract: four
+  columns plus a line under each grade. The old meter's data:
+  `src/meter_import.rs` reads `$XDG_DATA_HOME/com.a2tools.dps-meter/
+  plugin-data/{inventory,closet,shugo-cards}/*.json` (local, read only,
+  in the background, `Aion2.meterRead` → `meterGot`), `takeMeter` adds
+  what LOOT lacks (LOOT's own data wins), once by itself (`meterTaken`)
+  and again by ITEMS → "Take over the meter's data". The farm window
+  `FarmWindow.qml` (panel `farm-window`; MN chose worth per hour and gold
+  items; also in dungeons; keys and tickets while there are any): opens
+  when a gain comes in the open world or a dungeon (`farmCheck` on the
+  day's last stint), goes in a town, 10 min after the last open-world gain
+  or with × until the next place; DROPS → "Farm window" switch.
+  `GC_DEMO=loot,farm[,dungeon]`. MN's second test: the `shop-open` frame
+  comes from the game's cash Shop too (not only the Market), so only the
+  merchant's stock opens the window by default ("Open at the Shop and
+  Market" off); the window goes also on estimated positions (30 m; exact
+  6 m). CARDS: a Dimensional Invasion round did not arrive on MN's 0.8.6;
+  `rest` now takes 16 KB (was 4 KB) and CARDS says how many rounds came
+  unread (`store.odd`): check on the next test.
+  MN's test of 0.8.12: the farm window opens only after three gains in
+  the open world (two in a dungeon), none in the first 30 s in a place
+  (`farmHits`; it opened at login), and lists only keys and tickets with
+  some left (`keyIds`: Shugo, Nightmare, Dimensional Invasion, Daily
+  Dungeon, entry tickets, Subjugation, Ascension Trial). The shop window
+  closes when the client's steps say you walk (`world.moving` for 1.5 s,
+  from 3 s after arriving; not when opened by hand). Its tiles are framed
+  in their grade colour; pets come from PetTracker's merchant tables
+  (`pets.json` `market` item → pet and `watch`, by the pets import):
+  portrait, level, BUY (merchant-only, below level 3), NEED (monsters drop
+  it too), LV 3; at the Pets tab the pets come first, and a line says
+  which to buy (`offersNow().advice`, Pet Finder's recommendations). CARDS
+  draws each item as the game does: its picture in a frame of its grade's
+  colour with the count on it. The two unread rounds can only be read
+  once one is looked at (private notes repo): they stay kept and are read
+  again at every start (`LK.S.adopt`). `GC_DEMO=loot,shop,petsfirst`.
+  MN's test of 0.8.13: the farm window never opened. It now has settings
+  (DROPS → Farm window): `farmMode` "always" (default while AION 2 runs),
+  "popup" (two gains after the first 30 s in a place; `farmWaits` says
+  what it waits for) or "off"; `farmRows` switches rows off (Kinah today,
+  worth per hour, gold items, dungeon run, keys and tickets, Odyle energy,
+  ping; Odyle and ping from `Aion2.fight` extras). The shop window closed
+  only after 3 minutes: it now notes the merchant (the NPC nearest when the
+  stock came, within 15 m) and closes when that NPC is out of sight for two
+  world updates or you are 8 m from where it stood; else 60 s after the
+  last shop page. Pets on any tab (Special too) count; pet tiles show souls
+  held / needed for the next level and where the pet comes from. Failed
+  icon downloads are tried again after 10 minutes; a tile without a picture
+  shows its slot. CARDS: the reader allowed 8 pickers and 10 picks per
+  card, too few for a Dimensional Invasion (16 cards, 64 pickers, 100 picks
+  now; patched in `tools/aion2-loot-import.py`). Check that the 4 kept
+  rounds are read after the update. `GC_DEMO=loot,drops,farmwin`.
+  MN's test of 0.8.14: the Black Cloud merchant is a menu, not an NPC you
+  walk to, so the merchant-NPC rule (it closed the window at once) is gone:
+  walking, a fight (`Aion2.combat`) or 60 s after the last shop page close
+  it. The farm window has its own opacity (`farmOpacity`), text size
+  (`farmText`) and height (stretchy); its × is forgotten on "Show now", a
+  mode chip or another character. CARDS: no round that came live was ever
+  read, as Qt's JavaScript has no TextDecoder (the pickers' names); the
+  import script now adds a small UTF-8 decoder to lootkit.js. The old
+  rounds came from the meter. Checked against MN's kept rounds locally
+  (private notes repo, nothing of them here).
+  MN's test of 0.8.16: the shop window closed at once, as the fight rule
+  took monsters fought before it opened (`fought` keeps them): only a fight
+  with `since` after opening counts now, and walking must last 3.5 s. The
+  farm window is compact, design E5a (mockups in
+  /mnt/project-files/game-companion/mockups/farm-e5-e2-keys.png): Panel
+  `bare` (no header, no gold line), the Kinah bar with Kinah, share and
+  worth per hour in it, one line with GOLD, MATS, ARTW, ORNG, VALU (valuables split per MN 0.8.27, per drop), ODYLE, PING and the keys (four-letter labels)
+  MN ticks (DROPS → Farm window → Keys, settings `farmKeys`; three letters
+  `keyAbbr`, game icons `keyIcon`; Key: Hidden Cube from the inventory).
+  Gold items are gold gear only (ids 1xx–3xx, grade 4–6); other grade 4–6
+  items are valuables; Special (7) counts as neither (lootkit `isGold`,
+  `LootStore.isGear`, counted from the day's list so older days follow).
+  Gear taken off no longer counts as a gain (`gains()` skips what another
+  container lost in the same frame).
+  MN's test of 0.8.19: the farm window kept a tall empty height (its
+  MoveArea took the window's height, the body's childrenRect took the
+  MoveArea: a loop that never shrank; now the content's height), the key
+  icons stayed empty boxes (the icon store keeps `Icon_<name>`; no box
+  while there is none), and the corner makes all of it bigger (`grow`
+  scales `fs`). The shop window still closed by itself: it now closes only
+  on another zone or 60 s after the last shop page; walking, distance and
+  a fight only write "would close" lines to the shop log
+  (~/.local/share/game-companion/aion2/loot/shop-log.json, last 200 lines,
+  also in CLOSET → MERCHANT) beside every open, page and close with its
+  reason. MN uploads that file; no access to MN's computer.
+- Event Timers / Schedule (branch `claude/project-thread-xz7nqt`, PR against
+  beta, version from QA; 2026-11-13; MN chose "Ja, Aion 2 Timers gleich mit"
+  on the canvas page "Zeitplan (Event Timers)", boards T1–T3). TIMERS in the
+  game row opens SCHEDULE: BOSSES (from the game's boss map when a map is
+  opened, plus Aion 2 Timers' feed when switched on) and EVENTS (fixed times
+  from taengu's Event Timers tables, server time per region); bells set
+  alerts (banner, sound, optional voice). Settings → Plugins → AION 2 →
+  Event Timers → SETTINGS. Not taken over: the old plugin's pinned icons and
+  anchor grid, the Kokoro voice (the desktop's spd-say instead), teleport
+  numbers, the a2tools.app feed and the World Boss Train. To check on MN's
+  PC: that opening the map in the game fills BOSSES, that Aion 2 Timers
+  answers (it may refuse non-browser requests: the reason shows under the
+  list), and that the A2T names match (A2T? = guessed by number).
+
+- Pet Finder filters after MN's 0.8.3 test (2026-11-13, MN: "b aber doppelt so hohe zeilen"): a FROM row in the PETS tab (Verteron, Altgard, Abyss, Fire Temple, Draupnir, Krao Cave, Chest only; several at once, none = all; `settings.petFrom`), rows and portraits 92 px (`PetsTab.rowH`).
+- Game row with the hub hidden (branch `gamerow-hidden`, 2026-11-13, MN on 0.8.7: "wenn ich die hauptleiste ausblende und die spielleiste an ist und ich eines der plugins klicke öffnet es sich nicht"). A panel shows while the hub is hidden only if pinned, so the row's buttons opened nothing (or closed a panel that was open but hidden). `Main.fromRow(id, open)`: while the hub is hidden, a button whose panel is not on screen opens it and adds its id to `rowShown`, which `onScreen` counts like a pin; `rowShown` empties whenever the hub is shown or hidden. Checked under xvfb with `pins: ["game-row"]` and `GC_DEMO=chars,hidden,unlocked`: beta opened nothing, now the first click opens CHARACTERS and the second closes it.
+- Game row input after MN's 0.8.5 test (branch `gamerow-input`, 2026-11-13, MN: "ich kann die zweite zeile noch immer nicht direkt anklicken"). The real cause: from Qt 6.9 on, `QWindow::setMask` on Wayland sends `set_input_region` without a `wl_surface.commit` (qtbase `QWaylandWindow::updateInputRegion`), so the compositor takes the region only with the next frame. The bar repaints on lock/unlock (its lock icon), the game row does not, so it kept its locked one-pixel region. `NativeWindow::setInput` now calls `window->update()` after the mask: one frame commits it. Reproduced with PySide6 6.10 under `weston --backend=headless-backend.so` and `WAYLAND_DEBUG=client` (needs `QT_IM_MODULE=none`, Qt crashes without a seat): without the frame no commit follows `set_input_region`, with it one does (software and OpenGL). Qt 6.4 (the sandbox's) still commits in `setMask`, so the app itself cannot show it here.
+- 0.8.5 Fixes after MN's test of 0.8.2 (branch `aion-fixes2`,
+  2026-11-13). The game row's buttons took no clicks on KWin when it first
+  showed, until the hub was hidden and shown: a layer surface shown for
+  the first time takes its input region only once configured, so
+  `Surface` gives it again 250 ms after it becomes visible (`settleInput`,
+  as after a resize). Market: an open item's rows use the list's own
+  columns (`panel.widths`) when they have as many, so their figures sit
+  under the list's. Characters → Limits: long entry names wrap onto a
+  second line (the box grows) instead of ending in "…".
+  `GC_DEMO=chars,limits` (or `,content`) opens that tab.
+- 0.8.4 Streams after MN's 0.8.2 test: Categories loaded more (longer
+  list), All live still sent the same 30, so live lists now ask Twitch
+  sorted by viewers (`options: { sort: VIEWER_COUNT }`, as Twitch's own
+  directory), plain if refused. Scroll speed up to 500 %. Jellyfin music
+  untested by MN (their account has no music access). YouTube Channels
+  show each channel's picture (square, its first letter until it loads)
+  and the name on up to two lines: pictures come once per channel, first
+  from FreeTube's profiles file, else yt-dlp on the channel page (three at
+  a time, `Streams.fetchChannelPictures` while the list shows), kept in
+  settings `streams.channel_pictures` ("" = none, not asked again; a
+  failed one is asked again at the next start). Only yt3.ggpht.com
+  addresses (yt3.googleusercontent.com rewritten to it, `avatar_url`).
+  Not checked against YouTube here (sandbox has no YouTube).
+- 0.8.3 Pet Finder in the Map (branch `claude/project-thread-xbwq5u`, 2026-11-13;
+  MN chose "Ja, so bauen" on canvas page "Pet Finder in der Map", backlog
+  A6). `aion2::pets` reads the pet frames (00 90 list at login, 0D 90 souls,
+  14 90 level) with Pet Finder's checks, fed from the engine's frame tap
+  (only `xx 90`), kept per server in ~/.local/share/game-companion/aion2/
+  pets.json; `Aion2.pets` (JSON) and `Aion2.petData()` (crates/aion2/data/
+  pets/pets.json, made by `node tools/aion2-pets-import.js <plugins>/
+  pet-finder`, with 294 portraits). The Map has MAP and PETS tabs
+  (`qml/aion2/PetsTab.qml`); favourites (`settings.petFavs`), the pet farmed
+  (a soul in 30 min) and every pet not at level 3 feed mapkit's `tracked`,
+  `needed` and `souls`, which the map already understood. Overlay map: a
+  farming line (`overlay.farm`). Left for later: the Black Cloud Merchant
+  (Handel area), a voice/sound for a favourite nearby (shared voice).
+  `GC_DEMO=map,pets[,petstab][,petopen][,overlay]`. Open: real frames on
+  MN's game (layouts from Pet Finder, untested against this parser live).
+- 0.8.2 Streams after MN's 0.7.7 test (branch `claude/project-thread-lncux3`,
+  2026-11-13; MN said "ja" to the plan). Twitch "Load more": Twitch sent
+  the first page again for a cursor, so when a page brings nothing new the
+  live lists and categories ask for a longer list from the top (60, 90, at
+  most 100; `twitch_query_page`). Mouse wheel: a notch is told by its angle
+  (KDE Wayland gives a notch a ~15 px pixel delta too, taken for a
+  touchpad); Settings → Display "Scroll speed" 50 to 300 %. Jellyfin music:
+  library → albums → tracks, played in the Jellyfin window with the cover,
+  previous/next, the album played through. Open: whether Twitch honours the
+  longer list (unreachable from the sandbox), the wheel on MN's mouse.
+- 0.8.1 AION 2 after MN's test (branch `aion-feedback`, 2026-11-13; MN
+  chose "Ja, so bauen" on the five points). Market: a Region dropdown
+  first (Europe first in the list), then that region's servers
+  (`settings.region`, `MarketPanel.region`, `takeServer`); when the game
+  names your server (`gameServer` from the fight's extras) it is taken
+  even if another was picked before (MN's showed Nezekan while playing on
+  Marchutan). MN could not pick a server in the old long list; not
+  reproduced here (xvfb clicks worked), the short lists replace it. An
+  opened favourite shows up to 70 % of the list's room (the list below
+  gives up as much, so the panel keeps its height), with a fade and a gold
+  line while more is below. DPS: bars in the class's colour (the old
+  meter's "aion2-classes" jobColorMap, GPL-3.0), a horizontal gradient
+  0.32 to 0.68 alpha, the skills' bars in the picked player's colour;
+  the ground's opacity is a list opening upwards (100, 75, 50, 25, 10 %;
+  `Streams.saveOpacity("dps")` already allowed 10). CHARS: CHOOSE in the
+  tab row (Content and Limits) shows every entry with an eye; hidden ones
+  (`prefs.hidden`, ids `c:`/`o:`/`t:`/`m:` + the entry's id, in
+  `aion2-characters-view.json`) are left out otherwise; per-character
+  columns hide by the eye in their head. `GC_DEMO=chars,choose`.
+  AltGr+M for the overlay map: KDE keeps the keys; MN sets it in System
+  Settings (the portal's trigger format has no AltGr).
+- 0.8.0 Split bar and overlay map (branch `split-bar`, 2026-11-13; MN
+  approved the canvas page "Leiste geteilt und Overlay-Map", boards B1Bars,
+  B2Hidden, O1Overlay, O2Settings, with Alt+M). The bar keeps the core
+  (Games, Radio, TV, lock, settings, hide); `qml/GameRow.qml` is a smaller
+  slanted row under it (its own Surface, stack 5) with the game's purple
+  tag and the module's buttons (DPS, MAP, MARKET, CHARS: what Settings →
+  Plugins puts "IN ROW"), only while one shows, pinnable as `game-row`.
+  The player row and the hub hint sit under it when it shows. Overlay map:
+  `qml/aion2/MapOverlay.qml` (its own Surface, stack 2, shown with the hub
+  hidden too), the map you are on (`MapPanel.whereAmI`) built by
+  `MK.M.build` only while shown, following you at 1.2 px/m or its own
+  zoom; title strip, corners and grip only while unlocked; `MapView`
+  got `tileOpacity` and `draggable`. Its settings live in the Map's
+  (`aion2-map.json`, key `overlay`: on, size s/m/l/xl, w, x, y, opacity,
+  markScale, zoom, own, layers, hideIn {instance, arena, abyss}, slot,
+  slots), changed by `MapPanel.changeOverlay(patch)`; Settings → Plugins →
+  Map → OVERLAY folds them out (`SettingsPanel.mapSource`). Zone kinds:
+  arena by the zone's name, abyss by the map key, instance by the map's
+  `instance` flag or a zone without a map. Toggles: right-click MAP
+  (`GameRow.mapOverlayClicked`) and the KDE shortcut `map-overlay`
+  (ALT+m; `Companion.shortcutPressed(id)` for ids other than lock and
+  toggle), both only while the Map plugin is on. `GC_DEMO=map,overlay`
+  shows it without changing settings (`,unlocked` for the strip,
+  `,settings,plugins` for the folded-out settings). Item's `top` is FINAL
+  in QML: don't name a property so.
+- 0.7.9 Slim DPS window (branch `dps-slim`, 2026-11-13; MN approved the
+  canvas page "DPS-Fenster schlank", boards D1 to D4): `Panel.compact`
+  (30 px header, `headerTools` puts the tabs in it, body 8 px sides) used by
+  `qml/DpsPanel.qml`: 28 px rows with the class symbol
+  (`assets/aion2/classes/*.png`, from the A2Tools meter), combat power and
+  gear score in cyan; the target's name in its HP bar; the time and totals
+  in the foot with the Odyle symbol. Party members show from the moment
+  the party forms (`engine::summary` keeps rows with a name and a class,
+  `add_party_rows` makes them; `cp`/`gs` added). Skill pictures:
+  `aion2::skill_icon` (the meter's skillIcons.js: skill_icons.json, the
+  class prefix fallback, theostones, "basic" for basic attacks), fetched
+  once through `Aion2.icon` like Market's (assets.playnccdn.com, kept in
+  ~/.cache/game-companion/aion2/icons); swords / wand when there is none.
+  `GC_DEMO=dps,party` shows a party that just formed. QML: `short` is a
+  reserved word in Qt 6.4's JS, and `font.pixelSize` is an int (a literal
+  like 10.5 fails to load).
+- 0.7.8 Characters (branch `aion-characters`, 2026-11-13; MN chose "Ja, aber
+  ohne Checkliste" on the design canvas page "Charaktere (Bereich 1)",
+  boards C1–C3; plan in /mnt/project-files/game-companion/
+  aion-plugins-plan.md): the old Roster / Content Overview and the
+  Inventory plugin's limits as one panel `characters` (plugin
+  `aion2.characters`, bar button CHARS), tabs Roster, Content, Limits.
+  The parser hands out who plays as the meter's `character` event did
+  (`aion2::engine::character_of`, with the Abyss artifacts as `abyss`) →
+  `Aion2.character` (changed only when it changes). The **characters
+  store** (`qml/aion2/CharacterStore.qml`, one in Main.qml, lives as long
+  as the app; `aion2-characters.json`) merges it with `charkit.js`
+  `merge` (the Roster's rules: values stamped with when the game said
+  them, energy refills +15 / 3 h, caps 840/560 by membership, content
+  recharges, corridors from the passages and the siege as the game told
+  it, no a2tools feed). Other areas read `characterStore.state`. The
+  game's other entries (keys, reward counts, usage times) are kept as
+  `tickets` / `times` with names from `qml/aion2/chartickets.js`
+  (`tools/aion2-tickets-import.py` from the Inventory plugin's data.js,
+  SkeeveAN, MIT). `Aion2.serverNames()` from the meter's servers.json.
+  `GC_DEMO=chars` (made-up characters). The rules without Qt:
+  `node tools/charkit-test.js`. Not built: the Daily Checklist (MN),
+  Armory (needs NC's pages: MN's yes first). The item catalogue and
+  "prices only through Market" get their own shared parts when a second
+  area needs them (Inventory); today only Market uses them.
+  `Aion2.keepStore` now writes the newest of a key whatever thread comes
+  first.
+
+- 0.7.2 to 0.7.5 beta (branch `aion-plugins`, 2026-11-13): texts wrap
+  instead of being cut (launch options, trend words, game cards); Settings
+  → Plugins (qml/plugins.js catalogue, settings `plugins` / `packages`,
+  Companion.setPlugin / setPackage); DPS meter: ping and Odyle, classes in
+  English (`aion2::job_name`), live skills of the chosen player, smaller
+  sizes, its own opacity, fixed list height, input given again 250 ms
+  after a resize; Twitch "load more" and YouTube video languages (thread
+  "FreeTube und Streamlink-GUI ablösen"). 0.7.5: the **Map** (plugin
+  `aion2.map`): `tools/aion2-map-import.py` turns the Clicktrough Map
+  plugin's data.js, areas.js, render.js and marks.js into
+  `qml/aion2/mapkit.js` (globalThis → G, newer syntax lowered,
+  polyfills for Qt 6.4) and copies tiles, icons and notices to
+  `crates/aion2/data/map/`; `qml/aion2/MapView.qml` draws tiles and marks
+  (Canvas, a port of render.js), `qml/aion2/MapPanel.qml` is plugin.js's
+  UI (layers, gathering kinds, search, focus, nearest souls, NEXT);
+  settings in `aion2-map.json` (Aion2.mapSettings / saveMapSettings).
+  `GC_DEMO=map` (Verteron), `GC_DEMO=dpslive,dps` (empty, then a fight
+  that changes every 0.5 s). qt6-imageformats is now a dependency (WebP
+  tiles). 0.7.6: the **Market** (plugin `aion2.market`):
+  `tools/aion2-market-import.py` turns data.js, items.js, anomaly.js and
+  calc.js into `qml/aion2/marketkit.js` (numeric separators and
+  toLocaleString lowered for Qt 6.4); `qml/aion2/MarketPanel.qml` is
+  plugin.js (six tabs, favourites pinned, map button → the Map's
+  `focusGather`, NPC prices). Downloads in `src/market.rs` (only the
+  Clicktrough copy on raw.githubusercontent.com and aion2.exchange/api;
+  icons from assets.playnccdn.com kept in ~/.cache/game-companion/aion2/
+  icons); `Aion2.webGet` / `webGot`, `icon` / `iconReady`, `loadStore` /
+  `keepStore` (aion2-<key>.json). The player's server comes with the
+  fight's `extras.server`. `GC_DEMO=market` opens it (real prices from the
+  copy). **The other plugins wait**: MN wants their overlaps checked first
+  (thread "Synergien der alten Plugins prüfen"). From now on: feature
+  branch + PR against beta, the QA thread merges.
+
+- 0.7.0 beta (branch `integration` merged into beta, 2026-11-13): launch
+  options and Proton per game (checker, suggestions by Proton build,
+  CachyOS, ProtonDB extract, UI per boards L1-L3), tray icon and autostart
+  choice, second start shows the hub, YouTube library / Twitch categories,
+  VODs, clips, chat (from the thread "FreeTube und Streamlink-GUI
+  ablösen"), not-installed games for Steam/Heroic/Lutris with INSTALL,
+  "Installed only", covers from more local caches. Each part had a QA
+  review and its findings fixed. Cover downloads: see the branch
+  `cover-downloads` below; CLAUDE.md still describes the old "already
+  running" second start and lacks tray/launch-options entries (an edit
+  was refused by the permission check: ask the person).
+
+- 0.4.2: every part on the primary screen (two monitors).
+- 0.4.3: steady dragging (`Surface.held`), outline text under half
+  opacity, no unlocked frame.
+- 0.4.4 (stable): beta channel switch.
+- 0.4.5 (stable): KDE's primary screen from kwinoutputconfig.json, "Show on"
+  in Display.
+- 0.5.0 beta (milestone/step4-first): Games panel (qml/GamesPanel.qml),
+  Games bar button, detection and libraries (src/games.rs,
+  src/games_object.rs, singleton Games: library JSON, running, started /
+  stopped signals, launch, own entries, options, favourites, layouts per
+  game), start with the desktop (now Companion.autostartMode, see the
+  tray branch), on
+  start: Streams preset, show hub, radio, layout (Main.qml Connections).
+
+## Branch `cover-downloads` (from integration 0.7.0): missing covers
+
+The person agreed 2026-11-13 (decision card "Nur Cover laden"): missing
+covers may be downloaded once from Steam's, Epic's and GOG's image
+servers; only the game's id in the picture address leaves the PC (no
+Steam Web API, no library list). `src/covers.rs`:
+- Allowed hosts, exact (`ALLOWED_HOSTS`, `allowed_host`: https only, no
+  user, no port): shared.akamai.steamstatic.com, cdn.akamai.steamstatic.com,
+  cdn.cloudflare.steamstatic.com, steamcdn-a.akamaihd.net,
+  cdn1.epicgames.com, cdn1.unrealengine.com, cdn2.unrealengine.com,
+  images.gog-statics.com, images-1..4.gog-statics.com, images.gog.com.
+  The Epic/GOG list is from memory of Heroic's data (its source was not
+  reachable from the sandbox): if real `art_square`/`art_cover` addresses
+  use another image host, those games simply get no download; add the
+  exact host after asking.
+- Addresses (`candidates`): Steam by app id,
+  `shared.akamai.steamstatic.com/store_item_assets/steam/apps/<id>/`
+  library_600x900.jpg, library_600x900_2x.jpg, then
+  `cdn.cloudflare.steamstatic.com/steam/apps/<id>/library_600x900.jpg`,
+  then the shared header.jpg; Heroic: `Game.cover_url` (art_square, else
+  art_cover, only on an allowed host; Epic's resized `?h=400&resize=1&w=300`
+  first, as Heroic's card). Amazon, Lutris and own entries: none.
+- curl `-q`, settings on stdin, `proto =https`, no `location` (a 3xx is a
+  miss), max-time 20, max-filesize 5 MB; the status code after the body
+  (`write-out`). Kept only if JPEG/PNG/WebP by magic bytes.
+- Files: `~/.cache/game-companion/covers/<id with ':' as '-'>.<jpg|png|webp>`
+  (atomic, `.part` then rename); misses in `covers/failed.json`
+  (id → unix time), asked again after a week (`RETRY_AFTER`). No
+  connection = nothing remembered, the run stops.
+- `Games` (games_object.rs): after each library read, `fill_cached` gives
+  games their downloaded covers (worker thread), then `start_covers`
+  runs one "covers" thread (one at a time, 250 ms apart, installed games
+  first; never two threads). Each saved cover → signal
+  `coverArrived(id, picture)` → GamesPanel's `arrivedCovers` updates that
+  card; the library JSON is rebuilt once at the end. Setting
+  `games.download_covers` (default on), `Games.downloadCovers` /
+  `saveDownloadCovers`, Settings → General → Games "Download missing
+  covers"; off stops the thread before the next game. `GC_NO_COVER_DOWNLOADS=1`
+  and every `GC_DEMO` mode download nothing.
+- Unverified: real downloads (the sandbox's proxy refuses these hosts);
+  tested with made-up fetch answers and curl's write-out/proto behaviour
+  against a local server.
+
+## In progress: tray icon and start options on branch `tray-autostart` (from beta)
+
+Approved by the person 2026-11-13. Built, waiting for review and the
+person's test on KDE:
+- Tray icon (`src/tray.rs`): a StatusNotifierItem with a dbusmenu through
+  the ksni crate (Unlicense, pure Rust, on the zbus 5 / async-io the
+  shortcuts already use). Chosen over QSystemTrayIcon because that needs
+  QtWidgets and a QApplication (plus KDE's platform theme deciding how it
+  shows); ksni needs nothing new on the system and its threads sleep on
+  the D-Bus socket (idle 0 ticks measured). Left click = Companion
+  toggle_shown; menu: Show/Hide hub, Lock/Unlock, Settings, Check for
+  updates, Quit (native::quit). Menu labels and tooltip follow
+  shown/locked (`on_shown_changed` / `on_locked_changed` → `sync_tray`).
+  Started on a "tray" thread with `assume_sni_available` (waits for
+  Plasma's watcher when started before the panel; re-registers when
+  plasmashell restarts). The icon: the bar's Games gamepad in #e0a526 at
+  16 to 64 px, drawn by `gc_tray_icon` (cpp/icons.cpp) and sent as
+  pixmaps. Settings `tray` (default on), `Companion.tray` /
+  `setTrayOn`; `GC_NO_TRAY=1` skips it. Settings and Check for updates
+  arrive in QML as `Companion.settingsRequested` / `updatesRequested`.
+- Start (Settings → General): `Companion.autostartMode` "off" / "hidden" /
+  "visible", `setAutostartTo`; read from the autostart entry's Exec line
+  (`--hidden` = hidden, so entries from before stay hidden). "Show the hub
+  when a game starts": settings `show_on_game` (default on), gates the
+  per-game showOnStart in Main.qml.
+- One copy (`src/instance.rs`): the flock as before plus
+  `$XDG_RUNTIME_DIR/game-companion.sock` (0600); a second start writes
+  "show" and exits 0 (a second `--hidden` start just ends). The listener
+  thread sleeps in accept and queues onto the Qt thread.
+- Checked in the sandbox: unit tests (menu, actions, autostart entries,
+  socket); under dbus-run-session with a fake StatusNotifierWatcher
+  (python3.12 dbus): registration, IconPixmap, left click, menu Unlock,
+  Quit, a watcher that appears late, second start shows the hub, idle 0
+  ticks with and without the tray. Only the person can check how Plasma
+  draws it. Demo: `GC_DEMO=settings,startmenu`.
+
+## Decisions 2026-11-13 (the person)
+
+- AION module merged into beta as 0.6.0 for the person's in-game test.
+- Map data: the AION2 Interactive Map's pictures and data are CC BY-NC 4.0
+  (its author's licence): fine with credit (NOTICE file) while the app is
+  free; nothing to replace.
+- Launch options UI drafts approved (canvas page "Launch options (draft)",
+  boards L1Options, L2Suggestions, L3Proton).
+- Suggestions follow the Proton flavour set for the game (Valve, GE,
+  proton-cachyos, Wine, native); CachyOS aware (game-performance,
+  proton-cachyos defaults); an explanation text for every option; options
+  already set are checked (ok, outdated, invalid, no effect, not
+  recommended, unknown).
+- Open: ProtonDB (on demand per game, a data extract in the app, or none);
+  helper group (recommended no).
+
+## In progress: AION 2 module on branch `aion-module` (from beta)
+
+The person asked (2026-11-13) to port the meter; decisions in
+/mnt/project-files/game-companion/aion-module-decisions.md. Done: crate
+aion2 (parser, 300 tests), capture helper with cap_net_raw, engine, Aion2
+singleton, DPS panel (Damage, Healing, Skills, History, Reset, boss HP),
+QA fixes (helper hardened), Battle History (fights/*.json, 200 kept), world
+state for the map (`world.rs` fed by `frame_tap`, `Aion2.world` JSON).
+Next: the Map panel (needs a design draft and the person's yes; the
+meter's map data is CC BY-NC: ask the person), the person's test in the
+game (only they can play), then plugins in the agreed order. Not merged
+into beta until reviewed. Open decision: install the helper 0750 with a
+group as further hardening.
+
+Branch `launch-options` (from beta): launch options, system check with
+suggestions and Proton versions (logic done, 82 tests; Games invokables
+launchOptions, suggestions, combineOptions, setLaunchOptions,
+protonVersions, setProton, systemInfo). UI drafts on the canvas page
+"Launch options (draft)" (boards L1Options, L2Suggestions, L3Proton),
+waiting for the person's yes.
+
+## In progress: step 4 (game detection, Games tab) on `beta`
+
+Agreed with the person 2026-11-13 (see CLAUDE.md plan step 4):
+- Detection: `/proc` every 3 s, process names per game; AION 2 and
+  Path of Exile 2 built in; the bar shows the running game; the Streams
+  panel's game tab follows it; optional layout per game.
+- Autostart switch ("Start with the desktop", KDE autostart entry); starts
+  hidden, shows when a game runs.
+- Games tab per the approved canvas boards G4Library and G4AddGame
+  (canvas https://claude.ai/artifact/82a3HqWJWbBRdp5FU7MvGZ, page
+  "Games (step 4)"): Steam, Lutris, Heroic read from disk, own entries,
+  start through the launcher; pictures only from the launchers' local
+  caches; no network.
+- Out of scope for now: PoE 2 helper programs, starting the AION meter
+  (step 5).
+- Later wishes (the person, 2026-11-13, to plan together): set launch
+  options for games in the launchers; something for Proton.
+  Backend done on branch `launch-options` (not merged, no UI yet):
+  `src/launch_options.rs` (Steam localconfig.vdf / config.vdf, Lutris yml,
+  Heroic GamesConfig; suggestions; Proton list), `src/system_info.rs`
+  (GPU, driver, CPU, RAM, tools, session, main screen from
+  kwinoutputconfig.json), `src/vdf_edit.rs` (changes one VDF value, every
+  other byte kept). Games invokables: launchOptions, suggestions,
+  combineOptions, setLaunchOptions, protonVersions, setProton, systemInfo,
+  checkOptions:
+  each returns a request number at once, works on a worker thread (one at
+  a time) and answers by the signal `launchResult(request, json)`; the
+  Proton list is cached (`protonVersions(true)` reads it again).
+  combineOptions takes the ids that should be on (applied ones left out
+  are taken out) and edits the user's text in place (settings in front,
+  wrappers before the standalone `%command%`, MangoHud as gamescope's
+  `--mangoapp`); text it cannot change safely (`$(`, redirection before
+  the command, two `%command%`, ...) is refused, never rewritten.
+  Writes refuse while the launcher runs ("Close Steam first", also when
+  /proc cannot be read), back up the file as `<file>.gc-backup-<UTC time>`
+  (newest three kept) and replace it by rename. setProton's answer has a
+  `warning` (Heroic: Wine to Proton or back changes the prefix). serde_json
+  now keeps key order (preserve_order) so Heroic's files keep theirs.
+
+  Checker and flavour-aware suggestions (the person, 2026-11-13, same
+  branch): `data/launch-options.json` (compiled in) lists ~170 known
+  env vars, wrappers and args, each with kind, value type (bool, enum,
+  flags with the exact flag list, number, version, size, hidraw,
+  dll_overrides, dxvk_config), flavours (valve, experimental, ge,
+  cachyos, wine, native), status (current, retired + replacement/since,
+  discouraged, experimental, debug, unverified), per-flavour overrides,
+  GPU vendor, explanation and `source` (keys of `sources`, the documents
+  read on 2026-11-13: Valve/GE/proton-cachyos READMEs, scripts and
+  changelog, vkd3d-proton README + source + history, DXVK README +
+  source, DXVK-NVAPI, Mesa, NVIDIA README, CachyOS wiki, MangoHud,
+  GameMode, SDL, WiVRn). `src/launch_check.rs`: `context` (family from
+  the game's tool: Valve(major)/Hotfix, Experimental, GE, proton-cachyos,
+  other Proton, Wine, native), `check(text, ctx)` per token: status
+  ok / outdated / invalid (misspelt name or flag, bad value, wrapper not
+  installed) / no_effect (wrong flavour or vendor, native game, set twice)
+  / not_recommended / unknown (not in the list: said honestly), `fix` per
+  token and `fixed` text; problems command_missing, command_twice,
+  duplicate. `src/protondb.rs`: ProtonDB extract `data/protondb.json.gz`
+  (from `tools/protondb-extract.py`, ODbL, NOTICE-ProtonDB.txt; installed
+  to /usr/share/game-companion; `GC_PROTONDB` overrides), read on the
+  worker per request, only the one game parsed (RawValue). Shares per
+  system group: GPU in use, distro family, CPU (system_info: os-release
+  ID/ID_LIKE, cpuinfo vendor, display card), groups under 5 reports fall
+  back. Suggestions now depend on the build: Wayland only GE 10+ and
+  proton-cachyos (Valve's builds have no winewayland); HDR on
+  proton-cachyos = DXVK_HDR=1 (+ENABLE_HDR_WSI=1 on NVIDIA < 595), Valve =
+  Vulkan HDR layer; NTSync is default (PROTON_NO_NTSYNC offered for
+  troubleshooting only); FSR4/DLSS upgrade, local shader cache, NVIDIA
+  libs, OptiScaler for GE 10+ and proton-cachyos (never recommended);
+  game-performance on CachyOS (with powerprofilesctl) instead of
+  gamemoderun, ananicy-cpp warning. Removed: the PROTON_USE_NTSYNC and
+  PROTON_ENABLE_NVAPI suggestions (current scripts do not read them).
+  `Games.suggestions` answers an object now
+  (`{"suggestions","context","check","warnings","others"}`), new
+  `Games.checkOptions(id, text)`; JSON in the doc comments of
+  src/games_object.rs. Findings for Forza Horizon 6: `descriptor_heap`
+  was an opt-in vkd3d-proton flag from 2026-05-27 (before:
+  `i_want_broken_descriptor_heap`) until 2026-11-04, when vkd3d-proton
+  master made descriptor heap the default (`no_descriptor_heap` opts out):
+  ok, with that note; `enable_experimental_features` exists in the source
+  (not the README); `PROTON_VKD3D_HEAP` was proton-cachyos-only, removed
+  in 11.0-20260521 (outdated there, no_effect on Valve/GE).
+
+  UI (same branch, design boards L1Options, L2Suggestions, L3Proton,
+  approved 2026-11-13): the game form has tabs GENERAL / PRESET SEARCH /
+  LAUNCH (`qml/LaunchTab.qml`, read when first opened, scrolls when the
+  screen is short): options field (monospace, one line), chips ENV /
+  WRAPPER / GAME / ARG from `checkOptions` (debounced 400 ms, only the
+  newest answer counts) with a status mark (`StatusMark`, `launch.js`:
+  ok gold, outdated purple, invalid red, no effect grey, not recommended
+  hollow red, unknown hollow grey), a click opens a part's explanation,
+  note, warning and flags with its fix ("Fix: …" / "Take it out"; FIX ALL
+  uses `fixed`), all only into the field; red "CLOSE STEAM FIRST" banner
+  while the launcher runs (`launchOptions` answers `running`;
+  `Games.launcherState` asked every 3 s only while it shows; SAVE off);
+  Proton choice (`SelectBox` + `ChoiceList`, a list over the whole panel,
+  opens upwards when there is no room). SAVE writes options and Proton
+  through the worker and closes when both answered; setProton's warning
+  shows as a note over the list. SHOW opens `LaunchSuggestions.qml` over
+  the form: system strip, rows with checkbox (recommended ones start on),
+  groups as radio rows, unavailable ones (`available: false`,
+  `unavailable_why`, from launch-fixes) greyed with the reason, PREVIEW
+  from `combineOptions` (new words gold), WHAT OTHERS USE (shares on
+  systems like this one and overall, check status, click for the note;
+  Proton variants; "Data: ProtonDB export (ODbL)"; no one-click apply of
+  others' text yet); APPLY puts the preview into the field (SAVE writes:
+  one write path, deviation from the board's "APPLY writes"). PROTON in
+  the list's header opens `ProtonOverview.qml` (new `Games.protonOverview(
+  ids)`: builds by source with the games using each, STEAM DEFAULT, quick
+  change per game; own entries left out). Backend additions:
+  `launch_options::launcher_running`, `tool_name`, `tool_in_use`,
+  `tool_choices` (config.vdf read once), `usage_json`; `launchOptions`
+  answers `proton.name` / `proton.inUse` / `running`. Demo
+  (`src/launch_demo.rs`, made-up PC, builds and games; the real checker,
+  suggestions and ProtonDB extract run on it): GC_DEMO=games,launch
+  [,detail][,picker][,launcherrunning], games,suggestions[,rows|,middle|
+  ,others|,end], games,proton, games,launchown; `nowelcome` closes the
+  welcome. Screenshots in /mnt/project-files/game-companion/screens/launch/.
+
+  Second QA round (branch `launch-fixes`, 2026-11-13): retirements follow
+  the exact build. `Family::CachyOs(major)` (from the build's name, else
+  its `version` file; unknown = newest, and the note says so); byFlavour
+  `from` works for Valve, proton-cachyos and GE (`from` + `fromRelease`).
+  Version facts read from the tagged scripts: PROTON_USE_NTSYNC only in
+  GE-Proton10-9 and proton-cachyos 10 (retired GE10-10 / cachyos 11),
+  PROTON_ENABLE_HDR/USE_HDR until GE-Proton11-9 (HDR detection; `=0` still
+  turns HDR off: `keepValues`, ok with a note) and proton-cachyos 10,
+  PROTON_ENABLE_NVAPI until Proton 8 / GE-Proton8 (on by default from 9),
+  PROTON_VKD3D_HEAP, PROTON_MEDIA_USE_GST, PROTON_VKREFLEX until
+  proton-cachyos 10. Suggestions (the person): `ntsync`, `nvapi`,
+  `vkd3d_heap`, `enable_hdr` (`launch_check::gated`) are listed for the
+  builds of their family; each suggestion has `available` and
+  `unavailable_why` (plain English, from the KB's `unavailable` text);
+  unavailable ones are greyed out in the UI and `combineOptions` refuses
+  to add them. Fixes keep values literal (a misspelt name changes only the
+  name; rebuilt values are single-quoted when needed; the fixed text is
+  lexed again and dropped if it would not split as meant). Misspelling
+  fixes only for plain misspellings: a correction that swaps an on/off
+  word, a number or a negation gets "did you mean" without a fix;
+  NEVER_CORRECT lists real settings outside the KB; removed flags
+  (VKD3D_CONFIG dxr11, RADV_PERFTEST aco/gpl/ngg/rt/emulate_rt/wave32) are
+  outdated and taken out. A missing %command% after gamescope's words goes
+  after its `--` (adding `--`), no fixed text when unsure. Fixes never set
+  a setting twice; a bare known name (`PROTON_ENABLE_WAYLAND`) becomes
+  `NAME=1`; a setting after a wrapper is moved in front. checkOptions only
+  answers the newest request (older ones get no launchResult). ProtonDB
+  values are quoted; the extractor drops values cut at 120 characters, with
+  home/mount paths, or of LD_PRELOAD/*_PATH/*_RUNTIME/*_FILE/*_DIR, and
+  tells GE by a word match (data regenerated from the 2026-11-02 export).
+  display card picked by connector per card (two GPUs with the same
+  connector name).
+
+  Library with not-installed games and covers (branch `games-library`,
+  2026-11-13, the person: "all launchers, a button to hide not-installed
+  ones, load the pictures"; from disk only, no network): `Game.installed`
+  (false = owned, not installed: greyed card, dimmed cover, "Not
+  installed", INSTALL instead of PLAY; `launch` is then the launcher's
+  install address, `Games.launch` finds it in `composed` and records no
+  play time; `watch_list` leaves it out, so detection never looks for it),
+  `Game.note` (shown on hover: "Known to Steam on this PC", "In Lutris's
+  GOG library"). Steam: installed from appmanifests as before; the rest
+  from `steam_seen_apps` (the last signed-in account from loginusers.vdf:
+  localconfig.vdf and 7/remote/sharedconfig.vdf `Software/Valve/Steam/apps`
+  keys, userdata/<id>/config/librarycache/<appid>.json, appcache/
+  librarycache entries), kept only where `src/appinfo.rs` says type "game"
+  (binary appinfo.vdf v27/v28/v29, streamed, unwanted entries skipped by
+  size, results cached per file until its size or time changes); address
+  `steam://install/<appid>`. Steam's full owned list is not on disk (the
+  licences are not readable), so games never touched on this PC are
+  missing. Heroic: installed lists as before plus `store_cache/
+  legendary_library.json` (`library`), `gog_library.json` (`games`),
+  `nile_library.json` (`library`), `sideload_apps/library.json`; DLC
+  (`is_dlc`, `install.is_dlc`) skipped; not installed = not in the store's
+  installed list and `is_installed` not true; address
+  `heroic://launch?appName=..&runner=..` (Heroic's protocol.ts asks "not
+  installed, install it?"; there is no "open game page" command). Lutris:
+  `games` with installed 0 (`lutris:<slug>`), `service_games` except
+  Steam's and ones already listed (`lutris:<slug>`, id
+  `lutris:<service>:<appid>`). Covers: Steam `STEAM_COVERS` (600x900, _2x,
+  library_capsule, header, library_header) flat, per app folder and one
+  folder deeper; Heroic `images-cache/<sha256 of the URL>` (images_cache.ts;
+  Epic's card asks `art_square?h=400&resize=1&w=300`, tried first, then
+  art_square, art_cover, art_background; local files for added games);
+  Lutris coverart, then banners, in data and cache. `Game.cover_url`
+  (Heroic art URLs on allowed hosts) feeds the cover downloads (branch
+  `cover-downloads`). UI: INSTALLED ONLY switch beside the
+  search (`Games.installedOnly`, `saveInstalledOnly`, settings
+  `games.installed_only`), tabs show installed/all, badge "n OF m
+  INSTALLED", Recent puts installed before not installed among unplayed.
+  Demo: GC_DEMO=games[,installedonly][,tabsteam|,tabheroic|,tablutris],
+  `GC_DEMO_PICTURES=<folder>` with `<id, ':' as '_'>.png` for made-up
+  covers. Screenshots in /mnt/project-files/game-companion/screens/library/.
+  Unverified: real files of the person (appinfo.vdf v29 from a current
+  Steam, Heroic's images-cache names), cover hit rates.
+
+Open points: QA of the merged branch, test on real KWin (Arch thread), the person's test; the check follows the saved Proton build, not one picked but not saved yet.
+Known limits: PoE 1 outside Steam counts as PoE 2; any process with a
+game's folder in its command line counts as the game; Steam's not-installed
+games only as far as this PC's Steam saw them. Demo: GC_DEMO=games[,gameform]; GC_NO_GAMES=1 stops
+detection.
+
+## Branch `claude/project-thread-lncux3` (from beta): replacing FreeTube and Streamlink Twitch GUI
+
+Agreed with the person 2026-11-13 (plan: scratchpad streams-plan, approved
+in the thread "replace FreeTube"). Done, not yet merged into beta (the
+release thread merges it and sets the version):
+- YouTube: Playlists tab (search, sort, quick bookmark), own subscriptions
+  with groups, history with continue watching and progress marks, hide
+  watched, Trending (Gaming, Football: Europe, national teams, Süper Lig,
+  Bundesliga, Premier League, Ligue 1, Serie A, LaLiga; no podcasts),
+  Shorts hidden by default, channel and word filters, search filters,
+  chapters and speed, playlists played through. FreeTube taken over once
+  in Settings → Streams → YouTube.
+- Twitch: categories, live notes (off by default), quality per channel,
+  filters (language, reruns, order), past broadcasts and clips, chat panel
+  (read, write when signed in, Twitch/7TV/BTTV emotes as still pictures).
+- Not wanted: YouTube comments. Left out for now: DeArrow, downloads.
+Untested online (the sandbox reaches neither YouTube nor Twitch): Trending
+searches, Twitch GQL fields for categories/VODs/clips/filters, chat login
+and emotes. The person tests these.
+
+Open, low priority (MN, 0.8.49, "nicht soooo schlimm"): dragging a video
+window while it plays still stutters a little (the grab freeze fixed the
+stretched frame, not the move itself).
+
+Next video (MN, 2026-11-15, "passt"): a YouTube video started from any
+list has ⏭ and "UP NEXT ▾" (the next five of the list as it was shown)
+and an AUTOPLAY switch (off by default; on, a 5 s "NEXT:" note, then the
+next one). Settings → Streams → Videos "Close the player when nothing
+follows" (off by default) closes a video window at the end, mpv with it.
+Checked under xvfb with a 3 s clip: the window closed, mpv's threads went
+(29 → 27 as before playing); off, it stays. Not checked online: YouTube's
+own end and AUTOPLAY into the next video (the sandbox reaches no YouTube).
+Possible follow-up from QA (0.8.50 review): `gcShot` could also check
+`w.layer === 9` (overlay) so a full-screen Spectacle editor never counts.
+
+Beta fixes after 0.8.51 (MN, "alles abarbeiten"): Print flicker (Spectacle
+was taken for a full-screen game while Brave was shown: `desktop_tool`),
+"Newest first" sorted by date in the game's search, UP NEXT as tiles
+(click plays, whole titles, scrolls), a dragged video holds its picture
+still. The drag stutter note above is done with that, to be confirmed.
+
+## Branch `claude/project-thread-pv2u8z` (from beta): Boss panel (A5)
+
+Boss Notes and Boss Callouts as one Boss window (canvas page "boss", MN's
+yes 2026-11-13), plus the Ludra cheat sheet (MN: "what to do in each
+phase"): the big call with countdown and voice, the sheet over the game
+with MY ROLE, sheets per boss (own entries, the game's calls on/off, own
+words), fight summaries, voice settings. Version set by QA. Open: overlay
+slots 1-3 and resizing; the Ludra starter words are from public guides and
+unchecked (MN corrects them after a run); not tested against a live fight.
+
+## Branch `claude/project-thread-pv2u8z` (from beta): Boss cheat sheet preview
+
+MN (0.8.6 test): "how can I test or see the Ludra things?" SHEETS on a
+Ludra boss → "Show over game" shows the cheat sheet over the game outside
+the dungeon, with its boss tabs and a close button; ▶ on an entry (or a
+click on its row over the game while unlocked) plays it as in the fight:
+the big call for 6 s, the words spoken, the row marked as current.
+
+## Branch `claude/project-thread-4nn18t` (from beta): Armory with builds
+
+MN (2026-11-13): the Armory, with builds tied to characters better than the
+old app. Allowed hosts: aion2.plaync.com, api-search.plaync.com,
+profileimg.plaync.com (decision card). Design: canvas page "Armory mit
+Builds" (AR1–AR4), MN: "ja passt", and every old tab gently improved:
+Overview (build progress and next steps first, steps open their tab, the
+build's Daevanion points on the boards), Gear (old Gear + Reference +
+calculator + Compare in one list per slot, ticks leave slots out of
+progress/steps/Goals), Soul binding (wishes kept in the build, picker in
+place, chance beside misses), Skills (targets with − / +, "Aim", folded
+rows), Daevanion (the build's closed nodes first, marked on the map),
+Stats (build's deity stats against yours, searchable glossary), Goals (goal
+GS belongs to the build, CP beside it), Builds (new: make from questlog.gg
+file / copy / strongest players / empty, put on characters, versions),
+History (build progress line, version marks, boss fights with DPS).
+CHARACTERS shows "build NN %" under the gear score. Open: tested only with
+made-up data in the sandbox (NC's pages are blocked here); the first real
+reading is MN's test.
+
+## Branch `claude/project-thread-pv2u8z` (from beta): Boss voice without speech-dispatcher
+
+MN (0.8.12): the Ludra preview showed its calls without a sound. Sheet
+entries are own words (no Kokoro clip), read by spd-say, which MN likely
+lacks. Now a beep plays instead, SHEETS says so with the pacman line, and
+the package lists speech-dispatcher and espeak-ng as optdepends.
+0.8.12 test (MN, 2026-11-14): reading a real character works. Fixed after:
+GEAR keeps several slots open at once (`opened`), and a closed slot leaves
+no gap (the details Loader's height follows `implicitHeight`, 0 when
+closed). The old Clicktrough Armory's data is taken over once by itself
+(HISTORY has a button for again): `meter_import::read_armory` (local, read
+only) → `Aion2.meterArmoryGot` → `ArmoryStore.takeMeter`; histories merged
+by time (`BK.mergeHistory`, 600 kept), a newer old reading kept, the old
+references as builds, a character's old targets as a build on it when it
+has none (`settings.meterBuilds` notes what was taken, no copies).
+
+## Branch `games-launch` (from beta): programs that start with a game
+
+MN (2026-11-14): in GAMES, choose per game which programs start with it,
+and remove them again (the old meter started with AION 2). Option A, plus
+MN: "show me the watcher, what it does and what is in it; from now on this
+program is the watcher". Game Companion is now the watcher
+(`src/start_with.rs`): on a game's start (the 3 s detection in
+`games_object::detected`) it starts each switched-on entry once, unless a
+program of that name already runs (comm or argv0); after the game ends it
+closes only what it started, each after its own wait (default 10 s, 0 to
+600), SIGTERM to the program's session, SIGKILL after 10 s; a quick
+restart keeps them. Entries in `settings.games.start_with[game id]`
+(name, command, on, close, delay); removing an own game removes its
+entries. Tab WITH GAME in the game's form (`qml/StartWithTab.qml`): the
+old meter's watcher (`~/.config/autostart/a2tools-game-watch.desktop`,
+patch 0037) shown with what it does and its file, Take over (adds "A2Tools
+DPS Meter" and turns the old watcher off), Turn off (moved to
+`~/.config/game-companion/autostart-off`), Remove; a red mark when both
+would start the meter. Entries: switch, edit, remove, remove all; add from
+the menu (desktop files) or by hand. Needs Game Companion running (warning
+when its autostart is off). `GC_DEMO=games,startwith[,starterfile|,addprogram]`.
+Open: MN's test with the real old watcher file.
+
+## Branch `no-focus-steal` (from beta): the overlay never takes the game's focus
+
+MN (2026-11-14): the farm window and the timer alert took the focus (and
+the mouse) from the game when they appeared. Cause: KWin activates an
+overlay layer surface as soon as its keyboard interactivity changes to
+anything but none (`LayerShellV1Window::handleAcceptsFocusChanged`), and
+layer-shell-qt asks for activation on every show of a surface that
+accepts keys. Our surfaces accepted keys (on demand) whenever the overlay
+was unlocked: unlocking activated them, and a part opening by itself
+while unlocked did too. Now `NativeWindow::setKeyboard` only allows keys;
+a surface takes them on the first press into it (`eventFilter`), and
+drops them on lock or when hidden; `_q_showWithoutActivating` is set; the
+input region is given before the first show. Checked on the headless
+KWin 5.27 with a stand-in game window: before, unlocking took the game's
+focus; after, it stays with the game through unlock and a panel opening
+by itself, and a click into Games' search field takes keys (typing works)
+until the game is clicked again. Note: on KWin 5.27 a click on any overlay
+surface takes focus (6.x checks first); the sandbox's patched
+layer-shell-qt crashes Game Companion now and then at start ("free():
+invalid size"), with and without this change.
+
+## Gold top line: colour only (branch `keep-line-space`, from beta)
+
+MN (2026-11-14): only the gold line's colour on top of the windows was to
+go. #44 removed the line with its 2 px (every panel 2 px shorter, which
+the Arch bench's fixed sizes took for broken drag/resize/turn-off on
+Sway) and added a re-place of windows left at a stale size after a drag.
+Now: the 2 px stay as clear room (`Panel.qml` header at y 2), the map
+overlay's strip and the boss sheet stay without the line, and the re-place
+is taken back (Surface.qml as in 0.8.16): on the headless KWin the farm
+window reached the top edge without it.
+
+## Branch `dps-stays-closed` (from beta): open panels survive updates
+
+MN (2026-11-14): "why is the DPS meter there after every update?" Main
+only remembered "DPS closed by hand" while the app ran, so after an update
+(a restart) the DPS panel opened again when AION 2 started. Settings now
+keep `open_panels` (ids, None until first kept) and `dps_closed`
+(`Companion.openPanels` / `saveOpenPanels`, saved 500 ms after a change);
+Main restores them at start (not in demo mode). An update or restart
+brings back exactly the panels that were open.
+
+## Branch `radio-dead` (from beta): Techno genre, Electronic under USA
+
+MN (2026-11-14): many stations don't play, and Electronic and Techno were
+missing from the genre list. The genre list only shows genres found in the
+chosen country, and USA had no electronic station.
+
+- New genre `techno` (after Electronic): sunshine live Techno, bigFM Deep &
+  Tech House, and two new stations: Techno Bunker FM
+  (`stream.laut.fm/technobunkerfm`) and Radio Record Minimal Tech
+  (`radiorecord.hostingradio.ru/mini96.aacp`, same host as Radio Record).
+  Both found in public station lists; not playable from the sandbox.
+- SomaFM's six stations moved from World to USA (they are from San
+  Francisco and play worldwide), so Electronic shows under USA too.
+- Why stations don't play: the US ones on StreamTheWorld/iHeart only send to
+  US connections. What to do about them waits for MN's choice (mark and
+  sort last, replace and remove, or both).
+
+## Branch `radio-mark-dead` (from beta): stations that don't play
+
+MN chose (2026-11-14, card "Merken und ans Ende"): remember the stations
+that play on none of their addresses, grey them, list them last, and a
+switch hides them.
+
+- `settings.radio.dead` (ids) and `hide_dead`; `radio::mark_dead`,
+  `radio::station_at_fault` ("No sound device" is not the station's
+  fault). `try_stream` marks a station when its last address failed;
+  `Event::Playing` clears it (written only when it changes: Playing comes
+  again after every cache pause).
+- `Radio.dead` (JSON), `Radio.hideDead`, `Radio.setHideDeadTo`.
+- RadioPanel: `deadIds`; `shown` lists live stations first, dead ones
+  after ("Didn't play last time", 45 % opacity), left out while hidden
+  except the chosen one; "HIDE NOT PLAYING · n" with a switch right of the
+  tabs (only while some are marked; "HIDE · n" under 440 px).
+- Checked under xvfb: a click on WBLS (the sandbox reaches no stream)
+  marked it and moved it last.
+
+## Branch `radio-intl-us` (from beta): US hip-hop that plays worldwide
+
+MN chose (2026-11-14, card "Internationale Sender dazu") more US stations
+that play outside the US, instead of a proxy. Added four 181.FM stations
+(internet radio from Virginia, `listen.181fm.com`, https first, http as
+second address): The Beat, The Box, Jammin 181, Old School HipHop/RnB.
+Their host was confirmed in public station lists; the sandbox can't play
+them. A proxy only for the radio was offered and not chosen.
+
+## Branch `claude/project-thread-6m4xx8` (from beta): Brave stays over a full-screen game
+
+MN, 2026-11-14: Brave vanished on every click into AION 2, even with the
+game set to "borderless": Proton marks it as full screen, and KWin 6.8 puts
+an active full-screen window over keep-above windows. Now, while Brave or
+Legcord is shown, the game's window on that screen loses its full-screen
+mark (KWin script `unfull_body`: same size, no border) and gets it back when
+no app is shown, the game ends or Game Companion quits (`refull_body`,
+`Runtime.unfull`). If the game asks for full screen again (the watcher's new
+`full` event), the mark goes again, at most 5 times per show; then the old
+behaviour (apps minimised). Settings → Apps "Stay over a full-screen game"
+(`apps_over_full`, default on). Cost: VRR on "Automatic" pauses while an app
+is shown (MN's TV has no VRR in KDE anyway). Checked on the Arch bench (KWin
+6.8, stand-in game in full screen): `arch-test/apps/gc.sh`, all checks pass,
+including the switch off. Not checked: a real Proton game asking for full
+screen again (to watch on MN's PC).
+
+## Branch `claude/project-thread-3oslcu` (from beta): PoE 2 price check and Path of Building
+
+MN, 2026-11-15: Exiled Exchange 2 was unreliable on KDE Wayland; "bau ee2
+nach". PoE 2 1.0 comes in December: everything must work by then.
+
+- `tools/poe2-ee2/build.mjs <EE2 checkout>` (needs `npm install
+  --ignore-scripts` in its renderer) bundles EE2's parser, filters and trade
+  code with esbuild for Qt's ES2016 JavaScript into `qml/poe2/ee2kit.js`
+  and copies its data (en, de) to `data/poe2/`. Shims in `shims/` replace
+  EE2's Electron parts (config, IPC, poe.ninja, i18n, luxon, BigInt hash);
+  look-behind and named groups are rewritten (PATCHES, `groupsCalls` →
+  `__gcMatch`/`__gcExec`); setInterval is a no-op (nothing ticks while
+  idle). `entry.ts` is the kit's API (`check`, `view`, `setStat`,
+  `setFilter`, `search`, `leagues`); its search reimplements EE2's
+  trade-api.ts without Vue computeds (they did not update under V4).
+  Tests: `node tools/poe2-ee2/test/run.js` (EE2's 27 sample items, mocked
+  trade answers) and `test/v4.qml` (the same under Qt's engine; needs a
+  runner that gives `gcHost.readFile`).
+- `src/poe2.rs`: requests to www.pathofexile.com/api/trade2/{search,fetch,
+  exchange,data} only (`allowed`), one at a time, curl with a cookie jar in
+  $XDG_RUNTIME_DIR, 429/Retry-After respected; EE2's own RateLimiter reads
+  the X-Rate-Limit headers. Clipboard: an x11rb XFixes watcher on
+  XWayland's CLIPBOARD (the game runs in Proton/XWayland; MN presses Ctrl+C
+  in the game, nothing is sent to the game); only texts that look like an
+  item are taken. `xvfb-run cargo test --no-default-features
+  copied_items_are_seen -- --ignored` (needs xclip).
+- `qml/poe2/PriceStore.qml` (brain, in Main) and `PriceWindow.qml` (panel
+  `poe2-price`); plugin `poe2.price` in the PoE 2 package; GameRow "Price".
+  `GC_DEMO=price[,results]`.
+- Path of Building: third app `pob` in `src/apps.rs` (`rusty-path-of-building
+  poe2`, window `rusty-path-of-building-2`); `AppDef.args`, `AppDef.game`
+  (With game only for PoE 2: `Apps.gameStarted(Games.runningKnown)`); bar
+  button while PoE 2 runs or PoB runs; no shortcut. `GC_DEMO=apps,pob`.
+- QA 2026-11-15 (Arch, Qt 6.12): `GC_DEMO=price` crashed every run in
+  Qt's JIT (ArrayLiteral → newArrayObject → jump to 0x400000000), fine
+  with `QV4_FORCE_INTERPRETER=1`. Not reproduced with PySide's Qt 6.12.0
+  (also not with `QV4_JIT_CALL_THRESHOLD=0`), so the app now always runs
+  the interpreter (`main.rs`, `GC_JIT=1` to keep the JIT); CPU in the
+  price and armory demos was the same or lower.
+- Not checked here (no network to the trade site): real searches, the
+  rate limits and Ctrl+C in the real game. QA and MN check those.
+- Later (asked, not built): a Client.txt reader, filter manager,
+  levelling guide.
+- 2026-11-15, second round (MN: "Aufbau wie im Spiel", EE2's settings,
+  plan `/mnt/project-files/game-companion/poe2-price-plan.md`):
+  - Fixes for stable, each its own PR: #101 leagues with spaces (EE2
+    writes "Runes of Aldur" unencoded; `encode_address`, curl `globoff`),
+    #104 clipboard watcher connects again and `watchError` shows.
+  - Features (beta only, after the stable cut): `view().mods` groups
+    (implicit/enchant/runes, prefixes, suffixes, tiers and ranges as the
+    game writes them), min/max fields, `PriceSettings.qml` (window ⚙ and
+    Settings → Plugins → PoE 2), "Trade site ↗" (`tradeLink()`,
+    `Poe2.openTrade`, xdg-open, www.pathofexile.com/trade2 pages only).
+  - Third round (MN's test of 0.8.51: "ich muss die gelisteten items sehen
+    können"): a click on a listing shows its item (`ListedItem.qml`, the
+    kit's `item` from EE2's DisplayItem); poe.ninja prices
+    (`tools/poe2-ee2/ninja.ts`, `poe2::ninja_allowed`, setting `ninja`, on
+    by default): listings in ex/div, a currency's own price with its 7-day
+    change. Only the Currency overview so far; uniques and other exchange
+    kinds (fragments, runes, essences …) need their `type` names, unknown
+    here (poe.ninja is blocked in the sandbox and on the bench: MN ran the
+    curls for leagues and Currency).
+  - Fourth round (MN's test of 0.8.55): the league moved into the price
+    check's settings (the window's dropdown opened under the chips);
+    min and max no longer clear each other (`setStat` "keep"); the trade
+    site link ticks its filter groups (`disabled: false`; Evasion Rating's
+    max showed under unticked Equipment Filters); folded mod rows say
+    "searched under VALUES/TOTALS"; the session's "Add currency" opens in
+    place; the WHERE tile shows the area as its value. Drops by the loot
+    filter's sound: MN declined for now ("die töne spinnen schon mal").
+  - Next: best tier with its range (needs PoE 2 mod data whose licence
+    allows it; RePoE's data is GGG's); not poeprices.info until it knows
+    PoE 2.
+
+## Branch `claude/project-thread-6m4xx8` (from beta): open Brave and Legcord taken over again
+
+MN, 0.8.37: after an update (and after a restart from the tray) Game
+Companion no longer saw the open Brave and Legcord: "NOT RUNNING", and each
+press started another one. The watcher was loaded (`isScriptLoaded` true)
+but never ran: KWin gives a new script the number of scripts it holds, so
+once any script was unloaded (other KWin scripts, Game Companion's own
+one-off scripts) the new number's D-Bus path belonged to a script still
+loaded, and `run` reached that one. A fresh login has no gaps, hence "it
+worked before". Now every load also calls `/Scripting start` (runs every
+loaded script not yet running). Belt and braces: with no window known, a
+press asks KWin for the app's windows first (`scan_body`,
+`look_then_start`, `looked`) and loads the watcher again if it missed one;
+a game start does the same before starting apps set to start with it.
+Checked on the Arch bench: `arch-test/apps/holes.sh` (a gap in the ids:
+taken over, no second Brave, the watcher saw it itself), `restart.sh`
+(restart after SIGTERM and SIGKILL), `gc.sh` all pass.
+
+## Branch `claude/project-thread-arn9fm` (from beta): PoE 2 session tracker
+
+MN, 2026-11-15 ("dieselbe Art Session-Tracker wie bei AION 2", plan in the
+project folder `poe2-session-plan.md`; no GGG API, no network). Part 1:
+
+- `src/poe2_log.rs` + `src/poe2_log_object.rs` (`Poe2Log` singleton): finds
+  `logs/Client.txt` (running PoE 2's cwd or program folder via /proc, Steam
+  libraries, Wine prefixes in ~/Games; `GC_POE2_LOG`, or the path typed in
+  the panel), follows it in a thread once a second while PoE 2 runs (starts
+  at the end, only events of the last 3 min before the watch), and hands
+  QML `heard(events)`: `area` ("Generating level N area "Id" with seed S"),
+  `named` ("[SCENE] Set Source [X]" / ": You have entered X."), `level`
+  (": Name (Class) is now level N", German too), `death` (the own
+  character's only), `afk`. Chat, whispers, trade and server lines are never
+  matched (tests `chat_and_whispers_are_never_taken`). Files:
+  ~/.local/share/game-companion/poe2/session/ (current, history, prefs).
+- `qml/poe2/sessionkit.js` (`node tools/poe2-session-test.js`): areas by id
+  (Map…, Hideout…, …town, G1_/C_G1_/P1_ campaign), time per kind and act,
+  maps (same seed = same map through a portal), deaths, levels; a session
+  ends after a pause (AFK or game closed) longer than 30 min or 1 h
+  (MN's choice) or at midnight (`cutAt`, `carryOn`).
+- `SessionStore.qml` (Main), `SessionPanel.qml` (panel `poe2-session`,
+  game row button SESSION, right-click switches the window),
+  `SessionWindow.qml` (one line over the game). Plugin `poe2.session`.
+  Redraws on events and once a minute while shown and PoE 2 runs.
+  `GC_DEMO=session`.
+- Part 1 is in beta as 0.8.54 (#125). Part 2, loot told by hand:
+  - sessionkit: `loot {cur, names, items}` per session, `addCurrency`
+    (never below 0), `addItem` (200 kept), `removeItem`, `medianDiv`,
+    `worth(s, rates)` → div, ex, unknown; `view` gives `loot`, `worth`,
+    `worthPerHour`. Tests in the same node file.
+  - SessionStore: poe.ninja's exchange overview through `Poe2.request`
+    (ids from 77000, `Poe2.answered`), the price check's league or
+    poe.ninja's first, only when the session holds loot, kept 30 min,
+    again after 4 min on failure; off with the price check's "poe.ninja
+    prices"; with no league chosen it takes the price check kit's pick
+    (the trade site's list, saved as the price check's league), poe.ninja's
+    leagues list only if that fails. `addFromPrice(view, result, text)`: a currency item (`ninja.id`)
+    adds the copied stack (`Stack Size:` / `Stapelgröße:`), another item
+    the median of the five cheapest listings in divines (or no price).
+  - SessionPanel LOOT: worth, per hour, items without price; Divine,
+    Exalted, Chaos and any held currency with − / +; "Add currency" from
+    poe.ninja's list; items with × to take one out. SessionWindow shows
+    "≈ X div". PriceWindow "+ Session" (says "In session ✓" until the next
+    item). `GC_DEMO=session` has loot and made-up rates.
+  - Stash reading is not possible for PoE 2 (GGG: account stashes PoE 1
+    only); to be talked over with MN once everything else is done
+    (BACKLOG L1b).
+- To check on the real game: the exact Client.txt lines of PoE 2 (area ids,
+  "[SCENE]" lines, German texts), and that AFK turns on by itself.
+
+## Branch `claude/project-thread-fzph43` (from beta): sound module backend
+
+MN approved the plan (doc "Sound-Modul: Bauplan", 2026-11-15). Done: the
+backend (`src/sound.rs`, `src/sound_object.rs`, see CLAUDE.md "Sound
+module"), wired in Main (`Sound.begin()`, `Sound.setGame`). Checked against
+a headless PipeWire 1.0: channels, echo reference, mic chain and stream mix
+appear and link as planned, live EQ lands, a new stream is moved onto
+Medien, the default output stays, the chains end with the app.
+Panel (2026-11-16, MN chose MIXER A on the canvas page "Sound", B kept in
+mind; SOUND always in the bar, right click = quick row): `SoundPanel.qml`
+with MIXER, MIC, APPS, STREAM (on/off and the mic device are in the panel
+itself, so no Settings → Sound page), `SoundRow.qml`, the mic meter
+(`parec`, only while shown) and the hear test. Checked: demo screenshots,
+the meter showing TALKING for a test tone through a pipe source on the
+headless PipeWire, 222 tests, clippy.
+Not yet: the mic test on MN's UR22 + HS7 (`sound/mikro-probe/` in the
+project folder), load measurement with `ton-log.sh`, QA and a beta.
