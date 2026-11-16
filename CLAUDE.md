@@ -877,7 +877,8 @@ learnt, so nothing has to be asked or worked out again.
   EE2's stat lines in VALUES, LINES, TOTALS. Min/max per line
   (`RangeField`, wheel works locked). EE2's settings in `PriceSettings.qml`
   (window ⚙ and Settings → Plugins → PoE 2), kept in settings.poe2,
-  handed to the kit by `setPrefs`. The league is chosen there too (MN,
+  handed to the kit by `setPrefs`. The league is chosen there too (its
+  list asked only while PoE 2 runs and the settings show; QA, 0.8.65; MN,
   0.8.55: the window's dropdown opened under the chips). `setStat`'s
   bound "keep" leaves it as it is (QML's `undefined` arrives as null
   through JSON and cleared the other bound). `tradeLink` adds
