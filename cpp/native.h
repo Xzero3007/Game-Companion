@@ -77,6 +77,9 @@ public:
 signals:
     void screenChanged();
     void shotSceneChanged();
+    /// The app ends without Qt's own way out (the Wayland connection
+    /// broke): stores write what waits to be written.
+    void ending();
 
 private:
     QScreen *screen() const;

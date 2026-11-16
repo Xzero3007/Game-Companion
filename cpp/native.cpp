@@ -32,6 +32,7 @@
 #include <QtQml/QQmlNetworkAccessManagerFactory>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkRequest>
+#include <QtCore/QThread>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QSGRendererInterface>
@@ -40,6 +41,8 @@ extern "C" {
 // src/native.rs: what the Rust side tidies when the app ends.
 void gc_about_to_quit();
 void gc_loop_ended();
+// src/main.rs: the Wayland connection broke; puts everything in order and ends.
+void gc_display_lost();
 // src/log.rs: one Qt or QML message into the app's log.
 void gc_log_qt(int kind, const char *text);
 // src/log.rs: one line into the app's log.
@@ -51,6 +54,9 @@ QtMessageHandler previousHandler = nullptr;
 
 // Qt's and QML's messages go to the log too, and on to the terminal as
 // before.
+// The app's NativeWindow, for `ending` (set in gc_run).
+NativeWindow *theNative = nullptr;
+
 void logMessage(QtMsgType type, const QMessageLogContext &context, const QString &message)
 {
     // Qt asks the portal to register the app id once per part that uses
@@ -68,6 +74,17 @@ void logMessage(QtMsgType type, const QMessageLogContext &context, const QString
         previousHandler(type, context, message);
     } else {
         fprintf(stderr, "%s\n", qPrintable(message));
+    }
+    // Qt ends the process right after these (QT_WAYLAND_RECONNECT is taken
+    // away in main.rs): at logout the app ended without a word (MN, 0.8.64).
+    // On Qt's own thread, the QML stores write what waits, then the Rust
+    // side puts everything in order and ends.
+    if (message.startsWith(QLatin1String("The Wayland connection broke"))
+        || message.startsWith(QLatin1String("The Wayland connection experienced a fatal error"))) {
+        if (theNative && qApp && QThread::currentThread() == qApp->thread()) {
+            emit theNative->ending();
+        }
+        gc_display_lost();
     }
 }
 } // namespace
@@ -540,6 +557,7 @@ int32_t gc_run()
     QQuickWindow::setDefaultAlphaBuffer(true);
 
     NativeWindow native;
+    theNative = &native;
     QQmlApplicationEngine engine;
     PictureNetworkFactory pictures;
     engine.setNetworkAccessManagerFactory(&pictures);
@@ -582,6 +600,8 @@ int32_t gc_run()
     // The single-instance socket file goes when the app quits normally.
     QObject::connect(&app, &QCoreApplication::aboutToQuit, []() { gc_about_to_quit(); });
     const int code = app.exec();
+    // Taken down from here: nothing to tell.
+    theNative = nullptr;
     // For the log, should taking the windows and the QML down hang.
     gc_loop_ended();
     return code;
