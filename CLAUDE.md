@@ -624,7 +624,10 @@ learnt, so nothing has to be asked or worked out again.
   the voice, 0.8.61; bench: `pw-metadata -n settings 0 clock.force-quantum
   2048` reproduces it), mic chain → source `gc_mic` "Game Companion Mikro" (rnnoise
   with its VAD as the voice gate, voice EQ, sc4m compressor if installed;
-  takes one input with `stream.dont-remix`), stream mix: loopbacks from
+  takes one input with `stream.dont-remix`; gate default 60 % / 500 ms
+  with 100 ms let through before a voice, `GATE_LEAD_MS`; old 85/300
+  moved once, `Mic::update_gate`; MN 2026-11-16: opened late, cut words),
+  presets with little pre-gain (Sonar light's −5 dB ate its boosts), stream mix: loopbacks from
   the channels' monitors and the mic into `gc_stream_in`, OBS records the
   source `gc_stream` (a client can't make a null sink: a copy filter chain).
   It all runs in a `pipewire -c $XDG_RUNTIME_DIR/game-companion-sound.conf`

@@ -42,13 +42,16 @@ pub const BANDS: [(&str, &str, f64, f64); 5] = [
     ("b5", "bq_highshelf", 9000.0, 0.7),
 ];
 
-/// Built-in presets: pre-gain, then the five bands, in dB (Sonar light's).
+/// Built-in presets: pre-gain, then the five bands, in dB. Sonar light's
+/// bands with less pre-gain: its Bass-Boost (pre −5, 80 Hz +6) left the
+/// bass where it was and made the rest 5 dB quieter (measured on the bench;
+/// MN, 2026-11-16: "es wird nur leiser").
 pub const PRESETS: [(&str, [f64; 6]); 5] = [
     ("Flat", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-    ("Bass-Boost", [-5.0, 6.0, 2.0, 0.0, 0.0, 1.0]),
-    ("Racing", [-4.0, 4.0, 1.0, -1.0, 2.0, 2.0]),
-    ("Sprache", [-3.0, -4.0, -1.0, 1.0, 3.0, 1.0]),
-    ("Film", [-3.0, 3.0, 0.0, 0.0, 2.0, 1.0]),
+    ("Bass-Boost", [-2.0, 8.0, 4.0, 0.0, 0.0, 1.0]),
+    ("Racing", [-2.0, 4.0, 1.0, -1.0, 2.0, 2.0]),
+    ("Sprache", [-1.0, -4.0, -1.0, 1.0, 3.0, 1.0]),
+    ("Film", [-1.0, 3.0, 0.0, 0.0, 2.0, 1.0]),
 ];
 
 /// The echo canceller's reference: it listens to the default output's
@@ -132,13 +135,39 @@ pub struct Mic {
     /// Voice EQ (high-pass 80 Hz, presence) and, if installed, a gentle
     /// compressor.
     pub voice: bool,
+    /// 1 once the gate's old defaults (85 %, 300 ms) were moved to the
+    /// new ones; missing in older settings, so 0 there.
+    #[serde(default)]
+    pub gate_v: u32,
 }
 
 impl Default for Mic {
     fn default() -> Self {
-        Self { on: false, device: String::new(), channel: "FL".into(), echo: true, threshold: 85.0, grace: 300, voice: true }
+        Self { on: false, device: String::new(), channel: "FL".into(), echo: true, threshold: 60.0, grace: 500, voice: true, gate_v: 1 }
     }
 }
+
+impl Mic {
+    /// The gate's old defaults opened late and cut words (MN, 2026-11-16):
+    /// moved once to the new ones; values chosen by hand stay.
+    pub fn update_gate(&mut self) -> bool {
+        if self.gate_v >= 1 {
+            return false;
+        }
+        if self.threshold == 85.0 {
+            self.threshold = 60.0;
+        }
+        if self.grace == 300 {
+            self.grace = 500;
+        }
+        self.gate_v = 1;
+        true
+    }
+}
+
+/// rnnoise lets this much before the moment it hears a voice through, so
+/// a word's first sound is not cut (it delays the mic by as much).
+pub const GATE_LEAD_MS: u32 = 100;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -310,7 +339,7 @@ fn echo_cancel(c: &mut String, mic: &Mic) {
     let capture_pos = if is_pro(&mic.device) { "[ AUX0 AUX1 ]" } else { "[ FL FR ]" };
     let _ = writeln!(
         c,
-        "  {{ name = libpipewire-module-echo-cancel\n    args = {{\n      library.name = aec/libspa-aec-webrtc\n      monitor.mode = true\n      node.latency = \"{AEC_BLOCK}/48000\"\n      audio.channels = 2\n      audio.position = [ FL FR ]\n      aec.args = {{ webrtc.extended_filter = true webrtc.delay_agnostic = true webrtc.high_pass_filter = true webrtc.noise_suppression = false webrtc.gain_control = false }}\n      capture.props = {{ node.name = \"gc_aec.capture\" target.object = {} audio.position = {capture_pos} node.passive = true node.force-quantum = {AEC_BLOCK} }}\n      source.props = {{ node.name = \"gc_aec.source\" node.description = {} {LOW} }}\n      sink.props = {{ node.name = {} }}\n    }}\n  }}",
+        "  {{ name = libpipewire-module-echo-cancel\n    args = {{\n      library.name = aec/libspa-aec-webrtc\n      monitor.mode = true\n      node.latency = \"{AEC_BLOCK}/48000\"\n      audio.channels = 2\n      audio.position = [ FL FR ]\n      aec.args = {{ webrtc.extended_filter = true webrtc.delay_agnostic = true webrtc.high_pass_filter = true webrtc.noise_suppression = true webrtc.gain_control = false }}\n      capture.props = {{ node.name = \"gc_aec.capture\" target.object = {} audio.position = {capture_pos} node.passive = true node.force-quantum = {AEC_BLOCK} }}\n      source.props = {{ node.name = \"gc_aec.source\" node.description = {} {LOW} }}\n      sink.props = {{ node.name = {} }}\n    }}\n  }}",
         sj(&mic.device),
         sj("Game Companion Mikro (roh)"),
         sj(ECHO_REF),
@@ -341,7 +370,7 @@ fn mic_chain(c: &mut String, mic: &Mic, echo: bool, inst: &Installed) {
     let mut chain: Vec<(&str, &str, &str)> = Vec::new(); // name, in port, out port
     if let Some(rn) = &inst.rnnoise {
         nodes.push(format!(
-            "          {{ type = ladspa name = rn plugin = {} label = noise_suppressor_mono control = {{ \"VAD Threshold (%)\" = {:.1} \"VAD Grace Period (ms)\" = {} \"Retroactive VAD Grace (ms)\" = 0 }} }}",
+            "          {{ type = ladspa name = rn plugin = {} label = noise_suppressor_mono control = {{ \"VAD Threshold (%)\" = {:.1} \"VAD Grace Period (ms)\" = {} \"Retroactive VAD Grace (ms)\" = {GATE_LEAD_MS} }} }}",
             sj(&rn.display().to_string()),
             mic.threshold.clamp(0.0, 99.0),
             mic.grace.min(2000)
@@ -1480,7 +1509,8 @@ mod tests {
         assert!(c.contains("node.force-quantum = 1920"));
         assert!(c.contains("playback.props = { node.name = \"sonar_game.out\" node.passive = true }"));
         assert!(!c.contains("target.object = \"gc_aec.reference\""));
-        assert!(c.contains("\"VAD Threshold (%)\" = 85.0"));
+        assert!(c.contains("\"VAD Threshold (%)\" = 60.0 \"VAD Grace Period (ms)\" = 500 \"Retroactive VAD Grace (ms)\" = 100"));
+        assert!(c.contains("webrtc.noise_suppression = true"));
         assert!(c.contains("{ output = \"rn:Output\" input = \"hp:In\" }"));
         assert!(c.contains("node.name = \"gc_mic\""));
         // Music is not in the stream by default.
@@ -1489,6 +1519,34 @@ mod tests {
         // Braces balance (a broken file would stop the child).
         assert_eq!(c.matches('{').count(), c.matches('}').count());
         assert_eq!(c.matches('[').count(), c.matches(']').count());
+    }
+
+    #[test]
+    fn old_gate_defaults_move_once() {
+        let old: Mic = serde_json::from_str(r#"{"on":true,"threshold":85.0,"grace":300}"#).unwrap();
+        assert_eq!(old.gate_v, 0);
+        let mut m = old.clone();
+        assert!(m.update_gate());
+        assert_eq!((m.threshold, m.grace, m.gate_v), (60.0, 500, 1));
+        assert!(!m.update_gate());
+        // Chosen by hand: kept.
+        let mut own: Mic = serde_json::from_str(r#"{"threshold":70.0,"grace":800}"#).unwrap();
+        own.update_gate();
+        assert_eq!((own.threshold, own.grace), (70.0, 800));
+        // New settings start on the new values.
+        let fresh: SoundSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!((fresh.mic.threshold, fresh.mic.grace, fresh.mic.gate_v), (60.0, 500, 1));
+    }
+
+    #[test]
+    fn bass_boost_lifts_the_bass() {
+        // Pre-gain plus the 80 Hz shelf must leave the bass louder than
+        // before (Sonar light's −5/+6 left it where it was).
+        let (_, v) = PRESETS.iter().find(|(n, _)| *n == "Bass-Boost").unwrap();
+        assert!(v[0] + v[1] >= 5.0);
+        for (_, v) in PRESETS.iter() {
+            assert!(v[0] >= -2.0);
+        }
     }
 
     #[test]
