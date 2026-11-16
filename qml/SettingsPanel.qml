@@ -25,6 +25,8 @@ Panel {
     property string pickingGames: ""
     /// Every game a layout can be tied to: [{id, name, layout}].
     readonly property var layoutGames: JSON.parse(Games.layoutGames)
+    /// What a layout can load for: the desktop (no game), then the games.
+    readonly property var layoutTargets: [{ id: "desktop", name: "Desktop", layout: Companion.desktopLayout }].concat(layoutGames)
     minWidth: 400
     /// The Map panel: the overlay map's settings are kept in its own.
     property var mapSource: null
@@ -790,7 +792,7 @@ Panel {
                             }
                         }
                     }
-                    Hint { text: "Keeps which panels are open, where they are, their size, what is pinned and the opacity. A name that exists is replaced." }
+                    Hint { text: "Keeps which panels are open, where they are, their size, what is pinned, the opacity and how see-through the videos and the chat are. A name that exists is replaced." }
                     Hint {
                         visible: settings.layoutMessage.length > 0
                         text: settings.layoutMessage
@@ -809,6 +811,7 @@ Panel {
                           id: layoutEntry
                           required property string modelData
                           readonly property var games: settings.layoutGames.filter((g) => g.layout === modelData)
+                          readonly property bool desktop: Companion.desktopLayout === modelData
                           readonly property bool picking: settings.pickingGames === modelData
                           width: parent.width
                           spacing: 0
@@ -904,10 +907,11 @@ Panel {
                             width: parent.width
                             topPadding: 2
                             bottomPadding: 10
-                            text: layoutEntry.games.length > 0
-                                ? "Loads when " + layoutEntry.games.map((g) => g.name).join(", ") + " starts."
-                                : "No game loads it. “Games” picks the ones that do."
-                            color: layoutEntry.games.length > 0 ? Theme.textSoft() : Theme.dim()
+                            text: (layoutEntry.desktop ? "Desktop: loads when Game Companion starts and when a game ends. " : "")
+                                + (layoutEntry.games.length > 0
+                                    ? "Loads when " + layoutEntry.games.map((g) => g.name).join(", ") + " starts."
+                                    : layoutEntry.desktop ? "" : "No game loads it. “Games” picks the ones that do.")
+                            color: layoutEntry.games.length > 0 || layoutEntry.desktop ? Theme.textSoft() : Theme.dim()
                           }
                           Flow {
                             visible: layoutEntry.picking
@@ -916,7 +920,7 @@ Panel {
                             topPadding: 4
                             bottomPadding: 10
                             Repeater {
-                                model: layoutEntry.picking ? settings.layoutGames : []
+                                model: layoutEntry.picking ? settings.layoutTargets : []
                                 delegate: Rectangle {
                                     required property var modelData
                                     readonly property bool on: modelData.layout === layoutEntry.modelData
@@ -938,7 +942,11 @@ Panel {
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: Games.setLayout(parent.modelData.id, parent.on ? "" : layoutEntry.modelData)
+                                        onClicked: {
+                                            const name = parent.on ? "" : layoutEntry.modelData
+                                            if (parent.modelData.id === "desktop") Companion.setDesktop(name)
+                                            else Games.setLayout(parent.modelData.id, name)
+                                        }
                                     }
                                     Accessible.role: Accessible.CheckBox
                                     Accessible.name: modelData.name
@@ -952,7 +960,7 @@ Panel {
                             bottomPadding: 10
                             text: settings.layoutGames.length === 0
                                 ? "No installed game found yet (Games)."
-                                : "A game loads one layout: picking it here takes it from another."
+                                : "Desktop and each game load one layout: picking it here takes it from another."
                           }
                           Rectangle { width: parent.width; height: 1; color: Theme.rowLine }
                         }
@@ -964,7 +972,7 @@ Panel {
                         on: Companion.layoutBack
                         onToggled: Companion.setLayoutBackOn(!Companion.layoutBack)
                     }
-                    Hint { text: "A game's layout loads when it starts. When it ends, what was open before comes back where it was. Changes made during the game are not saved into its layout: save it again under the same name for that." }
+                    Hint { text: "A game's layout loads when it starts. When it ends, the Desktop layout loads, or without one, what was open before comes back where it was. Layouts keep the video windows' and the chat's see-through too. Changes made during the game are not saved into its layout: save it again under the same name for that." }
                 }
 
                 // Streams

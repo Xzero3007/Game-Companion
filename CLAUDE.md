@@ -287,7 +287,13 @@ learnt, so nothing has to be asked or worked out again.
   `Main` `onStarted` keeps the arrangement (`Companion.keepBeforeGame`,
   settings `before_game`/`before_game_for`, kept over a restart during
   that game) and loads the layout; `onStopped` → `backFromGame` brings it
-  back if `layout_back` (default on).
+  back if `layout_back` (default on). The Desktop layout (MN, 2026-11-16;
+  settings `desktop_layout`, `Companion.setDesktop`, the "Desktop" chip
+  under "Games") loads at the app's start (`restoreOpen` →
+  `loadDesktop`) and when a game ends (wins over `before_game`). Layouts
+  also keep `streams.video_opacity` (`opacities`: Twitch, YouTube,
+  Jellyfin, chat, DPS; old layouts leave it); VideoWindow, ChatPanel and
+  DpsPanel read it again on `layoutRevision`.
 - Streams (`src/streams.rs`, `src/streams_object.rs`, `qml/StreamsPanel.qml`,
   `qml/VideoWindow.qml`): ported from meter patches 0047, 0059 to 0061, 0068
   and the plugin. Requests through curl with its settings on stdin

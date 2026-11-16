@@ -39,6 +39,11 @@ Panel {
     readonly property var extras: fight.extras || ({ ping: null, odyle: null })
     /// Its own ground opacity (100, 75, 50, 25 or 10 %), on top of the overall one.
     property int opacityPercent: Streams.opacityOf("dps")
+    Connections {
+        target: Companion
+        // A layout was loaded: its opacity for this ground.
+        function onLayoutRevisionChanged() { panel.opacityPercent = Streams.opacityOf("dps") }
+    }
     ground: Companion.alpha * opacityPercent / 100
     /// damage, healing, skills, history
     property string tab: {

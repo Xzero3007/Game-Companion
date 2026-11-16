@@ -30,6 +30,11 @@ Panel {
     readonly property string channel: video && video.item && video.item.kind === "twitch" ? String(video.item.id) : ""
     readonly property bool docked: Streams.chatDocked
     property int opacityPercent: Streams.opacityOf("chat")
+    Connections {
+        target: Companion
+        // A layout was loaded: its opacity for this ground.
+        function onLayoutRevisionChanged() { panel.opacityPercent = Streams.opacityOf("chat") }
+    }
     readonly property bool outline: ground < 0.5
 
     // Docked: beside the video (right of it, or left when there is no room).

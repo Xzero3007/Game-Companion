@@ -73,6 +73,9 @@ pub struct Settings {
     pub before_game: Option<Layout>,
     /// The game `before_game` was kept for, by id.
     pub before_game_for: String,
+    /// The layout for the desktop, without a game: loaded when the app
+    /// starts and when a game ends ("" = none; MN, 2026-11-16).
+    pub desktop_layout: String,
     pub streams: StreamsSettings,
     /// The Jellyfin tab's choices (the server and its key are kept apart,
     /// in `jellyfin.json`).
@@ -339,6 +342,10 @@ pub struct Layout {
     pub accent_level: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bar: Option<BarSettings>,
+    /// How much each video window and the chat and DPS grounds show, by
+    /// slot (missing in layouts saved before it existed).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opacities: Option<BTreeMap<String, u8>>,
 }
 
 /// A layout's name: trimmed, at most 40 characters, not empty.
@@ -446,6 +453,7 @@ impl Default for Settings {
             layout_back: true,
             before_game: None,
             before_game_for: String::new(),
+            desktop_layout: String::new(),
             streams: StreamsSettings::default(),
             jellyfin: JellyfinSettings::default(),
             games: Default::default(),
@@ -604,6 +612,7 @@ mod tests {
                 text_level: Some(0.7),
                 accent_level: Some(0.8),
                 bar: Some(BarSettings { offset: -300.0, scale: 0.8 }),
+                opacities: Some(BTreeMap::from([("jellyfin".into(), 70)])),
             },
         );
         s.pins.insert("radio".into());
