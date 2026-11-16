@@ -59,6 +59,7 @@ Panel {
         return n.length > 0 ? n.join(", ") : "nothing plays"
     }
     function mic() { return prefs.mic || ({}) }
+    function minLevel() { const v = mic().min_level; return v === undefined ? -50 : v }
     readonly property var micPresetHelp: ({
         "Flat": "Nothing changed: your mic as it is.",
         "Clear voice": "The everyday choice: a little less boom, a little more presence. Easy to follow in Legcord.",
@@ -250,6 +251,13 @@ Panel {
                         height: 14
                         Rectangle { anchors.fill: parent; color: Theme.trackDark }
                         Rectangle { height: parent.height; width: parent.width * Sound.level / 100; color: Sound.talking ? Theme.accent : Theme.track }
+                        // Where the level gate opens (the bar spans -60 to 0 dBFS).
+                        Rectangle {
+                            readonly property real at: panel.minLevel()
+                            visible: at > -60
+                            x: parent.width * (at + 60) / 60
+                            width: 2; height: parent.height; color: Theme.text()
+                        }
                         Accessible.role: Accessible.ProgressBar
                         Accessible.name: "Mic level " + Sound.level
                     }
@@ -262,6 +270,15 @@ Panel {
                         onPicked: (v) => Sound.setMic(JSON.stringify({ gain: Math.round(v) }))
                     }
                     Small { width: parent.width; wrapMode: Text.WordWrap; text: "Turns the mic up before anything else. Set it so the bar above reaches about two thirds when you talk normally. Too quiet, and the gate opens late." }
+                    SliderRow {
+                        width: parent.width
+                        label: "Floor"
+                        from: -70; to: -20; step: 1
+                        value: panel.minLevel()
+                        unit: " dB"
+                        onPicked: (v) => Sound.setMic(JSON.stringify({ min_level: Math.round(v) }))
+                    }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: panel.minLevel() <= -70 ? "Off: only the voice filter decides." : (panel.st.levelGate ? "The mic stays shut below this level (the white mark on the bar), so hiss and what is left of the speakers stay out between words. Talk normally: your voice should end well right of the mark. Too far right, and quiet words are cut." : "Needs swh-plugins.") }
                     SliderRow {
                         width: parent.width
                         label: "Opens at"

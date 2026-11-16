@@ -645,7 +645,9 @@ learnt, so nothing has to be asked or worked out again.
   mic chain is gain (`Mic.gain`, 0 to 30 dB, default 12: MN's UR22 was
   quiet without EasyEffects' auto gain) → rnnoise → mic EQ (`VOICE_BANDS`
   m1–m5, `VOICE_PRESETS`, own ones in `mic_presets`; gain, gate and EQ
-  change live, `gate_params`) → clean up (hp + sc4m) → swh's
+  change live, `gate_params`), after rnnoise swh's gate as a level gate
+  (`Mic.min_level`, "Floor", default −50 dBFS, −70 off, white mark
+  on the meter; MN 0.8.66: a constant floor in Legcord) → clean up (hp + sc4m) → swh's
   fastLookaheadLimiter at −1 dBFS, both its inputs fed (one left open
   crashed the child on the bench) and the graph's `inputs`/`outputs`
   named; echo canceller switches `extra_ns` (WebRTC noise suppression,

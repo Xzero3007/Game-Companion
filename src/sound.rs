@@ -154,11 +154,16 @@ pub struct Mic {
     pub extra_ns: bool,
     /// WebRTC's automatic level (as EasyEffects' auto gain did).
     pub auto_level: bool,
+    /// The level gate: the mic opens only above this level (dBFS, after
+    /// the noise filter); -70 is off. Keeps the hiss and the speakers'
+    /// rest out between words (MN, 0.8.66: Legcord showed a constant
+    /// floor). Old settings get the default.
+    pub min_level: f64,
 }
 
 impl Default for Mic {
     fn default() -> Self {
-        Self { on: false, device: String::new(), channel: "FL".into(), echo: true, threshold: 60.0, grace: 500, voice: true, gate_v: 1, gain: MIC_GAIN, eq_preset: "Clear voice".into(), eq: [0.0; 5], extra_ns: false, auto_level: false }
+        Self { on: false, device: String::new(), channel: "FL".into(), echo: true, threshold: 60.0, grace: 500, voice: true, gate_v: 1, gain: MIC_GAIN, eq_preset: "Clear voice".into(), eq: [0.0; 5], extra_ns: false, auto_level: false, min_level: MIN_LEVEL }
     }
 }
 
@@ -217,6 +222,15 @@ impl SoundSettings {
         let m = &self.mic;
         clamp_voice(if m.eq_preset.is_empty() { m.eq } else { voice_preset(&self.mic_presets, &m.eq_preset).unwrap_or(m.eq) })
     }
+}
+
+/// The level gate's threshold to begin with and its range, dBFS.
+pub const MIN_LEVEL: f64 = -50.0;
+pub const MIN_LEVEL_OFF: f64 = -70.0;
+const LEVEL_GATE: &str = "/usr/lib/ladspa/gate_1410.so";
+
+fn min_level(db: f64) -> f64 {
+    if db.is_finite() { db.clamp(MIN_LEVEL_OFF, -10.0) } else { MIN_LEVEL }
 }
 
 /// The mic's gain to begin with, dB.
@@ -314,12 +328,14 @@ pub struct Installed {
     pub compressor: Option<PathBuf>,
     /// swh-plugins' look-ahead limiter (beside sc4m).
     pub limiter: Option<PathBuf>,
+    /// swh-plugins' gate (the level gate).
+    pub level_gate: Option<PathBuf>,
 }
 
 impl Installed {
     pub fn look() -> Self {
         let found = |p: &str| Some(PathBuf::from(p)).filter(|p| p.exists());
-        Self { rnnoise: found(RNNOISE), compressor: found(SC4M), limiter: found(LIMITER) }
+        Self { rnnoise: found(RNNOISE), compressor: found(SC4M), limiter: found(LIMITER), level_gate: found(LEVEL_GATE) }
     }
 }
 
@@ -443,6 +459,17 @@ fn mic_chain(c: &mut String, mic: &Mic, eq: &[f64; 5], echo: bool, inst: &Instal
         ));
         chain.push(("rn", "Input", "Output"));
     }
+    if let Some(g) = &inst.level_gate {
+        // After the noise filter: what is left between words (hiss, the
+        // speakers' rest) is quiet, a voice at the mic is not. Quick to
+        // open, holds 300 ms, closes over 150 ms.
+        nodes.push(format!(
+            "          {{ type = ladspa name = lvl plugin = {} label = gate control = {{ \"LF key filter (Hz)\" = 100.0 \"HF key filter (Hz)\" = 8000.0 \"Threshold (dB)\" = {:.1} \"Attack (ms)\" = 2.0 \"Hold (ms)\" = 300.0 \"Decay (ms)\" = 150.0 \"Range (dB)\" = -90.0 \"Output select (-1 = key listen, 0 = gate, 1 = bypass)\" = 0 }} }}",
+            sj(&g.display().to_string()),
+            min_level(mic.min_level)
+        ));
+        chain.push(("lvl", "Input", "Output"));
+    }
     // The mic EQ: always there (flat costs nearly nothing), so a change
     // is live.
     for (i, (name, label, freq, q)) in VOICE_BANDS.iter().enumerate() {
@@ -549,12 +576,13 @@ pub fn eq_params(eq: &[f64; 6]) -> String {
 }
 
 /// `pw-cli set-param` Props for the voice gate.
-pub fn gate_params(threshold: f64, grace: u32, gain: f64, eq: &[f64; 5]) -> String {
+pub fn gate_params(mic: &Mic, eq: &[f64; 5]) -> String {
     let mut p = format!(
-        "{{ params = [ \"gain:Mult\" {:.6} \"rn:VAD Threshold (%)\" {:.1} \"rn:VAD Grace Period (ms)\" {:.1}",
-        db_to_linear(mic_gain(gain)),
-        threshold.clamp(0.0, 99.0),
-        f64::from(grace.min(2000))
+        "{{ params = [ \"gain:Mult\" {:.6} \"rn:VAD Threshold (%)\" {:.1} \"rn:VAD Grace Period (ms)\" {:.1} \"lvl:Threshold (dB)\" {:.1}",
+        db_to_linear(mic_gain(mic.gain)),
+        mic.threshold.clamp(0.0, 99.0),
+        f64::from(mic.grace.min(2000)),
+        min_level(mic.min_level)
     );
     for (i, (name, _, _, _)) in VOICE_BANDS.iter().enumerate() {
         let _ = write!(p, " \"{name}:Gain\" {:.2}", clamp_voice(*eq)[i]);
@@ -799,7 +827,7 @@ pub enum Cmd {
     /// Channel volumes and ChatMix, live.
     Volumes(Box<SoundSettings>),
     /// The voice gate, live.
-    Gate(f64, u32, f64, [f64; 5]),
+    Gate(Box<Mic>, [f64; 5]),
     /// A stream-mix source, live: key, send.
     Send(String, Send),
     /// The running game changed.
@@ -935,7 +963,7 @@ impl<F: Fn(Event)> Worker<F> {
                         self.settings.chatmix = s.chatmix;
                         self.volumes();
                     }
-                    Cmd::Gate(t, g, gain, eq) => self.set_props(MIC, &gate_params(*t, *g, *gain, eq)),
+                    Cmd::Gate(mic, eq) => self.set_props(MIC, &gate_params(mic, eq)),
                     Cmd::Send(key, send) => {
                         let channels = if key == "mic" { 1 } else { 2 };
                         self.set_props(&format!("gc_send_{key}.out"), &send_params(send, channels));
@@ -1004,7 +1032,7 @@ impl<F: Fn(Event)> Worker<F> {
         }
         self.stop_child();
         crate::log::sound(&format!(
-            "== start: mic {} (device {}, input {}, echo {} (extra ns {}, auto level {}), gain {:+.0} dB, eq {:?} {:?}, gate {:.0} % / {} ms, voice {}), stream mix {}, chatmix {}, rnnoise {}, compressor {}, limiter {}",
+            "== start: mic {} (device {}, input {}, echo {} (extra ns {}, auto level {}), gain {:+.0} dB, opens above {:.0} dBFS, eq {:?} {:?}, gate {:.0} % / {} ms, voice {}), stream mix {}, chatmix {}, rnnoise {}, compressor {}, limiter {}",
             s.mic.on,
             if s.mic.device.is_empty() { "-" } else { &s.mic.device },
             s.mic.channel,
@@ -1012,6 +1040,7 @@ impl<F: Fn(Event)> Worker<F> {
             s.mic.extra_ns,
             s.mic.auto_level,
             s.mic.gain,
+            s.mic.min_level,
             s.mic.eq_preset,
             s.mic_eq(),
             s.mic.threshold,
@@ -1601,7 +1630,7 @@ mod tests {
         s.mic.device = "alsa_input.usb-Yamaha_Corporation_Steinberg_UR22mkII-00.pro-input-0".into();
         s.mic.channel = "AUX0".into();
         s.stream.on = true;
-        let inst = Installed { rnnoise: Some(PathBuf::from("/x/rn.so")), compressor: None, limiter: Some(PathBuf::from("/x/lim.so")) };
+        let inst = Installed { rnnoise: Some(PathBuf::from("/x/rn.so")), compressor: None, limiter: Some(PathBuf::from("/x/lim.so")), level_gate: Some(PathBuf::from("/x/gate.so")) };
         let c = config(&s, &inst);
         assert!(c.contains("libpipewire-module-echo-cancel"));
         assert!(c.contains("audio.position = [ AUX0 AUX1 ]"));
@@ -1614,7 +1643,9 @@ mod tests {
         assert!(!c.contains("target.object = \"gc_aec.reference\""));
         assert!(c.contains("\"VAD Threshold (%)\" = 60.0 \"VAD Grace Period (ms)\" = 500 \"Retroactive VAD Grace (ms)\" = 100"));
         assert!(c.contains("webrtc.noise_suppression = false webrtc.gain_control = false"));
-        assert!(c.contains("{ output = \"rn:Output\" input = \"m1:In\" }"));
+        assert!(c.contains("{ output = \"rn:Output\" input = \"lvl:Input\" }"));
+        assert!(c.contains("{ output = \"lvl:Output\" input = \"m1:In\" }"));
+        assert!(c.contains("\"Threshold (dB)\" = -50.0"));
         // The gain comes first (12 dB), the limiter last.
         assert!(c.contains("name = gain label = linear control = { \"Mult\" = 3.981072"));
         assert!(c.contains("{ output = \"gain:Out\" input = \"rn:Input\" }"));
@@ -1672,9 +1703,11 @@ mod tests {
         assert!(p.starts_with("{ params = [ \"pre:Mult\" 0.562341"));
         assert!(p.contains("\"b5:Gain\" 12.00"));
         assert_eq!(send_params(&Send { on: false, volume: 100 }, 2), "{ channelVolumes = [ 0.0000, 0.0000 ] }");
-        assert!(gate_params(150.0, 300, 12.0, &[0.0; 5]).contains("99.0"));
-        assert!(gate_params(60.0, 500, 99.0, &[0.0, 0.0, 0.0, 3.0, 20.0]).contains("\"m4:Gain\" 3.00 \"m5:Gain\" 12.00"));
-        assert!(gate_params(60.0, 500, 99.0, &[0.0; 5]).starts_with("{ params = [ \"gain:Mult\" 31.622777"));
+        let mic = |threshold: f64, gain: f64, min: f64| Mic { threshold, gain, min_level: min, ..Mic::default() };
+        assert!(gate_params(&mic(150.0, 12.0, -50.0), &[0.0; 5]).contains("99.0"));
+        assert!(gate_params(&mic(60.0, 99.0, -50.0), &[0.0, 0.0, 0.0, 3.0, 20.0]).contains("\"m4:Gain\" 3.00 \"m5:Gain\" 12.00"));
+        assert!(gate_params(&mic(60.0, 99.0, -50.0), &[0.0; 5]).starts_with("{ params = [ \"gain:Mult\" 31.622777"));
+        assert!(gate_params(&mic(60.0, 12.0, -200.0), &[0.0; 5]).contains("\"lvl:Threshold (dB)\" -70.0"));
     }
 
     #[test]

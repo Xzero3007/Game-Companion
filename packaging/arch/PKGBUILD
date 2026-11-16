@@ -13,7 +13,7 @@ optdepends=('mpv: the radio and videos (libmpv)'
             'speech-dispatcher: speaks your own boss phases and alerts (with espeak-ng)'
             'espeak-ng: the voice speech-dispatcher speaks with'
             'noise-suppression-for-voice: Sound: the mic noise filter and voice gate (rnnoise)'
-            'swh-plugins: Sound: evens out loud and quiet words and keeps the mic from overdriving (sc4m compressor, fast look-ahead limiter)')
+            'swh-plugins: Sound: keeps the mic shut below a set level (gate), evens out loud and quiet words and keeps the mic from overdriving (sc4m compressor, fast look-ahead limiter)')
 makedepends=(rust clang mpv)
 options=(!lto !debug)
 install=game-companion.install

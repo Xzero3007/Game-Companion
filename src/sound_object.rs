@@ -246,6 +246,7 @@ impl SoundRust {
             "micPresets": mic_presets,
             "micEq": s.mic_eq(),
             "limiter": inst.limiter.is_some(),
+            "levelGate": inst.level_gate.is_some(),
         })
         .to_string()
     }
@@ -430,13 +431,14 @@ impl qobject::Sound {
             threshold: before.threshold,
             grace: before.grace,
             gain: before.gain,
+            min_level: before.min_level,
             eq_preset: before.eq_preset.clone(),
             eq: before.eq,
             ..mic.clone()
         } == before;
         let s = self.as_mut().change(|s| s.mic = mic.clone());
         if live_only {
-            self.send(Cmd::Gate(mic.threshold, mic.grace, mic.gain, s.mic_eq()));
+            self.send(Cmd::Gate(Box::new(mic.clone()), s.mic_eq()));
             self.show_state();
         } else {
             self.send(Cmd::Apply(Box::new(s)));
