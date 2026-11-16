@@ -50,6 +50,11 @@ Item {
     /// Something opens over the strip: its surface grows upwards meanwhile.
     readonly property bool overStrip: compact && (anyPicker || skipNote.length > 0 || nextNote.length > 0 || (jelly && !!jfSegment && !Companion.locked))
     readonly property real overRoom: 400
+    // A strip near the screen's top has no room above it: lists and notes
+    // open below it then (MN, 0.8.63: the bar docked at the top, nothing opened).
+    readonly property bool stripDown: compact && y < overRoom
+    function overY(h) { return stripDown ? height + 4 : -h - 4 }
+    function overMargin(h) { return stripDown ? -h - 4 : height + 4 }
     /// 0 to 100, as the bars show it.
     property int volume: Streams.volume
     /// How much of the video shows (0.5 to 1), kept for each window.
@@ -1289,7 +1294,7 @@ Item {
         anchors.left: parent.left
         anchors.leftMargin: 10
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: win.compact ? win.height + 4 : win.showBars ? 62 : 12
+        anchors.bottomMargin: win.compact ? win.overMargin(height) : win.showBars ? 62 : 12
         width: skipRow.implicitWidth + 20
         height: 30
         color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.9)
@@ -1338,7 +1343,7 @@ Item {
         id: qualityPicker
         anchors.right: parent.right
         anchors.rightMargin: 36
-        y: win.compact ? -height - 4 : 36
+        y: win.compact ? win.overY(height) : 36
         maxHeight: win.compact ? win.overRoom - 8 : win.height - 40
         options: win.qualities
         current: win.quality
@@ -1348,7 +1353,7 @@ Item {
         id: chapterPicker
         anchors.right: parent.right
         anchors.rightMargin: 36
-        y: win.compact ? -height - 4 : 36
+        y: win.compact ? win.overY(height) : 36
         width: Math.min(300, win.width - 48)
         maxHeight: win.compact ? win.overRoom - 8 : win.height - 80
         options: video.chapters.map((c, i) => ({ id: String(i), name: win.clock(c.time) + "  " + (c.title || "Chapter " + (i + 1)) }))
@@ -1360,7 +1365,7 @@ Item {
         id: playlistPicker
         anchors.right: parent.right
         anchors.rightMargin: 36
-        y: win.compact ? -height - 4 : 36
+        y: win.compact ? win.overY(height) : 36
         width: Math.min(260, win.width - 48)
         maxHeight: win.compact ? win.overRoom - 8 : win.height - 80
         options: {
@@ -1393,7 +1398,7 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: 4
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: win.compact ? win.height + 4 : 40
+        anchors.bottomMargin: win.compact ? win.overMargin(height) : 40
         width: Math.min(380, win.width - 8)
         height: Math.min(upNextHead.height + upNextView.contentHeight + 2, win.compact ? win.overRoom - 8 : win.height - 80)
         color: "#16151b"
@@ -1565,7 +1570,7 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: 90
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: win.compact ? win.height + 4 : 40
+        anchors.bottomMargin: win.compact ? win.overMargin(height) : 40
         width: 90
         maxHeight: win.compact ? win.overRoom - 8 : win.height - 80
         options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((v) => ({ id: String(v), name: v + "×" }))
@@ -1576,7 +1581,7 @@ Item {
         id: audioPicker
         anchors.right: parent.right
         anchors.rightMargin: 36
-        y: win.compact ? -height - 4 : 36
+        y: win.compact ? win.overY(height) : 36
         width: 220
         maxHeight: win.compact ? win.overRoom - 8 : win.height - 40
         options: win.jf.tracks ? win.jf.tracks.audio.map((a) => ({ id: String(a.index), name: a.label })) : []
@@ -1587,7 +1592,7 @@ Item {
         id: subtitlePicker
         anchors.right: parent.right
         anchors.rightMargin: 36
-        y: win.compact ? -height - 4 : 36
+        y: win.compact ? win.overY(height) : 36
         width: 220
         maxHeight: win.compact ? win.overRoom - 8 : win.height - 40
         options: win.jf.tracks ? [{ id: "-1", name: "Off" }].concat(win.jf.tracks.subs
@@ -1604,7 +1609,7 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: 12
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: win.compact ? win.height + 4 : win.showBars ? 64 : 14
+        anchors.bottomMargin: win.compact ? win.overMargin(height) : win.showBars ? 64 : 14
         width: skipText.implicitWidth + 28
         height: 34
         // No gold frame on a video (MN): the gold label is enough.
@@ -1633,7 +1638,7 @@ Item {
         visible: win.nextNote.length > 0
         anchors.horizontalCenter: parent.horizontalCenter
         // Over the picture, or above a strip.
-        y: win.compact ? -height - 4 : (parent.height - height) / 2
+        y: win.compact ? win.overY(height) : (parent.height - height) / 2
         width: Math.min(parent.width - 40, nextColumn.implicitWidth + 32)
         height: nextColumn.implicitHeight + 24
         color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.9)
@@ -1668,7 +1673,7 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: 22
         anchors.bottom: bottomBar.top
-        anchors.bottomMargin: win.compact ? win.height - bottomBar.height + 4 : 6
+        anchors.bottomMargin: win.compact ? win.overMargin(height) - bottomBar.height : 6
         maxHeight: win.compact ? win.overRoom - 8 : win.height - 48
         options: win.opacities
         current: String(Math.round(win.videoOpacity * 100))
