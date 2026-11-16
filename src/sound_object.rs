@@ -84,6 +84,13 @@ pub mod qobject {
         #[qinvokable]
         fn delete_preset(self: Pin<&mut Sound>, name: &QString);
 
+        /// Keeps the mic EQ's own values as a mic preset (five dB values).
+        #[qinvokable]
+        fn save_mic_preset(self: Pin<&mut Sound>, name: &QString, values: &QString);
+
+        #[qinvokable]
+        fn delete_mic_preset(self: Pin<&mut Sound>, name: &QString);
+
         /// The running game (Games.running): its streams go on Spiel.
         #[qinvokable]
         fn set_game(self: Pin<&mut Sound>, id: &QString);
@@ -226,6 +233,8 @@ impl SoundRust {
         let inst = sound::Installed::look();
         let mut presets: Vec<Value> = sound::PRESETS.iter().map(|(n, v)| json!({ "name": n, "values": v, "own": false })).collect();
         presets.extend(s.presets.iter().map(|(n, v)| json!({ "name": n, "values": v, "own": true })));
+        let mut mic_presets: Vec<Value> = sound::VOICE_PRESETS.iter().map(|(n, v)| json!({ "name": n, "values": v, "own": false })).collect();
+        mic_presets.extend(s.mic_presets.iter().map(|(n, v)| json!({ "name": n, "values": v, "own": true })));
         json!({
             "running": self.running,
             "why": self.why,
@@ -234,6 +243,9 @@ impl SoundRust {
             "rnnoise": inst.rnnoise.is_some(),
             "compressor": inst.compressor.is_some(),
             "presets": presets,
+            "micPresets": mic_presets,
+            "micEq": s.mic_eq(),
+            "limiter": inst.limiter.is_some(),
         })
         .to_string()
     }
@@ -411,11 +423,21 @@ impl qobject::Sound {
             m.extend(new);
         }
         let Ok(mic) = serde_json::from_value::<sound::Mic>(merged) else { return };
-        // Only the gate changed: live, no restart.
-        let gate_only = sound::Mic { threshold: before.threshold, grace: before.grace, ..mic.clone() } == before;
+        // Only the gate, the gain or the EQ changed: live, no restart.
+        let mut mic = mic;
+        mic.eq = sound::clamp_voice(mic.eq);
+        let live_only = sound::Mic {
+            threshold: before.threshold,
+            grace: before.grace,
+            gain: before.gain,
+            eq_preset: before.eq_preset.clone(),
+            eq: before.eq,
+            ..mic.clone()
+        } == before;
         let s = self.as_mut().change(|s| s.mic = mic.clone());
-        if gate_only {
-            self.send(Cmd::Gate(mic.threshold, mic.grace));
+        if live_only {
+            self.send(Cmd::Gate(mic.threshold, mic.grace, mic.gain, s.mic_eq()));
+            self.show_state();
         } else {
             self.send(Cmd::Apply(Box::new(s)));
         }
@@ -480,6 +502,32 @@ impl qobject::Sound {
         }
         self.as_mut().change(|s| {
             s.presets.insert(name, v);
+        });
+        self.show_state();
+    }
+
+    fn save_mic_preset(mut self: Pin<&mut Self>, name: &QString, values: &QString) {
+        let name = name.to_string().trim().to_string();
+        let Some(v) = serde_json::from_str::<Vec<f64>>(&values.to_string()).ok().and_then(|v| <[f64; 5]>::try_from(v).ok()) else { return };
+        if name.is_empty() || sound::VOICE_PRESETS.iter().any(|(n, _)| *n == name) {
+            return;
+        }
+        self.as_mut().change(|s| {
+            s.mic_presets.insert(name.clone(), sound::clamp_voice(v));
+            s.mic.eq_preset = name;
+        });
+        self.show_state();
+    }
+
+    fn delete_mic_preset(mut self: Pin<&mut Self>, name: &QString) {
+        let name = name.to_string();
+        self.as_mut().change(|s| {
+            if let Some(v) = s.mic_presets.remove(&name) {
+                if s.mic.eq_preset == name {
+                    s.mic.eq_preset = String::new();
+                    s.mic.eq = v;
+                }
+            }
         });
         self.show_state();
     }

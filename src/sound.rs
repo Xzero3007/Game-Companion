@@ -84,6 +84,8 @@ pub struct SoundSettings {
     pub routes: BTreeMap<String, String>,
     /// Own presets, by name.
     pub presets: BTreeMap<String, [f64; 6]>,
+    /// Own mic presets (the five voice bands), by name.
+    pub mic_presets: BTreeMap<String, [f64; 5]>,
     pub mic: Mic,
     pub stream: StreamMix,
     /// ~/.config/sonar was looked at once.
@@ -96,7 +98,7 @@ impl Default for SoundSettings {
             .iter()
             .map(|(k, _, _)| (k.to_string(), Channel { preset: if *k == "chat" { "Sprache" } else { "Flat" }.into(), ..Channel::default() }))
             .collect();
-        Self { on: false, channels, chatmix: 0, routes: BTreeMap::new(), presets: BTreeMap::new(), mic: Mic::default(), stream: StreamMix::default(), took_sonar: false }
+        Self { on: false, channels, chatmix: 0, routes: BTreeMap::new(), presets: BTreeMap::new(), mic_presets: BTreeMap::new(), mic: Mic::default(), stream: StreamMix::default(), took_sonar: false }
     }
 }
 
@@ -139,11 +141,24 @@ pub struct Mic {
     /// new ones; missing in older settings, so 0 there.
     #[serde(default)]
     pub gate_v: u32,
+    /// Gain before everything else, dB (0 to 30): the gate hears a voice
+    /// better when it is not quiet. MN's UR22 gave a quiet mic once
+    /// EasyEffects' auto gain was gone (2026-11-16).
+    pub gain: f64,
+    /// The mic's EQ: a preset's name (built in or own), or "" for `eq`.
+    pub eq_preset: String,
+    /// Own values when `eq_preset` is "": five bands (VOICE_BANDS), dB.
+    pub eq: [f64; 5],
+    /// WebRTC's own noise suppression in the echo canceller: sounded
+    /// like "an aquarium" with music and voices playing (MN, 0.8.65).
+    pub extra_ns: bool,
+    /// WebRTC's automatic level (as EasyEffects' auto gain did).
+    pub auto_level: bool,
 }
 
 impl Default for Mic {
     fn default() -> Self {
-        Self { on: false, device: String::new(), channel: "FL".into(), echo: true, threshold: 60.0, grace: 500, voice: true, gate_v: 1 }
+        Self { on: false, device: String::new(), channel: "FL".into(), echo: true, threshold: 60.0, grace: 500, voice: true, gate_v: 1, gain: MIC_GAIN, eq_preset: "Clear voice".into(), eq: [0.0; 5], extra_ns: false, auto_level: false }
     }
 }
 
@@ -164,6 +179,50 @@ impl Mic {
         true
     }
 }
+
+/// The mic EQ's bands: name, filter, frequency (Hz), Q. Body, mud, nasal,
+/// presence, air: where a voice is shaped.
+pub const VOICE_BANDS: [(&str, &str, f64, f64); 5] = [
+    ("m1", "bq_lowshelf", 120.0, 0.7),
+    ("m2", "bq_peaking", 300.0, 1.0),
+    ("m3", "bq_peaking", 1000.0, 1.0),
+    ("m4", "bq_peaking", 4000.0, 1.0),
+    ("m5", "bq_highshelf", 10000.0, 0.7),
+];
+
+/// Built-in mic presets (the five voice bands, dB). "Clear voice" is the
+/// old fixed voice EQ (+3 dB presence) with a little less mud.
+pub const VOICE_PRESETS: [(&str, [f64; 5]); 7] = [
+    ("Flat", [0.0, 0.0, 0.0, 0.0, 0.0]),
+    ("Clear voice", [0.0, -2.0, 0.0, 3.0, 1.0]),
+    ("Radio", [5.0, -3.0, -1.0, 4.0, 3.0]),
+    ("Podcast", [2.0, -2.0, 0.0, 2.0, 1.0]),
+    ("Warm", [3.0, 1.0, -1.0, 0.0, -1.0]),
+    ("Deep", [6.0, 2.0, -1.0, 1.0, 0.0]),
+    ("Bright", [-2.0, -1.0, 0.0, 2.0, 4.0]),
+];
+
+/// A mic preset's values (own ones first), `None` if unknown.
+pub fn voice_preset(own: &BTreeMap<String, [f64; 5]>, name: &str) -> Option<[f64; 5]> {
+    own.get(name).copied().or_else(|| VOICE_PRESETS.iter().find(|(n, _)| *n == name).map(|(_, v)| *v))
+}
+
+pub fn clamp_voice(v: [f64; 5]) -> [f64; 5] {
+    v.map(|x| if x.is_finite() { x.clamp(-12.0, 12.0) } else { 0.0 })
+}
+
+impl SoundSettings {
+    /// The mic EQ's values (its preset's, or its own).
+    pub fn mic_eq(&self) -> [f64; 5] {
+        let m = &self.mic;
+        clamp_voice(if m.eq_preset.is_empty() { m.eq } else { voice_preset(&self.mic_presets, &m.eq_preset).unwrap_or(m.eq) })
+    }
+}
+
+/// The mic's gain to begin with, dB.
+pub const MIC_GAIN: f64 = 12.0;
+pub const MIC_GAIN_MAX: f64 = 30.0;
+const LIMITER: &str = "/usr/lib/ladspa/fast_lookahead_limiter_1913.so";
 
 /// rnnoise lets this much before the moment it hears a voice through, so
 /// a word's first sound is not cut (it delays the mic by as much).
@@ -253,12 +312,14 @@ pub fn volume_factor(percent: u32) -> f64 {
 pub struct Installed {
     pub rnnoise: Option<PathBuf>,
     pub compressor: Option<PathBuf>,
+    /// swh-plugins' look-ahead limiter (beside sc4m).
+    pub limiter: Option<PathBuf>,
 }
 
 impl Installed {
     pub fn look() -> Self {
         let found = |p: &str| Some(PathBuf::from(p)).filter(|p| p.exists());
-        Self { rnnoise: found(RNNOISE), compressor: found(SC4M) }
+        Self { rnnoise: found(RNNOISE), compressor: found(SC4M), limiter: found(LIMITER) }
     }
 }
 
@@ -304,7 +365,7 @@ pub fn config(s: &SoundSettings, inst: &Installed) -> String {
         channel(&mut c, key, node, desc, &s.eq_of(key));
     }
     if s.mic.on && !s.mic.device.is_empty() {
-        mic_chain(&mut c, &s.mic, echo, inst);
+        mic_chain(&mut c, &s.mic, &s.mic_eq(), echo, inst);
     }
     if s.stream.on {
         for (key, node, desc) in CHANNELS {
@@ -339,7 +400,9 @@ fn echo_cancel(c: &mut String, mic: &Mic) {
     let capture_pos = if is_pro(&mic.device) { "[ AUX0 AUX1 ]" } else { "[ FL FR ]" };
     let _ = writeln!(
         c,
-        "  {{ name = libpipewire-module-echo-cancel\n    args = {{\n      library.name = aec/libspa-aec-webrtc\n      monitor.mode = true\n      node.latency = \"{AEC_BLOCK}/48000\"\n      audio.channels = 2\n      audio.position = [ FL FR ]\n      aec.args = {{ webrtc.extended_filter = true webrtc.delay_agnostic = true webrtc.high_pass_filter = true webrtc.noise_suppression = true webrtc.gain_control = false }}\n      capture.props = {{ node.name = \"gc_aec.capture\" target.object = {} audio.position = {capture_pos} node.passive = true node.force-quantum = {AEC_BLOCK} }}\n      source.props = {{ node.name = \"gc_aec.source\" node.description = {} {LOW} }}\n      sink.props = {{ node.name = {} }}\n    }}\n  }}",
+        "  {{ name = libpipewire-module-echo-cancel\n    args = {{\n      library.name = aec/libspa-aec-webrtc\n      monitor.mode = true\n      node.latency = \"{AEC_BLOCK}/48000\"\n      audio.channels = 2\n      audio.position = [ FL FR ]\n      aec.args = {{ webrtc.extended_filter = true webrtc.delay_agnostic = true webrtc.high_pass_filter = true webrtc.noise_suppression = {} webrtc.gain_control = {} }}\n      capture.props = {{ node.name = \"gc_aec.capture\" target.object = {} audio.position = {capture_pos} node.passive = true node.force-quantum = {AEC_BLOCK} }}\n      source.props = {{ node.name = \"gc_aec.source\" node.description = {} {LOW} }}\n      sink.props = {{ node.name = {} }}\n    }}\n  }}",
+        mic.extra_ns,
+        mic.auto_level,
         sj(&mic.device),
         sj("Game Companion Mikro (roh)"),
         sj(ECHO_REF),
@@ -363,11 +426,14 @@ fn channel(c: &mut String, key: &str, node: &str, desc: &str, eq: &[f64; 6]) {
     let _ = writeln!(c, "      playback.props = {{ node.name = {} node.passive = true }}\n    }}\n  }}", sj(&format!("{node}.out")));
 }
 
-fn mic_chain(c: &mut String, mic: &Mic, echo: bool, inst: &Installed) {
-    // Nodes in order: rnnoise (noise and voice gate), then the voice EQ
-    // and the compressor. rnnoise first: it expects a plain voice.
+fn mic_chain(c: &mut String, mic: &Mic, eq: &[f64; 5], echo: bool, inst: &Installed) {
+    // Nodes in order: the gain, rnnoise (noise and voice gate), the voice
+    // EQ and the compressor, the limiter. The gain first: rnnoise's voice
+    // likelihood stays low for a quiet voice and the gate opened late.
     let mut nodes: Vec<String> = Vec::new();
     let mut chain: Vec<(&str, &str, &str)> = Vec::new(); // name, in port, out port
+    nodes.push(format!("          {{ type = builtin name = gain label = linear control = {{ \"Mult\" = {:.6} \"Add\" = 0.0 }} }}", db_to_linear(mic_gain(mic.gain))));
+    chain.push(("gain", "In", "Out"));
     if let Some(rn) = &inst.rnnoise {
         nodes.push(format!(
             "          {{ type = ladspa name = rn plugin = {} label = noise_suppressor_mono control = {{ \"VAD Threshold (%)\" = {:.1} \"VAD Grace Period (ms)\" = {} \"Retroactive VAD Grace (ms)\" = {GATE_LEAD_MS} }} }}",
@@ -377,11 +443,15 @@ fn mic_chain(c: &mut String, mic: &Mic, echo: bool, inst: &Installed) {
         ));
         chain.push(("rn", "Input", "Output"));
     }
+    // The mic EQ: always there (flat costs nearly nothing), so a change
+    // is live.
+    for (i, (name, label, freq, q)) in VOICE_BANDS.iter().enumerate() {
+        nodes.push(format!("          {{ type = builtin name = {name} label = {label} control = {{ \"Freq\" = {freq:.1} \"Q\" = {q:.2} \"Gain\" = {:.2} }} }}", eq[i]));
+        chain.push((name, "In", "Out"));
+    }
     if mic.voice {
         nodes.push("          { type = builtin name = hp label = bq_highpass control = { \"Freq\" = 80.0 \"Q\" = 0.70 } }".into());
-        nodes.push("          { type = builtin name = pres label = bq_peaking control = { \"Freq\" = 4000.0 \"Q\" = 1.00 \"Gain\" = 3.00 } }".into());
         chain.push(("hp", "In", "Out"));
-        chain.push(("pres", "In", "Out"));
         if let Some(sc4) = &inst.compressor {
             nodes.push(format!(
                 "          {{ type = ladspa name = comp plugin = {} label = sc4m control = {{ \"RMS/peak\" = 0.5 \"Attack time (ms)\" = 10.0 \"Release time (ms)\" = 150.0 \"Threshold level (dB)\" = -20.0 \"Ratio (1:n)\" = 3.0 \"Knee radius (dB)\" = 6.0 \"Makeup gain (dB)\" = 4.0 }} }}",
@@ -390,10 +460,13 @@ fn mic_chain(c: &mut String, mic: &Mic, echo: bool, inst: &Installed) {
             chain.push(("comp", "Input", "Output"));
         }
     }
-    if nodes.is_empty() {
-        // Nothing to do on the voice: a plain copy keeps the node.
-        nodes.push("          { type = builtin name = pass label = copy }".into());
-        chain.push(("pass", "In", "Out"));
+    if let Some(lim) = &inst.limiter {
+        // Never past -1 dBFS, however loud the gain makes it.
+        nodes.push(format!(
+            "          {{ type = ladspa name = lim plugin = {} label = fastLookaheadLimiter control = {{ \"Input gain (dB)\" = 0.0 \"Limit (dB)\" = -1.0 \"Release time (s)\" = 0.1 }} }}",
+            sj(&lim.display().to_string())
+        ));
+        chain.push(("lim", "Input 1", "Output 1"));
     }
     let _ = writeln!(c, "  {{ name = libpipewire-module-filter-chain\n    args = {{\n      node.description = {}\n      media.name = {}\n      filter.graph = {{\n        nodes = [", sj("Game Companion Mikro"), sj("Game Companion Mikro"));
     for n in &nodes {
@@ -403,8 +476,18 @@ fn mic_chain(c: &mut String, mic: &Mic, echo: bool, inst: &Installed) {
     c.push_str("        ]\n        links = [\n");
     for w in chain.windows(2) {
         let _ = writeln!(c, "          {{ output = \"{}:{}\" input = \"{}:{}\" }}", w[0].0, w[0].2, w[1].0, w[1].1);
+        if w[1].0 == "lim" {
+            // Its second input too: left open, the plugin read a null
+            // buffer and the child crashed (bench).
+            let _ = writeln!(c, "          {{ output = \"{}:{}\" input = \"lim:Input 2\" }}", w[0].0, w[0].2);
+        }
     }
-    c.push_str("        ]\n      }\n      audio.channels = 1\n      audio.rate = 48000\n");
+    // Named ends: the limiter is a stereo plugin, and its free second
+    // output would make a mono chain two outputs wide (bench: "invalid
+    // channels", the child did not start).
+    let (first, last) = (chain[0], chain[chain.len() - 1]);
+    let _ = writeln!(c, "        ]\n        inputs = [ \"{}:{}\" ]\n        outputs = [ \"{}:{}\" ]", first.0, first.1, last.0, last.2);
+    c.push_str("      }\n      audio.channels = 1\n      audio.rate = 48000\n");
     let (source, pos) = if echo {
         ("gc_aec.source".to_string(), if mic.channel == "FR" || mic.channel == "AUX1" { "FR" } else { "FL" })
     } else {
@@ -466,8 +549,22 @@ pub fn eq_params(eq: &[f64; 6]) -> String {
 }
 
 /// `pw-cli set-param` Props for the voice gate.
-pub fn gate_params(threshold: f64, grace: u32) -> String {
-    format!("{{ params = [ \"rn:VAD Threshold (%)\" {:.1} \"rn:VAD Grace Period (ms)\" {:.1} ] }}", threshold.clamp(0.0, 99.0), f64::from(grace.min(2000)))
+pub fn gate_params(threshold: f64, grace: u32, gain: f64, eq: &[f64; 5]) -> String {
+    let mut p = format!(
+        "{{ params = [ \"gain:Mult\" {:.6} \"rn:VAD Threshold (%)\" {:.1} \"rn:VAD Grace Period (ms)\" {:.1}",
+        db_to_linear(mic_gain(gain)),
+        threshold.clamp(0.0, 99.0),
+        f64::from(grace.min(2000))
+    );
+    for (i, (name, _, _, _)) in VOICE_BANDS.iter().enumerate() {
+        let _ = write!(p, " \"{name}:Gain\" {:.2}", clamp_voice(*eq)[i]);
+    }
+    p.push_str(" ] }");
+    p
+}
+
+fn mic_gain(db: f64) -> f64 {
+    if db.is_finite() { db.clamp(0.0, MIC_GAIN_MAX) } else { MIC_GAIN }
 }
 
 /// `pw-cli set-param` Props for a stream-mix source.
@@ -702,7 +799,7 @@ pub enum Cmd {
     /// Channel volumes and ChatMix, live.
     Volumes(Box<SoundSettings>),
     /// The voice gate, live.
-    Gate(f64, u32),
+    Gate(f64, u32, f64, [f64; 5]),
     /// A stream-mix source, live: key, send.
     Send(String, Send),
     /// The running game changed.
@@ -838,7 +935,7 @@ impl<F: Fn(Event)> Worker<F> {
                         self.settings.chatmix = s.chatmix;
                         self.volumes();
                     }
-                    Cmd::Gate(t, g) => self.set_props(MIC, &gate_params(*t, *g)),
+                    Cmd::Gate(t, g, gain, eq) => self.set_props(MIC, &gate_params(*t, *g, *gain, eq)),
                     Cmd::Send(key, send) => {
                         let channels = if key == "mic" { 1 } else { 2 };
                         self.set_props(&format!("gc_send_{key}.out"), &send_params(send, channels));
@@ -907,18 +1004,24 @@ impl<F: Fn(Event)> Worker<F> {
         }
         self.stop_child();
         crate::log::sound(&format!(
-            "== start: mic {} (device {}, input {}, echo {}, gate {:.0} % / {} ms, voice {}), stream mix {}, chatmix {}, rnnoise {}, compressor {}",
+            "== start: mic {} (device {}, input {}, echo {} (extra ns {}, auto level {}), gain {:+.0} dB, eq {:?} {:?}, gate {:.0} % / {} ms, voice {}), stream mix {}, chatmix {}, rnnoise {}, compressor {}, limiter {}",
             s.mic.on,
             if s.mic.device.is_empty() { "-" } else { &s.mic.device },
             s.mic.channel,
             s.mic.echo,
+            s.mic.extra_ns,
+            s.mic.auto_level,
+            s.mic.gain,
+            s.mic.eq_preset,
+            s.mic_eq(),
             s.mic.threshold,
             s.mic.grace,
             s.mic.voice,
             s.stream.on,
             s.chatmix,
             inst.rnnoise.is_some(),
-            inst.compressor.is_some()
+            inst.compressor.is_some(),
+            inst.limiter.is_some()
         ));
         for (key, _, _) in CHANNELS {
             let ch = s.channels.get(key).cloned().unwrap_or_default();
@@ -1498,7 +1601,7 @@ mod tests {
         s.mic.device = "alsa_input.usb-Yamaha_Corporation_Steinberg_UR22mkII-00.pro-input-0".into();
         s.mic.channel = "AUX0".into();
         s.stream.on = true;
-        let inst = Installed { rnnoise: Some(PathBuf::from("/x/rn.so")), compressor: None };
+        let inst = Installed { rnnoise: Some(PathBuf::from("/x/rn.so")), compressor: None, limiter: Some(PathBuf::from("/x/lim.so")) };
         let c = config(&s, &inst);
         assert!(c.contains("libpipewire-module-echo-cancel"));
         assert!(c.contains("audio.position = [ AUX0 AUX1 ]"));
@@ -1510,8 +1613,17 @@ mod tests {
         assert!(c.contains("playback.props = { node.name = \"sonar_game.out\" node.passive = true }"));
         assert!(!c.contains("target.object = \"gc_aec.reference\""));
         assert!(c.contains("\"VAD Threshold (%)\" = 60.0 \"VAD Grace Period (ms)\" = 500 \"Retroactive VAD Grace (ms)\" = 100"));
-        assert!(c.contains("webrtc.noise_suppression = true"));
-        assert!(c.contains("{ output = \"rn:Output\" input = \"hp:In\" }"));
+        assert!(c.contains("webrtc.noise_suppression = false webrtc.gain_control = false"));
+        assert!(c.contains("{ output = \"rn:Output\" input = \"m1:In\" }"));
+        // The gain comes first (12 dB), the limiter last.
+        assert!(c.contains("name = gain label = linear control = { \"Mult\" = 3.981072"));
+        assert!(c.contains("{ output = \"gain:Out\" input = \"rn:Input\" }"));
+        assert!(c.contains("{ output = \"m5:Out\" input = \"hp:In\" }"));
+        assert!(c.contains("{ output = \"hp:Out\" input = \"lim:Input 1\" }"));
+        assert!(c.contains("{ output = \"hp:Out\" input = \"lim:Input 2\" }"));
+        assert!(c.contains("inputs = [ \"gain:In\" ]\n        outputs = [ \"lim:Output 1\" ]"));
+        // The default mic preset ("Clear voice") in the voice bands.
+        assert!(c.contains("name = m4 label = bq_peaking control = { \"Freq\" = 4000.0 \"Q\" = 1.00 \"Gain\" = 3.00 }"));
         assert!(c.contains("node.name = \"gc_mic\""));
         // Music is not in the stream by default.
         assert!(c.contains("node.name = \"gc_send_music.out\" target.object = \"gc_stream_in\" node.passive = true channelmix.normalize = false channelVolumes = [ 0.0000 0.0000 ]"));
@@ -1560,7 +1672,9 @@ mod tests {
         assert!(p.starts_with("{ params = [ \"pre:Mult\" 0.562341"));
         assert!(p.contains("\"b5:Gain\" 12.00"));
         assert_eq!(send_params(&Send { on: false, volume: 100 }, 2), "{ channelVolumes = [ 0.0000, 0.0000 ] }");
-        assert!(gate_params(150.0, 300).contains("99.0"));
+        assert!(gate_params(150.0, 300, 12.0, &[0.0; 5]).contains("99.0"));
+        assert!(gate_params(60.0, 500, 99.0, &[0.0, 0.0, 0.0, 3.0, 20.0]).contains("\"m4:Gain\" 3.00 \"m5:Gain\" 12.00"));
+        assert!(gate_params(60.0, 500, 99.0, &[0.0; 5]).starts_with("{ params = [ \"gain:Mult\" 31.622777"));
     }
 
     #[test]

@@ -627,7 +627,15 @@ learnt, so nothing has to be asked or worked out again.
   takes one input with `stream.dont-remix`; gate default 60 % / 500 ms
   with 100 ms let through before a voice, `GATE_LEAD_MS`; old 85/300
   moved once, `Mic::update_gate`; MN 2026-11-16: opened late, cut words),
-  presets with little pre-gain (Sonar light's −5 dB ate its boosts), stream mix: loopbacks from
+  presets with little pre-gain (Sonar light's −5 dB ate its boosts); the
+  mic chain is gain (`Mic.gain`, 0 to 30 dB, default 12: MN's UR22 was
+  quiet without EasyEffects' auto gain) → rnnoise → mic EQ (`VOICE_BANDS`
+  m1–m5, `VOICE_PRESETS`, own ones in `mic_presets`; gain, gate and EQ
+  change live, `gate_params`) → clean up (hp + sc4m) → swh's
+  fastLookaheadLimiter at −1 dBFS, both its inputs fed (one left open
+  crashed the child on the bench) and the graph's `inputs`/`outputs`
+  named; echo canceller switches `extra_ns` (WebRTC noise suppression,
+  "aquarium" with music, default off) and `auto_level` (WebRTC AGC), stream mix: loopbacks from
   the channels' monitors and the mic into `gc_stream_in`, OBS records the
   source `gc_stream` (a client can't make a null sink: a copy filter chain).
   It all runs in a `pipewire -c $XDG_RUNTIME_DIR/game-companion-sound.conf`
