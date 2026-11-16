@@ -268,6 +268,14 @@ impl qobject::Sound {
         if self.rust().tx.is_some() || demo() {
             return;
         }
+        // The gate's old defaults, once.
+        if settings::read(|s| s.sound.mic.gate_v) < 1 {
+            self.as_mut().change(|s| {
+                if s.mic.update_gate() {
+                    crate::log::write("sound", &format!("gate moved to {} % / {} ms", s.mic.threshold, s.mic.grace));
+                }
+            });
+        }
         // Sonar light's choices, once.
         if !settings::read(|s| s.sound.took_sonar) {
             let dir = std::env::var_os("XDG_CONFIG_HOME")
