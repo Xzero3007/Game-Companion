@@ -2,8 +2,7 @@
 //! folder's sound/ and the doc "Sound-Modul: Bauplan", MN 2026-11-15).
 //!
 //! Four channels (game, chat, media, music) as virtual outputs with their
-//! own EQ, an echo reference everything heard runs through (speakers, no
-//! headset), a microphone chain (echo cancellation, rnnoise with its voice
+//! own EQ, a microphone chain (echo cancellation, rnnoise with its voice
 //! gate, a voice EQ) that comes out as "Game Companion Mikro", and a stream
 //! mix for OBS.
 //!
@@ -52,7 +51,11 @@ pub const PRESETS: [(&str, [f64; 6]); 5] = [
     ("Film", [-3.0, 3.0, 0.0, 0.0, 2.0, 1.0]),
 ];
 
-pub const ECHO_REF: &str = "gc_echo_ref";
+/// The echo canceller's reference: it listens to the default output's
+/// monitor (monitor mode). Played sound never runs through the canceller:
+/// with the old sink in between, everything heard was distorted on MN's
+/// UR22 (2026-11-16, 0.8.60).
+pub const ECHO_REF: &str = "gc_aec.reference";
 pub const MIC: &str = "gc_mic";
 /// The stream mix: OBS records the source `gc_stream`; the sources play
 /// into the sink `gc_stream_in`.
@@ -257,7 +260,7 @@ pub fn config(s: &SoundSettings, inst: &Installed) -> String {
     let mut c = String::new();
     c.push_str("# Made by Game Companion (sound module) for its own `pipewire -c` child.\n");
     c.push_str("# Not read by the system's PipeWire; changes here are overwritten.\n");
-    let _ = writeln!(c, "context.properties = {{ log.level = 1 core.daemon = false core.name = {} }}", sj(CLIENT));
+    let _ = writeln!(c, "context.properties = {{ log.level = 2 core.daemon = false core.name = {} }}", sj(CLIENT));
     c.push_str("context.spa-libs = {\n  audio.convert.* = audioconvert/libspa-audioconvert\n  support.* = support/libspa-support\n}\n");
     c.push_str("context.modules = [\n");
     c.push_str("  { name = libpipewire-module-rt args = { nice.level = -11 } flags = [ ifexists nofail ] }\n");
@@ -269,7 +272,7 @@ pub fn config(s: &SoundSettings, inst: &Installed) -> String {
         echo_cancel(&mut c, &s.mic);
     }
     for (key, node, desc) in CHANNELS {
-        channel(&mut c, key, node, desc, &s.eq_of(key), echo);
+        channel(&mut c, key, node, desc, &s.eq_of(key));
     }
     if s.mic.on && !s.mic.device.is_empty() {
         mic_chain(&mut c, &s.mic, echo, inst);
@@ -299,15 +302,14 @@ fn echo_cancel(c: &mut String, mic: &Mic) {
     let capture_pos = if is_pro(&mic.device) { "[ AUX0 AUX1 ]" } else { "[ FL FR ]" };
     let _ = writeln!(
         c,
-        "  {{ name = libpipewire-module-echo-cancel\n    args = {{\n      library.name = aec/libspa-aec-webrtc\n      monitor.mode = false\n      audio.channels = 2\n      audio.position = [ FL FR ]\n      aec.args = {{ webrtc.extended_filter = true webrtc.delay_agnostic = true webrtc.high_pass_filter = true webrtc.noise_suppression = false webrtc.gain_control = false }}\n      capture.props = {{ node.name = \"gc_aec.capture\" target.object = {} audio.position = {capture_pos} node.passive = true }}\n      source.props = {{ node.name = \"gc_aec.source\" node.description = {} {LOW} }}\n      sink.props = {{ node.name = {} node.description = {} {LOW} }}\n      playback.props = {{ node.name = \"gc_aec.playback\" }}\n    }}\n  }}",
+        "  {{ name = libpipewire-module-echo-cancel\n    args = {{\n      library.name = aec/libspa-aec-webrtc\n      monitor.mode = true\n      audio.channels = 2\n      audio.position = [ FL FR ]\n      aec.args = {{ webrtc.extended_filter = true webrtc.delay_agnostic = true webrtc.high_pass_filter = true webrtc.noise_suppression = false webrtc.gain_control = false }}\n      capture.props = {{ node.name = \"gc_aec.capture\" target.object = {} audio.position = {capture_pos} node.passive = true }}\n      source.props = {{ node.name = \"gc_aec.source\" node.description = {} {LOW} }}\n      sink.props = {{ node.name = {} }}\n    }}\n  }}",
         sj(&mic.device),
         sj("Game Companion Mikro (roh)"),
         sj(ECHO_REF),
-        sj("Game Companion Echo-Referenz"),
     );
 }
 
-fn channel(c: &mut String, key: &str, node: &str, desc: &str, eq: &[f64; 6], echo: bool) {
+fn channel(c: &mut String, key: &str, node: &str, desc: &str, eq: &[f64; 6]) {
     let eq = clamp_eq(*eq);
     let _ = writeln!(c, "  {{ name = libpipewire-module-filter-chain\n    args = {{\n      node.description = {}\n      media.name = {}\n      filter.graph = {{\n        nodes = [", sj(desc), sj(desc));
     let _ = writeln!(c, "          {{ type = builtin name = pre label = linear control = {{ \"Mult\" = {:.6} \"Add\" = 0.0 }} }}", db_to_linear(eq[0]));
@@ -321,8 +323,7 @@ fn channel(c: &mut String, key: &str, node: &str, desc: &str, eq: &[f64; 6], ech
     }
     c.push_str("        ]\n      }\n      audio.channels = 2\n      audio.position = [ FL FR ]\n");
     let _ = writeln!(c, "      capture.props = {{ node.name = {} media.class = Audio/Sink {LOW} gc.channel = {} }}", sj(node), sj(key));
-    let target = if echo { format!(" target.object = {}", sj(ECHO_REF)) } else { String::new() };
-    let _ = writeln!(c, "      playback.props = {{ node.name = {} node.passive = true{target} }}\n    }}\n  }}", sj(&format!("{node}.out")));
+    let _ = writeln!(c, "      playback.props = {{ node.name = {} node.passive = true }}\n    }}\n  }}", sj(&format!("{node}.out")));
 }
 
 fn mic_chain(c: &mut String, mic: &Mic, echo: bool, inst: &Installed) {
@@ -544,6 +545,10 @@ pub fn channel_for(app: &App, routes: &BTreeMap<String, String>, game: &GameAudi
     if b.contains("legcord") || n.contains("legcord") || b == "discord" || n == "discord" || b.contains("vesktop") {
         return "chat";
     }
+    // Game Companion's own radio (its mpv names itself so).
+    if n.contains("game-companion-radio") {
+        return "music";
+    }
     if ["spotify", "strawberry", "elisa", "audacious", "rhythmbox", "lollypop", "amarok", "clementine", "deadbeef", "cmus", "mpd", "tidal-hifi", "feishin"].iter().any(|m| b == *m || n == *m) {
         return "music";
     }
@@ -679,6 +684,14 @@ pub enum Cmd {
     Hearing(String),
     /// Ask EasyEffects to quit (the person's click).
     CloseEasyEffects,
+    /// The channels' level meters on or off (only while the MIXER shows).
+    ChannelMeters(bool),
+    /// From a channel meter's reader: channel index, level 0 to 100.
+    ChannelLevel(u8, u8),
+    /// Write a snapshot of the graph into the sound log ("Copy sound log").
+    Report,
+    /// From the snapshot's thread: done.
+    Reported,
 }
 
 /// What the worker tells the Qt side.
@@ -696,6 +709,10 @@ pub enum Event {
     Level(u8, bool),
     /// The hear test: "recording", "playing" or "".
     Hearing(String),
+    /// A snapshot is being written (true) or done (false).
+    Reporting(bool),
+    /// A channel's level (index in CHANNELS, 0 to 100).
+    ChannelLevel(u8, u8),
 }
 
 /// Starts the worker thread (once, from the Qt thread; the children it
@@ -726,6 +743,9 @@ struct Worker<F: Fn(Event)> {
     meter: Option<std::process::Child>,
     meter_wanted: bool,
     hearing: bool,
+    /// The channels' meters (`parec` of each channel's monitor).
+    channel_meters: Vec<std::process::Child>,
+    channel_meters_wanted: bool,
 }
 
 fn tool(name: &str) -> std::process::Command {
@@ -755,7 +775,7 @@ fn ours(node: &str) -> bool {
 
 impl<F: Fn(Event)> Worker<F> {
     fn new(tell: F, me: std::sync::mpsc::Sender<Cmd>) -> Self {
-        Self { tell, me, settings: SoundSettings::default(), game: GameAudio::default(), child: None, watcher: None, running_conf: String::new(), ids: BTreeMap::new(), proc_root: PathBuf::from("/proc"), pinned: BTreeMap::new(), meter: None, meter_wanted: false, hearing: false }
+        Self { tell, me, settings: SoundSettings::default(), game: GameAudio::default(), child: None, watcher: None, running_conf: String::new(), ids: BTreeMap::new(), proc_root: PathBuf::from("/proc"), pinned: BTreeMap::new(), meter: None, meter_wanted: false, hearing: false, channel_meters: Vec::new(), channel_meters_wanted: false }
     }
 
     fn run(mut self, rx: std::sync::mpsc::Receiver<Cmd>) {
@@ -806,6 +826,13 @@ impl<F: Fn(Event)> Worker<F> {
                         self.hearing = !stage.is_empty();
                         (self.tell)(Event::Hearing(stage.clone()));
                     }
+                    Cmd::ChannelMeters(on) => {
+                        self.channel_meters_wanted = *on;
+                        self.channel_meters();
+                    }
+                    Cmd::ChannelLevel(i, level) => (self.tell)(Event::ChannelLevel(*i, *level)),
+                    Cmd::Report => self.report(0),
+                    Cmd::Reported => (self.tell)(Event::Reporting(false)),
                     Cmd::CloseEasyEffects => {
                         quiet("easyeffects", &["--quit"]);
                         std::thread::sleep(std::time::Duration::from_millis(600));
@@ -831,7 +858,8 @@ impl<F: Fn(Event)> Worker<F> {
             (self.tell)(Event::Running(false, String::new()));
             return;
         }
-        let conf = config(s, &Installed::look());
+        let inst = Installed::look();
+        let conf = config(s, &inst);
         let alive = self.child.as_mut().is_some_and(|c| matches!(c.try_wait(), Ok(None)));
         if alive && conf == self.running_conf {
             self.volumes();
@@ -839,17 +867,40 @@ impl<F: Fn(Event)> Worker<F> {
             return;
         }
         self.stop_child();
+        crate::log::sound(&format!(
+            "== start: mic {} (device {}, input {}, echo {}, gate {:.0} % / {} ms, voice {}), stream mix {}, chatmix {}, rnnoise {}, compressor {}",
+            s.mic.on,
+            if s.mic.device.is_empty() { "-" } else { &s.mic.device },
+            s.mic.channel,
+            s.mic.echo,
+            s.mic.threshold,
+            s.mic.grace,
+            s.mic.voice,
+            s.stream.on,
+            s.chatmix,
+            inst.rnnoise.is_some(),
+            inst.compressor.is_some()
+        ));
+        for (key, _, _) in CHANNELS {
+            let ch = s.channels.get(key).cloned().unwrap_or_default();
+            crate::log::sound(&format!("channel {key}: preset {:?} eq {:?} volume {}", ch.preset, s.eq_of(key), ch.volume));
+        }
+        crate::log::sound(&format!("== config\n{conf}== end of config"));
         match self.spawn(&conf) {
             Ok(()) => {
+                crate::log::sound("chains running");
+                self.report(8);
                 self.running_conf = conf;
                 (self.tell)(Event::Running(true, String::new()));
                 self.volumes();
                 self.watch();
                 self.streams(true);
                 self.meter();
+                self.channel_meters();
             }
             Err(why) => {
                 crate::log::write("sound", &format!("chains did not start: {why}"));
+                crate::log::sound(&format!("chains did not start: {why}"));
                 (self.tell)(Event::Running(false, why));
             }
         }
@@ -862,7 +913,7 @@ impl<F: Fn(Event)> Worker<F> {
         let before_sink = output("pactl", &["get-default-sink"]).unwrap_or_default().trim().to_string();
         let before_source = output("pactl", &["get-default-source"]).unwrap_or_default().trim().to_string();
         let mut cmd = std::process::Command::new("pipewire");
-        cmd.arg("-c").arg(&path).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        cmd.arg("-c").arg(&path).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped());
         // SAFETY: prctl only sets a flag on the child; no allocation.
         unsafe {
             cmd.pre_exec(|| {
@@ -872,6 +923,26 @@ impl<F: Fn(Event)> Worker<F> {
         }
         let mut child = cmd.spawn().map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { "pipewire is not installed".to_string() } else { e.to_string() })?;
         crate::log::write("child", &format!("sound chains started (pid {})", child.id()));
+        // PipeWire's own warnings and errors (xruns, failed links) into the
+        // sound log, at most 400 lines per run.
+        if let Some(err) = child.stderr.take() {
+            std::thread::Builder::new()
+                .name("sound-stderr".into())
+                .spawn(move || {
+                    use std::io::BufRead;
+                    let mut n = 0;
+                    for line in std::io::BufReader::new(err).lines().map_while(Result::ok) {
+                        n += 1;
+                        if n <= 400 {
+                            crate::log::sound(&format!("pipewire: {line}"));
+                        } else if n == 401 {
+                            crate::log::sound("pipewire: (more lines left out)");
+                        }
+                    }
+                    crate::log::sound("pipewire child ended");
+                })
+                .ok();
+        }
         // Wait until the channels exist (or the child ends: a bad config).
         let started = std::time::Instant::now();
         loop {
@@ -940,6 +1011,10 @@ impl<F: Fn(Event)> Worker<F> {
     fn eq(&mut self, key: &str, eq: &[f64; 6]) {
         if let Some((_, node, _)) = CHANNELS.iter().find(|(k, _, _)| *k == key) {
             self.set_props(node, &eq_params(eq));
+            // Read it back: what the filter now holds (MN, 2026-11-16: no
+            // difference heard when switching presets).
+            let held = self.ids.get(*node).and_then(|id| output("pw-cli", &["enum-params", &id.to_string(), "Props"])).map(|t| held_params(&t)).unwrap_or_else(|| "(not read)".into());
+            crate::log::sound(&format!("eq {key}: asked {eq:?}; the filter holds {held}"));
         }
     }
 
@@ -971,6 +1046,7 @@ impl<F: Fn(Event)> Worker<F> {
             return;
         }
         let (game, chat) = chatmix(self.settings.chatmix);
+        let mut vols = Vec::new();
         for (key, node, _) in CHANNELS {
             let base = self.settings.channels.get(key).map_or(100, |c| c.volume.min(150));
             let v = match key {
@@ -979,7 +1055,9 @@ impl<F: Fn(Event)> Worker<F> {
                 _ => base,
             };
             quiet("pactl", &["set-sink-volume", node, &format!("{v}%")]);
+            vols.push(format!("{key} {v}%"));
         }
+        crate::log::sound(&format!("volumes: {}", vols.join(", ")));
     }
 
     /// Lists the streams, moves each onto its channel (when `move_them`),
@@ -991,7 +1069,10 @@ impl<F: Fn(Event)> Worker<F> {
         if move_them && self.child.is_some() {
             let free: Vec<App> = apps.iter().filter(|a| !self.pinned.contains_key(&a.index)).cloned().collect();
             for (index, sink) in moves(&free, &self.settings, &self.game, &self.proc_root) {
-                if quiet("pactl", &["move-sink-input", &index.to_string(), sink]) {
+                let ok = quiet("pactl", &["move-sink-input", &index.to_string(), sink]);
+                let who = apps.iter().find(|a| a.index == index).map(|a| if a.binary.is_empty() { a.name.clone() } else { a.binary.clone() }).unwrap_or_default();
+                crate::log::sound(&format!("stream {index} ({who}) → {sink}{}", if ok { "" } else { " FAILED" }));
+                if ok {
                     if let Some(a) = apps.iter_mut().find(|a| a.index == index) {
                         a.sink = sink.to_string();
                     }
@@ -1059,6 +1140,60 @@ impl<F: Fn(Event)> Worker<F> {
         self.meter = Some(child);
     }
 
+    /// One `parec` per channel on its monitor (8 kHz mono, 100 ms blocks),
+    /// only while the MIXER shows and the chains run; a level is told only
+    /// when it changed.
+    fn channel_meters(&mut self) {
+        use std::io::Read;
+        use std::os::unix::process::CommandExt;
+        let want = self.channel_meters_wanted && self.child.is_some();
+        let alive = !self.channel_meters.is_empty() && self.channel_meters.iter_mut().all(|c| matches!(c.try_wait(), Ok(None)));
+        if want && alive {
+            return;
+        }
+        for mut m in self.channel_meters.drain(..) {
+            let _ = m.kill();
+            let _ = m.wait();
+        }
+        if !want {
+            for i in 0..CHANNELS.len() {
+                (self.tell)(Event::ChannelLevel(i as u8, 0));
+            }
+            return;
+        }
+        for (i, (_, node, _)) in CHANNELS.iter().enumerate() {
+            let mut cmd = tool("parec");
+            cmd.args(["--raw", "--format=s16le", "--rate=8000", "--channels=1", "--latency-msec=100", &format!("--device={node}.monitor")]).stdout(std::process::Stdio::piped());
+            // SAFETY: as above.
+            unsafe {
+                cmd.pre_exec(|| {
+                    libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                    Ok(())
+                });
+            }
+            let Ok(mut child) = cmd.spawn() else { continue };
+            let Some(mut out) = child.stdout.take() else { continue };
+            let me = self.me.clone();
+            std::thread::Builder::new()
+                .name("sound-chmeter".into())
+                .spawn(move || {
+                    let mut buf = vec![0u8; 1600];
+                    let mut last = 255u8;
+                    while out.read_exact(&mut buf).is_ok() {
+                        let (level, _) = level_of(&buf);
+                        if (level as i16 - last as i16).abs() >= 3 {
+                            last = level;
+                            if me.send(Cmd::ChannelLevel(i as u8, level)).is_err() {
+                                break;
+                            }
+                        }
+                    }
+                })
+                .ok();
+            self.channel_meters.push(child);
+        }
+    }
+
     /// The hear test: 10 s of the finished mic into a file in the runtime
     /// dir, then played back (to the default output), then deleted.
     fn hear(&mut self) {
@@ -1104,7 +1239,30 @@ impl<F: Fn(Event)> Worker<F> {
             .ok();
     }
 
+    /// A snapshot of the graph into the sound log, on its own thread (pw-top
+    /// takes a few seconds): versions, clock settings, cards and profiles,
+    /// sinks, sources, the streams and where they play, our sinks' volumes,
+    /// pw-top's rates, quantum and errors, the child's CPU.
+    fn report(&mut self, delay: u64) {
+        (self.tell)(Event::Reporting(true));
+        let pid = self.child.as_ref().map(std::process::Child::id);
+        let me = self.me.clone();
+        let proc_root = self.proc_root.clone();
+        std::thread::Builder::new()
+            .name("sound-report".into())
+            .spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(delay));
+                crate::log::sound(&snapshot(pid, &proc_root));
+                let _ = me.send(Cmd::Reported);
+            })
+            .ok();
+    }
+
     fn stop_child(&mut self) {
+        for mut m in self.channel_meters.drain(..) {
+            let _ = m.kill();
+            let _ = m.wait();
+        }
         if let Some(mut m) = self.meter.take() {
             let _ = m.kill();
             let _ = m.wait();
@@ -1129,6 +1287,85 @@ impl<F: Fn(Event)> Worker<F> {
 
 /// 100 ms of 16-bit mono: the level 0 to 100 (−60 to 0 dBFS) and whether a
 /// voice passes (the gate leaves near silence when closed).
+/// CPU ticks (user + system) of a process.
+fn ticks(proc_root: &Path, pid: u32) -> Option<u64> {
+    let stat = std::fs::read_to_string(proc_root.join(pid.to_string()).join("stat")).ok()?;
+    let rest = &stat[stat.rfind(')')? + 2..];
+    let f: Vec<&str> = rest.split_whitespace().collect();
+    Some(f.get(11)?.parse::<u64>().ok()? + f.get(12)?.parse::<u64>().ok()?)
+}
+
+/// The text of a snapshot (see `Worker::report`). Only names, formats,
+/// volumes and timings: no media titles.
+fn snapshot(child: Option<u32>, proc_root: &Path) -> String {
+    let run = |name: &str, args: &[&str]| -> String {
+        match tool(name).args(args).output() {
+            Ok(o) => {
+                let mut t = String::from_utf8_lossy(&o.stdout).into_owned();
+                if !o.status.success() {
+                    t.push_str(&format!("({name} failed: {})", String::from_utf8_lossy(&o.stderr).trim()));
+                }
+                t
+            }
+            Err(e) => format!("({name}: {e})"),
+        }
+    };
+    let keep = |text: String, marks: &[&str]| -> String {
+        text.lines().filter(|l| marks.iter().any(|m| l.trim_start().starts_with(m))).collect::<Vec<_>>().join("\n")
+    };
+    let mut o = String::from("== snapshot\n");
+    o.push_str(&format!("-- versions\n{}", run("pipewire", &["--version"])));
+    o.push_str(&format!("-- clock (pw-metadata settings)\n{}", run("pw-metadata", &["-n", "settings", "0"])));
+    o.push_str(&format!("-- defaults\n{}\n", keep(run("pactl", &["info"]), &["Server Name", "Default Sample", "Default Channel", "Default Sink", "Default Source"])));
+    o.push_str(&format!("-- cards\n{}\n", keep(run("pactl", &["list", "cards"]), &["Name:", "Active Profile:", "device.description"])));
+    o.push_str(&format!("-- sinks\n{}", run("pactl", &["list", "sinks", "short"])));
+    o.push_str(&format!("-- sink volumes\n{}\n", keep(run("pactl", &["list", "sinks"]), &["Name:", "Volume:", "Sample Specification:", "Mute:"])));
+    o.push_str(&format!("-- sources\n{}", run("pactl", &["list", "sources", "short"])));
+    o.push_str(&format!(
+        "-- streams\n{}\n",
+        keep(run("pactl", &["list", "sink-inputs"]), &["Sink Input #", "Sink:", "Sample Specification:", "Volume:", "Mute:", "application.process.binary", "node.name"])
+    ));
+    o.push_str(&format!("-- easyeffects running: {}\n", easyeffects_running(proc_root)));
+    let before = child.and_then(|p| ticks(proc_root, p));
+    let started = std::time::Instant::now();
+    // pw-top: the last of four looks (each a second apart).
+    let top = run("pw-top", &["-b", "-n", "4"]);
+    let last: Vec<&str> = top.lines().collect();
+    let from = last.iter().rposition(|l| l.trim_start().starts_with("S ") && l.contains("QUANT")).unwrap_or(0);
+    o.push_str(&format!("-- pw-top (ERR = xruns since start)\n{}\n", last[from..].join("\n")));
+    if let (Some(pid), Some(a)) = (child, before) {
+        if let Some(b) = ticks(proc_root, pid) {
+            // SAFETY: sysconf only reads a value.
+            let hz = unsafe { libc::sysconf(libc::_SC_CLK_TCK) }.max(1) as f64;
+            let secs = started.elapsed().as_secs_f64().max(0.1);
+            o.push_str(&format!("-- sound child (pid {pid}) CPU: {:.1} % of one core\n", (b - a) as f64 / hz / secs * 100.0));
+        }
+    }
+    o.push_str("== end of snapshot");
+    o
+}
+
+/// The filter's values from `pw-cli enum-params <id> Props`: each
+/// `String "name"` followed by its `Float`, as "name=value" pairs.
+pub fn held_params(text: &str) -> String {
+    let mut out = Vec::new();
+    let mut name: Option<String> = None;
+    for line in text.lines().map(str::trim) {
+        if let Some(rest) = line.strip_prefix("String ") {
+            let n = rest.trim_matches('"');
+            name = (n.starts_with("pre:") || n.starts_with('b') && n.contains(":Gain")).then(|| n.to_string());
+        } else if let (Some(n), Some(v)) = (name.take(), line.strip_prefix("Float ")) {
+            let v: f64 = v.trim().parse().unwrap_or(f64::NAN);
+            out.push(format!("{n}={v:.2}"));
+        }
+    }
+    if out.is_empty() {
+        "(nothing)".into()
+    } else {
+        out.join(" ")
+    }
+}
+
 pub fn level_of(pcm: &[u8]) -> (u8, bool) {
     let n = pcm.len() / 2;
     if n == 0 {
@@ -1146,6 +1383,8 @@ fn same_target(a: &Cmd, b: &Cmd) -> bool {
     match (a, b) {
         (Cmd::Eq(x, _), Cmd::Eq(y, _)) | (Cmd::Send(x, _), Cmd::Send(y, _)) => x == y,
         (Cmd::Move(x, _), Cmd::Move(y, _)) => x == y,
+        (Cmd::ChannelLevel(x, _), Cmd::ChannelLevel(y, _)) => x == y,
+        (Cmd::ChannelMeters(_), Cmd::ChannelMeters(_)) => true,
         (Cmd::Apply(_), Cmd::Apply(_)) | (Cmd::Level(..), Cmd::Level(..)) | (Cmd::Meter(_), Cmd::Meter(_)) | (Cmd::Volumes(_), Cmd::Volumes(_)) | (Cmd::Gate(..), Cmd::Gate(..)) | (Cmd::Game(_), Cmd::Game(_)) => true,
         _ => false,
     }
@@ -1157,6 +1396,19 @@ mod tests {
 
     fn app(index: u64, name: &str, binary: &str, pid: u32, sink: &str) -> App {
         App { index, sink: sink.into(), name: name.into(), binary: binary.into(), pid, node: String::new() }
+    }
+
+    #[test]
+    fn filter_values_read_back() {
+        let t = "Object: size 96\n  Prop: key params\n    Struct: size 72\n      String \"pre:Mult\"\n      Float 0.562341\n      String \"b1:Gain\"\n      Float 6.000000\n      String \"b1:Freq\"\n      Float 80.0\n";
+        assert_eq!(held_params(t), "pre:Mult=0.56 b1:Gain=6.00");
+        assert_eq!(held_params(""), "(nothing)");
+    }
+
+    #[test]
+    fn radio_goes_on_music() {
+        let a = App { index: 1, sink: String::new(), name: "game-companion-radio".into(), binary: "mpv".into(), pid: 0, node: String::new() };
+        assert_eq!(channel_for(&a, &BTreeMap::new(), &GameAudio::default(), Path::new("/nonexistent")), "music");
     }
 
     #[test]
@@ -1193,9 +1445,8 @@ mod tests {
         for (_, node, _) in CHANNELS {
             assert!(c.contains(&format!("node.name = \"{node}\"")), "{node}");
         }
-        assert!(!c.contains("echo-cancel"));
         assert!(!c.contains(MIC));
-        assert!(!c.contains("target.object = \"gc_echo_ref\""));
+        assert!(!c.contains("echo-cancel"));
         assert!(c.contains("name = b5 label = bq_highshelf control = { \"Freq\" = 9000.0 \"Q\" = 0.70 \"Gain\" = 0.00 }"));
         // Chat starts with Sonar's "Sprache".
         assert!(c.contains("name = b1 label = bq_lowshelf control = { \"Freq\" = 80.0 \"Q\" = 0.70 \"Gain\" = -4.00 }"));
@@ -1212,8 +1463,11 @@ mod tests {
         let c = config(&s, &inst);
         assert!(c.contains("libpipewire-module-echo-cancel"));
         assert!(c.contains("audio.position = [ AUX0 AUX1 ]"));
-        // Every channel plays through the echo reference.
-        assert_eq!(c.matches("target.object = \"gc_echo_ref\"").count(), 4);
+        // The canceller only listens (monitor mode): no channel plays
+        // through it.
+        assert!(c.contains("monitor.mode = true"));
+        assert!(c.contains("playback.props = { node.name = \"sonar_game.out\" node.passive = true }"));
+        assert!(!c.contains("target.object = \"gc_aec.reference\""));
         assert!(c.contains("\"VAD Threshold (%)\" = 85.0"));
         assert!(c.contains("{ output = \"rn:Output\" input = \"hp:In\" }"));
         assert!(c.contains("node.name = \"gc_mic\""));

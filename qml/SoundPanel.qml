@@ -35,6 +35,10 @@ Panel {
 
     /// The MIC tab could show the meter (Main runs it while the panel shows).
     readonly property bool meterWanted: tab === "mic" && on && prefs.mic && prefs.mic.on === true
+    // The channels' meters run only while the MIXER shows (Main switches them).
+    readonly property bool channelMetersWanted: tab === "mixer" && on
+    readonly property var levels: Sound.channelLevels.split(",").map(Number)
+    readonly property var levelIndex: ({ game: 0, chat: 1, media: 2, music: 3 })
 
     readonly property var channelKeys: ["game", "chat", "media", "music"]
     readonly property var names: ({ game: "Game", chat: "Chat", media: "Media", music: "Music", mic: "Mic" })
@@ -410,6 +414,30 @@ Panel {
                 : panel.tab === "mic" ? "In Legcord switch its own noise filter, echo and auto volume off: ours does it."
                 : "Runs in Game Companion's own PipeWire part; your system's PipeWire is not changed."
         }
+        // The sound log (MN, 2026-11-16): a fresh snapshot of the graph,
+        // then the log's last lines on the clipboard.
+        Row {
+            spacing: 8
+            Chip {
+                id: copyLog
+                property bool waiting: false
+                property bool done: false
+                text: waiting ? "Looking (5 s)…" : done ? "Copied" : "Copy sound log"
+                onClicked: { if (waiting) return; done = false; waiting = true; Sound.report() }
+                Connections {
+                    target: Sound
+                    function onReportingChanged() {
+                        if (!Sound.reporting && copyLog.waiting) {
+                            copyLog.waiting = false
+                            nativeWindow.copyText(Sound.logText(700))
+                            copyLog.done = true
+                        }
+                    }
+                }
+            }
+            Chip { text: "Open log folder"; onClicked: Companion.openLogFolder() }
+            Small { anchors.verticalCenter: parent.verticalCenter; text: "sound.log: setup, PipeWire's warnings, dropouts" }
+        }
     }
 
     // ------------------------------------------------------------ parts ----
@@ -579,7 +607,28 @@ Panel {
             onStepped: (d) => Sound.setChannel(ch.key, "", "", Math.max(0, Math.min(100, ch.c.volume + d)))
             onPicked: (v) => Sound.setChannel(ch.key, "", "", v)
         }
+        // What plays on the channel now (before its EQ): moves with the
+        // sound, so one sees the channel works (MN, 2026-11-16).
         Row {
+            anchors.right: chipRow.left
+            anchors.rightMargin: 14
+            y: 14
+            height: 16
+            spacing: 2
+            Accessible.name: panel.names[ch.key] + " level"
+            Repeater {
+                model: 10
+                delegate: Rectangle {
+                    required property int index
+                    anchors.bottom: parent.bottom
+                    width: 4
+                    height: 4 + index * 1.3
+                    color: (panel.levels[panel.levelIndex[ch.key]] || 0) > index * 10 ? Theme.accent : Theme.track
+                }
+            }
+        }
+        Row {
+            id: chipRow
             anchors.right: parent.right
             anchors.rightMargin: 10
             y: 10

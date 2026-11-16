@@ -450,6 +450,8 @@ Overlay {
         }
     }
     // The mic's meter runs only while the MIC tab or the quick row shows.
+    readonly property bool soundChannelMeters: root.soundOpen && root.onScreen("sound") && soundPanel.channelMetersWanted
+    onSoundChannelMetersChanged: Sound.setChannelMeters(soundChannelMeters)
     readonly property bool soundMeter: (root.soundRowShown && soundRow.micOn) || (root.soundOpen && root.onScreen("sound") && soundPanel.meterWanted)
     onSoundMeterChanged: Sound.setMeter(soundMeter)
 
