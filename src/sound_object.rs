@@ -189,7 +189,10 @@ impl SoundRust {
         let apps = json!([
             { "index": 41, "name": "Path of Exile 2", "binary": "PathOfExileSteam.exe", "program": "PathOfExileSteam.exe", "channel": "game", "fixed": false },
             { "index": 42, "name": "Legcord", "binary": "legcord", "program": "legcord", "channel": "chat", "fixed": false },
-            { "index": 43, "name": "Game Companion radio", "binary": "mpv", "program": "mpv", "channel": "music", "fixed": false },
+            { "index": 43, "name": "Game Companion · Radio", "binary": "mpv", "program": "mpv", "channel": "music", "fixed": false },
+            { "index": 46, "name": "Game Companion · YouTube", "binary": "game-companion", "program": "game-companion", "channel": "media", "fixed": false },
+            { "index": 47, "name": "Game Companion · Twitch", "binary": "game-companion", "program": "game-companion", "channel": "media", "fixed": false },
+            { "index": 48, "name": "Path of Exile 2", "binary": "PathOfExileSteam.exe", "program": "PathOfExileSteam.exe", "channel": "game", "fixed": false },
             { "index": 44, "name": "Brave · YouTube", "binary": "brave", "program": "brave", "channel": "music", "fixed": true },
             { "index": 45, "name": "System sounds", "binary": "", "program": "System sounds", "channel": "media", "fixed": false }
         ]);
@@ -359,7 +362,7 @@ impl qobject::Sound {
                     .iter()
                     .map(|(a, key)| {
                         let program = if a.binary.is_empty() { &a.name } else { &a.binary };
-                        json!({ "index": a.index, "name": a.name, "binary": a.binary, "program": program, "channel": key, "fixed": routes.contains_key(program.as_str()) })
+                        json!({ "index": a.index, "name": sound::label(a), "binary": a.binary, "program": program, "channel": key, "fixed": routes.contains_key(program.as_str()) })
                     })
                     .collect();
                 let text = Value::Array(apps).to_string();

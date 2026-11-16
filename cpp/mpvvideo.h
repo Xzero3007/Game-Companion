@@ -42,6 +42,9 @@ class MpvVideo : public QQuickFramebufferObject
     /// For the home network's server (Jellyfin): set before the first video.
     /// No yt-dlp, no mpv scripts, no proxy: mpv goes straight to the address.
     Q_PROPERTY(bool local READ local WRITE setLocal NOTIFY localChanged)
+    /// The name its sound has in the system's mixer (e.g. "Game Companion ·
+    /// YouTube"): set before the first video.
+    Q_PROPERTY(QString audioName READ audioName WRITE setAudioName NOTIFY audioNameChanged)
     /// The video's chapters: [{title, time}] (time in seconds).
     Q_PROPERTY(QVariantList chapters READ chapters NOTIFY chaptersChanged)
     /// How fast it plays (1 = as recorded).
@@ -81,6 +84,7 @@ public:
     bool hwdec() const { return m_hwdec; }
     bool levelling() const { return m_levelling; }
     bool local() const { return m_local; }
+    QString audioName() const { return m_audioName; }
     QVariantList chapters() const { return m_chapters; }
     double speed() const { return m_speed; }
     qint64 heldUntil() const { return m_heldUntil; }
@@ -96,6 +100,7 @@ public:
     void setHwdec(bool on);
     void setLevelling(bool on);
     void setLocal(bool on);
+    void setAudioName(const QString &name);
 
     void setPaused(bool paused);
     void setMuted(bool muted);
@@ -134,6 +139,7 @@ signals:
     void hwdecChanged();
     void levellingChanged();
     void localChanged();
+    void audioNameChanged();
     void chaptersChanged();
     void speedChanged();
     void heldChanged();
@@ -186,6 +192,7 @@ private:
     bool m_hwdec = true;
     bool m_levelling = false;
     bool m_local = false;
+    QString m_audioName = QStringLiteral("Game Companion");
     QVariantList m_chapters;
     double m_speed = 1.0;
     bool m_frozen = false;

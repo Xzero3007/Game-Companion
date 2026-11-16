@@ -54,9 +54,18 @@ Panel {
         const c = channel(key)
         return (c.preset && presetValues(c.preset)) || c.eq || [0, 0, 0, 0, 0, 0]
     }
+    /// What plays on a channel, one line each (same names counted):
+    /// Game Companion's own by what they are ("YouTube", "Radio").
     function appsOn(key) {
-        const n = apps.filter((a) => a.channel === key).map((a) => a.name)
-        return n.length > 0 ? n.join(", ") : "nothing plays"
+        const counts = {}
+        const order = []
+        for (const a of apps) {
+            if (a.channel !== key) continue
+            const n = (a.name || a.binary || "?").replace(/^Game Companion · /, "")
+            if (counts[n] === undefined) { counts[n] = 0; order.push(n) }
+            counts[n]++
+        }
+        return order.length > 0 ? order.map((n) => counts[n] > 1 ? n + " ×" + counts[n] : n) : ["nothing plays"]
     }
     function mic() { return prefs.mic || ({}) }
     function minLevel() { const v = mic().min_level; return v === undefined ? -50 : v }
@@ -743,16 +752,22 @@ Panel {
         readonly property var eq: panel.eqOf(key)
         readonly property bool presetsOpen: panel.presetsFor === key
         readonly property bool eqOpen: panel.eqFor === key
-        height: 44 + (presetsOpen ? presetFlow.height + 10 : 0) + (eqOpen ? eqBox.height + 10 : 0)
+        // Taller when more programs play on it: each on its own line.
+        readonly property real headH: Math.max(44, nameCol.height + 14)
+        height: headH + (presetsOpen ? presetFlow.height + 10 : 0) + (eqOpen ? eqBox.height + 10 : 0)
         color: "#1b1a20"
         Rectangle { x: 10; y: 9; width: 3; height: 26; color: panel.marks[ch.key] }
         Column {
+            id: nameCol
             x: 22; y: 7
             width: 112
             Text { style: Theme.textStyle(); styleColor: Theme.shadow
                 text: panel.names[ch.key].toUpperCase(); color: Theme.text()
                 font.family: Theme.display; font.pixelSize: 13; font.weight: Font.Bold; font.letterSpacing: 1.5 }
-            Small { width: parent.width; text: panel.appsOn(ch.key) }
+            Repeater {
+                model: panel.appsOn(ch.key)
+                delegate: Small { required property string modelData; width: nameCol.width; text: modelData; elide: Text.ElideRight }
+            }
         }
         VolumeBar {
             x: 138
@@ -804,7 +819,7 @@ Panel {
         Flow {
             id: presetFlow
             visible: ch.presetsOpen
-            x: 22; y: 44
+            x: 22; y: ch.headH
             width: parent.width - 32
             spacing: 6
             Repeater {
@@ -821,7 +836,7 @@ Panel {
         Item {
             id: eqBox
             visible: ch.eqOpen
-            x: 22; y: 44
+            x: 22; y: ch.headH
             width: parent.width - 32
             height: 150
             Row {

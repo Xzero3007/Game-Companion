@@ -719,6 +719,15 @@ pub fn parse_apps(inputs: &str, sinks: &str) -> Vec<App> {
         .collect()
 }
 
+/// The name shown for a stream: Game Companion's own say what they are.
+pub fn label(app: &App) -> String {
+    match app.name.as_str() {
+        "game-companion-radio" => "Game Companion · Radio".into(),
+        "Game Companion" => "Game Companion · Video".into(),
+        _ => app.name.clone(),
+    }
+}
+
 /// Our own chains' streams and EasyEffects' are never moved.
 fn is_own(a: &App) -> bool {
     a.node.starts_with("sonar_") || a.node.starts_with("gc_") || a.name == CLIENT || a.node.starts_with("ee_") || a.binary == "easyeffects"
