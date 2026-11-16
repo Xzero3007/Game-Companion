@@ -186,7 +186,7 @@ fn start(line: &Line) -> Option<Child> {
 fn play(file: &std::path::Path, volume: u8, rate: f32) -> Option<Child> {
     let mut command = Command::new("mpv");
     command
-        .args(["--no-config", "--no-video", "--no-terminal", "--really-quiet", "--ytdl=no", "--audio-display=no"])
+        .args(["--no-config", "--no-video", "--no-terminal", "--really-quiet", "--ytdl=no", "--audio-display=no", "--audio-client-name=Game Companion · Boss voice"])
         .arg(format!("--volume={}", crate::radio::mpv_volume(volume)))
         .arg(format!("--speed={:.2}", rate.clamp(0.5, 2.0)))
         .arg("--")

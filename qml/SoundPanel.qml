@@ -54,11 +54,21 @@ Panel {
         const c = channel(key)
         return (c.preset && presetValues(c.preset)) || c.eq || [0, 0, 0, 0, 0, 0]
     }
+    /// What plays on a channel, one line each (same names counted):
+    /// Game Companion's own by what they are ("YouTube", "Radio").
     function appsOn(key) {
-        const n = apps.filter((a) => a.channel === key).map((a) => a.name)
-        return n.length > 0 ? n.join(", ") : "nothing plays"
+        const counts = {}
+        const order = []
+        for (const a of apps) {
+            if (a.channel !== key) continue
+            const n = (a.name || a.binary || "?").replace(/^Game Companion · /, "")
+            if (counts[n] === undefined) { counts[n] = 0; order.push(n) }
+            counts[n]++
+        }
+        return order.length > 0 ? order.map((n) => counts[n] > 1 ? n + " ×" + counts[n] : n) : ["nothing plays"]
     }
     function mic() { return prefs.mic || ({}) }
+    function minLevel() { const v = mic().min_level; return v === undefined ? -50 : v }
     readonly property var micPresetHelp: ({
         "Flat": "Nothing changed: your mic as it is.",
         "Clear voice": "The everyday choice: a little less boom, a little more presence. Easy to follow in Legcord.",
@@ -250,6 +260,13 @@ Panel {
                         height: 14
                         Rectangle { anchors.fill: parent; color: Theme.trackDark }
                         Rectangle { height: parent.height; width: parent.width * Sound.level / 100; color: Sound.talking ? Theme.accent : Theme.track }
+                        // Where the level gate opens (the bar spans -60 to 0 dBFS).
+                        Rectangle {
+                            readonly property real at: panel.minLevel()
+                            visible: at > -60
+                            x: parent.width * (at + 60) / 60
+                            width: 2; height: parent.height; color: Theme.text()
+                        }
                         Accessible.role: Accessible.ProgressBar
                         Accessible.name: "Mic level " + Sound.level
                     }
@@ -262,6 +279,15 @@ Panel {
                         onPicked: (v) => Sound.setMic(JSON.stringify({ gain: Math.round(v) }))
                     }
                     Small { width: parent.width; wrapMode: Text.WordWrap; text: "Turns the mic up before anything else. Set it so the bar above reaches about two thirds when you talk normally. Too quiet, and the gate opens late." }
+                    SliderRow {
+                        width: parent.width
+                        label: "Floor"
+                        from: -70; to: -20; step: 1
+                        value: panel.minLevel()
+                        unit: " dB"
+                        onPicked: (v) => Sound.setMic(JSON.stringify({ min_level: Math.round(v) }))
+                    }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: panel.minLevel() <= -70 ? "Off: only the voice filter decides." : (panel.st.levelGate ? "The mic stays shut below this level (the white mark on the bar), so hiss and what is left of the speakers stay out between words. Talk normally: your voice should end well right of the mark. Too far right, and quiet words are cut." : "Needs swh-plugins.") }
                     SliderRow {
                         width: parent.width
                         label: "Opens at"
@@ -294,6 +320,22 @@ Panel {
                     Small { width: parent.width; wrapMode: Text.WordWrap; text: "On with speakers: what they play is taken back out of the mic. Off with a headset: nothing to take out, and the voice stays untouched." }
                     SwitchRow {
                         width: parent.width
+                        text: "Duck while I talk"
+                        checked: panel.mic().duck === true
+                        onToggled: (v) => Sound.setMic(JSON.stringify({ duck: v }))
+                    }
+                    SliderRow {
+                        visible: panel.mic().duck === true
+                        width: parent.width
+                        label: "Quieter by"
+                        from: -30; to: -3; step: 1
+                        value: panel.mic().duck_db === undefined ? -12 : panel.mic().duck_db
+                        unit: " dB"
+                        onPicked: (v) => Sound.setMic(JSON.stringify({ duck_db: Math.round(v) }))
+                    }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "While you talk, everything the computer plays (game, chat, videos, music) gets quieter, and comes back half a second after you stop. Less of the speakers reaches the mic, so the echo canceller takes out less of you: on with speakers, when you sound like under water while a video or Discord talks. -12 dB is clearly quieter; -6 dB if you still want to hear everyone well. Not needed with a headset. The stream mix (Game Companion Stream) keeps the full sound." }
+                    SwitchRow {
+                        width: parent.width
                         text: "Extra noise suppression"
                         checked: panel.mic().extra_ns === true
                         onToggled: (v) => Sound.setMic(JSON.stringify({ extra_ns: v }))
@@ -316,17 +358,25 @@ Panel {
                     Small { visible: !panel.st.rnnoise; width: parent.width; wrapMode: Text.WordWrap; color: Theme.red; text: "Install noise-suppression-for-voice: without it the mic does not open and close by itself." }
                     SwitchRow {
                         width: parent.width
-                        text: "Clean up: no rumble, even out loud and quiet words"
+                        text: "Clean up: no rumble"
                         checked: panel.mic().voice !== false
                         onToggled: (v) => Sound.setMic(JSON.stringify({ voice: v }))
                     }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "Cuts the hum and rumble below 80 Hz (desk, fan, mains): the voice itself is not touched. Leave it on." }
+                    SwitchRow {
+                        width: parent.width
+                        text: "Even out"
+                        checked: panel.mic().even_out === true
+                        onToggled: (v) => Sound.setMic(JSON.stringify({ even_out: v }))
+                    }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: !panel.st.compressor ? "Needs swh-plugins." : "A gentle compressor: loud words a little quieter, so loud and quiet ones sit closer together. On if you get loud in a fight and people turn you down; off if your voice seems to rise and fall by itself." }
                     Item {
                         width: parent.width
                         height: 22
-                        Line { anchors.verticalCenter: parent.verticalCenter; text: "Compressor and limiter" }
-                        Small { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: panel.st.compressor && panel.st.limiter ? "installed" : "needs swh-plugins"; color: panel.st.compressor && panel.st.limiter ? Theme.accent : Theme.red }
+                        Line { anchors.verticalCenter: parent.verticalCenter; text: "Limiter" }
+                        Small { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: panel.st.limiter ? "always on" : "needs swh-plugins"; color: panel.st.limiter ? Theme.accent : Theme.red }
                     }
-                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "Clean up cuts the hum below 80 Hz and brings loud and quiet words closer together: leave it on. The limiter at the end never lets the mic go past full, however loud." }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "At the very end: never lets the mic go past full, however loud you shout. You don't hear it work." }
                     Head { text: "HEAR IT"; topPadding: 6 }
                     Chip {
                         text: Sound.hearing === "recording" ? "Recording… talk now" : Sound.hearing === "playing" ? "Playing back…" : "Record 10 s and play back"
@@ -702,16 +752,22 @@ Panel {
         readonly property var eq: panel.eqOf(key)
         readonly property bool presetsOpen: panel.presetsFor === key
         readonly property bool eqOpen: panel.eqFor === key
-        height: 44 + (presetsOpen ? presetFlow.height + 10 : 0) + (eqOpen ? eqBox.height + 10 : 0)
+        // Taller when more programs play on it: each on its own line.
+        readonly property real headH: Math.max(44, nameCol.height + 14)
+        height: headH + (presetsOpen ? presetFlow.height + 10 : 0) + (eqOpen ? eqBox.height + 10 : 0)
         color: "#1b1a20"
         Rectangle { x: 10; y: 9; width: 3; height: 26; color: panel.marks[ch.key] }
         Column {
+            id: nameCol
             x: 22; y: 7
             width: 112
             Text { style: Theme.textStyle(); styleColor: Theme.shadow
                 text: panel.names[ch.key].toUpperCase(); color: Theme.text()
                 font.family: Theme.display; font.pixelSize: 13; font.weight: Font.Bold; font.letterSpacing: 1.5 }
-            Small { width: parent.width; text: panel.appsOn(ch.key) }
+            Repeater {
+                model: panel.appsOn(ch.key)
+                delegate: Small { required property string modelData; width: nameCol.width; text: modelData; elide: Text.ElideRight }
+            }
         }
         VolumeBar {
             x: 138
@@ -763,7 +819,7 @@ Panel {
         Flow {
             id: presetFlow
             visible: ch.presetsOpen
-            x: 22; y: 44
+            x: 22; y: ch.headH
             width: parent.width - 32
             spacing: 6
             Repeater {
@@ -780,7 +836,7 @@ Panel {
         Item {
             id: eqBox
             visible: ch.eqOpen
-            x: 22; y: 44
+            x: 22; y: ch.headH
             width: parent.width - 32
             height: 150
             Row {

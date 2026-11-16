@@ -645,14 +645,32 @@ learnt, so nothing has to be asked or worked out again.
   mic chain is gain (`Mic.gain`, 0 to 30 dB, default 12: MN's UR22 was
   quiet without EasyEffects' auto gain) → rnnoise → mic EQ (`VOICE_BANDS`
   m1–m5, `VOICE_PRESETS`, own ones in `mic_presets`; gain, gate and EQ
-  change live, `gate_params`) → clean up (hp + sc4m) → swh's
+  change live, `gate_params`), after rnnoise swh's gate as a level gate
+  (`Mic.min_level`, "Floor", default −50 dBFS, −70 off, white mark
+  on the meter; MN 0.8.66: a constant floor in Legcord) → Clean up (hp
+  80 Hz, 5 Hz when off) → Even out (sc4m, gentle 2:1 above −24 dB, 300 ms
+  release, 1:1 when off, default off; MN 2026-11-16: the old 3:1/150 ms in
+  Clean up made the voice pump; both always in the chain and switched live)
+  → swh's
   fastLookaheadLimiter at −1 dBFS, both its inputs fed (one left open
   crashed the child on the bench) and the graph's `inputs`/`outputs`
   named; echo canceller switches `extra_ns` (WebRTC noise suppression,
   "aquarium" with music, default off) and `auto_level` (WebRTC AGC), stream mix: loopbacks from
   the channels' monitors and the mic into `gc_stream_in`, OBS records the
   source `gc_stream` (a client can't make a null sink: a copy filter chain).
-  It all runs in a `pipewire -c $XDG_RUNTIME_DIR/game-companion-sound.conf`
+  What other programs pick lives in a second child, the front
+  (`front_config`, game-companion-sound-front.conf: `gc_mic` as a copy fed
+  by `gc_mic.feed`, and the stream mix), restarted only when the mic or the
+  stream mix comes or goes: the chains' end `gc_mic.raw` (a plain output,
+  autoconnect off) is linked to it with `pw-link -P` after either starts
+  (`link_mic`), so OBS keeps its mic over a restart (MN 2026-11-16: had to
+  pick it again after every change; bench: a running recording went on).
+  Duck while I talk (`Mic.duck`, `duck_db` −3 to −30, default off / −12):
+  every channel ends in a `duck` linear node; a `parec` of `gc_mic` (8 kHz,
+  40 ms) on its own thread (`Ducking`: down at once, held 500 ms, up 4 dB
+  per 40 ms) sets `duck:Mult` live, only while on (MN's HS7 monitors: the
+  echo canceller took MN out while a video or Discord talked).
+  The chains run in a `pipewire -c $XDG_RUNTIME_DIR/game-companion-sound.conf`
   child (PR_SET_PDEATHSIG from the `sound` worker thread): nothing in
   ~/.config/pipewire, the system's PipeWire never restarted; virtual nodes
   have priority 0 and a default that became ours is put back. `pactl

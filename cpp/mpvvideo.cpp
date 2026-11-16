@@ -322,6 +322,9 @@ bool MpvVideo::ensureStarted()
         mpv().set_option_string(m_mpv, "vo", "null");
     }
     mpv().set_option_string(m_mpv, "volume", QByteArray::number(m_volume, 'f', 0).constData());
+    // Named after its window in the mixer (Sound → APPS, MN 2026-11-16:
+    // two rows "Game Companion" said nothing).
+    mpv().set_option_string(m_mpv, "audio-client-name", m_audioName.toUtf8().constData());
     if (mpv().initialize(m_mpv) < 0) {
         mpv().terminate_destroy(m_mpv);
         m_mpv = nullptr;
@@ -589,6 +592,16 @@ void MpvVideo::setLocal(bool on)
     }
     m_local = on;
     emit localChanged();
+}
+
+void MpvVideo::setAudioName(const QString &name)
+{
+    // Only before mpv starts: its options are set once.
+    if (m_audioName == name || name.isEmpty() || m_mpv) {
+        return;
+    }
+    m_audioName = name;
+    emit audioNameChanged();
 }
 
 void MpvVideo::setTrack(const QString &kind, int id)
