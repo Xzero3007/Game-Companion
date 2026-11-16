@@ -1339,7 +1339,7 @@ Panel {
             width: ListView.view.width
             height: 79
             readonly property bool current: panel.playingTwitch === modelData.login
-            readonly property bool fav: panel.favs.indexOf(modelData.login.toLowerCase()) >= 0
+            readonly property bool fav: panel.favs.indexOf((modelData.login || "").toLowerCase()) >= 0
             Rectangle {
                 anchors.fill: parent
                 color: row.current ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.10) : (rowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.03) : "transparent")
@@ -1662,8 +1662,8 @@ Panel {
             id: tile
             required property var modelData
             current: panel.playingTwitch === modelData.login
-            readonly property bool fav: panel.favs.indexOf(modelData.login.toLowerCase()) >= 0
-            picture: modelData.live ? modelData.picture : modelData.avatar
+            readonly property bool fav: panel.favs.indexOf((modelData.login || "").toLowerCase()) >= 0
+            picture: (modelData.live ? modelData.picture : modelData.avatar) || ""
             dimmed: !modelData.live
             onClicked: modelData.live ? panel.playTwitch(modelData) : panel.openRecordings(modelData)
             Rectangle {
@@ -2323,7 +2323,7 @@ Panel {
             width: Math.max(18, unplayedText.implicitWidth + 8)
             height: 18
             color: item && item.played ? Theme.accent : Qt.rgba(0, 0, 0, 0.75)
-            HudIcon { visible: !!item && item.played; anchors.centerIn: parent; name: "check"; size: 12; lineWidth: 2.6; color: "#0c0c0f" }
+            HudIcon { visible: !!(item && item.played); anchors.centerIn: parent; name: "check"; size: 12; lineWidth: 2.6; color: "#0c0c0f" }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 id: unplayedText
                 visible: !!item && !item.played && item.unplayed > 0

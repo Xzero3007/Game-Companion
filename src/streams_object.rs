@@ -2120,7 +2120,7 @@ impl qobject::Streams {
 
     fn save_opacity(self: Pin<&mut Self>, slot: &QString, percent: i32) {
         let slot = slot.to_string();
-        if slot == "twitch" || slot == "youtube" || slot == "chat" || slot == "dps" {
+        if matches!(slot.as_str(), "twitch" | "youtube" | "jellyfin" | "chat" | "dps") {
             let p = percent.clamp(if slot == "chat" || slot == "dps" { 10 } else { 50 }, 100) as u8;
             settings::change(|s| s.streams.video_opacity.insert(slot.clone(), p));
         }

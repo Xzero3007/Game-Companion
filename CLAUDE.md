@@ -195,7 +195,15 @@ learnt, so nothing has to be asked or worked out again.
   (close-on-exec, so mpv and the installer never inherit it); a second
   start prints "already running" and ends. Ending cleanly: mpv children die
   with the app (PR_SET_PDEATHSIG); for an update the app quits and, if Qt
-  hangs, exits after 5 s anyway (the installer waits for its pid).
+  hangs, exits after 5 s anyway (the installer waits for its pid). On
+  SIGTERM/SIGINT/SIGHUP it quits as "Turn off" does, ends hard after 10 s
+  and logs the step it hung at (`main.rs` `QuitStep`; `gc_loop_ended`
+  marks Qt's loop ending) as `end: forced`. Calls to KWin time out after
+  2 s (`KWIN_CALL_TIMEOUT`; zbus waits for ever by default), after one
+  timeout the rest are skipped (`Kwin.stuck`, reset by `watch`): at logout
+  KWin kept its bus name but stopped answering and `apps::quit` hung (MN,
+  0.8.57). Check: `dbus-run-session` with a made-up KWin that stops
+  answering, then SIGTERM (project folder `arch-test/quit-hang/`).
 - The app's log (`src/log.rs`, MN 2026-11-15: "bau ein log ein", "nein zu
   persönlichen daten und mehr daten als nötig"):
   `~/.cache/game-companion/game-companion.log`, moved to `.log.1` past 2 MB,
@@ -279,7 +287,13 @@ learnt, so nothing has to be asked or worked out again.
   `Main` `onStarted` keeps the arrangement (`Companion.keepBeforeGame`,
   settings `before_game`/`before_game_for`, kept over a restart during
   that game) and loads the layout; `onStopped` → `backFromGame` brings it
-  back if `layout_back` (default on).
+  back if `layout_back` (default on). The Desktop layout (MN, 2026-11-16;
+  settings `desktop_layout`, `Companion.setDesktop`, the "Desktop" chip
+  under "Games") loads at the app's start (`restoreOpen` →
+  `loadDesktop`) and when a game ends (wins over `before_game`). Layouts
+  also keep `streams.video_opacity` (`opacities`: Twitch, YouTube,
+  Jellyfin, chat, DPS; old layouts leave it); VideoWindow, ChatPanel and
+  DpsPanel read it again on `layoutRevision`.
 - Streams (`src/streams.rs`, `src/streams_object.rs`, `qml/StreamsPanel.qml`,
   `qml/VideoWindow.qml`): ported from meter patches 0047, 0059 to 0061, 0068
   and the plugin. Requests through curl with its settings on stdin
@@ -577,6 +591,47 @@ learnt, so nothing has to be asked or worked out again.
   ("Stays after talking"). `GC_DEMO=voice`. Check end to end: Electron 44
   with Legcord's loader and a made-up Discord page (project folder
   `mockups/legcord-voice/e2e/`).
+- Sound module (MN, 2026-11-15: "Sonar light" taken in; plan in the
+  project folder `sound/` and the doc "Sound-Modul: Bauplan"; MN's logs:
+  EasyEffects' 20 filters caused the dropouts, without it none):
+  `src/sound.rs`, `src/sound_object.rs` (the `Sound` singleton). Channels
+  `sonar_game/chat/media/music` (filter chains, pre-gain + 5 biquads,
+  Sonar light's presets), echo reference `gc_echo_ref` they all play
+  through when the mic chain is on (WebRTC echo-cancel, speakers instead of
+  a headset), mic chain → source `gc_mic` "Game Companion Mikro" (rnnoise
+  with its VAD as the voice gate, voice EQ, sc4m compressor if installed;
+  takes one input with `stream.dont-remix`), stream mix: loopbacks from
+  the channels' monitors and the mic into `gc_stream_in`, OBS records the
+  source `gc_stream` (a client can't make a null sink: a copy filter chain).
+  It all runs in a `pipewire -c $XDG_RUNTIME_DIR/game-companion-sound.conf`
+  child (PR_SET_PDEATHSIG from the `sound` worker thread): nothing in
+  ~/.config/pipewire, the system's PipeWire never restarted; virtual nodes
+  have priority 0 and a default that became ours is put back. `pactl
+  subscribe` → new streams moved (`channel_for`: fixed route, running game
+  by comm/environ SteamAppId up the parents, Legcord → chat, players →
+  music, rest → media); EQ (`pw-cli set-param` "bN:Gain"), volumes/ChatMix
+  (`pactl set-sink-volume`), gate and sends live. Off by default
+  (settings `sound`). Check without hardware: PipeWire 1.0 from apt,
+  `pipewire &`, `dbus-run-session -- wireplumber &`, `pipewire-pulse &`,
+  null sinks as fake devices, then the ignored test
+  `write_config_for_bench` (GC_SOUND_CONF, GC_SOUND_MIC) and `pipewire -c`,
+  or the app itself with `sound.on` in a scratch settings.json.
+  Panel (canvas page "Sound", MIXER variant A; MN 2026-11-16):
+  `qml/SoundPanel.qml` (MIXER: volume, preset and EQ in place per channel,
+  ChatMix; MIC: input, Input 1/2 = FL/FR, mapped to AUX0/AUX1 on Pro Audio,
+  gate, echo, voice, "Record 10 s and play back" = `Sound.hear`; APPS;
+  STREAM: sends and the OBS tracks), SOUND always in the bar, a right click
+  opens `qml/SoundRow.qml` (quick row under the player row, pinnable,
+  id `sound-row`). The mic's meter (`Sound.level`, `Sound.talking`) is a
+  `parec` of `gc_mic` (pw-record 1.0 has no raw output) read on its own
+  thread, told only on a change, and runs only while the MIC tab or the
+  quick row shows (`Main.soundMeter`; kept until the worker runs). MN
+  switches Legcord's own noise filter, echo and auto gain off.
+  `GC_DEMO=sound[,soundmic|,soundapps|,soundstream|,soundeq][,soundee]`,
+  `soundrow`. Test signal without hardware: `pactl load-module
+  module-pipe-source source_name=pipe_mic file=/tmp/pipe_mic format=s16le
+  rate=48000 channels=1` as the mic device and raw samples written to the
+  fifo (our router moves every playing stream, also one aimed at a sink).
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
 - Video loudness (MN, 2026-11-14: videos quieter than the radio, which is

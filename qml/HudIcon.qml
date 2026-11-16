@@ -60,6 +60,8 @@ Item {
         "history": "M3 12a9 9 0 1 0 2.6-6.4M3 4v5h5 M12 8v4l3 2",
         "send": "M4 12l16-8-6 16-3-7z",
         "plus": "M12 5v14M5 12h14",
+        "equalizer": "M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4",
+        "mic": "M9 3h6v10H9z M5 11a7 7 0 0 0 14 0 M12 18v3",
         "volume": "M11 5 6 9H2v6h4l5 4z M15.5 8.5a5 5 0 0 1 0 7",
         "prev": "M19 5 9 12l10 7z M5 5v14",
         "next": "M5 5l10 7-10 7z M19 5v14",

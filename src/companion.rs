@@ -37,6 +37,8 @@ pub mod qobject {
         /// A game's layout ends: the arrangement from before it comes back
         /// (settings `layout_back`).
         #[qproperty(bool, layout_back)]
+        /// The layout for the desktop, without a game ("" = none).
+        #[qproperty(QString, desktop_layout)]
         /// Whether the icon shows in the desktop's tray.
         #[qproperty(bool, tray)]
         /// How solid the panels are, 0.05 to 1. QML may set it while a
@@ -228,6 +230,15 @@ pub mod qobject {
         #[qinvokable]
         fn set_layout_back_on(self: Pin<&mut Companion>, on: bool);
 
+        /// Makes a layout the desktop's ("" = none).
+        #[qinvokable]
+        fn set_desktop(self: Pin<&mut Companion>, name: &QString);
+
+        /// Loads the desktop's layout if there is one; returns the panels
+        /// to open as a JSON list ("" if nothing was loaded).
+        #[qinvokable]
+        fn load_desktop(self: Pin<&mut Companion>) -> QString;
+
         /// Opens KDE's shortcut settings, to change the keys.
         #[qinvokable]
         fn open_shortcut_settings(self: &Companion) -> bool;
@@ -247,6 +258,7 @@ pub struct CompanionRust {
     autostart_mode: QString,
     show_on_game: bool,
     layout_back: bool,
+    desktop_layout: QString,
     tray: bool,
     alpha: f64,
     text_level: f64,
@@ -279,7 +291,8 @@ impl Default for CompanionRust {
             (s.text_level, numbers_json(&s.alpha_presets), numbers_json(&s.text_presets), s.bar)
         });
         let (accent_level, accent_presets) = settings::read(|s| (s.accent_level, numbers_json(&s.accent_presets)));
-        let (show_on_game, tray, layout_back) = settings::read(|s| (s.show_on_game, s.tray, s.layout_back));
+        let (show_on_game, tray, layout_back, desktop_layout) =
+            settings::read(|s| (s.show_on_game, s.tray, s.layout_back, QString::from(&s.desktop_layout)));
         let wheel_speed = settings::read(|s| settings::clamp_wheel_speed(s.wheel_speed as i32)) as i32;
         let shortcut_state: Vec<_> = shortcuts::ALL.iter().map(|s| (s.id, shortcuts::Status::Bound(None))).collect();
         Self {
@@ -292,6 +305,7 @@ impl Default for CompanionRust {
             autostart_mode: QString::from(autostart_mode()),
             show_on_game,
             layout_back,
+            desktop_layout,
             tray,
             alpha,
             text_level,
@@ -795,7 +809,7 @@ impl qobject::Companion {
         self.show_layout(loaded)
     }
 
-    fn rename_layout(self: Pin<&mut Self>, name: &QString, new_name: &QString) -> bool {
+    fn rename_layout(mut self: Pin<&mut Self>, name: &QString, new_name: &QString) -> bool {
         let name = name.to_string();
         let Some(new_name) = settings::layout_name(&new_name.to_string()) else { return false };
         let json = settings::change(|s| {
@@ -809,26 +823,34 @@ impl qobject::Companion {
                     *game_layout = new_name.clone();
                 }
             }
+            if s.desktop_layout == name {
+                s.desktop_layout = new_name.clone();
+            }
             s.layouts.insert(new_name, layout);
-            Some(layouts_json(&s.layouts))
+            Some((layouts_json(&s.layouts), s.desktop_layout.clone()))
         });
         match json {
-            Some(json) => {
-                self.set_layouts(QString::from(&json));
+            Some((json, desktop)) => {
+                self.as_mut().set_layouts(QString::from(&json));
+                self.set_desktop_layout(QString::from(&desktop));
                 true
             }
             None => false,
         }
     }
 
-    fn delete_layout(self: Pin<&mut Self>, name: &QString) {
+    fn delete_layout(mut self: Pin<&mut Self>, name: &QString) {
         let name = name.to_string();
-        let json = settings::change(|s| {
+        let (json, desktop) = settings::change(|s| {
             s.layouts.remove(&name);
             s.games.layouts.retain(|_, l| *l != name);
-            layouts_json(&s.layouts)
+            if s.desktop_layout == name {
+                s.desktop_layout.clear();
+            }
+            (layouts_json(&s.layouts), s.desktop_layout.clone())
         });
-        self.set_layouts(QString::from(&json));
+        self.as_mut().set_layouts(QString::from(&json));
+        self.set_desktop_layout(QString::from(&desktop));
     }
 
     fn keep_before_game(self: Pin<&mut Self>, game: &QString, open: &QString) {
@@ -845,8 +867,30 @@ impl qobject::Companion {
     fn back_from_game(self: Pin<&mut Self>) -> QString {
         let loaded = settings::change(|s| {
             s.before_game_for.clear();
-            let layout = s.before_game.take()?;
+            let before = s.before_game.take();
+            // The desktop's layout wins over the arrangement from before.
+            if let Some(desktop) = s.layouts.get(&s.desktop_layout).cloned() {
+                return Some(apply_layout(s, desktop));
+            }
+            let layout = before?;
             s.layout_back.then(|| apply_layout(s, layout))
+        });
+        self.show_layout(loaded)
+    }
+
+    fn set_desktop(self: Pin<&mut Self>, name: &QString) {
+        let name = name.to_string();
+        let desktop = settings::change(|s| {
+            s.desktop_layout = if s.layouts.contains_key(&name) { name } else { String::new() };
+            s.desktop_layout.clone()
+        });
+        self.set_desktop_layout(QString::from(&desktop));
+    }
+
+    fn load_desktop(self: Pin<&mut Self>) -> QString {
+        let loaded = settings::change(|s| {
+            let desktop = s.layouts.get(&s.desktop_layout).cloned()?;
+            Some(apply_layout(s, desktop))
         });
         self.show_layout(loaded)
     }
@@ -875,6 +919,7 @@ fn current_layout(s: &settings::Settings, open: Vec<String>) -> settings::Layout
         text_level: Some(s.text_level),
         accent_level: Some(s.accent_level),
         bar: Some(s.bar),
+        opacities: Some(s.streams.video_opacity.clone()),
     }
 }
 
@@ -901,6 +946,9 @@ fn apply_layout(s: &mut settings::Settings, layout: settings::Layout) -> Applied
     }
     if let Some(bar) = layout.bar {
         s.bar = bar.tidy();
+    }
+    if let Some(opacities) = layout.opacities {
+        s.streams.video_opacity.extend(opacities);
     }
     Applied {
         open: layout.open,
@@ -932,6 +980,21 @@ impl qobject::Companion {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn layouts_keep_video_opacities_and_old_ones_leave_them() {
+        let mut s = settings::Settings::default();
+        s.streams.video_opacity.insert("jellyfin".into(), 60);
+        let kept = current_layout(&s, vec![]);
+        s.streams.video_opacity.insert("jellyfin".into(), 100);
+        s.streams.video_opacity.insert("chat".into(), 40);
+        apply_layout(&mut s, kept);
+        assert_eq!(s.streams.video_opacity.get("jellyfin"), Some(&60));
+        assert_eq!(s.streams.video_opacity.get("chat"), Some(&40));
+        let old: settings::Layout = serde_json::from_str(r#"{"alpha":0.5}"#).unwrap();
+        apply_layout(&mut s, old);
+        assert_eq!(s.streams.video_opacity.get("jellyfin"), Some(&60));
+    }
 
     #[test]
     fn shortcuts_json_shows_suggested_keys_first() {

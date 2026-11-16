@@ -31,6 +31,11 @@ Item {
     property int volume: Streams.volume
     /// How much of the video shows (0.5 to 1), kept for each window.
     property real videoOpacity: Streams.opacityOf(slot) / 100
+    // A layout was loaded: its opacity for this window.
+    Connections {
+        target: Companion
+        function onLayoutRevisionChanged() { win.videoOpacity = Streams.opacityOf(win.slot) / 100 }
+    }
     function setOpacity(o) {
         videoOpacity = Math.max(0.5, Math.min(1, Math.round(o * 10) / 10))
         Streams.saveOpacity(slot, Math.round(videoOpacity * 100))

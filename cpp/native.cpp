@@ -39,6 +39,7 @@
 extern "C" {
 // src/native.rs: what the Rust side tidies when the app ends.
 void gc_about_to_quit();
+void gc_loop_ended();
 // src/log.rs: one Qt or QML message into the app's log.
 void gc_log_qt(int kind, const char *text);
 // src/log.rs: one line into the app's log.
@@ -52,7 +53,11 @@ QtMessageHandler previousHandler = nullptr;
 // before.
 void logMessage(QtMsgType type, const QMessageLogContext &context, const QString &message)
 {
-    if (type != QtDebugMsg && type != QtInfoMsg) {
+    // Qt asks the portal to register the app id once per part that uses
+    // the session bus; the second ask is refused and harmless.
+    const bool harmless = message.startsWith(QLatin1String("Failed to register with host portal"))
+                          && message.contains(QLatin1String("already associated with an application ID"));
+    if (type != QtDebugMsg && type != QtInfoMsg && !harmless) {
         QString text = message;
         if (context.file && type != QtFatalMsg) {
             text += QStringLiteral(" (%1:%2)").arg(QString::fromUtf8(context.file)).arg(context.line);
@@ -576,7 +581,10 @@ int32_t gc_run()
     }
     // The single-instance socket file goes when the app quits normally.
     QObject::connect(&app, &QCoreApplication::aboutToQuit, []() { gc_about_to_quit(); });
-    return app.exec();
+    const int code = app.exec();
+    // For the log, should taking the windows and the QML down hang.
+    gc_loop_ended();
+    return code;
 }
 
 void gc_quit()
