@@ -571,6 +571,31 @@ learnt, so nothing has to be asked or worked out again.
   ("Stays after talking"). `GC_DEMO=voice`. Check end to end: Electron 44
   with Legcord's loader and a made-up Discord page (project folder
   `mockups/legcord-voice/e2e/`).
+- Sound module (MN, 2026-11-15: "Sonar light" taken in; plan in the
+  project folder `sound/` and the doc "Sound-Modul: Bauplan"; MN's logs:
+  EasyEffects' 20 filters caused the dropouts, without it none):
+  `src/sound.rs`, `src/sound_object.rs` (the `Sound` singleton). Channels
+  `sonar_game/chat/media/music` (filter chains, pre-gain + 5 biquads,
+  Sonar light's presets), echo reference `gc_echo_ref` they all play
+  through when the mic chain is on (WebRTC echo-cancel, speakers instead of
+  a headset), mic chain → source `gc_mic` "Game Companion Mikro" (rnnoise
+  with its VAD as the voice gate, voice EQ, sc4m compressor if installed;
+  takes one input with `stream.dont-remix`), stream mix: loopbacks from
+  the channels' monitors and the mic into `gc_stream_in`, OBS records the
+  source `gc_stream` (a client can't make a null sink: a copy filter chain).
+  It all runs in a `pipewire -c $XDG_RUNTIME_DIR/game-companion-sound.conf`
+  child (PR_SET_PDEATHSIG from the `sound` worker thread): nothing in
+  ~/.config/pipewire, the system's PipeWire never restarted; virtual nodes
+  have priority 0 and a default that became ours is put back. `pactl
+  subscribe` → new streams moved (`channel_for`: fixed route, running game
+  by comm/environ SteamAppId up the parents, Legcord → chat, players →
+  music, rest → media); EQ (`pw-cli set-param` "bN:Gain"), volumes/ChatMix
+  (`pactl set-sink-volume`), gate and sends live. Off by default
+  (settings `sound`). Check without hardware: PipeWire 1.0 from apt,
+  `pipewire &`, `dbus-run-session -- wireplumber &`, `pipewire-pulse &`,
+  null sinks as fake devices, then the ignored test
+  `write_config_for_bench` (GC_SOUND_CONF, GC_SOUND_MIC) and `pipewire -c`,
+  or the app itself with `sound.on` in a scratch settings.json.
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
 - Video loudness (MN, 2026-11-14: videos quieter than the radio, which is

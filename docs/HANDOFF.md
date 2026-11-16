@@ -1130,3 +1130,17 @@ project folder `poe2-session-plan.md`; no GGG API, no network). Part 1:
     (BACKLOG L1b).
 - To check on the real game: the exact Client.txt lines of PoE 2 (area ids,
   "[SCENE]" lines, German texts), and that AFK turns on by itself.
+
+## Branch `claude/project-thread-fzph43` (from beta): sound module backend
+
+MN approved the plan (doc "Sound-Modul: Bauplan", 2026-11-15). Done: the
+backend (`src/sound.rs`, `src/sound_object.rs`, see CLAUDE.md "Sound
+module"), wired in Main (`Sound.begin()`, `Sound.setGame`). Checked against
+a headless PipeWire 1.0: channels, echo reference, mic chain and stream mix
+appear and link as planned, live EQ lands, a new stream is moved onto
+Medien, the default output stays, the chains end with the app.
+Not yet: the panel (design on the canvas first: MIXER, MIKRO, APPS, STREAM
+tabs, bar button SOUND), Settings → Sound (on/off, mic device), the mic
+test on MN's UR22 + HS7 (`sound/mikro-probe/` in the project folder), load
+measurement with `ton-log.sh`.
+
