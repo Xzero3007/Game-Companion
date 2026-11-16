@@ -1162,3 +1162,16 @@ headless PipeWire, 222 tests, clippy.
 Not yet: the mic test on MN's UR22 + HS7 (`sound/mikro-probe/` in the
 project folder), load measurement with `ton-log.sh`, QA and a beta.
 
+
+## Branch `claude/project-thread-ejzcy3` (from beta): Get Proton
+
+MN, 2026-11-16 ("ja" to the plan in the project folder
+`proton-download/plan.md`; GE-Proton and Proton-CachyOS only, targets Steam
+and Heroic, release notes and a release link in the app, "do I need it").
+`src/proton_get.rs`, `src/proton_object.rs` (`ProtonGet`),
+`qml/ProtonDownloads.qml` at the top of the Proton overview; see CLAUDE.md
+"Get Proton". Checked: unit tests (addresses, asset pick per CPU, checksum
+lines, versions, notes and named games, unpack into place, leftovers),
+demo screenshots `GC_DEMO=games,proton[,protonjob]`. The sandbox can't
+reach api.github.com for these repositories: the real release list and a
+real download (and quitting during one) are for the Arch bench / QA.
