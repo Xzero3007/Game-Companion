@@ -345,6 +345,17 @@ fn watched() -> &'static Mutex<Arc<Matcher>> {
     WATCHED.get_or_init(|| Mutex::new(Arc::new(Matcher::default())))
 }
 
+/// What the sound module needs to find a running game's streams: its
+/// process names (lower case) and Steam app id.
+pub fn game_audio(id: &str) -> Option<crate::sound::GameAudio> {
+    if id.is_empty() {
+        return None;
+    }
+    let matcher = watched().lock().unwrap_or_else(|p| p.into_inner()).clone();
+    let game = matcher.games.iter().find(|g| g.id == id)?;
+    Some(crate::sound::GameAudio { processes: game.processes.iter().map(|p| p.to_lowercase()).collect(), steam_appid: game.steam_appid })
+}
+
 fn home() -> Option<PathBuf> {
     std::env::var_os("HOME").map(PathBuf::from).filter(|p| p.is_absolute())
 }

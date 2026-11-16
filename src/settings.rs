@@ -89,6 +89,8 @@ pub struct Settings {
     /// The PoE 2 price check's choices (league, on), as QML keeps them
     /// (`qml/poe2/PriceStore.qml`); empty takes the defaults.
     pub poe2: serde_json::Map<String, serde_json::Value>,
+    /// The sound module (channels, mic chain, stream mix; `sound`).
+    pub sound: crate::sound::SoundSettings,
 }
 
 /// One plugin's choice: on or off, and where its button sits.
@@ -442,6 +444,7 @@ impl Default for Settings {
             apps_over_full: true,
             voice: serde_json::Map::new(),
             poe2: serde_json::Map::new(),
+            sound: crate::sound::SoundSettings::default(),
         }
     }
 }

@@ -163,6 +163,8 @@ Overlay {
         if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
         Streams.begin()
         Apps.begin(); VoiceChat.begin()
+        // The sound module: channels, mic chain, stream mix (only if on).
+        Sound.begin(); Sound.setGame(Games.running)
         if (demo.indexOf("appmenu") >= 0) bar.menuFor = "brave"
     }
 
@@ -196,6 +198,7 @@ Overlay {
     Connections {
         target: Games
         function onStopped(id) {
+            Sound.setGame("")
             // Brave and Legcord back where and how they were.
             Apps.gameStopped()
             if (id === root.aionId && Aion2.active) {
@@ -210,6 +213,7 @@ Overlay {
             root.shownForGame = false
         }
         function onStarted(id) {
+            Sound.setGame(id)
             Apps.gameStarted(Games.runningKnown)
             // AION 2's module reads while the game runs.
             if (Games.runningKnown === "aion2") root.aionStarted(id)

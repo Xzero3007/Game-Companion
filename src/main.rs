@@ -34,6 +34,8 @@ mod radio;
 mod radio_object;
 mod settings;
 mod shortcuts;
+mod sound;
+mod sound_object;
 mod sponsorblock;
 mod start_with;
 mod streams;
