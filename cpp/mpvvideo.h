@@ -4,6 +4,7 @@
 // (import GameCompanion.Video).
 #pragma once
 
+#include <QtCore/QElapsedTimer>
 #include <QtCore/QObject>
 #include <QtCore/QString>
 #include <QtCore/QVariantList>
@@ -41,6 +42,9 @@ class MpvVideo : public QQuickFramebufferObject
     /// For the home network's server (Jellyfin): set before the first video.
     /// No yt-dlp, no mpv scripts, no proxy: mpv goes straight to the address.
     Q_PROPERTY(bool local READ local WRITE setLocal NOTIFY localChanged)
+    /// The name its sound has in the system's mixer (e.g. "Game Companion ·
+    /// YouTube"): set before the first video.
+    Q_PROPERTY(QString audioName READ audioName WRITE setAudioName NOTIFY audioNameChanged)
     /// The video's chapters: [{title, time}] (time in seconds).
     Q_PROPERTY(QVariantList chapters READ chapters NOTIFY chaptersChanged)
     /// How fast it plays (1 = as recorded).
@@ -80,6 +84,7 @@ public:
     bool hwdec() const { return m_hwdec; }
     bool levelling() const { return m_levelling; }
     bool local() const { return m_local; }
+    QString audioName() const { return m_audioName; }
     QVariantList chapters() const { return m_chapters; }
     double speed() const { return m_speed; }
     qint64 heldUntil() const { return m_heldUntil; }
@@ -95,6 +100,7 @@ public:
     void setHwdec(bool on);
     void setLevelling(bool on);
     void setLocal(bool on);
+    void setAudioName(const QString &name);
 
     void setPaused(bool paused);
     void setMuted(bool muted);
@@ -112,6 +118,10 @@ public:
     Q_INVOKABLE void stop();
     /// Jumps to `seconds` (absolute) or by `seconds` (relative).
     Q_INVOKABLE void seek(double seconds, bool relative);
+    /// For the log: codec, size, frame rate, hardware decoder, frames
+    /// dropped and shown late ("" without mpv). After a file played to its
+    /// end mpv has let it go: then the last values taken while it played.
+    Q_INVOKABLE QString playStats() const;
 
     std::shared_ptr<MpvCore> core() const { return m_core; }
 
@@ -129,6 +139,7 @@ signals:
     void hwdecChanged();
     void levellingChanged();
     void localChanged();
+    void audioNameChanged();
     void chaptersChanged();
     void speedChanged();
     void heldChanged();
@@ -181,6 +192,7 @@ private:
     bool m_hwdec = true;
     bool m_levelling = false;
     bool m_local = false;
+    QString m_audioName = QStringLiteral("Game Companion");
     QVariantList m_chapters;
     double m_speed = 1.0;
     bool m_frozen = false;
@@ -188,6 +200,10 @@ private:
     bool m_positionMissed = false;
     bool m_hasPicture = false;
     void setHasPicture(bool on);
+    /// playStats() as it read while the file played (every 2 s at most).
+    QString liveStats(bool *loaded = nullptr) const;
+    QString m_lastStats;
+    QElapsedTimer m_statsClock;
 };
 
 /// Registers MpvVideo for QML.

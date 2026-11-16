@@ -27,10 +27,43 @@ Item {
     /// Where it starts: bottom left (Twitch) or bottom right (YouTube).
     property bool rightSide: slot === "youtube"
     property string quality: jelly ? Jellyfin.quality : Streams.quality
+    /// Sound only: no picture, so its window goes when the hub hides.
+    readonly property bool soundOnly: quality === "audio"
+    /// Sound only: no picture, so the window is a slim player strip (its
+    /// bars, always shown) as the radio's row is (MN, 2026-11-16: the last
+    /// picture stood still in a big window). Lists and notes open above it.
+    readonly property bool compact: soundOnly && active && !fullScreen
+    readonly property int compactHeight: 2 + 34 + 16 + 38
+    /// The window's height with a picture, kept while it is a strip.
+    property real fullHeight: 243
+    onCompactChanged: {
+        if (!placed) return
+        if (compact) {
+            fullHeight = height
+            y = y + height - compactHeight
+            height = compactHeight
+        } else {
+            y = Math.max(0, y - (fullHeight - height))
+            height = fullHeight
+        }
+    }
+    /// Something opens over the strip: its surface grows upwards meanwhile.
+    readonly property bool overStrip: compact && (anyPicker || skipNote.length > 0 || nextNote.length > 0 || (jelly && !!jfSegment && !Companion.locked))
+    readonly property real overRoom: 400
+    // A strip near the screen's top has no room above it: lists and notes
+    // open below it then (MN, 0.8.63: the bar docked at the top, nothing opened).
+    readonly property bool stripDown: compact && y < overRoom
+    function overY(h) { return stripDown ? height + 4 : -h - 4 }
+    function overMargin(h) { return stripDown ? -h - 4 : height + 4 }
     /// 0 to 100, as the bars show it.
     property int volume: Streams.volume
     /// How much of the video shows (0.5 to 1), kept for each window.
     property real videoOpacity: Streams.opacityOf(slot) / 100
+    // A layout was loaded: its opacity for this window.
+    Connections {
+        target: Companion
+        function onLayoutRevisionChanged() { win.videoOpacity = Streams.opacityOf(win.slot) / 100 }
+    }
     function setOpacity(o) {
         videoOpacity = Math.max(0.5, Math.min(1, Math.round(o * 10) / 10))
         Streams.saveOpacity(slot, Math.round(videoOpacity * 100))
@@ -91,7 +124,7 @@ Item {
     /// What comes next: in a playlist played through (`through`), or in
     /// the list the video was started from; null at the list's end.
     readonly property var nextInQueue: upNext.length > 0 ? upNext[0] : null
-    /// The next five, as { at, v }: the player's UP NEXT.
+    /// What follows, as { at, v } (up to 50): the player's UP NEXT.
     readonly property var upNext: {
         if (!item || item.kind !== "youtube" || !item.queue) return []
         const q = item.queue
@@ -99,7 +132,7 @@ Item {
         if (item.loop && q.length === 1) return [{ at: 0, v: q[0] }]
         const last = item.loop ? q.length - 1 : q.length - 1 - item.index
         const out = []
-        for (let k = 1; k <= last && out.length < 5; k++) {
+        for (let k = 1; k <= last && out.length < 50; k++) {
             const i = (item.index + k) % q.length
             out.push({ at: i, v: q[i] })
         }
@@ -160,7 +193,15 @@ Item {
         function onPausedChanged() { if (video.paused) win.keepPosition(true) }
     }
 
+    /// How smoothly it played, into the app's log (codec, size, hardware
+    /// decoder, dropped and late frames; no titles or addresses).
+    function logStats() {
+        if (!item || typeof video.playStats !== "function") return
+        const s = video.playStats()
+        if (s) Companion.log("video", label + " " + item.kind + ": " + s)
+    }
     function play(what) {
+        logStats()
         if (jelly && item && jf.started) jfStopped()
         keepPosition()
         item = what
@@ -225,6 +266,7 @@ Item {
         video.play(path, "", 0)
     }
     function stop() {
+        logStats()
         if (jelly && jf.started) jfStopped()
         keepPosition()
         nextTimer.stop()
@@ -275,7 +317,7 @@ Item {
         repeat: true
         // Not while Spectacle's selection holds the picture still: no
         // position comes then, and that is no stall.
-        running: win.active && win.item.kind !== "file" && !video.paused && !Apps.screenshot
+        running: win.active && win.item.kind !== "file" && !video.paused && !Apps.screenshot && video.frozen !== true
             && (video.state === "playing" || video.state === "buffering" || video.state === "loading")
         onRunningChanged: { win.stillFor = 0; win.lastPosition = video.position; win.nowMs = Date.now() }
         onTriggered: {
@@ -587,6 +629,11 @@ Item {
         }
         x = Math.max(0, Math.min(x, parent.width - width))
         y = Math.max(0, Math.min(y, parent.height - 40))
+        if (compact) {
+            fullHeight = height
+            y = y + height - compactHeight
+            height = compactHeight
+        }
         placed = true
     }
     // Another screen (Settings → Display "Show on"): stay on it.
@@ -619,7 +666,11 @@ Item {
         target: Companion
         function onLayoutRevisionChanged() { win.placed = false; win.place() }
     }
-    function remember() { Companion.savePlace(panelId, x, y, width, height) }
+    function remember() {
+        // A strip keeps the place and size it has with a picture.
+        if (compact) Companion.savePlace(panelId, x, Math.max(0, y - (fullHeight - height)), width, fullHeight)
+        else Companion.savePlace(panelId, x, y, width, height)
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -635,21 +686,24 @@ Item {
         sourceComponent: Component {
             MpvVideo {
                 opacity: win.videoOpacity
-                visible: drawable
-                // Still while a part is grabbed, and while Spectacle's
-                // selection lies over the frozen screen (Print).
-                frozen: Apps.screenshot || (!!win.Window.window && win.Window.window.settling === true)
+                visible: drawable && !win.compact
+                // Still while it is dragged or resized (the sound plays on;
+                // a picture redrawn with every move made the move stutter,
+                // MN 0.8.49), and while Spectacle's selection lies over the
+                // frozen screen (Print).
+                frozen: Apps.screenshot || (!!win.Window.window && (win.Window.window.settling === true || win.Window.window.held === true))
                 hwdec: Streams.hwdec
                 levelling: Streams.evenLoudness
                 // Jellyfin: the home network's server, nothing else.
                 local: win.jelly
+                audioName: "Game Companion · " + (win.jelly ? "Jellyfin" : win.slot === "twitch" ? "Twitch" : "YouTube")
             }
         }
     }
     // A music track: its album's cover over the (empty or tiny) picture.
     Rectangle {
         anchors.fill: parent
-        visible: win.music
+        visible: win.music && !win.compact
         color: "#0e0d11"
         opacity: win.videoOpacity
         Image {
@@ -687,7 +741,7 @@ Item {
     // Where frames can't be drawn (screenshots), or while it loads.
     Text { style: Theme.textStyle(); styleColor: Theme.shadow;
         anchors.centerIn: parent
-        visible: !video.drawable || win.preparing || win.playState === "loading" || win.reconnecting || win.playState === "failed" || win.failure.length > 0
+        visible: !win.compact && (!video.drawable || win.preparing || win.playState === "loading" || win.reconnecting || win.playState === "failed" || win.failure.length > 0)
         width: parent.width - 40
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
@@ -710,8 +764,9 @@ Item {
         id: pointerOn
         enabled: !Companion.locked
     }
-    readonly property bool barsWanted: pointerOn.hovered || qualityPicker.open || opacityPicker.open || audioPicker.open || subtitlePicker.open
+    readonly property bool anyPicker: qualityPicker.open || opacityPicker.open || audioPicker.open || subtitlePicker.open
         || speedPicker.open || chapterPicker.open || playlistPicker.open || upNextPicker.open
+    readonly property bool barsWanted: pointerOn.hovered || anyPicker
     onBarsWantedChanged: if (!barsWanted) barsLinger.restart()
     Timer { id: barsLinger; interval: 700 }
 
@@ -728,7 +783,7 @@ Item {
         onReleased: if (!win.fullScreen) win.remember()
         onDoubleClicked: win.togglePause()
     }
-    readonly property bool showBars: !Companion.locked && (barsWanted || barsLinger.running || nativeWindow.demo.indexOf("video") >= 0)
+    readonly property bool showBars: compact || (!Companion.locked && (barsWanted || barsLinger.running || nativeWindow.demo.indexOf("video") >= 0))
     onShowBarsChanged: if (!showBars) closePickers()
     function openUpNext() { closePickers(); upNextPicker.open = true }
     function closePickers() {
@@ -884,6 +939,7 @@ Item {
                 onClicked: Streams.saveChatOpen(!Streams.chatOpen)
             }
             IconButton {
+                visible: !win.compact
                 anchors.verticalCenter: parent.verticalCenter
                 icon: win.fullScreen ? "shrink" : "expand"
                 iconSize: 13
@@ -947,8 +1003,9 @@ Item {
                 tip: "Next track"
                 onClicked: Jellyfin.findTrack(win.slot, win.item.item.albumId, win.item.id, 1)
             }
-            SeekButton { back: true; visible: !win.music && video.duration > 0 }
-            SeekButton { back: false; visible: !win.music && video.duration > 0 }
+            // Narrow, UP NEXT takes their room (the time line still jumps).
+            SeekButton { back: true; visible: !win.music && video.duration > 0 && (win.upNext.length === 0 || win.width >= 560) }
+            SeekButton { back: false; visible: !win.music && video.duration > 0 && (win.upNext.length === 0 || win.width >= 560) }
             IconButton {
                 id: nextButton
                 visible: !!win.nextInQueue
@@ -963,13 +1020,14 @@ Item {
             TrackButton {
                 id: upNextButton
                 visible: win.upNext.length > 0
-                text: win.width >= 560 ? "UP NEXT" : ""
+                text: "UP NEXT"
                 picker: upNextPicker
             }
             // YouTube: the next video follows by itself at the end (also the
             // first row of UP NEXT, where the bar has no room for it).
             Item {
                 id: autoplayButton
+                // From 640 px; narrower, UP NEXT's header has it.
                 visible: win.upNext.length > 0 && !win.item.through && win.width >= 640
                 anchors.verticalCenter: parent.verticalCenter
                 width: autoRow.implicitWidth + 12
@@ -1237,7 +1295,7 @@ Item {
         anchors.left: parent.left
         anchors.leftMargin: 10
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: win.showBars ? 62 : 12
+        anchors.bottomMargin: win.compact ? win.overMargin(height) : win.showBars ? 62 : 12
         width: skipRow.implicitWidth + 20
         height: 30
         color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.9)
@@ -1286,8 +1344,8 @@ Item {
         id: qualityPicker
         anchors.right: parent.right
         anchors.rightMargin: 36
-        y: 36
-        maxHeight: win.height - y - 4
+        y: win.compact ? win.overY(height) : 36
+        maxHeight: win.compact ? win.overRoom - 8 : win.height - 40
         options: win.qualities
         current: win.quality
         onChosen: (id) => win.setQuality(id)
@@ -1296,9 +1354,9 @@ Item {
         id: chapterPicker
         anchors.right: parent.right
         anchors.rightMargin: 36
-        y: 36
+        y: win.compact ? win.overY(height) : 36
         width: Math.min(300, win.width - 48)
-        maxHeight: win.height - y - 44
+        maxHeight: win.compact ? win.overRoom - 8 : win.height - 80
         options: video.chapters.map((c, i) => ({ id: String(i), name: win.clock(c.time) + "  " + (c.title || "Chapter " + (i + 1)) }))
         current: { let at = -1; video.chapters.forEach((c, i) => { if (c.time <= video.position) at = i }); return String(at) }
         onChosen: (id) => video.seek(video.chapters[Number(id)].time, false)
@@ -1308,9 +1366,9 @@ Item {
         id: playlistPicker
         anchors.right: parent.right
         anchors.rightMargin: 36
-        y: 36
+        y: win.compact ? win.overY(height) : 36
         width: Math.min(260, win.width - 48)
-        maxHeight: win.height - y - 44
+        maxHeight: win.compact ? win.overRoom - 8 : win.height - 80
         options: {
             if (!open || !win.item || win.item.kind !== "youtube" || Library.revision < 0) return []
             const lists = JSON.parse(Library.mark(win.item.id)).lists
@@ -1330,27 +1388,192 @@ Item {
             }
         }
     }
-    Picker {
+    // UP NEXT: the videos that follow as tiles (picture, length, title,
+    // channel and date, as in the lists), scrolled by the wheel; a click
+    // plays one. AUTOPLAY's switch in its header (MN, 0.8.51).
+    Rectangle {
         id: upNextPicker
-        // Over its button, placed when it opens.
-        x: open ? Math.max(4, Math.min(win.width - width - 4, upNextButton.mapToItem(win, 0, 0).x)) : 4
+        property bool open: false
+        visible: open && win.upNext.length > 0
+        z: 30
+        anchors.right: parent.right
+        anchors.rightMargin: 4
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 40
-        width: Math.min(340, win.width - 8)
-        maxHeight: win.height - 80
-        options: !open ? [] : (win.item.through ? [] : [{ id: "autoplay", name: "■ AUTOPLAY " + (Streams.autoplay ? "ON" : "OFF") }])
-            .concat(win.upNext.map((n) => ({ id: String(n.at), name: (n.v.title || n.v.id) + (n.v.channel ? " · " + n.v.channel : "") })))
-        current: Streams.autoplay ? "autoplay" : ""
-        onChosen: (id) => id === "autoplay" ? Streams.saveAutoplay(!Streams.autoplay) : win.playAt(Number(id))
+        anchors.bottomMargin: win.compact ? win.overMargin(height) : 40
+        width: Math.min(380, win.width - 8)
+        height: Math.min(upNextHead.height + upNextView.contentHeight + 2, win.compact ? win.overRoom - 8 : win.height - 80)
+        color: "#16151b"
+        border.color: Theme.divider
+        // Clicks and the wheel stay here (not the video's drag below).
+        MouseArea { anchors.fill: parent; hoverEnabled: true; onWheel: (w) => w.accepted = true }
+        Item {
+            id: upNextHead
+            x: 1
+            y: 1
+            width: parent.width - 2
+            height: 32
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: "UP NEXT · " + win.upNext.length
+                color: Theme.text()
+                font.family: Theme.display
+                font.pixelSize: 12
+                font.weight: Font.Bold
+                font.letterSpacing: 1.5
+            }
+            Item {
+                visible: !!win.item && !win.item.through
+                anchors.right: parent.right
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                width: headAuto.implicitWidth + 12
+                height: 26
+                Row {
+                    id: headAuto
+                    anchors.centerIn: parent
+                    spacing: 5
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 6
+                        height: 6
+                        color: Streams.autoplay ? Theme.accent : Theme.dim()
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "AUTOPLAY " + (Streams.autoplay ? "ON" : "OFF")
+                        color: Streams.autoplay ? Theme.accent : headAutoMouse.containsMouse ? Theme.text() : Theme.muted()
+                        font.family: Theme.display
+                        font.pixelSize: 12
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1
+                    }
+                }
+                MouseArea {
+                    id: headAutoMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Streams.saveAutoplay(!Streams.autoplay)
+                }
+                Accessible.role: Accessible.CheckBox
+                Accessible.checked: Streams.autoplay
+                Accessible.name: "Autoplay: the next video follows at the end"
+            }
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
+        }
+        ListView {
+            id: upNextView
+            x: 1
+            anchors.top: upNextHead.bottom
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 1
+            width: parent.width - 2
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            model: upNextPicker.open ? win.upNext : []
+            delegate: Item {
+                id: nextRow
+                required property var modelData
+                required property int index
+                readonly property var v: modelData.v
+                width: upNextView.width
+                // The whole title shows (MN): the row grows with it.
+                height: Math.max(66, nextText.implicitHeight + 12)
+                Rectangle {
+                    anchors.fill: parent
+                    color: nextMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : "transparent"
+                }
+                Rectangle {
+                    id: nextThumb
+                    x: 8
+                    y: 6
+                    width: 96
+                    height: 54
+                    color: "#1f1e25"
+                    clip: true
+                    Image {
+                        anchors.fill: parent
+                        asynchronous: true
+                        fillMode: Image.PreserveAspectCrop
+                        sourceSize.width: 192
+                        source: nextRow.v.picture || ""
+                    }
+                    Rectangle {
+                        visible: nextRow.v.duration > 0
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 3
+                        width: lengthText.implicitWidth + 6
+                        height: lengthText.implicitHeight + 2
+                        color: Qt.rgba(0, 0, 0, 0.75)
+                        Text {
+                            id: lengthText
+                            anchors.centerIn: parent
+                            text: win.clock(nextRow.v.duration)
+                            color: "#ffffff"
+                            font.family: Theme.body
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                        }
+                    }
+                }
+                Column {
+                    id: nextText
+                    anchors.left: nextThumb.right
+                    anchors.leftMargin: 10
+                    anchors.right: parent.right
+                    anchors.rightMargin: 10
+                    y: Math.max(6, (66 - implicitHeight) / 2)
+                    spacing: 3
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        width: parent.width
+                        text: nextRow.v.title || nextRow.v.id
+                        color: Theme.text()
+                        font.family: Theme.body
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                        wrapMode: Text.Wrap
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                        width: parent.width
+                        text: [nextRow.v.channel || "", win.agoText(nextRow.v.published, nextRow.v.rough)].filter((t) => t).join(" · ")
+                        color: Theme.muted()
+                        font.family: Theme.body
+                        font.pixelSize: 11
+                        elide: Text.ElideRight
+                    }
+                }
+                MouseArea {
+                    id: nextMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        // Taken first: playing replaces the list, and this
+                        // row with it (0.8.51's list lost the click so).
+                        const at = nextRow.modelData.at
+                        const player = win
+                        const list = upNextPicker
+                        list.open = false
+                        player.playAt(at)
+                    }
+                }
+                Accessible.role: Accessible.Button
+                Accessible.name: "Play " + (nextRow.v.title || "")
+            }
+        }
+        WheelScroll { flick: upNextView }
     }
     Picker {
         id: speedPicker
         anchors.right: parent.right
         anchors.rightMargin: 90
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 40
+        anchors.bottomMargin: win.compact ? win.overMargin(height) : 40
         width: 90
-        maxHeight: win.height - 80
+        maxHeight: win.compact ? win.overRoom - 8 : win.height - 80
         options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((v) => ({ id: String(v), name: v + "×" }))
         current: String(Math.round(video.speed * 100) / 100)
         onChosen: (id) => video.speed = Number(id)
@@ -1359,9 +1582,9 @@ Item {
         id: audioPicker
         anchors.right: parent.right
         anchors.rightMargin: 36
-        y: 36
+        y: win.compact ? win.overY(height) : 36
         width: 220
-        maxHeight: win.height - y - 4
+        maxHeight: win.compact ? win.overRoom - 8 : win.height - 40
         options: win.jf.tracks ? win.jf.tracks.audio.map((a) => ({ id: String(a.index), name: a.label })) : []
         current: String(win.jf.audioIndex)
         onChosen: (id) => win.chooseAudio(Number(id))
@@ -1370,9 +1593,9 @@ Item {
         id: subtitlePicker
         anchors.right: parent.right
         anchors.rightMargin: 36
-        y: 36
+        y: win.compact ? win.overY(height) : 36
         width: 220
-        maxHeight: win.height - y - 4
+        maxHeight: win.compact ? win.overRoom - 8 : win.height - 40
         options: win.jf.tracks ? [{ id: "-1", name: "Off" }].concat(win.jf.tracks.subs
             .filter((s) => !(s.external || win.jf.transcode) || s.format)
             .map((s) => ({ id: String(s.index), name: s.label }))) : []
@@ -1387,7 +1610,7 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: 12
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: win.showBars ? 64 : 14
+        anchors.bottomMargin: win.compact ? win.overMargin(height) : win.showBars ? 64 : 14
         width: skipText.implicitWidth + 28
         height: 34
         // No gold frame on a video (MN): the gold label is enough.
@@ -1414,7 +1637,9 @@ Item {
     }
     Rectangle {
         visible: win.nextNote.length > 0
-        anchors.centerIn: parent
+        anchors.horizontalCenter: parent.horizontalCenter
+        // Over the picture, or above a strip.
+        y: win.compact ? win.overY(height) : (parent.height - height) / 2
         width: Math.min(parent.width - 40, nextColumn.implicitWidth + 32)
         height: nextColumn.implicitHeight + 24
         color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.9)
@@ -1449,13 +1674,31 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: 22
         anchors.bottom: bottomBar.top
-        anchors.bottomMargin: 6
-        maxHeight: win.height - 48
+        anchors.bottomMargin: win.compact ? win.overMargin(height) - bottomBar.height : 6
+        maxHeight: win.compact ? win.overRoom - 8 : win.height - 48
         options: win.opacities
         current: String(Math.round(win.videoOpacity * 100))
         onChosen: (id) => win.setOpacity(Number(id) / 100)
     }
 
+    /// When a video came out, as the lists say it.
+    function agoText(iso, rough) {
+        if (!iso) return ""
+        const t = Date.parse(iso)
+        const sec = (Date.now() - t) / 1000
+        if (!(sec >= 0)) return ""
+        if (sec < 3600) return Math.max(1, Math.round(sec / 60)) + " min ago"
+        if (sec < 86400) return Math.round(sec / 3600) + " h ago"
+        const d = Math.round(sec / 86400)
+        if (d < 7) return d === 1 ? "yesterday" : d + " days ago"
+        if (rough) {
+            const plural = (n, w) => n + " " + w + (n === 1 ? "" : "s") + " ago"
+            return d < 30 ? plural(Math.round(d / 7), "week") : d < 365 ? plural(Math.round(d / 30), "month") : plural(Math.round(d / 365), "year")
+        }
+        const date = new Date(t)
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        return date.getDate() + " " + months[date.getMonth()] + (date.getFullYear() === new Date().getFullYear() ? "" : " " + date.getFullYear())
+    }
     function clock(s) {
         s = Math.max(0, Math.floor(s))
         const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60
@@ -1499,7 +1742,9 @@ Item {
                 const p = Drag.fix(Window.window, mapToItem(win.parent, m.x, m.y), start, dragState)
                 const room = win.parent ? Math.min(win.parent.width - win.x, (win.parent.height - win.y) * 16 / 9) : 1920
                 win.width = Math.max(240, Math.min(startWidth + p.x - start.x, room))
-                win.height = Math.round(win.width * 9 / 16)
+                // A strip keeps its height; the picture's comes back 16:9.
+                if (win.compact) win.fullHeight = Math.round(win.width * 9 / 16)
+                else win.height = Math.round(win.width * 9 / 16)
             }
             onReleased: { win.remember(); hold(false) }
             onCanceled: hold(false)

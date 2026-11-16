@@ -18,6 +18,8 @@ Overlay {
     property bool settingsOpen: false
     property bool radioOpen: false
     property bool streamsOpen: false
+    property bool soundOpen: false
+    property bool soundRowOpen: false
     property bool gamesOpen: false
     property bool dpsOpen: false
     property bool mapOpen: false
@@ -27,6 +29,7 @@ Overlay {
     property bool bossOpen: false
     property bool lootOpen: false
     property bool armoryOpen: false
+    property bool sessionOpen: false
     /// The person closed the DPS panel: it stays closed when AION 2 starts.
     property bool dpsClosed: false
     /// The game id AION 2 runs under (its module stops when that one ends).
@@ -79,8 +82,11 @@ Overlay {
         if (bossOpen) ids.push("boss")
         if (lootOpen) ids.push("loot")
         if (armoryOpen) ids.push("armory")
+        if (sessionOpen) ids.push("poe2-session")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
+        if (soundOpen) ids.push("sound")
+        if (soundRowOpen) ids.push("sound-row")
         return ids
     }
     function openFrom(ids) {
@@ -93,8 +99,11 @@ Overlay {
         bossOpen = ids.indexOf("boss") >= 0
         lootOpen = ids.indexOf("loot") >= 0
         armoryOpen = ids.indexOf("armory") >= 0
+        sessionOpen = ids.indexOf("poe2-session") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
+        soundOpen = ids.indexOf("sound") >= 0
+        soundRowOpen = ids.indexOf("sound-row") >= 0
     }
 
     // The open panels are kept, so an update or a restart brings back what
@@ -115,9 +124,18 @@ Overlay {
             if (kept.length > 0) {
                 const k = JSON.parse(kept)
                 openFrom(k.open || [])
+                // The DPS panel opens when AION 2 starts, not with the app.
+                if (!Aion2.active) dpsOpen = false
                 dpsClosed = k.dpsClosed === true
             }
         } catch (e) { }
+        // The desktop's layout, when there is one (a game that runs loads
+        // its own over it).
+        const desktop = Companion.loadDesktop()
+        if (desktop.length > 0) {
+            openFrom(JSON.parse(desktop))
+            if (!Aion2.active) dpsOpen = false
+        }
         keepsOpen = true
     }
 
@@ -127,6 +145,8 @@ Overlay {
         if (demo.indexOf("unlocked") >= 0 && Companion.locked) Companion.toggleLocked()
         if (demo.indexOf("settings") >= 0) settingsOpen = true
         if (demo.indexOf("radio") >= 0) radioOpen = true
+        if (demo.indexOf("sound") >= 0) soundOpen = true
+        if (demo.indexOf("soundrow") >= 0) soundRowOpen = true
         if (demo.indexOf("games") >= 0) gamesOpen = true
         if (demo.indexOf("dps") >= 0) dpsOpen = true
         if (demo.indexOf("map") >= 0) mapOpen = true
@@ -137,6 +157,7 @@ Overlay {
         if (demo.indexOf("boss") >= 0) bossOpen = true
         if (demo.indexOf("armory") >= 0) armoryOpen = true
         if (demo.indexOf("loot") >= 0) lootOpen = demo.indexOf("shop") < 0 || demo.indexOf("panel") >= 0
+        if (demo.indexOf("session") >= 0 && demo.indexOf("price") < 0) sessionOpen = true
         if (Games.runningKnown === "aion2") aionStarted(Games.running)
         if (demo.indexOf("gameform") >= 0) games.editing = {}
         if (demo.indexOf("games") >= 0) games.demo(demo)
@@ -146,8 +167,9 @@ Overlay {
         if (demo.indexOf("jellyvideo") >= 0) jellyfinVideo.demo()
         if (demo.indexOf("upnext") >= 0) {
             // The YouTube player started from a list: NEXT, UP NEXT, AUTOPLAY.
-            const q = [1, 2, 3, 4, 5, 6, 7].map((n) => ({ id: "demovideo0" + n, title: ["Patch notes explained", "Season start guide", "Top 10 builds",
-                "Boss guide: Ludra", "Crafting for beginners", "Market tips", "Weekly news"][n - 1], channel: "Channel " + n }))
+            const q = [1, 2, 3, 4, 5, 6, 7].map((n) => ({ id: "demovideo0" + n, title: ["Patch notes explained", "Season start guide: everything you need to know before the new league begins, with all builds and tips", "Top 10 builds",
+                "Boss guide: Ludra", "Crafting for beginners", "Market tips", "Weekly news"][n - 1], channel: "Channel " + n,
+                duration: 300 + n * 97, published: new Date(Date.now() - n * 7 * 3600000).toISOString() }))
             youtubeVideo.item = { kind: "youtube", id: q[0].id, title: q[0].title, name: q[0].channel, video: q[0], queue: q, index: 0, through: false, loop: false, playlist: "" }
             if (demo.indexOf("upnextlist") >= 0) Qt.callLater(youtubeVideo.openUpNext)
             if (demo.indexOf("nextnote") >= 0) { youtubeVideo.nextItem = youtubeVideo.queued(1); youtubeVideo.nextNote = "NEXT: " + q[1].title }
@@ -156,6 +178,8 @@ Overlay {
         if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
         Streams.begin()
         Apps.begin(); VoiceChat.begin()
+        // The sound module: channels, mic chain, stream mix (only if on).
+        Sound.begin(); Sound.setGame(Games.running)
         if (demo.indexOf("appmenu") >= 0) bar.menuFor = "brave"
     }
 
@@ -189,13 +213,26 @@ Overlay {
     Connections {
         target: Games
         function onStopped(id) {
+            Sound.setGame("")
             // Brave and Legcord back where and how they were.
             Apps.gameStopped()
-            if (id === root.aionId && Aion2.active) { Aion2.stop(); root.aionId = "" }
+            if (id === root.aionId && Aion2.active) {
+                Aion2.stop()
+                root.aionId = ""
+                // The DPS panel came with the game and goes with it (MN: it
+                // stayed, "NO GAME RUNNING", with its tab in the bar). Not
+                // "closed by hand": it opens again with the next start.
+                root.dpsOpen = false
+            }
             if (root.shownForGame && Companion.shown) Companion.toggleShown()
             root.shownForGame = false
+            // Its layout ends: the desktop's layout or the arrangement from
+            // before it comes back.
+            const back = Companion.backFromGame()
+            if (back.length > 0) root.openFrom(JSON.parse(back))
         }
         function onStarted(id) {
+            Sound.setGame(id)
             Apps.gameStarted(Games.runningKnown)
             // AION 2's module reads while the game runs.
             if (Games.runningKnown === "aion2") root.aionStarted(id)
@@ -204,8 +241,11 @@ Overlay {
                 || { name: Games.runningName, twitch: Games.twitchPreset, youtube: Games.youtubePreset, showOnStart: true, radioOnStart: false }
             if (g.twitch.length > 0 || g.youtube.length > 0) Streams.changeGame(g.name, g.twitch, g.youtube)
             if (Companion.showOnGame && g.showOnStart && !Companion.shown) { Companion.toggleShown(); root.shownForGame = true }
-            if (g.layout && g.layout.length > 0) {
-                const open = Companion.loadLayout(g.layout)
+            // Built-in games no launcher lists have their layout too.
+            const layout = Games.layoutOf(id)
+            if (layout.length > 0 && JSON.parse(Companion.layouts).indexOf(layout) >= 0) {
+                Companion.keepBeforeGame(id, JSON.stringify(root.openPanels()))
+                const open = Companion.loadLayout(layout)
                 if (open.length > 0) root.openFrom(JSON.parse(open))
             }
             if (g.radioOnStart) {
@@ -282,6 +322,10 @@ Overlay {
             gameHasModule: Games.runningKnown.length > 0
             streamsOpen: root.streamsOpen
             onStreamsClicked: root.streamsOpen = !root.streamsOpen
+            soundOpen: root.soundOpen
+            soundRowOpen: root.soundRowOpen
+            onSoundClicked: root.soundOpen = !root.soundOpen
+            onSoundRightClicked: root.soundRowOpen = !root.soundRowOpen
             onSettingsClicked: root.settingsOpen = !root.settingsOpen
             onUpdateClicked: { root.settingsOpen = true; Updates.install() }
             onRadioClicked: root.radioOpen = !root.radioOpen
@@ -307,7 +351,7 @@ Overlay {
             readonly property bool onScreen: active && root.onScreen("game-row")
             x: Math.max(0, Math.min(root.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
             y: Companion.shown ? bar.height * bar.scale : 0
-            gameName: Games.runningName.length > 0 ? Games.runningName : (priceStore.shown ? "Path of Exile 2" : "AION 2")
+            gameName: Games.runningName.length > 0 ? Games.runningName : (priceStore.shown || sessionStore.demoOn ? "Path of Exile 2" : "AION 2")
             dpsShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.dps")) || root.dpsOpen
             dpsOpen: root.dpsOpen
             onDpsClicked: { root.dpsOpen = root.fromRow("dps", root.dpsOpen); root.dpsClosed = !root.dpsOpen }
@@ -338,24 +382,32 @@ Overlay {
             priceShown: (Games.runningKnown === "poe2" && Plugins.inBar(root.plugins, "poe2.price")) || priceStore.shown
             priceOpen: priceStore.shown
             onPriceClicked: if (priceStore.shown) priceStore.close(); else priceStore.shown = true
+            sessionShown: (sessionStore.on && Plugins.inBar(root.plugins, "poe2.session")) || root.sessionOpen || sessionStore.demoOn
+            sessionOpen: root.sessionOpen
+            onSessionClicked: root.sessionOpen = root.fromRow("poe2-session", root.sessionOpen)
+            onSessionRightClicked: sessionStore.setPref("window", sessionStore.prefs.window === false)
         }
     }
 
     // Videos sit under the panels, over the game; full screen, the video's
-    // window covers the screen.
+    // window covers the screen. Sound only, a video goes with the hub as the
+    // radio does, pinned or not (MN, 2026-11-16: a black window stayed).
     Surface {
-        wanted: twitchVideo.active && root.onScreen(twitchVideo.panelId)
+        wanted: twitchVideo.active && (twitchVideo.soundOnly ? Companion.shown : root.onScreen(twitchVideo.panelId))
         stack: twitchVideo.fullScreen ? 100 : 2
+        extra: twitchVideo.overStrip ? Qt.rect(0, twitchVideo.stripDown ? 0 : -twitchVideo.overRoom, twitchVideo.width, twitchVideo.height + twitchVideo.overRoom) : Qt.rect(0, 0, 0, 0)
         part: VideoWindow { id: twitchVideo; slot: "twitch" }
     }
     Surface {
-        wanted: youtubeVideo.active && root.onScreen(youtubeVideo.panelId)
+        wanted: youtubeVideo.active && (youtubeVideo.soundOnly ? Companion.shown : root.onScreen(youtubeVideo.panelId))
         stack: youtubeVideo.fullScreen ? 100 : 2
+        extra: youtubeVideo.overStrip ? Qt.rect(0, youtubeVideo.stripDown ? 0 : -youtubeVideo.overRoom, youtubeVideo.width, youtubeVideo.height + youtubeVideo.overRoom) : Qt.rect(0, 0, 0, 0)
         part: VideoWindow { id: youtubeVideo; slot: "youtube" }
     }
     Surface {
-        wanted: jellyfinVideo.active && root.onScreen(jellyfinVideo.panelId)
+        wanted: jellyfinVideo.active && (jellyfinVideo.soundOnly ? Companion.shown : root.onScreen(jellyfinVideo.panelId))
         stack: jellyfinVideo.fullScreen ? 100 : 2
+        extra: jellyfinVideo.overStrip ? Qt.rect(0, jellyfinVideo.stripDown ? 0 : -jellyfinVideo.overRoom, jellyfinVideo.width, jellyfinVideo.height + jellyfinVideo.overRoom) : Qt.rect(0, 0, 0, 0)
         part: VideoWindow { id: jellyfinVideo; slot: "jellyfin" }
     }
 
@@ -385,6 +437,28 @@ Overlay {
         }
     }
 
+    // The sound's quick row, under the player row (right click on SOUND).
+    readonly property bool soundRowShown: root.soundRowOpen && root.onScreen("sound-row")
+    Surface {
+        wanted: root.soundRowShown
+        stack: 5
+        part: SoundRow {
+            id: soundRow
+            transformOrigin: Item.TopLeft
+            scale: Companion.barScale
+            x: Math.max(0, Math.min(root.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
+            y: hubHint.playerRowShown ? playerRow.y + playerRow.height * playerRow.scale + 2
+                : gameRow.onScreen ? gameRow.y + gameRow.height * gameRow.scale + 2
+                : Companion.shown ? bar.height * bar.scale : 0
+            onCloseClicked: root.soundRowOpen = false
+        }
+    }
+    // The mic's meter runs only while the MIC tab or the quick row shows.
+    readonly property bool soundChannelMeters: root.soundOpen && root.onScreen("sound") && soundPanel.channelMetersWanted
+    onSoundChannelMetersChanged: Sound.setChannelMeters(soundChannelMeters)
+    readonly property bool soundMeter: (root.soundRowShown && soundRow.micOn) || (root.soundOpen && root.onScreen("sound") && soundPanel.meterWanted)
+    onSoundMeterChanged: Sound.setMeter(soundMeter)
+
     Surface {
         wanted: hubHint.opacity > 0
         clickable: false
@@ -392,7 +466,8 @@ Overlay {
         part: HubHint {
             id: hubHint
             x: (root.width - width) / 2
-            y: playerRowShown ? playerRow.y + playerRow.height * playerRow.scale + 6
+            y: root.soundRowShown ? soundRow.y + soundRow.height * soundRow.scale + 6
+                : playerRowShown ? playerRow.y + playerRow.height * playerRow.scale + 6
                 : gameRow.onScreen ? gameRow.y + gameRow.height * gameRow.scale + 6 : 6
             readonly property bool playerRowShown: playerRow.active && root.onScreen("player-row")
             key: root.keyOf("toggle")
@@ -499,9 +574,38 @@ Overlay {
         part: PriceWindow {
             id: priceWindow
             store: priceStore
+            session: sessionStore
             defaultX: Math.max(24, root.width - width - 80)
             defaultY: 160
             onCloseClicked: priceStore.close()
+        }
+    }
+
+    // PoE 2's session tracker: follows the game's log while PoE 2 runs;
+    // its panel and the small window over the game.
+    SessionStore {
+        id: sessionStore
+        price: priceStore
+        demo: nativeWindow.demo
+        on: Plugins.loads(root.plugins, "poe2") && Plugins.choice(root.plugins, "poe2.session").on && Games.runningKnown === "poe2"
+    }
+    Surface {
+        wanted: root.sessionOpen && root.onScreen("poe2-session")
+        stack: 3
+        part: SessionPanel {
+            store: sessionStore
+            defaultX: Math.max(24, root.width - width - 80)
+            defaultY: 160
+            onCloseClicked: root.sessionOpen = false
+        }
+    }
+    Surface {
+        wanted: sessionStore.windowWanted
+        stack: 4
+        part: SessionWindow {
+            store: sessionStore
+            defaultX: Math.max(24, (root.width - width) / 2)
+            defaultY: 96
         }
     }
 
@@ -589,6 +693,16 @@ Overlay {
     }
     LootStore { id: lootStore; book: priceBook }
 
+    // The app ends without its windows being taken down (the Wayland
+    // connection broke at logout): write what waits to be written.
+    Connections {
+        target: nativeWindow
+        function onEnding() {
+            if (!lootStore.demo) lootStore.flush()
+            sessionStore.flush()
+        }
+    }
+
     // The Armory: characters from NC's official pages and the builds they
     // aim at; it notes the game's own numbers while the app runs.
     ArmoryStore { id: armoryStore; book: priceBook; on: root.lootOn("aion2.armory") }
@@ -661,6 +775,17 @@ Overlay {
     }
 
     Surface {
+        wanted: root.soundOpen && root.onScreen("sound")
+        stack: 3
+        part: SoundPanel {
+            id: soundPanel
+            defaultX: Math.max(24, (root.width - width) / 2)
+            defaultY: 140
+            onCloseClicked: root.soundOpen = false
+        }
+    }
+
+    Surface {
         wanted: root.streamsOpen && root.onScreen("streams")
         stack: 3
         part: StreamsPanel {
@@ -683,6 +808,7 @@ Overlay {
             pinnable: false
             mapSource: mapPanel
             timerStore: timerStore
+            priceStore: priceStore
             defaultX: root.width - width - 24
             defaultY: 120
             onCloseClicked: root.settingsOpen = false

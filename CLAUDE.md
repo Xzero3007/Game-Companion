@@ -82,7 +82,17 @@ learnt, so nothing has to be asked or worked out again.
   Game Companion over a Unix socket; avatars are fetched by Legcord itself
   (its session, cdn.discordapp.com, as it does anyway). The PoE 2 price check (MN, 2026-11-15:
   "bau ee2 nach"): www.pathofexile.com/api/trade2/ only (search, fetch,
-  exchange, data; src/poe2.rs `allowed`), asked when an item is checked.
+  exchange, data; src/poe2.rs `allowed`), asked when an item is checked;
+  "Trade site ↗" opens the same search on www.pathofexile.com/trade2/
+  (search or exchange pages only, `trade_page_ok`) in the person's own
+  browser through xdg-open, only on a click (MN, 2026-11-15: "es muss nur
+  aufgehen wenn ich da was anklicken kann"). poe.ninja's PoE 2 economy
+  (poe.ninja/poe2/api/economy/ only: leagues, exchange, stash; GET, no
+  cookies; `ninja_allowed`), the league's currency overview once in 30
+  minutes when an item is checked, on by default, off under Settings →
+  Plugins → PoE 2 "poe.ninja prices" (MN, 2026-11-15: "standartmäßig an
+  kann man aber auch aus klicken"). poeprices.info: not until it
+  knows PoE 2 (MN chose so, 2026-11-15; EE2 itself switched it off).
   Brave Origin, Legcord and Rusty Path of Building are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
@@ -185,7 +195,29 @@ learnt, so nothing has to be asked or worked out again.
   (close-on-exec, so mpv and the installer never inherit it); a second
   start prints "already running" and ends. Ending cleanly: mpv children die
   with the app (PR_SET_PDEATHSIG); for an update the app quits and, if Qt
-  hangs, exits after 5 s anyway (the installer waits for its pid).
+  hangs, exits after 5 s anyway (the installer waits for its pid). On
+  SIGTERM/SIGINT/SIGHUP it quits as "Turn off" does, ends hard after 10 s
+  and logs the step it hung at (`main.rs` `QuitStep`; `gc_loop_ended`
+  marks Qt's loop ending) as `end: forced`. Calls to KWin time out after
+  2 s (`KWIN_CALL_TIMEOUT`; zbus waits for ever by default), after one
+  timeout the rest are skipped (`Kwin.stuck`, reset by `watch`): at logout
+  KWin kept its bus name but stopped answering and `apps::quit` hung (MN,
+  0.8.57). Check: `dbus-run-session` with a made-up KWin that stops
+  answering, then SIGTERM (project folder `arch-test/quit-hang/`).
+  Logout on KDE (MN, 0.8.64) ends KWin first: Qt's Wayland connection
+  breaks. KDE sets `QT_WAYLAND_RECONNECT`, Qt then connected again to
+  nothing and `_exit`ed without a word (no end in the log, the next start
+  "not clean"). `main.rs` takes that variable away (`GC_WAYLAND_RECONNECT=1`
+  keeps it), so a broken connection reaches the message handler
+  (cpp/native.cpp `logMessage`): `nativeWindow.ending` (Main.qml flushes
+  LootStore and SessionStore), then `gc_display_lost` → `ending::run_hooks`
+  (the meter's engine), `tidy()` as after Qt, `ending::children` (every
+  child still in our session: SIGTERM, SIGKILL after 1.5 s; `setsid`
+  programs such as the installer, Brave or Legcord are left to their own
+  rules), `end: exit code 0`, `_exit(0)` (Qt's own clean-up would talk to
+  the gone display). A KWin crash now also ends the app. Check: headless
+  weston + Qt 6.12 from the PySide venv, end weston (project folder
+  `arch-test/wayland-lost/`).
 - The app's log (`src/log.rs`, MN 2026-11-15: "bau ein log ein", "nein zu
   persönlichen daten und mehr daten als nötig"):
   `~/.cache/game-companion/game-companion.log`, moved to `.log.1` past 2 MB,
@@ -263,7 +295,19 @@ learnt, so nothing has to be asked or worked out again.
   own height). Layouts (`settings.layouts`, the person, 2026-11-12) copy
   places, pins, alpha and the open panels (`Main.openPanels()`); loading one
   raises `Companion.layoutRevision`, and every panel places itself again.
-  Planned: a game can bring its own layout (step 4).
+  A game brings its own layout (MN, 2026-11-15): `games.layouts` by game
+  id, picked in Settings → Layouts ("Games", `Games.layoutGames` = the
+  watch list, built-in `known:` games too) or in the game's edit form;
+  `Main` `onStarted` keeps the arrangement (`Companion.keepBeforeGame`,
+  settings `before_game`/`before_game_for`, kept over a restart during
+  that game) and loads the layout; `onStopped` → `backFromGame` brings it
+  back if `layout_back` (default on). The Desktop layout (MN, 2026-11-16;
+  settings `desktop_layout`, `Companion.setDesktop`, the "Desktop" chip
+  under "Games") loads at the app's start (`restoreOpen` →
+  `loadDesktop`) and when a game ends (wins over `before_game`). Layouts
+  also keep `streams.video_opacity` (`opacities`: Twitch, YouTube,
+  Jellyfin, chat, DPS; old layouts leave it); VideoWindow, ChatPanel and
+  DpsPanel read it again on `layoutRevision`.
 - Streams (`src/streams.rs`, `src/streams_object.rs`, `qml/StreamsPanel.qml`,
   `qml/VideoWindow.qml`): ported from meter patches 0047, 0059 to 0061, 0068
   and the plugin. Requests through curl with its settings on stdin
@@ -317,8 +361,12 @@ learnt, so nothing has to be asked or worked out again.
   (`starChannel`, menu kind `unsub`; MN, 0.8.43). A YouTube video
   started from a list takes the shown list along (`playVideo`: `queue`,
   `index`; `through` only for a playlist or "Play all", which go on at
-  once): the player's ⏭, "UP NEXT ▾" (`upNext`, the next five; its first
-  row and, from 640 px, the bar's AUTOPLAY switch `Streams.autoplay`,
+  once): the player's ⏭, "UP NEXT ▾" (`upNext`, up to 50 following, shown
+  as tiles with picture, length, the whole title, channel and date,
+  scrolled by the wheel, a click plays one; MN 0.8.51: the old picker
+  lost the click because closing it destroyed the row, so a handler that
+  closes its own list takes what it needs first), AUTOPLAY in its header
+  and from 640 px in the bar (`Streams.autoplay`,
   settings `streams.autoplay`, default off) and, with AUTOPLAY on, the
   5 s "NEXT:" note (`nextItem`, shared with Jellyfin's next episode).
   Settings → Streams → Videos "Close the player when nothing follows"
@@ -326,8 +374,12 @@ learnt, so nothing has to be asked or worked out again.
   → `closeIfEnded` (via `Qt.callLater`, never inside the player's own
   signal) → `stop()`, which lets mpv go as the close button does; for
   YouTube, Twitch and Jellyfin (after no next episode or track came).
-  Narrow windows: below 520 px with UP NEXT the speed button hides
-  (MN, 2026-11-15). `GC_DEMO=video,upnext[,upnextlist|,nextnote],unlocked`.
+  Narrow windows: with UP NEXT the time buttons hide below 560 px and
+  speed below 520 px (MN, 2026-11-15). The game's search with "Newest
+  first" is also sorted here by date (YouTube's own order was loose).
+  A video being dragged or resized stays still (`Surface.held` →
+  `MpvVideo.frozen`, sound plays on, watchdog paused): redrawn with every
+  move, the move stuttered (MN, 0.8.49). `GC_DEMO=video,upnext[,upnextlist|,nextnote],unlocked`.
   Searches asked in another language than English (`youtube:lang=`) come
   without dates (yt-dlp reads English time texts only): `dates_later`
   asks the feeds of up to 24 channels in the list not asked for 15 minutes,
@@ -346,8 +398,29 @@ learnt, so nothing has to be asked or worked out again.
   (`gcShot`, event `shot`) → `Apps.screenshot`: videos frozen (watchdog
   paused), every part's input region one pixel (Surface.applyInput), so
   nothing flickers over its frozen picture and clicks are Spectacle's
-  (MN, 0.8.49). `GC_DEMO=…,shot` sets it (under xcb the one-pixel mask
+  (MN, 0.8.49). Spectacle's selection is full screen and takes the
+  focus: `apps::desktop_tool` keeps it (and plasmashell, KRunner, the lock
+  screen, polkit) out of the full-screen game logic; taken for a game
+  while Brave was shown, it lost its full-screen mark, took it back, five
+  times, and the screens flickered (MN, 0.8.51). `GC_DEMO=…,shot` sets it (under xcb the one-pixel mask
   also hides the windows: an X11 artifact).
+  Subscriptions in the background (feeds, lengths) show only for the
+  channels shown now (`subs_shown`, set with `SUBS_REQUEST`): a look
+  started for All and finished after a group was chosen showed every
+  channel's videos over the group (MN, 0.8.59); it shows the group's stored
+  videos instead (`show_shown_subscriptions`). The top row's reload chip
+  (MN, 2026-11-16, was a small ↻ in the footer) says when the list is from:
+  `Streams.youtubeAsOf` (subscriptions: the newest feed ask of the shown
+  channels, `feeds_as_of`), `twitchAsOf`, Jellyfin's by QML; its words and
+  the sort chip's shorten to fit beside the tabs (`topRow.fit`). The
+  Channels list swaps like the video list (`channelModel`,
+  `swapChannels`): putting a channel into a group kept jumping to the top.
+  A video window on SOUND ONLY (`VideoWindow.soundOnly`) goes with the hub,
+  pinned or not, as the radio does, and is a slim strip without picture
+  (`compact`: its bars, always shown, `compactHeight` 90; MN 0.8.62: the
+  last picture stood still); `fullHeight` and the place with a picture are
+  kept (`remember`), the bottom edge stays; lists and notes open above it
+  and the surface grows upwards meanwhile (`overStrip`, Surface `extra`).
   Lists keep their place when their array is replaced (load more, the
   background subscriptions look, lengths coming in; MN 0.8.37: jumped to
   the top): `StreamsPanel.listModel` is set by `swapList` from
@@ -549,6 +622,96 @@ learnt, so nothing has to be asked or worked out again.
   ("Stays after talking"). `GC_DEMO=voice`. Check end to end: Electron 44
   with Legcord's loader and a made-up Discord page (project folder
   `mockups/legcord-voice/e2e/`).
+- Sound module (MN, 2026-11-15: "Sonar light" taken in; plan in the
+  project folder `sound/` and the doc "Sound-Modul: Bauplan"; MN's logs:
+  EasyEffects' 20 filters caused the dropouts, without it none):
+  `src/sound.rs`, `src/sound_object.rs` (the `Sound` singleton). Channels
+  `sonar_game/chat/media/music` (filter chains, pre-gain + 5 biquads,
+  Sonar light's presets), WebRTC echo-cancel in monitor mode when the mic
+  chain's echo is on (speakers instead of a headset; its reference
+  `gc_aec.reference` listens to the default output's monitor; nothing
+  plays through it: in 0.8.60 the channels played through its sink and
+  everything heard was distorted on MN's UR22; its block is 1920 frames,
+  `node.latency` 1920/48000, and its capture holds the graph at
+  `node.force-quantum` 1920: PipeWire's echo-cancel hands its source one
+  block per cycle, so 480 blocks in MN's 2048 graph lost three quarters of
+  the voice, 0.8.61; bench: `pw-metadata -n settings 0 clock.force-quantum
+  2048` reproduces it), mic chain → source `gc_mic` "Game Companion Mikro" (rnnoise
+  with its VAD as the voice gate, voice EQ, sc4m compressor if installed;
+  takes one input with `stream.dont-remix`; gate default 60 % / 500 ms
+  with 100 ms let through before a voice, `GATE_LEAD_MS`; old 85/300
+  moved once, `Mic::update_gate`; MN 2026-11-16: opened late, cut words),
+  presets with little pre-gain (Sonar light's −5 dB ate its boosts); the
+  mic chain is gain (`Mic.gain`, 0 to 30 dB, default 12: MN's UR22 was
+  quiet without EasyEffects' auto gain) → rnnoise → mic EQ (`VOICE_BANDS`
+  m1–m5, `VOICE_PRESETS`, own ones in `mic_presets`; gain, gate and EQ
+  change live, `gate_params`), after rnnoise swh's gate as a level gate
+  (`Mic.min_level`, "Floor", default −50 dBFS, −70 off, white mark
+  on the meter; MN 0.8.66: a constant floor in Legcord) → Clean up (hp
+  80 Hz, 5 Hz when off) → Even out (sc4m, gentle 2:1 above −24 dB, 300 ms
+  release, 1:1 when off, default off; MN 2026-11-16: the old 3:1/150 ms in
+  Clean up made the voice pump; both always in the chain and switched live)
+  → swh's
+  fastLookaheadLimiter at −1 dBFS, both its inputs fed (one left open
+  crashed the child on the bench) and the graph's `inputs`/`outputs`
+  named; echo canceller switches `extra_ns` (WebRTC noise suppression,
+  "aquarium" with music, default off) and `auto_level` (WebRTC AGC), stream mix: loopbacks from
+  the channels' monitors and the mic into `gc_stream_in`, OBS records the
+  source `gc_stream` (a client can't make a null sink: a copy filter chain).
+  What other programs pick lives in a second child, the front
+  (`front_config`, game-companion-sound-front.conf: `gc_mic` as a copy fed
+  by `gc_mic.feed`, and the stream mix), restarted only when the mic or the
+  stream mix comes or goes: the chains' end `gc_mic.raw` (a plain output,
+  autoconnect off) is linked to it with `pw-link -P` after either starts
+  (`link_mic`), so OBS keeps its mic over a restart (MN 2026-11-16: had to
+  pick it again after every change; bench: a running recording went on).
+  Duck while I talk (`Mic.duck`, `duck_db` −3 to −30, default off / −12):
+  every channel ends in a `duck` linear node; a `parec` of `gc_mic` (8 kHz,
+  40 ms) on its own thread (`Ducking`: down at once, held 500 ms, up 4 dB
+  per 40 ms) sets `duck:Mult` live, only while on (MN's HS7 monitors: the
+  echo canceller took MN out while a video or Discord talked).
+  The chains run in a `pipewire -c $XDG_RUNTIME_DIR/game-companion-sound.conf`
+  child (PR_SET_PDEATHSIG from the `sound` worker thread): nothing in
+  ~/.config/pipewire, the system's PipeWire never restarted; virtual nodes
+  have priority 0 and a default that became ours is put back. `pactl
+  subscribe` → new streams moved (`channel_for`: fixed route, running game
+  by comm/environ SteamAppId up the parents, Legcord → chat, players →
+  music, rest → media); EQ (`pw-cli set-param` "bN:Gain"), volumes/ChatMix
+  (`pactl set-sink-volume`), gate and sends live. Off by default
+  (settings `sound`). Check without hardware: PipeWire 1.0 from apt,
+  `pipewire &`, `dbus-run-session -- wireplumber &`, `pipewire-pulse &`,
+  null sinks as fake devices, then the ignored test
+  `write_config_for_bench` (GC_SOUND_CONF, GC_SOUND_MIC) and `pipewire -c`,
+  or the app itself with `sound.on` in a scratch settings.json.
+  Panel (canvas page "Sound", MIXER variant A; MN 2026-11-16):
+  `qml/SoundPanel.qml` (MIXER: volume, preset and EQ in place per channel,
+  ChatMix; MIC: input, Input 1/2 = FL/FR, mapped to AUX0/AUX1 on Pro Audio,
+  gate, echo, voice, "Record 10 s and play back" = `Sound.hear`; APPS;
+  STREAM: sends and the OBS tracks), SOUND always in the bar, a right click
+  opens `qml/SoundRow.qml` (quick row under the player row, pinnable,
+  id `sound-row`). The mic's meter (`Sound.level`, `Sound.talking`) is a
+  `parec` of `gc_mic` (pw-record 1.0 has no raw output) read on its own
+  thread, told only on a change, and runs only while the MIC tab or the
+  quick row shows (`Main.soundMeter`; kept until the worker runs). MN
+  switches Legcord's own noise filter, echo and auto gain off.
+  `GC_DEMO=sound[,soundmic|,soundapps|,soundstream|,soundeq][,soundee]`,
+  `soundrow`. Sound log (MN, 2026-11-16): `~/.cache/game-companion/sound.log`
+  (`log::sound`): each start's settings and the whole config, the child
+  pipewire's stderr (log.level 2, 400 lines a run), stream moves, volumes,
+  and a snapshot (`sound::snapshot`: clock settings, cards and profiles,
+  sinks with volumes, streams, pw-top's quantum/rate/ERR, the child's CPU)
+  8 s after a start and on the panel's "Copy sound log" (`Sound.report`,
+  then `Sound.logText(700)` to the clipboard). Each EQ change logs what
+  was asked and what the filter holds (`pw-cli enum-params`, `held_params`).
+  Channel meters in the MIXER (MN, 2026-11-16: "woran ich sehen kann das
+  es funktioniert"): a `parec` per channel monitor (8 kHz mono, before the
+  EQ), only while the MIXER shows (`Main.soundChannelMeters`,
+  `Sound.setChannelMeters`, `Sound.channelLevels` "a,b,c,d"), told only on
+  a change. The radio's mpv names itself `game-companion-radio`
+  (`--audio-client-name`) and goes on Music. Test signal without hardware: `pactl load-module
+  module-pipe-source source_name=pipe_mic file=/tmp/pipe_mic format=s16le
+  rate=48000 channels=1` as the mic device and raw samples written to the
+  fifo (our router moves every playing stream, also one aimed at a sink).
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
 - Video loudness (MN, 2026-11-14: videos quieter than the radio, which is
@@ -564,6 +727,15 @@ learnt, so nothing has to be asked or worked out again.
   multisampled layer per icon (shapes alone were not clipped by a list's
   clip in the software renderer), which cost video memory. Needs qt6-svg
   (sandbox: `apt install qt6-svg-dev`).
+- Video timing (MN, 2026-11-16: Jellyfin didn't play smoothly): mpv runs
+  with `video-timing-offset=0`. With mpv's default (0.05) every
+  `render_render` waited on Qt's render thread for the frame's time, about
+  36 of every 42 ms at 24 fps (`GC_DEBUG_RENDER=1` prints each frame's
+  render time). On stop or switch each video window logs `[video]` with
+  `MpvVideo.playStats()` (codec, size, fps, hwdec, dropped and late
+  frames). At a file's end mpv has already let it go (every value "-"):
+  the values read while it played (on time-pos, every 2 s at most,
+  `m_lastStats`) stand in.
 - The video player (`MpvVideo`) exists only while something plays (a
   Loader in `VideoWindow`; `idleVideo` stands in): closing frees mpv and
   its video memory.
@@ -709,8 +881,51 @@ learnt, so nothing has to be asked or worked out again.
   a promise; if the child dies only the price check starts again
   (`kitGone`). GC_DEMO=price answers inside the child (`DEMO`). The kit is
   still built without array iterators (Babel pass in build.mjs). Tests:
-  `cargo test poe2_kit` (an item, a search, EE2's 27 samples in QuickJS). Tests: `node tools/poe2-ee2/test/run.js`, the ignored
-  `copied_items_are_seen` under xvfb-run with xclip. `GC_DEMO=price[,results]`.
+  `cargo test poe2_kit` (an item, a search, EE2's 27 samples in QuickJS).
+  Tests: `node tools/poe2-ee2/test/run.js`, the ignored
+  `copied_items_are_seen` under xvfb-run with xclip. `GC_DEMO=price[,results|,gloves]`,
+  `settings,poe2prefs`, `price,results,listing` (a listing's item shown),
+  `price,currency` (the exchange with poe.ninja's price). A click on a
+  listing shows its item under the row (`ListedItem.qml`, the kit's
+  `item` from EE2's DisplayItem: values, requirements, enchants, runes,
+  implicits, mods with tiers, in the trade site's colours; MN, 2026-11-15).
+  poe.ninja (`tools/poe2-ee2/ninja.ts`): the exchange's Currency overview
+  (`core.rates.exalted` = ex per divine, `lines[].primaryValue` in divines,
+  ids = the trade site's currency ids, `items[]` the names; shape from MN's
+  copy, Runes of Aldur); each listing's `norm` (in ex, from one divine up in
+  div), a currency item's `ninja` (div, ex, 7-day change) in the view and
+  the result. Layout like the game (MN, 2026-11-15): with the
+  advanced copy (Ctrl+C with Alt held) the kit's `view().mods` (from the
+  item text's `{ … }` headers, matched to EE2's mods by name and tier)
+  make the groups IMPLICIT · ENCHANT · RUNES, PREFIXES, SUFFIXES (each
+  line with the tier's range in brackets, its tier, the stat line that
+  searches for it, or "in the totals"/"in the item's values"); without it
+  EE2's stat lines in VALUES, LINES, TOTALS. Min/max per line
+  (`RangeField`, wheel works locked). EE2's settings in `PriceSettings.qml`
+  (window ⚙ and Settings → Plugins → PoE 2), kept in settings.poe2,
+  handed to the kit by `setPrefs`. The league is chosen there too (its
+  list asked only while PoE 2 runs and the settings show; QA, 0.8.65; MN,
+  0.8.55: the window's dropdown opened under the chips). `setStat`'s
+  bound "keep" leaves it as it is (QML's `undefined` arrives as null
+  through JSON and cleared the other bound). `tradeLink` adds
+  `disabled: false` to every filter group (the site showed Equipment
+  Filters unticked). Dropdowns at a panel's end open past its surface:
+  use a list that opens in place (the session's "Add currency"). The clipboard watcher connects again by
+  itself when XWayland's connection ends; `Poe2.watchError` shows in the
+  window (0.8.44, MN: Ctrl+C did nothing). EE2's leagues come unencoded
+  ("Runes of Aldur"): `encode_address` before `allowed`.
+  PoE 2 session tracker (MN 2026-11-15, plugin `poe2.session`; no network):
+  `src/poe2_log.rs` reads the game's own `logs/Client.txt` while PoE 2
+  runs (from its end; only area, level-up, own death and AFK lines, never
+  chat or whispers), `Poe2Log.heard`; rules in `qml/poe2/sessionkit.js`
+  (`node tools/poe2-session-test.js`), `SessionStore.qml`,
+  `SessionPanel.qml`, `SessionWindow.qml`; new session after 30 min / 1 h
+  of pause or at midnight. `GC_DEMO=session`. Details: docs/HANDOFF.md.
+  Loot by hand (part 2): currency with − / + or a copied stack and items
+  by the price check's "+ Session", worth from poe.ninja's exchange
+  overview (`SessionStore.needRates`, only while the session holds loot,
+  30 min; the price check's "poe.ninja prices" switch). PoE 2 has no stash
+  API (GGG: PoE 1 only); never read the game's memory.
   Path of Building is the third app (`pob`, `AppDef.args` "poe2",
   `AppDef.game` "poe2"; bar button while PoE 2 or PoB runs).
   Qt's JavaScript runs without its JIT (`main.rs` sets

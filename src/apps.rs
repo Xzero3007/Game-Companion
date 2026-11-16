@@ -27,7 +27,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
@@ -165,6 +165,17 @@ pub fn belongs(app: &AppDef, win: &Win) -> bool {
     })
 }
 
+/// The desktop's own windows (Spectacle's selection, the panel, KRunner,
+/// the lock screen, password prompts): never a game. Spectacle's selection
+/// is full screen and takes the focus; taken for a game, it lost its
+/// full-screen mark while Brave was shown, took it back, lost it again
+/// (five times), and the screens flickered (MN, 0.8.51).
+pub fn desktop_tool(win: &Win) -> bool {
+    const TOOLS: [&str; 8] = ["spectacle", "plasmashell", "krunner", "ksmserver", "kscreenlocker", "polkit", "xdg-desktop-portal", "kwin"];
+    let k = format!("{} {}", win.app, win.cls).to_lowercase();
+    TOOLS.iter().any(|t| k.contains(t))
+}
+
 // ------------------------------------------------------------ events ----
 
 /// A window as the scripts describe it.
@@ -295,8 +306,10 @@ function gcHook(w) {{
         return;
     }}
     if (!gcWatched(w)) {{
-        // Any other window going full screen (a game taking its mark back).
-        if (w && w.normalWindow) w.fullScreenChanged.connect(function () {{ if (w.fullScreen) gcSend("full", gcInfo(w)); }});
+        // Any other window going full screen (a game taking its mark back);
+        // never Spectacle's (its selection isn't a game).
+        var tk = w ? (String(w.desktopFileName || "") + " " + String(w.resourceClass || "")).toLowerCase() : "";
+        if (w && w.normalWindow && tk.indexOf("spectacle") < 0) w.fullScreenChanged.connect(function () {{ if (w.fullScreen) gcSend("full", gcInfo(w)); }});
         return;
     }}
     gcSend("window", gcInfo(w));
@@ -525,6 +538,19 @@ pub struct Kwin {
     kwin: Arc<Mutex<String>>,
     done: Arc<(Mutex<Vec<String>>, Condvar)>,
     next: AtomicU64,
+    /// KWin let a call run out of time (it hangs, or the session is
+    /// ending): further calls are skipped until the watcher loads again.
+    stuck: AtomicBool,
+}
+
+/// How long one call to KWin may take. zbus waits for ever by default:
+/// at logout KWin kept its bus name but no longer answered, and the quit
+/// hung on the first call (MN, 0.8.57).
+const KWIN_CALL_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Whether a call failed because it ran out of time.
+fn timed_out(e: &zbus::Error) -> bool {
+    matches!(e, zbus::Error::InputOutput(io) if io.kind() == std::io::ErrorKind::TimedOut)
 }
 
 /// Whether this is a KDE Plasma session (KWin runs the windows).
@@ -536,12 +562,12 @@ pub fn on_kde() -> bool {
 impl Kwin {
     /// Connects and serves the listener; `on_event` runs on zbus's thread.
     pub fn connect(on_event: impl Fn(Event) + Send + Sync + 'static) -> zbus::Result<Kwin> {
-        let conn = Connection::session()?;
+        let conn = zbus::blocking::connection::Builder::session()?.method_timeout(KWIN_CALL_TIMEOUT).build()?;
         let kwin = Arc::new(Mutex::new(String::new()));
         let done = Arc::new((Mutex::new(Vec::new()), Condvar::new()));
         let listener = Listener { on_event: Box::new(on_event), kwin: kwin.clone(), done: done.clone() };
         conn.object_server().at(PATH, listener)?;
-        let me = Kwin { conn, kwin, done, next: AtomicU64::new(1) };
+        let me = Kwin { conn, kwin, done, next: AtomicU64::new(1), stuck: AtomicBool::new(false) };
         me.find_kwin()?;
         Ok(me)
     }
@@ -560,18 +586,35 @@ impl Kwin {
     }
 
     fn scripting(&self) -> zbus::Result<zbus::blocking::Proxy<'_>> {
+        if self.stuck.load(Ordering::Relaxed) {
+            return Err(zbus::Error::Failure("KWin does not answer".into()));
+        }
         zbus::blocking::Proxy::new(&self.conn, "org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting")
+    }
+
+    /// Notes a call that ran out of time: KWin is skipped from now on.
+    fn check<T>(&self, result: zbus::Result<T>) -> zbus::Result<T> {
+        if let Err(e) = &result {
+            if timed_out(e) && !self.stuck.swap(true, Ordering::Relaxed) {
+                crate::log::write("apps", "KWin did not answer within 2 s: its calls are skipped until it answers again");
+            }
+        }
+        result
     }
 
     /// Loads a script file under `name` (one by that name goes first) and
     /// runs it.
     fn load(&self, file: &Path, name: &str) -> zbus::Result<()> {
         let scripting = self.scripting()?;
-        let loaded: bool = scripting.call("isScriptLoaded", &(name,)).unwrap_or(false);
+        let loaded: bool = match self.check(scripting.call("isScriptLoaded", &(name,))) {
+            Ok(loaded) => loaded,
+            Err(e) if timed_out(&e) => return Err(e),
+            Err(_) => false,
+        };
         if loaded {
-            let _: bool = scripting.call("unloadScript", &(name,))?;
+            let _: bool = self.check(scripting.call("unloadScript", &(name,)))?;
         }
-        let id: i32 = scripting.call("loadScript", &(file.to_string_lossy().as_ref(), name))?;
+        let id: i32 = self.check(scripting.call("loadScript", &(file.to_string_lossy().as_ref(), name)))?;
         if id < 0 {
             return Err(zbus::Error::Failure(format!("KWin did not load {name}")));
         }
@@ -582,21 +625,22 @@ impl Kwin {
         // every loaded script that is not running yet, ours included.
         let path = format!("/Scripting/Script{id}");
         if let Ok(script) = zbus::blocking::Proxy::new(&self.conn, "org.kde.KWin", path.as_str(), "org.kde.kwin.Script") {
-            let _: zbus::Result<()> = script.call("run", &());
+            let _: zbus::Result<()> = self.check(script.call("run", &()));
         }
-        let () = scripting.call("start", &())?;
+        let () = self.check(scripting.call("start", &()))?;
         Ok(())
     }
 
     fn unload(&self, name: &str) {
         if let Ok(scripting) = self.scripting() {
-            let _: zbus::Result<bool> = scripting.call("unloadScript", &(name,));
+            let _: zbus::Result<bool> = self.check(scripting.call("unloadScript", &(name,)));
         }
     }
 
     /// Loads the watcher (again).
     pub fn watch(&self, keys: &[&str]) -> zbus::Result<()> {
         self.find_kwin()?;
+        self.stuck.store(false, Ordering::Relaxed);
         let file = script_file(WATCHER)?;
         std::fs::write(&file, watcher_script(&self.bus_name(), keys)).map_err(io)?;
         let result = self.load(&file, WATCHER);
@@ -747,6 +791,17 @@ mod tests {
     }
 
     #[test]
+    fn desktop_tools_are_no_games() {
+        let w = |app: &str, cls: &str| Win { app: app.into(), cls: cls.into(), normal: true, full: true, ..Default::default() };
+        assert!(desktop_tool(&w("org.kde.spectacle", "spectacle")));
+        assert!(desktop_tool(&w("", "plasmashell")));
+        assert!(desktop_tool(&w("org.kde.krunner", "")));
+        assert!(!desktop_tool(&w("", "aion2.exe")));
+        assert!(!desktop_tool(&w("", "steam_app_2694490")));
+        assert!(!desktop_tool(&w("com.brave.Browser", "brave-browser")));
+    }
+
+    #[test]
     fn events_come_from_the_scripts_json() {
         let e = parse_event("window", r#"{"id":"{a}","app":"legcord","normal":true,"x":5,"w":300,"out":"DP-2"}"#);
         let Some(Event::Window(w)) = e else { panic!("{e:?}") };
@@ -783,6 +838,7 @@ mod tests {
         let r = restore_body("{a}", &b);
         assert!(r.contains("w.opacity = 1;") && r.contains("width: 100") && r.contains("w.minimized = true"));
         assert!(w.contains(r#"gcSend("full", gcInfo(w))"#));
+        assert!(w.contains(r#"tk.indexOf("spectacle") < 0"#));
         let u = unfull_body("{g}");
         assert!(u.contains(r#"gcFind("{g}")"#) && u.contains("w.fullScreen = false") && u.contains("w.noBorder = true"));
         assert!(refull_body("{g}").contains("w.fullScreen = true"));

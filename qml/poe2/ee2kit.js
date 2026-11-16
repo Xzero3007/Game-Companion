@@ -474,8 +474,8 @@ var EE2 = (() => {
       if (count >= start) {
         for (let j = i - range; j <= i + range || end > count; j++) {
           if (j < 0 || j >= lines2.length) continue;
-          const line = j + 1;
-          res.push(`${line}${" ".repeat(Math.max(3 - String(line).length, 0))}|  ${lines2[j]}`);
+          const line2 = j + 1;
+          res.push(`${line2}${" ".repeat(Math.max(3 - String(line2).length, 0))}|  ${lines2[j]}`);
           const lineLength = lines2[j].length;
           const newLineSeqLength = newlineSequences[j] && newlineSequences[j].length || 0;
           if (j === i) {
@@ -3554,9 +3554,9 @@ var EE2 = (() => {
         const retry = () => {
           retries++;
           pendingRequest = null;
-          return load2();
+          return load3();
         };
-        const load2 = () => {
+        const load3 = () => {
           let thisRequest;
           return pendingRequest || (thisRequest = pendingRequest = loader().catch(err2 => {
             err2 = err2 instanceof Error ? err2 : new Error(String(err2));
@@ -3582,7 +3582,7 @@ var EE2 = (() => {
         };
         return defineComponent({
           name: "AsyncComponentWrapper",
-          __asyncLoader: load2,
+          __asyncLoader: load3,
           get __asyncResolved() {
             return resolvedComp;
           },
@@ -3597,7 +3597,7 @@ var EE2 = (() => {
               /* do not throw in dev if user provided error component */);
             };
             if (suspensible && instance.suspense || isInSSRComponentSetup) {
-              return load2().then(comp => {
+              return load3().then(comp => {
                 return () => createInnerComp(comp, instance);
               }).catch(err2 => {
                 onError(err2);
@@ -3623,7 +3623,7 @@ var EE2 = (() => {
                 }
               }, timeout);
             }
-            load2().then(() => {
+            load3().then(() => {
               loaded2.value = true;
               if (instance.parent && isKeepAlive(instance.parent.vnode)) {
                 queueJob(instance.parent.update);
@@ -7309,11 +7309,16 @@ var EE2 = (() => {
     languageOf: () => languageOf,
     leagues: () => leagues,
     looksLikeItem: () => looksLikeItem,
+    ninjaNorm: () => ninjaNorm,
+    ninjaRead: () => ninjaRead,
     search: () => search,
     setFilter: () => setFilter,
+    setPrefs: () => setPrefs,
     setPreset: () => setPreset,
     setStat: () => setStat,
+    setTrade: () => setTrade,
     setup: () => setup,
+    tradeLink: () => tradeLink,
     view: () => view
   });
   init_timers();
@@ -8044,7 +8049,7 @@ var EE2 = (() => {
         return outItemData;
       });
     }
-    function load2(force = false) {
+    function load3(force = false) {
       return __async(this, null, function* () {
         if (!force && (
         // don't update more that this frequently
@@ -8088,7 +8093,7 @@ var EE2 = (() => {
       lastInterestTime = Date.now();
     }
     setInterval(() => {
-      load2();
+      load3();
     }, RETRY_INTERVAL_MS);
     return {
       isLoading,
@@ -8097,7 +8102,7 @@ var EE2 = (() => {
       tradeItemData: (0, import_vue2.readonly)(itemData),
       tradeStatData: (0, import_vue2.readonly)(statData),
       tradeStatDataSet: (0, import_vue2.readonly)(statDataSet),
-      load: load2
+      load: load3
     };
   });
 
@@ -9301,13 +9306,13 @@ var EE2 = (() => {
   var DESECRATED_LINE = " (desecrated)";
   var CRAFTED_LINE = " (crafted)";
   var FRACTURED_LINE = " (fractured)";
-  function parseModInfoLine(line, type) {
+  function parseModInfoLine(line2, type) {
     var _a2, _b, _c, _d;
-    const _line$slice$split$map = line.slice(1, -1).split("\u2014").map(_ => _.trim()),
-      _line$slice$split$map2 = _slicedToArray(_line$slice$split$map, 3),
-      modText = _line$slice$split$map2[0],
-      xText2 = _line$slice$split$map2[1],
-      xText3 = _line$slice$split$map2[2];
+    const _line2$slice$split$ma = line2.slice(1, -1).split("\u2014").map(_ => _.trim()),
+      _line2$slice$split$ma2 = _slicedToArray(_line2$slice$split$ma, 3),
+      modText = _line2$slice$split$ma2[0],
+      xText2 = _line2$slice$split$ma2[1],
+      xText3 = _line2$slice$split$ma2[2];
     let generation;
     let name;
     let tier;
@@ -9411,8 +9416,8 @@ var EE2 = (() => {
       rollIncr
     };
   }
-  function isModInfoLine(line) {
-    return line.startsWith("{") && line.endsWith("}");
+  function isModInfoLine(line2) {
+    return line2.startsWith("{") && line2.endsWith("}");
   }
   function* groupLinesByMod(lines2) {
     if (!lines2.length || !isModInfoLine(lines2[0])) {
@@ -9422,27 +9427,27 @@ var EE2 = (() => {
     {
       const _a29 = lines2;
       if (Array.isArray(_a29)) for (let _i27 = 0; _i27 < _a29.length; _i27++) {
-        const line = _a29[_i27];
-        if (!isModInfoLine(line)) {
-          last.statLines.push(line);
+        const line2 = _a29[_i27];
+        if (!isModInfoLine(line2)) {
+          last.statLines.push(line2);
         } else {
           if (last) {
             yield last;
           }
           last = {
-            modLine: line,
+            modLine: line2,
             statLines: []
           };
         }
-      } else for (const line of _a29) {
-        if (!isModInfoLine(line)) {
-          last.statLines.push(line);
+      } else for (const line2 of _a29) {
+        if (!isModInfoLine(line2)) {
+          last.statLines.push(line2);
         } else {
           if (last) {
             yield last;
           }
           last = {
-            modLine: line,
+            modLine: line2,
             statLines: []
           };
         }
@@ -9454,28 +9459,28 @@ var EE2 = (() => {
     let modType;
     if (lines2[0] === CLIENT_STRINGS.VEILED_PREFIX || lines2[0] === CLIENT_STRINGS.VEILED_SUFFIX) {
       modType = "veiled" /* Veiled */;
-    } else if (lines2.some(line => line.endsWith(SCOURGE_LINE))) {
+    } else if (lines2.some(line2 => line2.endsWith(SCOURGE_LINE))) {
       modType = "scourge" /* Scourge */;
       lines2 = removeLinesEnding(lines2, SCOURGE_LINE);
-    } else if (lines2.some(line => line.endsWith(ENCHANT_LINE))) {
+    } else if (lines2.some(line2 => line2.endsWith(ENCHANT_LINE))) {
       modType = "enchant" /* Enchant */;
       lines2 = removeLinesEnding(lines2, ENCHANT_LINE);
-    } else if (lines2.some(line => line.endsWith(IMPLICIT_LINE))) {
+    } else if (lines2.some(line2 => line2.endsWith(IMPLICIT_LINE))) {
       modType = "implicit" /* Implicit */;
       lines2 = removeLinesEnding(lines2, IMPLICIT_LINE);
-    } else if (lines2.some(line => line.endsWith(FRACTURED_LINE))) {
+    } else if (lines2.some(line2 => line2.endsWith(FRACTURED_LINE))) {
       modType = "fractured" /* Fractured */;
       lines2 = removeLinesEnding(lines2, FRACTURED_LINE);
-    } else if (lines2.some(line => line.endsWith(CRAFTED_LINE))) {
+    } else if (lines2.some(line2 => line2.endsWith(CRAFTED_LINE))) {
       modType = "crafted" /* Crafted */;
       lines2 = removeLinesEnding(lines2, CRAFTED_LINE);
-    } else if (lines2.some(line => line.endsWith(AUGMENT_LINE))) {
+    } else if (lines2.some(line2 => line2.endsWith(AUGMENT_LINE))) {
       modType = "rune" /* Augment */;
       lines2 = removeLinesEnding(lines2, AUGMENT_LINE);
-    } else if (lines2.some(line => line.endsWith(ADDED_AUGMENT_LINE))) {
+    } else if (lines2.some(line2 => line2.endsWith(ADDED_AUGMENT_LINE))) {
       modType = "added-rune" /* AddedAugment */;
       lines2 = removeLinesEnding(lines2, ADDED_AUGMENT_LINE);
-    } else if (lines2.some(line => line.endsWith(DESECRATED_LINE))) {
+    } else if (lines2.some(line2 => line2.endsWith(DESECRATED_LINE))) {
       modType = "desecrated" /* Desecrated */;
       lines2 = removeLinesEnding(lines2, DESECRATED_LINE);
     } else {
@@ -9776,7 +9781,7 @@ var EE2 = (() => {
       }
       notParsedLines.push(lines2[start]);
     }
-    return notParsedLines.filter(line => line.length);
+    return notParsedLines.filter(line2 => line2.length);
   }
   var PLACEHOLDER_MAP = [
   // 0 # -> max 0 #
@@ -10627,9 +10632,9 @@ var EE2 = (() => {
       lines2.pop();
     }
     const sections = [[]];
-    lines2.reduce((section, line) => {
-      if (line !== "--------") {
-        section.push(line);
+    lines2.reduce((section, line2) => {
+      if (line2 !== "--------") {
+        section.push(line2);
         return section;
       } else {
         const section2 = [];
@@ -10768,70 +10773,70 @@ var EE2 = (() => {
       {
         const _a42 = section;
         if (Array.isArray(_a42)) for (let _i40 = 0; _i40 < _a42.length; _i40++) {
-          const line = _a42[_i40];
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_REVIVES)) {
-            item.mapRevives = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_REVIVES.length), 10);
+          const line2 = _a42[_i40];
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_REVIVES)) {
+            item.mapRevives = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_REVIVES.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_PACK_SIZE)) {
-            item.mapPackSize = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_PACK_SIZE.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_PACK_SIZE)) {
+            item.mapPackSize = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_PACK_SIZE.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS)) {
-            item.mapMagicMonsters = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS)) {
+            item.mapMagicMonsters = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS)) {
-            item.mapRareMonsters = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS)) {
+            item.mapRareMonsters = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE)) {
-            item.mapDropChance = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE)) {
+            item.mapDropChance = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_RARITY)) {
-            item.mapItemRarity = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_RARITY.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_RARITY)) {
+            item.mapItemRarity = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_RARITY.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY)) {
-            item.mapMonsterRarity = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY)) {
+            item.mapMonsterRarity = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS)) {
-            item.mapEffectiveness = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS)) {
+            item.mapEffectiveness = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS.length), 10);
             continue;
           }
-        } else for (const line of _a42) {
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_REVIVES)) {
-            item.mapRevives = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_REVIVES.length), 10);
+        } else for (const line2 of _a42) {
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_REVIVES)) {
+            item.mapRevives = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_REVIVES.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_PACK_SIZE)) {
-            item.mapPackSize = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_PACK_SIZE.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_PACK_SIZE)) {
+            item.mapPackSize = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_PACK_SIZE.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS)) {
-            item.mapMagicMonsters = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS)) {
+            item.mapMagicMonsters = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_MAGIC_MONSTERS.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS)) {
-            item.mapRareMonsters = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS)) {
+            item.mapRareMonsters = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_RARE_MONSTERS.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE)) {
-            item.mapDropChance = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE)) {
+            item.mapDropChance = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_DROP_CHANCE.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_RARITY)) {
-            item.mapItemRarity = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_RARITY.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_RARITY)) {
+            item.mapItemRarity = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_RARITY.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY)) {
-            item.mapMonsterRarity = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY)) {
+            item.mapMonsterRarity = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_MONSTER_RARITY.length), 10);
             continue;
           }
-          if (line.startsWith(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS)) {
-            item.mapEffectiveness = parseInt(line.slice(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS.length), 10);
+          if (line2.startsWith(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS)) {
+            item.mapEffectiveness = parseInt(line2.slice(CLIENT_STRINGS.WAYSTONE_EFFECTIVENESS.length), 10);
             continue;
           }
         }
@@ -10895,10 +10900,10 @@ var EE2 = (() => {
   }
   function parseNamePlate(section) {
     performance.mark("parseNamePlate");
-    let line = section.shift();
+    let line2 = section.shift();
     let missingItemClass = false;
-    if (!(line == null ? void 0 : line.startsWith(CLIENT_STRINGS.ITEM_CLASS))) {
-      if (line && section.unshift(line) && isItemMissingItemClass(section)) {
+    if (!(line2 == null ? void 0 : line2.startsWith(CLIENT_STRINGS.ITEM_CLASS))) {
+      if (line2 && section.unshift(line2) && isItemMissingItemClass(section)) {
         missingItemClass = true;
       } else {
         console.log(section);
@@ -10913,20 +10918,20 @@ var EE2 = (() => {
         return err("item.parse_error");
       }
     }
-    line = section.shift();
+    line2 = section.shift();
     let rarityText;
-    if (line == null ? void 0 : line.startsWith(CLIENT_STRINGS.RARITY)) {
-      rarityText = line.slice(CLIENT_STRINGS.RARITY.length);
-      line = section.shift();
+    if (line2 == null ? void 0 : line2.startsWith(CLIENT_STRINGS.RARITY)) {
+      rarityText = line2.slice(CLIENT_STRINGS.RARITY.length);
+      line2 = section.shift();
     }
     let name;
-    if (line != null) {
-      name = markupConditionParser(line);
+    if (line2 != null) {
+      name = markupConditionParser(line2);
     } else {
       return err("item.parse_error");
     }
-    line = section.shift();
-    const baseType = line && markupConditionParser(line);
+    line2 = section.shift();
+    const baseType = line2 && markupConditionParser(line2);
     const item = {
       rarity: void 0,
       category: void 0,
@@ -10978,8 +10983,8 @@ var EE2 = (() => {
       {
         const _a44 = section;
         if (Array.isArray(_a44)) for (let _i42 = 0; _i42 < _a44.length; _i42++) {
-          const line = _a44[_i42];
-          switch (line) {
+          const line2 = _a44[_i42];
+          switch (line2) {
             case CLIENT_STRINGS.INFLUENCE_CRUSADER:
               item.influences.push("Crusader" /* Crusader */);
               break;
@@ -10999,8 +11004,8 @@ var EE2 = (() => {
               item.influences.push("Warlord" /* Warlord */);
               break;
           }
-        } else for (const line of _a44) {
-          switch (line) {
+        } else for (const line2 of _a44) {
+          switch (line2) {
             case CLIENT_STRINGS.INFLUENCE_CRUSADER:
               item.influences.push("Crusader" /* Crusader */);
               break;
@@ -11072,14 +11077,14 @@ var EE2 = (() => {
     {
       const _a45 = section;
       if (Array.isArray(_a45)) for (let _i43 = 0; _i43 < _a45.length; _i43++) {
-        const line = _a45[_i43];
-        if (line.startsWith(prefix)) {
-          item.itemLevel = Number(line.slice(prefix.length));
+        const line2 = _a45[_i43];
+        if (line2.startsWith(prefix)) {
+          item.itemLevel = Number(line2.slice(prefix.length));
           return "SECTION_PARSED";
         }
-      } else for (const line of _a45) {
-        if (line.startsWith(prefix)) {
-          item.itemLevel = Number(line.slice(prefix.length));
+      } else for (const line2 of _a45) {
+        if (line2.startsWith(prefix)) {
+          item.itemLevel = Number(line2.slice(prefix.length));
           return "SECTION_PARSED";
         }
       }
@@ -11207,9 +11212,9 @@ var EE2 = (() => {
     {
       const _a46 = section;
       if (Array.isArray(_a46)) for (let _i44 = 0; _i44 < _a46.length; _i44++) {
-        const line = _a46[_i44];
-        if (line.startsWith(CLIENT_STRINGS.QUALITY)) {
-          item.quality = parseInt(line.slice(CLIENT_STRINGS.QUALITY.length), 10);
+        const line2 = _a46[_i44];
+        if (line2.startsWith(CLIENT_STRINGS.QUALITY)) {
+          item.quality = parseInt(line2.slice(CLIENT_STRINGS.QUALITY.length), 10);
           if (item.category === "Ring" /* Ring */ || item.category === "Amulet" /* Amulet */ || item.category === "Jewel" /* Jewel */) {
             const catalysts = item.category === "Jewel" /* Jewel */ ? CATALYST_TYPES.Refined : CATALYST_TYPES.Normal;
             {
@@ -11220,12 +11225,12 @@ var EE2 = (() => {
                   const _a48 = CATALYST_TO_TAG[catalyst.tags[1]];
                   if (Array.isArray(_a48)) for (let _i46 = 0; _i46 < _a48.length; _i46++) {
                     const tag = _a48[_i46];
-                    if (line.includes(tag)) {
+                    if (line2.includes(tag)) {
                       item.qualityType = catalyst.tags[1];
                       return;
                     }
                   } else for (const tag of _a48) {
-                    if (line.includes(tag)) {
+                    if (line2.includes(tag)) {
                       item.qualityType = catalyst.tags[1];
                       return;
                     }
@@ -11236,12 +11241,12 @@ var EE2 = (() => {
                   const _a49 = CATALYST_TO_TAG[catalyst.tags[1]];
                   if (Array.isArray(_a49)) for (let _i47 = 0; _i47 < _a49.length; _i47++) {
                     const tag = _a49[_i47];
-                    if (line.includes(tag)) {
+                    if (line2.includes(tag)) {
                       item.qualityType = catalyst.tags[1];
                       return;
                     }
                   } else for (const tag of _a49) {
-                    if (line.includes(tag)) {
+                    if (line2.includes(tag)) {
                       item.qualityType = catalyst.tags[1];
                       return;
                     }
@@ -11252,9 +11257,9 @@ var EE2 = (() => {
           }
           return;
         }
-      } else for (const line of _a46) {
-        if (line.startsWith(CLIENT_STRINGS.QUALITY)) {
-          item.quality = parseInt(line.slice(CLIENT_STRINGS.QUALITY.length), 10);
+      } else for (const line2 of _a46) {
+        if (line2.startsWith(CLIENT_STRINGS.QUALITY)) {
+          item.quality = parseInt(line2.slice(CLIENT_STRINGS.QUALITY.length), 10);
           if (item.category === "Ring" /* Ring */ || item.category === "Amulet" /* Amulet */ || item.category === "Jewel" /* Jewel */) {
             const catalysts = item.category === "Jewel" /* Jewel */ ? CATALYST_TYPES.Refined : CATALYST_TYPES.Normal;
             {
@@ -11265,12 +11270,12 @@ var EE2 = (() => {
                   const _a51 = CATALYST_TO_TAG[catalyst.tags[1]];
                   if (Array.isArray(_a51)) for (let _i49 = 0; _i49 < _a51.length; _i49++) {
                     const tag = _a51[_i49];
-                    if (line.includes(tag)) {
+                    if (line2.includes(tag)) {
                       item.qualityType = catalyst.tags[1];
                       return;
                     }
                   } else for (const tag of _a51) {
-                    if (line.includes(tag)) {
+                    if (line2.includes(tag)) {
                       item.qualityType = catalyst.tags[1];
                       return;
                     }
@@ -11281,12 +11286,12 @@ var EE2 = (() => {
                   const _a52 = CATALYST_TO_TAG[catalyst.tags[1]];
                   if (Array.isArray(_a52)) for (let _i50 = 0; _i50 < _a52.length; _i50++) {
                     const tag = _a52[_i50];
-                    if (line.includes(tag)) {
+                    if (line2.includes(tag)) {
                       item.qualityType = catalyst.tags[1];
                       return;
                     }
                   } else for (const tag of _a52) {
-                    if (line.includes(tag)) {
+                    if (line2.includes(tag)) {
                       item.qualityType = catalyst.tags[1];
                       return;
                     }
@@ -11306,55 +11311,55 @@ var EE2 = (() => {
     {
       const _a53 = section;
       if (Array.isArray(_a53)) for (let _i51 = 0; _i51 < _a53.length; _i51++) {
-        const line = _a53[_i51];
-        if (line.startsWith(CLIENT_STRINGS.ARMOUR)) {
-          item.armourAR = parseInt(line.slice(CLIENT_STRINGS.ARMOUR.length), 10);
+        const line2 = _a53[_i51];
+        if (line2.startsWith(CLIENT_STRINGS.ARMOUR)) {
+          item.armourAR = parseInt(line2.slice(CLIENT_STRINGS.ARMOUR.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.EVASION)) {
-          item.armourEV = parseInt(line.slice(CLIENT_STRINGS.EVASION.length), 10);
+        if (line2.startsWith(CLIENT_STRINGS.EVASION)) {
+          item.armourEV = parseInt(line2.slice(CLIENT_STRINGS.EVASION.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.ENERGY_SHIELD)) {
-          item.armourES = parseInt(line.slice(CLIENT_STRINGS.ENERGY_SHIELD.length), 10);
+        if (line2.startsWith(CLIENT_STRINGS.ENERGY_SHIELD)) {
+          item.armourES = parseInt(line2.slice(CLIENT_STRINGS.ENERGY_SHIELD.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.BLOCK_CHANCE)) {
-          item.armourBLOCK = parseInt(line.slice(CLIENT_STRINGS.BLOCK_CHANCE.length), 10);
+        if (line2.startsWith(CLIENT_STRINGS.BLOCK_CHANCE)) {
+          item.armourBLOCK = parseInt(line2.slice(CLIENT_STRINGS.BLOCK_CHANCE.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.RUNIC_WARD)) {
-          item.armourRW = parseInt(line.slice(CLIENT_STRINGS.RUNIC_WARD.length), 10);
+        if (line2.startsWith(CLIENT_STRINGS.RUNIC_WARD)) {
+          item.armourRW = parseInt(line2.slice(CLIENT_STRINGS.RUNIC_WARD.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
-      } else for (const line of _a53) {
-        if (line.startsWith(CLIENT_STRINGS.ARMOUR)) {
-          item.armourAR = parseInt(line.slice(CLIENT_STRINGS.ARMOUR.length), 10);
+      } else for (const line2 of _a53) {
+        if (line2.startsWith(CLIENT_STRINGS.ARMOUR)) {
+          item.armourAR = parseInt(line2.slice(CLIENT_STRINGS.ARMOUR.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.EVASION)) {
-          item.armourEV = parseInt(line.slice(CLIENT_STRINGS.EVASION.length), 10);
+        if (line2.startsWith(CLIENT_STRINGS.EVASION)) {
+          item.armourEV = parseInt(line2.slice(CLIENT_STRINGS.EVASION.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.ENERGY_SHIELD)) {
-          item.armourES = parseInt(line.slice(CLIENT_STRINGS.ENERGY_SHIELD.length), 10);
+        if (line2.startsWith(CLIENT_STRINGS.ENERGY_SHIELD)) {
+          item.armourES = parseInt(line2.slice(CLIENT_STRINGS.ENERGY_SHIELD.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.BLOCK_CHANCE)) {
-          item.armourBLOCK = parseInt(line.slice(CLIENT_STRINGS.BLOCK_CHANCE.length), 10);
+        if (line2.startsWith(CLIENT_STRINGS.BLOCK_CHANCE)) {
+          item.armourBLOCK = parseInt(line2.slice(CLIENT_STRINGS.BLOCK_CHANCE.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.RUNIC_WARD)) {
-          item.armourRW = parseInt(line.slice(CLIENT_STRINGS.RUNIC_WARD.length), 10);
+        if (line2.startsWith(CLIENT_STRINGS.RUNIC_WARD)) {
+          item.armourRW = parseInt(line2.slice(CLIENT_STRINGS.RUNIC_WARD.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
@@ -11378,29 +11383,29 @@ var EE2 = (() => {
     {
       const _a54 = section;
       if (Array.isArray(_a54)) for (let _i52 = 0; _i52 < _a54.length; _i52++) {
-        const line = _a54[_i52];
-        if (line.startsWith(CLIENT_STRINGS.CRIT_CHANCE)) {
-          item.weaponCRIT = parseFloat(line.slice(CLIENT_STRINGS.CRIT_CHANCE.length));
+        const line2 = _a54[_i52];
+        if (line2.startsWith(CLIENT_STRINGS.CRIT_CHANCE)) {
+          item.weaponCRIT = parseFloat(line2.slice(CLIENT_STRINGS.CRIT_CHANCE.length));
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.ATTACK_SPEED)) {
-          item.weaponAS = parseFloat(line.slice(CLIENT_STRINGS.ATTACK_SPEED.length));
+        if (line2.startsWith(CLIENT_STRINGS.ATTACK_SPEED)) {
+          item.weaponAS = parseFloat(line2.slice(CLIENT_STRINGS.ATTACK_SPEED.length));
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.PHYSICAL_DAMAGE)) {
-          item.weaponPHYSICAL = getRollOrMinmaxAvg(line.slice(CLIENT_STRINGS.PHYSICAL_DAMAGE.length).split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)));
+        if (line2.startsWith(CLIENT_STRINGS.PHYSICAL_DAMAGE)) {
+          item.weaponPHYSICAL = getRollOrMinmaxAvg(line2.slice(CLIENT_STRINGS.PHYSICAL_DAMAGE.length).split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)));
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.ELEMENTAL_DAMAGE)) {
-          item.weaponELEMENTAL = line.slice(CLIENT_STRINGS.ELEMENTAL_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+        if (line2.startsWith(CLIENT_STRINGS.ELEMENTAL_DAMAGE)) {
+          item.weaponELEMENTAL = line2.slice(CLIENT_STRINGS.ELEMENTAL_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.FIRE_DAMAGE)) {
-          const fireDamage = line.slice(CLIENT_STRINGS.FIRE_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+        if (line2.startsWith(CLIENT_STRINGS.FIRE_DAMAGE)) {
+          const fireDamage = line2.slice(CLIENT_STRINGS.FIRE_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
           if (item.weaponELEMENTAL) {
             item.weaponELEMENTAL = fireDamage + item.weaponELEMENTAL;
           } else {
@@ -11409,8 +11414,8 @@ var EE2 = (() => {
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.COLD_DAMAGE)) {
-          const coldDamage = line.slice(CLIENT_STRINGS.COLD_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+        if (line2.startsWith(CLIENT_STRINGS.COLD_DAMAGE)) {
+          const coldDamage = line2.slice(CLIENT_STRINGS.COLD_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
           if (item.weaponELEMENTAL) {
             item.weaponELEMENTAL = coldDamage + item.weaponELEMENTAL;
           } else {
@@ -11419,8 +11424,8 @@ var EE2 = (() => {
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.LIGHTNING_DAMAGE)) {
-          const lightningDamage = line.slice(CLIENT_STRINGS.LIGHTNING_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+        if (line2.startsWith(CLIENT_STRINGS.LIGHTNING_DAMAGE)) {
+          const lightningDamage = line2.slice(CLIENT_STRINGS.LIGHTNING_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
           if (item.weaponELEMENTAL) {
             item.weaponELEMENTAL = lightningDamage + item.weaponELEMENTAL;
           } else {
@@ -11429,39 +11434,39 @@ var EE2 = (() => {
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.RELOAD_SPEED)) {
-          item.weaponRELOAD = parseFloat(line.slice(CLIENT_STRINGS.RELOAD_SPEED.length));
+        if (line2.startsWith(CLIENT_STRINGS.RELOAD_SPEED)) {
+          item.weaponRELOAD = parseFloat(line2.slice(CLIENT_STRINGS.RELOAD_SPEED.length));
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
-          item.weaponSPIRIT = parseInt(line.slice(CLIENT_STRINGS.BASE_SPIRIT.length), 10);
+        if (line2.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
+          item.weaponSPIRIT = parseInt(line2.slice(CLIENT_STRINGS.BASE_SPIRIT.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
-      } else for (const line of _a54) {
-        if (line.startsWith(CLIENT_STRINGS.CRIT_CHANCE)) {
-          item.weaponCRIT = parseFloat(line.slice(CLIENT_STRINGS.CRIT_CHANCE.length));
+      } else for (const line2 of _a54) {
+        if (line2.startsWith(CLIENT_STRINGS.CRIT_CHANCE)) {
+          item.weaponCRIT = parseFloat(line2.slice(CLIENT_STRINGS.CRIT_CHANCE.length));
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.ATTACK_SPEED)) {
-          item.weaponAS = parseFloat(line.slice(CLIENT_STRINGS.ATTACK_SPEED.length));
+        if (line2.startsWith(CLIENT_STRINGS.ATTACK_SPEED)) {
+          item.weaponAS = parseFloat(line2.slice(CLIENT_STRINGS.ATTACK_SPEED.length));
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.PHYSICAL_DAMAGE)) {
-          item.weaponPHYSICAL = getRollOrMinmaxAvg(line.slice(CLIENT_STRINGS.PHYSICAL_DAMAGE.length).split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)));
+        if (line2.startsWith(CLIENT_STRINGS.PHYSICAL_DAMAGE)) {
+          item.weaponPHYSICAL = getRollOrMinmaxAvg(line2.slice(CLIENT_STRINGS.PHYSICAL_DAMAGE.length).split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)));
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.ELEMENTAL_DAMAGE)) {
-          item.weaponELEMENTAL = line.slice(CLIENT_STRINGS.ELEMENTAL_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+        if (line2.startsWith(CLIENT_STRINGS.ELEMENTAL_DAMAGE)) {
+          item.weaponELEMENTAL = line2.slice(CLIENT_STRINGS.ELEMENTAL_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.FIRE_DAMAGE)) {
-          const fireDamage = line.slice(CLIENT_STRINGS.FIRE_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+        if (line2.startsWith(CLIENT_STRINGS.FIRE_DAMAGE)) {
+          const fireDamage = line2.slice(CLIENT_STRINGS.FIRE_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
           if (item.weaponELEMENTAL) {
             item.weaponELEMENTAL = fireDamage + item.weaponELEMENTAL;
           } else {
@@ -11470,8 +11475,8 @@ var EE2 = (() => {
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.COLD_DAMAGE)) {
-          const coldDamage = line.slice(CLIENT_STRINGS.COLD_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+        if (line2.startsWith(CLIENT_STRINGS.COLD_DAMAGE)) {
+          const coldDamage = line2.slice(CLIENT_STRINGS.COLD_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
           if (item.weaponELEMENTAL) {
             item.weaponELEMENTAL = coldDamage + item.weaponELEMENTAL;
           } else {
@@ -11480,8 +11485,8 @@ var EE2 = (() => {
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.LIGHTNING_DAMAGE)) {
-          const lightningDamage = line.slice(CLIENT_STRINGS.LIGHTNING_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
+        if (line2.startsWith(CLIENT_STRINGS.LIGHTNING_DAMAGE)) {
+          const lightningDamage = line2.slice(CLIENT_STRINGS.LIGHTNING_DAMAGE.length).split(", ").map(element => getRollOrMinmaxAvg(element.split(CLIENT_STRINGS.HYPHEN).map(str => parseInt(str.replace(/[^\d]/g, ""), 10)))).reduce((sum, x) => sum + x, 0);
           if (item.weaponELEMENTAL) {
             item.weaponELEMENTAL = lightningDamage + item.weaponELEMENTAL;
           } else {
@@ -11490,13 +11495,13 @@ var EE2 = (() => {
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.RELOAD_SPEED)) {
-          item.weaponRELOAD = parseFloat(line.slice(CLIENT_STRINGS.RELOAD_SPEED.length));
+        if (line2.startsWith(CLIENT_STRINGS.RELOAD_SPEED)) {
+          item.weaponRELOAD = parseFloat(line2.slice(CLIENT_STRINGS.RELOAD_SPEED.length));
           isParsed = "SECTION_PARSED";
           continue;
         }
-        if (line.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
-          item.weaponSPIRIT = parseInt(line.slice(CLIENT_STRINGS.BASE_SPIRIT.length), 10);
+        if (line2.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
+          item.weaponSPIRIT = parseInt(line2.slice(CLIENT_STRINGS.BASE_SPIRIT.length), 10);
           isParsed = "SECTION_PARSED";
           continue;
         }
@@ -11549,9 +11554,9 @@ var EE2 = (() => {
     {
       const _a55 = lines2;
       if (Array.isArray(_a55)) for (let _i53 = 0; _i53 < _a55.length; _i53++) {
-        const line = _a55[_i53];
+        const line2 = _a55[_i53];
         const found = tryParseTranslation({
-          string: line,
+          string: line2,
           unscalable: false
         }, modType, void 0);
         if (found) {
@@ -11563,9 +11568,9 @@ var EE2 = (() => {
             stats: [found]
           });
         }
-      } else for (const line of _a55) {
+      } else for (const line2 of _a55) {
         const found = tryParseTranslation({
-          string: line,
+          string: line2,
           unscalable: false
         }, modType, void 0);
         if (found) {
@@ -11594,7 +11599,7 @@ var EE2 = (() => {
     if (item.rarity !== "Normal" /* Normal */ && item.rarity !== "Magic" /* Magic */ && item.rarity !== "Rare" /* Rare */ && item.rarity !== "Unique" /* Unique */) {
       return "PARSER_SKIPPED";
     }
-    const recognizedLine = section.find(line => line.endsWith(ENCHANT_LINE) || line.endsWith(AUGMENT_LINE) || line.startsWith(CLIENT_STRINGS.GRANTS_SKILL) || isModInfoLine(line));
+    const recognizedLine = section.find(line2 => line2.endsWith(ENCHANT_LINE) || line2.endsWith(AUGMENT_LINE) || line2.startsWith(CLIENT_STRINGS.GRANTS_SKILL) || isModInfoLine(line2));
     if (!recognizedLine) {
       return "SECTION_SKIPPED";
     }
@@ -11741,13 +11746,13 @@ var EE2 = (() => {
     {
       const _a58 = section;
       if (Array.isArray(_a58)) for (let _i56 = 0; _i56 < _a58.length; _i56++) {
-        const line = _a58[_i56];
-        if (CLIENT_STRINGS.FLASK_CHARGES.test(line)) {
+        const line2 = _a58[_i56];
+        if (CLIENT_STRINGS.FLASK_CHARGES.test(line2)) {
           isParsed = "SECTION_PARSED";
           break;
         }
-      } else for (const line of _a58) {
-        if (CLIENT_STRINGS.FLASK_CHARGES.test(line)) {
+      } else for (const line2 of _a58) {
+        if (CLIENT_STRINGS.FLASK_CHARGES.test(line2)) {
           isParsed = "SECTION_PARSED";
           break;
         }
@@ -11766,12 +11771,12 @@ var EE2 = (() => {
     {
       const _a59 = section;
       if (Array.isArray(_a59)) for (let _i57 = 0; _i57 < _a59.length; _i57++) {
-        const line = _a59[_i57];
-        if (line.startsWith(CLIENT_STRINGS.QUALITY.substring(0, CLIENT_STRINGS.QUALITY.indexOf(":")))) {
+        const line2 = _a59[_i57];
+        if (line2.startsWith(CLIENT_STRINGS.QUALITY.substring(0, CLIENT_STRINGS.QUALITY.indexOf(":")))) {
           return "SECTION_PARSED";
         }
-      } else for (const line of _a59) {
-        if (line.startsWith(CLIENT_STRINGS.QUALITY.substring(0, CLIENT_STRINGS.QUALITY.indexOf(":")))) {
+      } else for (const line2 of _a59) {
+        if (line2.startsWith(CLIENT_STRINGS.QUALITY.substring(0, CLIENT_STRINGS.QUALITY.indexOf(":")))) {
           return "SECTION_PARSED";
         }
       }
@@ -11785,13 +11790,13 @@ var EE2 = (() => {
     {
       const _a60 = section;
       if (Array.isArray(_a60)) for (let _i58 = 0; _i58 < _a60.length; _i58++) {
-        const line = _a60[_i58];
-        if (line.startsWith(CLIENT_STRINGS.CHARM_SLOTS)) {
+        const line2 = _a60[_i58];
+        if (line2.startsWith(CLIENT_STRINGS.CHARM_SLOTS)) {
           isParsed = "SECTION_PARSED";
           break;
         }
-      } else for (const line of _a60) {
-        if (line.startsWith(CLIENT_STRINGS.CHARM_SLOTS)) {
+      } else for (const line2 of _a60) {
+        if (line2.startsWith(CLIENT_STRINGS.CHARM_SLOTS)) {
           isParsed = "SECTION_PARSED";
           break;
         }
@@ -11806,13 +11811,13 @@ var EE2 = (() => {
     {
       const _a61 = section;
       if (Array.isArray(_a61)) for (let _i59 = 0; _i59 < _a61.length; _i59++) {
-        const line = _a61[_i59];
-        if (line.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
+        const line2 = _a61[_i59];
+        if (line2.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
           isParsed = "SECTION_PARSED";
           break;
         }
-      } else for (const line of _a61) {
-        if (line.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
+      } else for (const line2 of _a61) {
+        if (line2.startsWith(CLIENT_STRINGS.BASE_SPIRIT)) {
           isParsed = "SECTION_PARSED";
           break;
         }
@@ -11825,14 +11830,14 @@ var EE2 = (() => {
     {
       const _a62 = section;
       if (Array.isArray(_a62)) for (let _i60 = 0; _i60 < _a62.length; _i60++) {
-        const line = _a62[_i60];
-        if (line.startsWith(CLIENT_STRINGS.PRICE_NOTE)) {
-          item.note = line.slice(CLIENT_STRINGS.PRICE_NOTE.length);
+        const line2 = _a62[_i60];
+        if (line2.startsWith(CLIENT_STRINGS.PRICE_NOTE)) {
+          item.note = line2.slice(CLIENT_STRINGS.PRICE_NOTE.length);
           return "SECTION_PARSED";
         }
-      } else for (const line of _a62) {
-        if (line.startsWith(CLIENT_STRINGS.PRICE_NOTE)) {
-          item.note = line.slice(CLIENT_STRINGS.PRICE_NOTE.length);
+      } else for (const line2 of _a62) {
+        if (line2.startsWith(CLIENT_STRINGS.PRICE_NOTE)) {
+          item.note = line2.slice(CLIENT_STRINGS.PRICE_NOTE.length);
           return "SECTION_PARSED";
         }
       }
@@ -11845,12 +11850,12 @@ var EE2 = (() => {
     {
       const _a63 = section;
       if (Array.isArray(_a63)) for (let _i61 = 0; _i61 < _a63.length; _i61++) {
-        const line = _a63[_i61];
-        if (line.startsWith(CLIENT_STRINGS.TIMELESS_RADIUS)) {
+        const line2 = _a63[_i61];
+        if (line2.startsWith(CLIENT_STRINGS.TIMELESS_RADIUS)) {
           return "SECTION_PARSED";
         }
-      } else for (const line of _a63) {
-        if (line.startsWith(CLIENT_STRINGS.TIMELESS_RADIUS)) {
+      } else for (const line2 of _a63) {
+        if (line2.startsWith(CLIENT_STRINGS.TIMELESS_RADIUS)) {
           return "SECTION_PARSED";
         }
       }
@@ -11940,9 +11945,9 @@ var EE2 = (() => {
     {
       const _a64 = section;
       if (Array.isArray(_a64)) for (let _i62 = 0; _i62 < _a64.length; _i62++) {
-        const line = _a64[_i62];
-        if (line.startsWith(CLIENT_STRINGS.HEIST_TARGET)) {
-          const targetText = line.slice(CLIENT_STRINGS.HEIST_TARGET.length);
+        const line2 = _a64[_i62];
+        if (line2.startsWith(CLIENT_STRINGS.HEIST_TARGET)) {
+          const targetText = line2.slice(CLIENT_STRINGS.HEIST_TARGET.length);
           switch (targetText) {
             case CLIENT_STRINGS.HEIST_BLUEPRINT_ENCHANTS:
               item.heist.target = "Enchants";
@@ -11957,12 +11962,12 @@ var EE2 = (() => {
               item.heist.target = "Trinkets";
               break;
           }
-        } else if (line.startsWith(CLIENT_STRINGS.HEIST_WINGS_REVEALED)) {
-          item.heist.wingsRevealed = parseInt(line.slice(CLIENT_STRINGS.HEIST_WINGS_REVEALED.length), 10);
+        } else if (line2.startsWith(CLIENT_STRINGS.HEIST_WINGS_REVEALED)) {
+          item.heist.wingsRevealed = parseInt(line2.slice(CLIENT_STRINGS.HEIST_WINGS_REVEALED.length), 10);
         }
-      } else for (const line of _a64) {
-        if (line.startsWith(CLIENT_STRINGS.HEIST_TARGET)) {
-          const targetText = line.slice(CLIENT_STRINGS.HEIST_TARGET.length);
+      } else for (const line2 of _a64) {
+        if (line2.startsWith(CLIENT_STRINGS.HEIST_TARGET)) {
+          const targetText = line2.slice(CLIENT_STRINGS.HEIST_TARGET.length);
           switch (targetText) {
             case CLIENT_STRINGS.HEIST_BLUEPRINT_ENCHANTS:
               item.heist.target = "Enchants";
@@ -11977,8 +11982,8 @@ var EE2 = (() => {
               item.heist.target = "Trinkets";
               break;
           }
-        } else if (line.startsWith(CLIENT_STRINGS.HEIST_WINGS_REVEALED)) {
-          item.heist.wingsRevealed = parseInt(line.slice(CLIENT_STRINGS.HEIST_WINGS_REVEALED.length), 10);
+        } else if (line2.startsWith(CLIENT_STRINGS.HEIST_WINGS_REVEALED)) {
+          item.heist.wingsRevealed = parseInt(line2.slice(CLIENT_STRINGS.HEIST_WINGS_REVEALED.length), 10);
         }
       }
     }
@@ -11997,27 +12002,27 @@ var EE2 = (() => {
     {
       const _a65 = section;
       if (Array.isArray(_a65)) for (let _i63 = 0; _i63 < _a65.length; _i63++) {
-        const line = _a65[_i63];
-        if (line.startsWith(CLIENT_STRINGS.TRIAL_COUNT)) {
-          item.trials.numberOfTrials = Number(line.slice(CLIENT_STRINGS.TRIAL_COUNT.length));
+        const line2 = _a65[_i63];
+        if (line2.startsWith(CLIENT_STRINGS.TRIAL_COUNT)) {
+          item.trials.numberOfTrials = Number(line2.slice(CLIENT_STRINGS.TRIAL_COUNT.length));
         } else if (item.info.refName === "Inscribed Ultimatum") {
-          if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_VICTORIOUS)) {
+          if (line2.startsWith(CLIENT_STRINGS.ULTIMATUM_VICTORIOUS)) {
             item.trials.ultimatumHint = "Victorious";
-          } else if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_COWARDLY)) {
+          } else if (line2.startsWith(CLIENT_STRINGS.ULTIMATUM_COWARDLY)) {
             item.trials.ultimatumHint = "Cowardly";
-          } else if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_DEADLY)) {
+          } else if (line2.startsWith(CLIENT_STRINGS.ULTIMATUM_DEADLY)) {
             item.trials.ultimatumHint = "Deadly";
           }
         }
-      } else for (const line of _a65) {
-        if (line.startsWith(CLIENT_STRINGS.TRIAL_COUNT)) {
-          item.trials.numberOfTrials = Number(line.slice(CLIENT_STRINGS.TRIAL_COUNT.length));
+      } else for (const line2 of _a65) {
+        if (line2.startsWith(CLIENT_STRINGS.TRIAL_COUNT)) {
+          item.trials.numberOfTrials = Number(line2.slice(CLIENT_STRINGS.TRIAL_COUNT.length));
         } else if (item.info.refName === "Inscribed Ultimatum") {
-          if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_VICTORIOUS)) {
+          if (line2.startsWith(CLIENT_STRINGS.ULTIMATUM_VICTORIOUS)) {
             item.trials.ultimatumHint = "Victorious";
-          } else if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_COWARDLY)) {
+          } else if (line2.startsWith(CLIENT_STRINGS.ULTIMATUM_COWARDLY)) {
             item.trials.ultimatumHint = "Cowardly";
-          } else if (line.startsWith(CLIENT_STRINGS.ULTIMATUM_DEADLY)) {
+          } else if (line2.startsWith(CLIENT_STRINGS.ULTIMATUM_DEADLY)) {
             item.trials.ultimatumHint = "Deadly";
           }
         }
@@ -12030,14 +12035,14 @@ var EE2 = (() => {
     {
       const _a66 = section;
       if (Array.isArray(_a66)) for (let _i64 = 0; _i64 < _a66.length; _i64++) {
-        const line = _a66[_i64];
-        if (line.startsWith(CLIENT_STRINGS.AREA_LEVEL)) {
-          item.areaLevel = Number(line.slice(CLIENT_STRINGS.AREA_LEVEL.length));
+        const line2 = _a66[_i64];
+        if (line2.startsWith(CLIENT_STRINGS.AREA_LEVEL)) {
+          item.areaLevel = Number(line2.slice(CLIENT_STRINGS.AREA_LEVEL.length));
           break;
         }
-      } else for (const line of _a66) {
-        if (line.startsWith(CLIENT_STRINGS.AREA_LEVEL)) {
-          item.areaLevel = Number(line.slice(CLIENT_STRINGS.AREA_LEVEL.length));
+      } else for (const line2 of _a66) {
+        if (line2.startsWith(CLIENT_STRINGS.AREA_LEVEL)) {
+          item.areaLevel = Number(line2.slice(CLIENT_STRINGS.AREA_LEVEL.length));
           break;
         }
       }
@@ -12057,12 +12062,12 @@ var EE2 = (() => {
     {
       const _a67 = section.slice(1);
       if (Array.isArray(_a67)) for (let _i65 = 0; _i65 < _a67.length; _i65++) {
-        const line = _a67[_i65];
-        if (line === CLIENT_STRINGS.INCURSION_OBSTRUCTED) {
+        const line2 = _a67[_i65];
+        if (line2 === CLIENT_STRINGS.INCURSION_OBSTRUCTED) {
           state = 2 /* Obstructed */;
           continue;
         }
-        const found = STAT_BY_MATCH_STR(line);
+        const found = STAT_BY_MATCH_STR(line2);
         if (found) {
           item.newMods.push({
             info: {
@@ -12085,16 +12090,16 @@ var EE2 = (() => {
           });
         } else {
           item.unknownModifiers.push({
-            text: line,
+            text: line2,
             type: "pseudo" /* Pseudo */
           });
         }
-      } else for (const line of _a67) {
-        if (line === CLIENT_STRINGS.INCURSION_OBSTRUCTED) {
+      } else for (const line2 of _a67) {
+        if (line2 === CLIENT_STRINGS.INCURSION_OBSTRUCTED) {
           state = 2 /* Obstructed */;
           continue;
         }
-        const found = STAT_BY_MATCH_STR(line);
+        const found = STAT_BY_MATCH_STR(line2);
         if (found) {
           item.newMods.push({
             info: {
@@ -12117,7 +12122,7 @@ var EE2 = (() => {
           });
         } else {
           item.unknownModifiers.push({
-            text: line,
+            text: line2,
             type: "pseudo" /* Pseudo */
           });
         }
@@ -12132,9 +12137,9 @@ var EE2 = (() => {
     {
       const _a68 = section;
       if (Array.isArray(_a68)) for (let _i66 = 0; _i66 < _a68.length; _i66++) {
-        const line = _a68[_i66];
+        const line2 = _a68[_i66];
         const found = tryParseTranslation({
-          string: line,
+          string: line2,
           unscalable: true
         }, "pseudo" /* Pseudo */, void 0);
         if (found) {
@@ -12147,13 +12152,13 @@ var EE2 = (() => {
           });
         } else {
           item.unknownModifiers.push({
-            text: line,
+            text: line2,
             type: "pseudo" /* Pseudo */
           });
         }
-      } else for (const line of _a68) {
+      } else for (const line2 of _a68) {
         const found = tryParseTranslation({
-          string: line,
+          string: line2,
           unscalable: true
         }, "pseudo" /* Pseudo */, void 0);
         if (found) {
@@ -12166,7 +12171,7 @@ var EE2 = (() => {
           });
         } else {
           item.unknownModifiers.push({
-            text: line,
+            text: line2,
             type: "pseudo" /* Pseudo */
           });
         }
@@ -12177,7 +12182,7 @@ var EE2 = (() => {
   function parseFilledCoffin(section, item) {
     performance.mark("parseFilledCoffin");
     if (item.info.refName !== "Filled Coffin") return "PARSER_SKIPPED";
-    if (!section.some(line => line.endsWith(IMPLICIT_LINE))) return "SECTION_SKIPPED";
+    if (!section.some(line2 => line2.endsWith(IMPLICIT_LINE))) return "SECTION_SKIPPED";
     const _parseModType5 = parseModType(section),
       lines2 = _parseModType5.lines;
     const modInfo = {
@@ -12224,8 +12229,8 @@ var EE2 = (() => {
         stat2 = statIterator.next(false);
       }
     }
-    (_item$unknownModifier = item.unknownModifiers).push.apply(_item$unknownModifier, _toConsumableArray(stat2.value.map(line => ({
-      text: line,
+    (_item$unknownModifier = item.unknownModifiers).push.apply(_item$unknownModifier, _toConsumableArray(stat2.value.map(line2 => ({
+      text: line2,
       type: modifier.info.type
     }))));
     return true;
@@ -12301,7 +12306,7 @@ var EE2 = (() => {
     }
   }
   function removeLinesEnding(lines2, ending) {
-    return lines2.map(line => line.endsWith(ending) ? line.slice(0, -ending.length) : line);
+    return lines2.map(line2 => line2.endsWith(ending) ? line2.slice(0, -ending.length) : line2);
   }
   function parseAffixStrings(text) {
     return text.replace(/\[([^\]|]+)\|?([^\]]*)\]/g, (_, part1, part2) => {
@@ -14180,7 +14185,7 @@ var EE2 = (() => {
         }
       }
       if (hasDamage) {
-        const dpsIndex = block.findIndex(line => line.text.includes("dps"));
+        const dpsIndex = block.findIndex(line2 => line2.text.includes("dps"));
         block.splice(dpsIndex, 0, {
           text: "item.total_dps",
           value: extended.dps,
@@ -17316,7 +17321,7 @@ var EE2 = (() => {
         isPopular: !isPrivateLeague(leagueId) && Boolean(listed == null ? void 0 : listed.isPopular)
       };
     });
-    function load2() {
+    function load3() {
       return __async(this, null, function* () {
         var _a2;
         isLoading.value = true;
@@ -17355,7 +17360,7 @@ var EE2 = (() => {
       selectedId,
       selected,
       list: (0, import_vue6.readonly)(tradeLeagues),
-      load: load2
+      load: load3
     };
   });
   function isPrivateLeague(id) {
@@ -17403,6 +17408,105 @@ var EE2 = (() => {
     };
   }
 
+  // tools/poe2-ee2/ninja.ts
+  init_timers();
+  init_host();
+  var KEEP_MS = 30 * 60 * 1e3;
+  var RETRY_MS = 4 * 60 * 1e3;
+  var table2 = null;
+  var asking = null;
+  var askedLeague = "";
+  var failedAt = 0;
+  var lastError = "";
+  function readOverview(league, text) {
+    const d = JSON.parse(text);
+    const rates = d && d.core && d.core.rates || {};
+    const t3 = {
+      league,
+      at: Date.now(),
+      exalted: Number(rates.exalted) || 0,
+      chaos: Number(rates.chaos) || 0,
+      byId: {},
+      byName: {}
+    };
+    const names = {};
+    const items = d && d.items || [];
+    for (let i = 0; i < items.length; i++) if (items[i] && items[i].id) names[items[i].id] = String(items[i].name || "");
+    const lines2 = d && d.lines || [];
+    for (let i = 0; i < lines2.length; i++) {
+      const l = lines2[i];
+      if (!l || !l.id || typeof l.primaryValue !== "number") continue;
+      const change = l.sparkline && typeof l.sparkline.totalChange === "number" ? l.sparkline.totalChange : null;
+      t3.byId[l.id] = {
+        div: l.primaryValue,
+        change,
+        name: names[l.id] || ""
+      };
+      if (names[l.id]) t3.byName[names[l.id]] = l.id;
+    }
+    if (!t3.byId.divine) t3.byId.divine = {
+      div: 1,
+      change: null,
+      name: "Divine Orb"
+    };
+    if (!t3.exalted || !Object.keys(t3.byId).length) throw new Error("poe.ninja sent no prices");
+    return t3;
+  }
+  function load(league) {
+    const now = Date.now();
+    if (table2 && table2.league === league && now - table2.at < KEEP_MS) return Promise.resolve(table2);
+    if (asking && askedLeague === league) return asking;
+    if (askedLeague === league && now - failedAt < RETRY_MS) return Promise.resolve(table2 && table2.league === league ? table2 : null);
+    askedLeague = league;
+    const url = "https://poe.ninja/poe2/api/economy/exchange/current/overview?league=" + encodeURIComponent(league) + "&type=Currency";
+    asking = host.request(url, "GET", "").then(r => {
+      if (r.status !== 200) throw new Error("poe.ninja answered " + r.status);
+      table2 = readOverview(league, r.body);
+      lastError = "";
+      return table2;
+    }).catch(e => {
+      failedAt = Date.now();
+      lastError = String(e && e.message || e);
+      host.log("poe.ninja: " + lastError);
+      return table2 && table2.league === league ? table2 : null;
+    }).then(t3 => {
+      asking = null;
+      return t3;
+    });
+    return asking;
+  }
+  function known(league) {
+    return table2 && table2.league === league ? table2 : null;
+  }
+  function normalised(t3, amount, currency) {
+    if (!t3 || !(amount > 0)) return null;
+    const v = t3.byId[currency];
+    if (!v) return null;
+    const div = amount * v.div;
+    const out = div >= 1 ? {
+      amount: div,
+      currency: "divine"
+    } : {
+      amount: div * t3.exalted,
+      currency: "exalted"
+    };
+    return out.currency === currency ? null : out;
+  }
+  function priceOf(t3, name) {
+    if (!t3) return null;
+    const id = t3.byName[name];
+    const v = id ? t3.byId[id] : null;
+    if (!v) return null;
+    return {
+      id,
+      div: v.div,
+      exalted: v.div * t3.exalted,
+      chaos: v.div * t3.chaos,
+      change: v.change,
+      league: t3.league
+    };
+  }
+
   // tools/poe2-ee2/entry.ts
   var LANGUAGES = [{
     lang: "en",
@@ -17414,7 +17518,31 @@ var EE2 = (() => {
     rarity: "Seltenheit: "
   }];
   var loaded = "";
+  var prefs = {
+    searchStatRange: 10,
+    fillMax: false,
+    defaultAllSelected: false,
+    smartInitialSearch: true,
+    listingType: "securable",
+    currency: "",
+    collapseListings: "app",
+    showSeller: "account",
+    accountName: "",
+    ninja: true
+  };
+  var ninjaNow = null;
+  function setPrefs(p) {
+    for (const k in p) if (p[k] !== void 0 && k in prefs) prefs[k] = p[k];
+    const w = AppConfig("price-check");
+    w.searchStatRange = prefs.searchStatRange;
+    w.collapseListings = prefs.collapseListings;
+    w.defaultAllSelected = prefs.defaultAllSelected;
+    w.smartInitialSearch = prefs.smartInitialSearch;
+    AppConfig().accountName = prefs.accountName;
+  }
   var leaguesLoaded = false;
+  var ninjaRead = readOverview;
+  var ninjaNorm = normalised;
   function setup(h) {
     setHost(h);
   }
@@ -17427,20 +17555,20 @@ var EE2 = (() => {
         {
           const _a106 = lines2.slice(0, 2);
           if (Array.isArray(_a106)) for (let _i104 = 0; _i104 < _a106.length; _i104++) {
-            const line = _a106[_i104];
-            if (line.indexOf(l.itemClass) === 0 || line.indexOf(l.rarity) === 0) return l.lang;
-          } else for (const line of _a106) {
-            if (line.indexOf(l.itemClass) === 0 || line.indexOf(l.rarity) === 0) return l.lang;
+            const line2 = _a106[_i104];
+            if (line2.indexOf(l.itemClass) === 0 || line2.indexOf(l.rarity) === 0) return l.lang;
+          } else for (const line2 of _a106) {
+            if (line2.indexOf(l.itemClass) === 0 || line2.indexOf(l.rarity) === 0) return l.lang;
           }
         }
       } else for (const l of _a105) {
         {
           const _a107 = lines2.slice(0, 2);
           if (Array.isArray(_a107)) for (let _i105 = 0; _i105 < _a107.length; _i105++) {
-            const line = _a107[_i105];
-            if (line.indexOf(l.itemClass) === 0 || line.indexOf(l.rarity) === 0) return l.lang;
-          } else for (const line of _a107) {
-            if (line.indexOf(l.itemClass) === 0 || line.indexOf(l.rarity) === 0) return l.lang;
+            const line2 = _a107[_i105];
+            if (line2.indexOf(l.itemClass) === 0 || line2.indexOf(l.rarity) === 0) return l.lang;
+          } else for (const line2 of _a107) {
+            if (line2.indexOf(l.itemClass) === 0 || line2.indexOf(l.rarity) === 0) return l.lang;
           }
         }
       }
@@ -17450,7 +17578,7 @@ var EE2 = (() => {
   function looksLikeItem(text) {
     return languageOf(text) !== "" && String(text).indexOf("--------") > 0;
   }
-  function load(lang) {
+  function load2(lang) {
     return __async(this, null, function* () {
       if (loaded === lang) return;
       setLanguage(lang);
@@ -17488,7 +17616,7 @@ var EE2 = (() => {
       if (!lang) return {
         error: "not_an_item"
       };
-      yield load(lang);
+      yield load2(lang);
       const lg = yield leagues(league);
       if (!lg.selected) return {
         error: "leagues",
@@ -17501,21 +17629,41 @@ var EE2 = (() => {
       const item = parsed.value;
       const presets = createPresets(item, {
         league: lg.selected,
-        currency: void 0,
-        listingType: void 0,
-        collapseListings: "app",
+        currency: prefs.currency || void 0,
+        listingType: prefs.listingType || void 0,
+        collapseListings: prefs.collapseListings,
         activateStockFilter: false,
-        searchStatRange: AppConfig("price-check").searchStatRange,
+        searchStatRange: prefs.searchStatRange,
         useEn: true,
-        defaultAllSelected: false
+        defaultAllSelected: prefs.defaultAllSelected
       });
       current = {
         item,
         presets,
         run: 0
       };
+      if (prefs.ninja) load(lg.selected);
       const f = preset(current).filters;
       if (api(current) === "bulk") f.trade.listingType = "online";
+      if (prefs.fillMax) {
+        {
+          const _a108 = preset(current).stats;
+          if (Array.isArray(_a108)) for (let _i106 = 0; _i106 < _a108.length; _i106++) {
+            const st = _a108[_i106];
+            if (st.roll && typeof st.roll.min === "number") {
+              const v = st.roll.value;
+              const d = Math.abs(v) * prefs.searchStatRange / 100;
+              st.roll.max = st.roll.dp ? Math.round((v + d) * 100) / 100 : Math.ceil(v + d);
+            }
+          } else for (const st of _a108) {
+            if (st.roll && typeof st.roll.min === "number") {
+              const v = st.roll.value;
+              const d = Math.abs(v) * prefs.searchStatRange / 100;
+              st.roll.max = st.roll.dp ? Math.round((v + d) * 100) / 100 : Math.ceil(v + d);
+            }
+          }
+        }
+      }
       return view();
     });
   }
@@ -17524,6 +17672,7 @@ var EE2 = (() => {
     return apiToSatisfySearch(c.item, p.stats, p.filters);
   }
   function searchesAtOnce(item) {
+    if (!prefs.smartInitialSearch) return false;
     return Boolean(item.rarity === "Unique" /* Unique */ || item.category === "Charm" /* Charm */ || !CATEGORY_TO_TRADE_ID.has(item.category) || item.isUnidentified || item.isVeiled);
   }
   var NUMERIC = [["itemLevel", "Item level"], ["quality", "Quality"], ["gemLevel", "Gem level"], ["mapTier", "Tier"], ["areaLevel", "Area level"], ["socketNumber", "Sockets"], ["augmentSockets", "Rune sockets"], ["stackSize", "Stack"], ["awardedAscendancyPoints", "Ascendancy points"]];
@@ -17543,11 +17692,11 @@ var EE2 = (() => {
     const it = c.item;
     const filters = [];
     {
-      const _a108 = NUMERIC;
-      if (Array.isArray(_a108)) for (let _i106 = 0; _i106 < _a108.length; _i106++) {
-        const _a108$_i = _slicedToArray(_a108[_i106], 2),
-          key = _a108$_i[0],
-          label = _a108$_i[1];
+      const _a109 = NUMERIC;
+      if (Array.isArray(_a109)) for (let _i107 = 0; _i107 < _a109.length; _i107++) {
+        const _a109$_i = _slicedToArray(_a109[_i107], 2),
+          key = _a109$_i[0],
+          label = _a109$_i[1];
         const v = f[key];
         if (v && typeof v.value === "number") filters.push({
           key,
@@ -17556,7 +17705,7 @@ var EE2 = (() => {
           max: v.max === void 0 ? null : v.max,
           disabled: !!v.disabled
         });
-      } else for (const _ref9 of _a108) {
+      } else for (const _ref9 of _a109) {
         var _ref0 = _slicedToArray(_ref9, 2);
         const key = _ref0[0];
         const label = _ref0[1];
@@ -17609,8 +17758,9 @@ var EE2 = (() => {
       })),
       api: api(c),
       atOnce: searchesAtOnce(it),
+      ninja: prefs.ninja ? priceOf(known(p.filters.trade.league), it.info.refName) : null,
       filters,
-      stats: p.stats.map((s, i) => ({
+      stats: p.stats.map((s, i) => __spreadValues({
         index: i,
         text: s.text,
         tag: s.tag,
@@ -17619,9 +17769,299 @@ var EE2 = (() => {
         value: s.roll ? s.roll.value : null,
         min: s.roll && typeof s.roll.min === "number" ? s.roll.min : null,
         max: s.roll && typeof s.roll.max === "number" ? s.roll.max : null,
-        option: s.option ? s.option.value : null
-      }))
+        option: s.option ? s.option.value : null,
+        dp: !!(s.roll && s.roll.dp)
+      }, placeOf(s))),
+      listingType: f.trade.listingType,
+      currency: f.trade.currency || "",
+      advanced: hasModInfo(it),
+      mods: hasModInfo(it) ? modsOf(it, p.stats) : []
     };
+  }
+  function modsOf(item, stats) {
+    const out = [];
+    const used = /* @__PURE__ */new Set();
+    const sections = item.rawText.split(/\r?\n--------\r?\n/);
+    const filterOf = (mod, text) => {
+      let filter = null;
+      let folded = "";
+      stats.forEach((st, i) => {
+        if (filter !== null) return;
+        const own = (st.sources || []).some(x => x.modifier === mod);
+        const tag = st.tag;
+        if (tag === "property" || tag === "pseudo") {
+          if (own && !folded) folded = tag === "pseudo" ? "totals" : "values";
+          return;
+        }
+        if (own || !mod && sameLine(st.text, text)) filter = i;
+      });
+      return {
+        filter,
+        folded: filter === null ? folded : ""
+      };
+    };
+    {
+      const _a110 = sections;
+      if (Array.isArray(_a110)) for (let _i108 = 0; _i108 < _a110.length; _i108++) {
+        const section = _a110[_i108];
+        const rows = section.split(/\r?\n/).filter(l => l.length > 0);
+        if (!rows.some(l => /^\{.*\}$/.test(l))) {
+          {
+            const _a111 = rows;
+            if (Array.isArray(_a111)) for (let _i109 = 0; _i109 < _a111.length; _i109++) {
+              const l = _a111[_i109];
+              const m = l.match(/^(.*\S) \(([^()]+)\)$/);
+              if (!m || !/^(rune|added rune|enchant|implicit|Rune|Verzauberung|implizit)$/i.test(m[2])) continue;
+              const text = m[1];
+              out.push(__spreadValues({
+                group: "fixed",
+                name: "",
+                tier: null,
+                lines: [line(text)]
+              }, filterOf(null, text)));
+            } else for (const l of _a111) {
+              const m = l.match(/^(.*\S) \(([^()]+)\)$/);
+              if (!m || !/^(rune|added rune|enchant|implicit|Rune|Verzauberung|implizit)$/i.test(m[2])) continue;
+              const text = m[1];
+              out.push(__spreadValues({
+                group: "fixed",
+                name: "",
+                tier: null,
+                lines: [line(text)]
+              }, filterOf(null, text)));
+            }
+          }
+          continue;
+        }
+        let row = null;
+        {
+          const _a112 = rows;
+          if (Array.isArray(_a112)) for (let _i110 = 0; _i110 < _a112.length; _i110++) {
+            const l = _a112[_i110];
+            if (/^\{.*\}$/.test(l)) {
+              const name = (l.match(/"([^"]+)"/) || [])[1] || "";
+              const num = l.match(/\((?:[^():]+):\s*(\d+)\)/);
+              const tier = num ? Number(num[1]) : null;
+              const mod = item.newMods.find(m => !used.has(m) && (m.info.name || "") === name && (name || m.info.tier === void 0 || m.info.tier === tier) && (name !== "" || m.info.type !== "explicit")) || item.newMods.find(m => !used.has(m) && (m.info.name || "") === name);
+              if (mod) used.add(mod);
+              const type = mod ? mod.info.type : "";
+              const gen = mod ? mod.info.generation : void 0;
+              const group = gen === "prefix" || gen === "suffix" ? gen : type === "explicit" || type === "" ? "lines" : "fixed";
+              const tierNo = mod && typeof mod.info.tier === "number" ? mod.info.tier : tier;
+              row = {
+                group,
+                name,
+                tier: tierNo,
+                lines: [],
+                filter: null,
+                folded: "",
+                mod
+              };
+              out.push(row);
+              continue;
+            }
+            if (!row) continue;
+            row.lines.push(line(l.replace(/ \((implicit|enchant|rune|added rune|crafted|fractured|desecrated|implizit)\)$/i, "")));
+          } else for (const l of _a112) {
+            if (/^\{.*\}$/.test(l)) {
+              const name = (l.match(/"([^"]+)"/) || [])[1] || "";
+              const num = l.match(/\((?:[^():]+):\s*(\d+)\)/);
+              const tier = num ? Number(num[1]) : null;
+              const mod = item.newMods.find(m => !used.has(m) && (m.info.name || "") === name && (name || m.info.tier === void 0 || m.info.tier === tier) && (name !== "" || m.info.type !== "explicit")) || item.newMods.find(m => !used.has(m) && (m.info.name || "") === name);
+              if (mod) used.add(mod);
+              const type = mod ? mod.info.type : "";
+              const gen = mod ? mod.info.generation : void 0;
+              const group = gen === "prefix" || gen === "suffix" ? gen : type === "explicit" || type === "" ? "lines" : "fixed";
+              const tierNo = mod && typeof mod.info.tier === "number" ? mod.info.tier : tier;
+              row = {
+                group,
+                name,
+                tier: tierNo,
+                lines: [],
+                filter: null,
+                folded: "",
+                mod
+              };
+              out.push(row);
+              continue;
+            }
+            if (!row) continue;
+            row.lines.push(line(l.replace(/ \((implicit|enchant|rune|added rune|crafted|fractured|desecrated|implizit)\)$/i, "")));
+          }
+        }
+      } else for (const section of _a110) {
+        const rows = section.split(/\r?\n/).filter(l => l.length > 0);
+        if (!rows.some(l => /^\{.*\}$/.test(l))) {
+          {
+            const _a113 = rows;
+            if (Array.isArray(_a113)) for (let _i111 = 0; _i111 < _a113.length; _i111++) {
+              const l = _a113[_i111];
+              const m = l.match(/^(.*\S) \(([^()]+)\)$/);
+              if (!m || !/^(rune|added rune|enchant|implicit|Rune|Verzauberung|implizit)$/i.test(m[2])) continue;
+              const text = m[1];
+              out.push(__spreadValues({
+                group: "fixed",
+                name: "",
+                tier: null,
+                lines: [line(text)]
+              }, filterOf(null, text)));
+            } else for (const l of _a113) {
+              const m = l.match(/^(.*\S) \(([^()]+)\)$/);
+              if (!m || !/^(rune|added rune|enchant|implicit|Rune|Verzauberung|implizit)$/i.test(m[2])) continue;
+              const text = m[1];
+              out.push(__spreadValues({
+                group: "fixed",
+                name: "",
+                tier: null,
+                lines: [line(text)]
+              }, filterOf(null, text)));
+            }
+          }
+          continue;
+        }
+        let row = null;
+        {
+          const _a114 = rows;
+          if (Array.isArray(_a114)) for (let _i112 = 0; _i112 < _a114.length; _i112++) {
+            const l = _a114[_i112];
+            if (/^\{.*\}$/.test(l)) {
+              const name = (l.match(/"([^"]+)"/) || [])[1] || "";
+              const num = l.match(/\((?:[^():]+):\s*(\d+)\)/);
+              const tier = num ? Number(num[1]) : null;
+              const mod = item.newMods.find(m => !used.has(m) && (m.info.name || "") === name && (name || m.info.tier === void 0 || m.info.tier === tier) && (name !== "" || m.info.type !== "explicit")) || item.newMods.find(m => !used.has(m) && (m.info.name || "") === name);
+              if (mod) used.add(mod);
+              const type = mod ? mod.info.type : "";
+              const gen = mod ? mod.info.generation : void 0;
+              const group = gen === "prefix" || gen === "suffix" ? gen : type === "explicit" || type === "" ? "lines" : "fixed";
+              const tierNo = mod && typeof mod.info.tier === "number" ? mod.info.tier : tier;
+              row = {
+                group,
+                name,
+                tier: tierNo,
+                lines: [],
+                filter: null,
+                folded: "",
+                mod
+              };
+              out.push(row);
+              continue;
+            }
+            if (!row) continue;
+            row.lines.push(line(l.replace(/ \((implicit|enchant|rune|added rune|crafted|fractured|desecrated|implizit)\)$/i, "")));
+          } else for (const l of _a114) {
+            if (/^\{.*\}$/.test(l)) {
+              const name = (l.match(/"([^"]+)"/) || [])[1] || "";
+              const num = l.match(/\((?:[^():]+):\s*(\d+)\)/);
+              const tier = num ? Number(num[1]) : null;
+              const mod = item.newMods.find(m => !used.has(m) && (m.info.name || "") === name && (name || m.info.tier === void 0 || m.info.tier === tier) && (name !== "" || m.info.type !== "explicit")) || item.newMods.find(m => !used.has(m) && (m.info.name || "") === name);
+              if (mod) used.add(mod);
+              const type = mod ? mod.info.type : "";
+              const gen = mod ? mod.info.generation : void 0;
+              const group = gen === "prefix" || gen === "suffix" ? gen : type === "explicit" || type === "" ? "lines" : "fixed";
+              const tierNo = mod && typeof mod.info.tier === "number" ? mod.info.tier : tier;
+              row = {
+                group,
+                name,
+                tier: tierNo,
+                lines: [],
+                filter: null,
+                folded: "",
+                mod
+              };
+              out.push(row);
+              continue;
+            }
+            if (!row) continue;
+            row.lines.push(line(l.replace(/ \((implicit|enchant|rune|added rune|crafted|fractured|desecrated|implizit)\)$/i, "")));
+          }
+        }
+      }
+    }
+    {
+      const _a115 = out;
+      if (Array.isArray(_a115)) for (let _i113 = 0; _i113 < _a115.length; _i113++) {
+        const r = _a115[_i113];
+        if (r.mod === void 0) continue;
+        const f = r.mod ? filterOf(r.mod, "") : filterOf(null, r.lines.length ? r.lines[0].text : "");
+        r.filter = f.filter;
+        r.folded = f.folded;
+        delete r.mod;
+      } else for (const r of _a115) {
+        if (r.mod === void 0) continue;
+        const f = r.mod ? filterOf(r.mod, "") : filterOf(null, r.lines.length ? r.lines[0].text : "");
+        r.filter = f.filter;
+        r.folded = f.folded;
+        delete r.mod;
+      }
+    }
+    return out.filter(r => r.lines.length > 0);
+  }
+  function line(text) {
+    const parts = [];
+    const re = /(\d)\((-?[\d.]+)-(-?[\d.]+)\)/g;
+    let last = 0;
+    let m;
+    while (m = re.exec(text)) {
+      parts.push({
+        t: text.slice(last, m.index + 1),
+        range: false
+      });
+      parts.push({
+        t: m[2] + "\u2013" + m[3],
+        range: true
+      });
+      last = m.index + m[0].length;
+    }
+    parts.push({
+      t: text.slice(last),
+      range: false
+    });
+    return {
+      text: parts.filter(x => !x.range).map(x => x.t).join(""),
+      parts
+    };
+  }
+  function sameLine(template, text) {
+    const esc = template.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/#/g, "[+-]?[\\d.]+");
+    return new RegExp("^\\+?" + esc + "$").test(text);
+  }
+  function placeOf(s) {
+    const src = s.sources && s.sources.length ? s.sources : [];
+    const types = src.map(x => x.modifier.info.type);
+    const tag = s.tag;
+    let group = "lines";
+    if (tag === "property") group = "properties";else if (tag === "pseudo") group = "totals";else if (types.some(t3 => t3 === "implicit" || t3 === "enchant" || t3 === "rune" || t3 === "added-rune" || t3 === "skill") || tag === "implicit" || tag === "enchant" || tag === "rune" || tag === "added-rune") group = "fixed";else {
+      const gen = src.map(x => x.modifier.info.generation).find(g => g === "prefix" || g === "suffix");
+      if (gen) group = gen;else if (tag === "fractured" || tag === "desecrated" || tag === "crafted") group = "lines";
+    }
+    let tier = null;
+    let low = null;
+    let high = null;
+    if (src.length === 1 && group !== "totals" && group !== "properties") {
+      const one = src[0];
+      if (typeof one.modifier.info.tier === "number") tier = one.modifier.info.tier;
+      const c = one.contributes;
+      if (c && typeof c.min === "number" && typeof c.max === "number" && (c.min !== c.max || tier !== null)) {
+        low = c.min;
+        high = c.max;
+      }
+    }
+    return {
+      group,
+      tier,
+      low,
+      high
+    };
+  }
+  function hasModInfo(item) {
+    return item.newMods.some(m => typeof m.info.tier === "number" || m.info.generation === "prefix" || m.info.generation === "suffix");
+  }
+  function setTrade(key, value) {
+    if (!current) return view();
+    const t3 = preset(current).filters.trade;
+    t3[key] = value || void 0;
+    if (key === "listingType" && !value) t3.listingType = "any";
+    return view();
   }
   function hiddenWhy(key) {
     const text = useI18n().t(key);
@@ -17632,8 +18072,8 @@ var EE2 = (() => {
     const s = preset(current).stats[index];
     if (!s) return view();
     s.disabled = disabled;
-    if (s.roll && min !== void 0) s.roll.min = min === null ? "" : min;
-    if (s.roll && max !== void 0) s.roll.max = max === null ? "" : max;
+    if (s.roll && min !== void 0 && min !== "keep") s.roll.min = min === null ? "" : min;
+    if (s.roll && max !== void 0 && max !== "keep") s.roll.max = max === null ? "" : max;
     return view();
   }
   function setFilter(key, disabled, value) {
@@ -17650,13 +18090,69 @@ var EE2 = (() => {
     if (current && current.presets.presets.some(p => p.id === id)) current.presets.active = id;
     return view();
   }
-  function trade(r) {
+  var LINE_COLOURS = {
+    1: "augmented",
+    2: "unmet",
+    3: "physical",
+    4: "fire",
+    5: "cold",
+    6: "lightning",
+    7: "chaos",
+    8: "unique",
+    25: "skill",
+    8729: "enchant",
+    8730: "fractured",
+    8731: "desecrated",
+    8732: "sanctified",
+    8733: "mutated"
+  };
+  function shownItem(d) {
+    if (!d) return null;
+    const t3 = useI18n().t;
+    const line2 = l => {
+      const value = l.value === void 0 || l.value === null ? "" : String(l.value);
+      let text = String(l.text || "");
+      if (text.indexOf("item.") === 0) {
+        text = t3(text, [value]);
+        text = text.split("%%").join("%");
+      } else if (text.indexOf("{0}") >= 0) text = text.split("{0}").join(value);else if (value !== "") text = text + value;
+      return {
+        text: text.trim(),
+        tier: l.tier ? String(l.tier) : "",
+        colour: LINE_COLOURS[l.color] || ""
+      };
+    };
+    const keys = ["nameBlock", "itemProps", "grantSkill", "enchantMods", "runeMods", "implicitMods", "fracturedMods", "explicitMods", "desecratedMods", "mutatedMods", "veiledMods", "itemTags"];
+    const blocks = [];
+    for (let k = 0; k < keys.length; k++) {
+      const list = d[keys[k]];
+      if (!list || !list.length) continue;
+      const lines2 = list.map(line2);
+      if (keys[k] === "itemProps") {
+        for (let n = 0; n < list.length; n++) if (String(list[n].text || "").indexOf("item.") !== 0) lines2[n].text = "Requires " + lines2[n].text;
+      }
+      blocks.push({
+        kind: keys[k],
+        lines: lines2
+      });
+    }
     return {
+      title: d.title || [],
+      rarity: d.rarity || "",
+      blocks
+    };
+  }
+  function trade(r) {
+    const norm = normalised(ninjaNow, r.priceAmount, r.priceCurrency);
+    return {
+      id: r.id,
+      norm,
+      item: shownItem(r.displayItem),
       amount: r.priceAmount,
       currency: r.priceCurrency,
       times: r.listedTimes || 1,
       stack: r.stackSize || 0,
-      account: r.accountName,
+      account: prefs.showSeller === "ign" ? r.ign || r.accountName : prefs.showSeller === "" ? "" : r.accountName,
       status: r.accountStatus,
       age: r.relativeDate,
       itemLevel: r.itemLevel || "",
@@ -17676,6 +18172,9 @@ var EE2 = (() => {
       const run = ++c.run;
       const p = preset(c);
       const kind = api(c);
+      ninjaNow = prefs.ninja ? yield load(p.filters.trade.league) : null;
+      if (run !== c.run || current !== c) return null;
+      const ninja = priceOf(ninjaNow, c.item.info.refName);
       if (kind === "bulk") {
         try {
           const have = ["exalted", "divine"];
@@ -17683,18 +18182,25 @@ var EE2 = (() => {
             accountName: AppConfig().accountName
           });
           if (run !== c.run || current !== c) return null;
+          const firstGroup = res.find(g => g && g.queryId);
+          lastBulk = firstGroup ? {
+            league: p.filters.trade.league,
+            id: firstGroup.queryId
+          } : null;
           const out2 = {
             kind,
             done: true,
+            ninja,
             groups: res.filter(g => g).map(g => ({
               have: g.haveTag,
               total: g.total,
               listed: g.listed.map(r => ({
                 rate: r.itemAmount ? r.exchangeAmount / r.itemAmount : 0,
+                norm: normalised(ninjaNow, r.itemAmount ? r.exchangeAmount / r.itemAmount : 0, g.haveTag),
                 exchangeAmount: r.exchangeAmount,
                 itemAmount: r.itemAmount,
                 stock: r.stock,
-                account: r.accountName,
+                account: prefs.showSeller === "ign" ? r.ign || r.accountName : prefs.showSeller === "" ? "" : r.accountName,
                 status: r.accountStatus,
                 age: r.relativeDate,
                 mine: r.isMine
@@ -17720,6 +18226,7 @@ var EE2 = (() => {
         done,
         error,
         total,
+        ninja,
         listed: grouped(fetched).map(trade)
       });
       try {
@@ -17766,9 +18273,9 @@ var EE2 = (() => {
   function grouped(results) {
     const out = [];
     {
-      const _a109 = results;
-      if (Array.isArray(_a109)) for (let _i107 = 0; _i107 < _a109.length; _i107++) {
-        const result = _a109[_i107];
+      const _a116 = results;
+      if (Array.isArray(_a116)) for (let _i114 = 0; _i114 < _a116.length; _i114++) {
+        const result = _a116[_i114];
         if (result == null) break;
         if (out.length === 0) {
           out.push(Object.assign({
@@ -17784,7 +18291,7 @@ var EE2 = (() => {
             listedTimes: 1
           }, result));
         }
-      } else for (const result of _a109) {
+      } else for (const result of _a116) {
         if (result == null) break;
         if (out.length === 0) {
           out.push(Object.assign({
@@ -17803,6 +18310,27 @@ var EE2 = (() => {
       }
     }
     return out;
+  }
+  var lastBulk = null;
+  function tradeLink() {
+    const c = current;
+    if (!c) return "";
+    const p = preset(c);
+    const league = encodeURIComponent(p.filters.trade.league);
+    if (api(c) === "bulk") {
+      return lastBulk && lastBulk.league === p.filters.trade.league ? `https://www.pathofexile.com/trade2/exchange/poe2/${league}/${encodeURIComponent(lastBulk.id)}` : `https://www.pathofexile.com/trade2/exchange/poe2/${league}`;
+    }
+    const req = createTradeRequest(p.filters, p.stats, c.item);
+    const groups = req && req.query && req.query.filters || {};
+    {
+      const _a117 = Object.keys(groups);
+      if (Array.isArray(_a117)) for (let _i115 = 0; _i115 < _a117.length; _i115++) {
+        const k = _a117[_i115];
+        if (groups[k] && typeof groups[k] === "object" && groups[k].disabled === void 0) groups[k].disabled = false;
+      } else for (const k of _a117) if (groups[k] && typeof groups[k] === "object" && groups[k].disabled === void 0) groups[k].disabled = false;
+    }
+    const q = JSON.stringify(req);
+    return `https://www.pathofexile.com/trade2/search/poe2/${league}?q=${encodeURIComponent(q)}`;
   }
   function clear2() {
     if (current) current.run++;

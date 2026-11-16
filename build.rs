@@ -40,6 +40,8 @@ fn main() {
         QmlFile::from("qml/Requests.qml"),
         QmlFile::from("qml/SelectBox.qml"),
         QmlFile::from("qml/VoiceOverlay.qml"),
+        QmlFile::from("qml/SoundPanel.qml"),
+        QmlFile::from("qml/SoundRow.qml"),
         QmlFile::from("qml/Tag.qml"),
         QmlFile::from("qml/aion2/MapView.qml"),
         QmlFile::from("qml/aion2/MapOverlay.qml"),
@@ -76,6 +78,13 @@ fn main() {
         QmlFile::from("qml/aion2/FarmWindow.qml"),
         QmlFile::from("qml/poe2/PriceStore.qml"),
         QmlFile::from("qml/poe2/PriceWindow.qml"),
+        QmlFile::from("qml/poe2/PriceSettings.qml"),
+        QmlFile::from("qml/poe2/PriceChoices.qml"),
+        QmlFile::from("qml/poe2/RangeField.qml"),
+        QmlFile::from("qml/poe2/ListedItem.qml"),
+        QmlFile::from("qml/poe2/SessionStore.qml"),
+        QmlFile::from("qml/poe2/SessionPanel.qml"),
+        QmlFile::from("qml/poe2/SessionWindow.qml"),
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();
@@ -89,7 +98,7 @@ fn main() {
         .qt_module("OpenGL")
         .qt_module("Network")
         .qt_module("Svg")
-        .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/streams_object.rs", "src/library_object.rs", "src/jellyfin_object.rs", "src/games_object.rs", "src/aion2_object.rs", "src/apps_object.rs", "src/voice_object.rs", "src/poe2_object.rs", "src/native.rs"])
+        .files(["src/companion.rs", "src/radio_object.rs", "src/updates_object.rs", "src/streams_object.rs", "src/library_object.rs", "src/jellyfin_object.rs", "src/games_object.rs", "src/aion2_object.rs", "src/apps_object.rs", "src/voice_object.rs", "src/poe2_object.rs", "src/poe2_log_object.rs", "src/sound_object.rs", "src/native.rs"])
         .cpp_file("cpp/native.h")
         .cpp_file("cpp/native.cpp")
         .cpp_file("cpp/mpvvideo.h")
@@ -131,6 +140,7 @@ fn main() {
             "qml/aion2/lootkit.js",
             "qml/aion2/armorykit.js",
             "qml/aion2/buildkit.js",
+            "qml/poe2/sessionkit.js",
         ]);
     // SAFETY: only adds include paths and a define to the C++ build.
     let builder = unsafe {

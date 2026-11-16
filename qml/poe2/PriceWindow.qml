@@ -24,10 +24,97 @@ Panel {
     badge: store && store.busy ? "ASKING…" : ""
 
     property var store: null
+    /// The PoE 2 session tracker (its "+ Session" button), or null.
+    property var session: null
+    /// The view last put into the session (the button says so until the next item).
+    property var addedFor: null
     readonly property var v: store ? store.view : null
     readonly property var r: store ? store.result : null
     property bool showHidden: false
+    /// The item's own mods are listed (advanced copy): ranges sit in the text.
+    readonly property bool modsShown: v !== null && (v.mods || []).length > 0
+    property bool showSettings: false
+    /// The listing whose item is shown (its id), "" for none.
+    property string openListing: ""
+    onRChanged: {
+        if (!r || !r.listed || !r.listed.some(function (l) { return l.id === openListing })) openListing = ""
+        // GC_DEMO=price,results,listing: the second listing's item shown.
+        if (store && store.demo.indexOf("listing") >= 0 && r && r.listed && r.listed.length > 1) openListing = r.listed[1].id
+    }
     onVChanged: if (!v) showHidden = false
+    readonly property bool tiersShown: store && store.showTiers && v !== null && ((v.mods || []).some(function (m) { return m.tier !== null }) || v.stats.some(function (s) { return s.tier !== null || s.low !== null }))
+
+    // The stat lines in the game's order, in groups with their headers.
+    readonly property var groups: {
+        if (!v) return []
+        const order = [
+            { key: "properties", title: "VALUES" },
+            { key: "fixed", title: "IMPLICIT · ENCHANT · RUNES" },
+            { key: "prefix", title: "PREFIXES" },
+            { key: "suffix", title: "SUFFIXES" },
+            { key: "lines", title: v.rarity === "Unique" ? "MODS" : "LINES" },
+            { key: "totals", title: "TOTALS" }
+        ]
+        const out = []
+        // With the advanced copy the item's own mods make the fixed lines,
+        // prefixes and suffixes (each with the stat line that searches for it).
+        const mods = v.mods || []
+        const linked = {}
+        // Index loops: no array iterators in Qt's JavaScript (0.8.43 crashed in one).
+        for (let k = 0; k < mods.length; k++) if (mods[k].filter !== null) linked[mods[k].filter] = true
+        for (let n = 0; n < order.length; n++) {
+            const g = order[n]
+            let list = []
+            let count = 0
+            if (mods.length > 0 && (g.key === "fixed" || g.key === "prefix" || g.key === "suffix")) {
+                const own = mods.filter(function (m) { return m.group === g.key })
+                count = own.length
+                list = own.map(function (m) { return { mod: m, stat: m.filter !== null ? v.stats[m.filter] : null } })
+            } else {
+                const all = v.stats.filter(function (s) {
+                    if (linked[s.index]) return false
+                    if (mods.length > 0 && g.key === "lines") return s.group === "lines" || s.group === "fixed" || s.group === "prefix" || s.group === "suffix"
+                    return s.group === g.key
+                })
+                count = all.length
+                list = all.filter(function (s) { return !s.hidden || showHidden }).map(function (s) { return { mod: null, stat: s } })
+            }
+            if (list.length === 0) continue
+            const counted = g.key === "prefix" || g.key === "suffix"
+            out.push({ key: g.key, title: g.title + (counted ? "  " + count : ""), stats: list, first: out.length === 0 })
+        }
+        return out
+    }
+    // A mod's lines as the game's advanced copy writes them: the rolled
+    // value, the tier's range dim in brackets.
+    function modText(m) {
+        return m.lines.map(function (l) {
+            return l.parts.map(function (p) {
+                const t = String(p.t).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                return p.range ? "<font color=\"#8d8996\">(" + t + ")</font>" : t
+            }).join("")
+        }).join("<br>")
+    }
+    // A line as the game writes it: EE2's text with the value put in; a
+    // positive flat "to" gets back the game's "+" ("# to Accuracy Rating").
+    function lineText(s) {
+        const t = s.value > 0 ? s.text.replace(/^#(%?) to /, "+#$1 to ") : s.text
+        return t.replace(/#/g, s.value !== null ? statAmount(s.value) : "#")
+    }
+    // Whether the wheel at (x, y) of the list is over a min/max field.
+    function overField(item, x, y) {
+        let it = item
+        let px = x, py = y
+        for (let depth = 0; it && depth < 12; depth++) {
+            const c = it.childAt(px, py)
+            if (!c) return false
+            if (c.objectName === "rangeField") return c.visible
+            const p = it.mapToItem(c, px, py)
+            px = p.x; py = p.y
+            it = c
+        }
+        return false
+    }
 
     // The game's rarity colours.
     function rarityColour(rarity) {
@@ -125,21 +212,60 @@ Panel {
             style: Theme.textStyle(); styleColor: Theme.shadow
         }
 
-        // The league the trade site is asked for.
-        Dropdown {
+        // The league the trade site is asked for (chosen in the settings, ⚙;
+        // MN, 0.8.55: the dropdown here opened under the chips), and ⚙.
+        Item {
             width: parent.width
-            visible: win.v !== null && win.store && win.store.leagues.length > 0
-            label: "League"
-            options: win.store ? win.store.leagues.map(function (l) { return { id: l.id, name: l.text } }) : []
-            current: win.store ? win.store.league : ""
-            onChosen: (id) => win.store.chooseLeague(id)
+            height: 30
+            visible: win.store !== null
+            Text {
+                anchors.left: parent.left
+                anchors.right: gear.left
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                elide: Text.ElideRight
+                text: win.store && win.store.league ? "LEAGUE  " + win.store.league : ""
+                color: Theme.muted()
+                font.family: Theme.display
+                font.pixelSize: 11
+                font.weight: Font.Bold
+                font.letterSpacing: 1
+                style: Theme.textStyle(); styleColor: Theme.shadow
+            }
+            IconButton {
+                id: gear
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 30; height: 30
+                icon: "settings"
+                framed: true
+                color: win.showSettings ? Theme.accent : Theme.text()
+                tip: win.showSettings ? "Back to the item" : "Price check settings"
+                onClicked: win.showSettings = !win.showSettings
+            }
         }
 
-        // The item filters.
+        // The item filters, then what kind of listings and which currency.
         Flow {
             width: parent.width
             spacing: 6
-            visible: win.v !== null
+            visible: win.v !== null && !win.showSettings
+            Chip {
+                visible: win.v !== null && win.v.api !== "bulk"
+                readonly property var kinds: ({ securable: "Instant buyout", available: "In person", any: "Any listing", online: "Online" })
+                text: win.v ? (kinds[win.v.listingType] || win.v.listingType) : ""
+                on: true
+                onClicked: win.store.setTrade("listingType", win.v.listingType === "securable" ? "available" : win.v.listingType === "available" ? "any" : "securable")
+            }
+            Chip {
+                visible: win.v !== null && win.v.api !== "bulk"
+                text: win.v && win.v.currency ? "In " + win.v.currency : "Any currency"
+                on: win.v !== null && win.v.currency !== ""
+                onClicked: {
+                    const next = { "": "exalted", exalted: "divine", divine: "chaos", chaos: "" }
+                    win.store.setTrade("currency", next[win.v.currency] !== undefined ? next[win.v.currency] : "")
+                }
+            }
             Repeater {
                 model: win.v ? win.v.filters : []
                 delegate: Chip {
@@ -157,7 +283,11 @@ Panel {
             width: parent.width
             height: Math.max(80, Math.min(pageColumn.implicitHeight, 380 + win.grow))
             visible: win.v !== null
-            WheelScroll { flick: page; step: 90 }
+            WheelScroll {
+                flick: page
+                step: 90
+                passAt: function (x, y) { const p = mapToItem(page.contentItem, x, y); return win.overField(page.contentItem, p.x, p.y) }
+            }
             Flickable {
                 id: page
                 anchors.fill: parent
@@ -170,54 +300,157 @@ Panel {
                     width: page.width
                     spacing: 0
 
+                    // The settings (⚙ in the window), in place of the item.
+                    PriceSettings {
+                        width: pageColumn.width
+                        visible: win.showSettings
+                        store: win.store
+                    }
+
+                    // The lines as the game's tooltip orders them: the
+                    // weapon's or armour's values, fixed lines (implicit,
+                    // enchant, runes), prefixes, suffixes, then EE2's totals.
+                    // Without the advanced copy explicit lines are one group.
                     Repeater {
-                        model: win.v ? win.v.stats.filter(function (s) { return !s.hidden || win.showHidden }) : []
-                        delegate: Item {
+                        model: win.showSettings ? [] : win.groups
+                        delegate: Column {
+                            id: groupBox
                             required property var modelData
                             width: pageColumn.width
-                            height: Math.max(26, statText.implicitHeight + 8)
-                            Rectangle { anchors.fill: parent; color: statMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.04) : "transparent" }
-                            Rectangle {
-                                id: box
-                                x: 2
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 12; height: 12
-                                color: modelData.disabled ? "transparent" : Theme.accent
-                                border.color: modelData.disabled ? "#5b5862" : Theme.accent
+                            spacing: 0
+                            Item {
+                                width: parent.width
+                                height: 26
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: 4
+                                    text: groupBox.modelData.title
+                                    color: groupBox.modelData.key === "prefix" || groupBox.modelData.key === "suffix" ? Theme.textSoft() : Theme.dim()
+                                    font.family: Theme.display
+                                    font.pixelSize: 11
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.5
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Text {
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: 4
+                                    visible: groupBox.modelData.first
+                                    text: "MIN      MAX" + (win.tiersShown ? (win.modsShown ? "      TIER" : "                 RANGE  TIER") : "")
+                                    color: Theme.dim()
+                                    font.family: Theme.display
+                                    font.pixelSize: 10
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.2
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
                             }
-                            Text {
-                                id: statText
-                                anchors.left: box.right
-                                anchors.leftMargin: 9
-                                anchors.right: valueText.left
-                                anchors.rightMargin: 8
-                                anchors.verticalCenter: parent.verticalCenter
-                                wrapMode: Text.WordWrap
-                                // EE2's stat texts leave out the game's "+" ("# to
-                                // Accuracy Rating"): a positive flat "to" gets it back.
-                                text: (modelData.value > 0 ? modelData.text.replace(/^#(%?) to /, "+#$1 to ") : modelData.text)
-                                    .replace(/#/g, modelData.value !== null ? win.statAmount(modelData.value) : "#")
-                                    + (modelData.hidden ? "  <font color=\"#8d8996\">(" + modelData.hidden + ")</font>" : "")
-                                textFormat: Text.StyledText
-                                color: modelData.disabled ? Theme.muted() : Theme.text()
-                                font.family: Theme.body
-                                font.pixelSize: 12
-                                style: Theme.textStyle(); styleColor: Theme.shadow
+                            Repeater {
+                                model: groupBox.modelData.stats
+                                delegate: Item {
+                                    id: row
+                                    required property var modelData
+                                    // The stat line (searchable), and the item's mod it stands for.
+                                    readonly property var st: modelData.stat
+                                    readonly property var md: modelData.mod
+                                    readonly property bool off: !st || st.disabled
+                                    width: groupBox.width
+                                    height: Math.max(30, statText.implicitHeight + 10)
+                                    readonly property bool hasRange: !!st && (st.value !== null && st.group !== "totals" || st.min !== null)
+                                    Rectangle { anchors.fill: parent; color: statMouse.containsMouse && row.st ? Qt.rgba(1, 1, 1, 0.04) : "transparent" }
+                                    MouseArea { id: statMouse; anchors.fill: parent; hoverEnabled: true; enabled: !!row.st; cursorShape: Qt.PointingHandCursor; onClicked: win.store.toggleStat(row.st.index) }
+                                    Rectangle {
+                                        id: box
+                                        x: 2
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 12; height: 12
+                                        visible: !!row.st
+                                        color: row.off ? "transparent" : Theme.accent
+                                        border.color: row.off ? "#5b5862" : Theme.accent
+                                    }
+                                    Text {
+                                        id: statText
+                                        anchors.left: box.right
+                                        anchors.leftMargin: 9
+                                        anchors.right: fields.left
+                                        anchors.rightMargin: 8
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        wrapMode: Text.WordWrap
+                                        text: row.md
+                                            ? win.modText(row.md) + (row.md.folded ? "  <font color=\"#8d8996\">(" + (row.md.folded === "totals" ? "searched under TOTALS" : "searched under VALUES") + ")</font>" : "")
+                                            : win.lineText(row.st) + (row.st.hidden ? "  <font color=\"#8d8996\">(" + row.st.hidden + ")</font>" : "")
+                                        textFormat: Text.StyledText
+                                        color: row.off ? Theme.muted() : Theme.text()
+                                        font.family: Theme.body
+                                        font.pixelSize: 12
+                                        style: Theme.textStyle(); styleColor: Theme.shadow
+                                    }
+                                    Row {
+                                        id: fields
+                                        anchors.right: tierBox.left
+                                        anchors.rightMargin: win.tiersShown ? 10 : 0
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        spacing: 4
+                                        RangeField {
+                                            visible: row.hasRange
+                                            placeholder: "min"
+                                            value: row.st ? row.st.min : null
+                                            start: row.st ? row.st.value : null
+                                            dp: !!row.st && row.st.dp
+                                            dimmed: row.off
+                                            onEdited: (n) => win.store.setRange(row.st.index, n, undefined)
+                                        }
+                                        RangeField {
+                                            visible: row.hasRange
+                                            placeholder: "max"
+                                            value: row.st ? row.st.max : null
+                                            start: row.st ? row.st.value : null
+                                            dp: !!row.st && row.st.dp
+                                            dimmed: row.off
+                                            onEdited: (n) => win.store.setRange(row.st.index, undefined, n)
+                                        }
+                                    }
+                                    // Its tier and that tier's range (from the advanced copy).
+                                    Item {
+                                        id: tierBox
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: win.tiersShown ? (win.modsShown ? 30 : 78) : 0
+                                        height: 20
+                                        visible: win.tiersShown
+                                        Row {
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            spacing: 6
+                                            Text {
+                                                anchors.baseline: tierText.baseline
+                                                // Not beside the mods' own column (30 px): it ran over the max field.
+                                                visible: !win.modsShown && !row.md && !!row.st && row.st.low !== null
+                                                text: visible ? win.statAmount(row.st.low) + "–" + win.statAmount(row.st.high) : ""
+                                                color: Theme.dim()
+                                                font.family: Theme.body
+                                                font.pixelSize: 10
+                                                style: Theme.textStyle(); styleColor: Theme.shadow
+                                            }
+                                            Text {
+                                                id: tierText
+                                                width: 22
+                                                horizontalAlignment: Text.AlignRight
+                                                readonly property var tier: row.md ? row.md.tier : row.st ? row.st.tier : null
+                                                text: tier !== null && tier !== undefined ? "T" + tier : ""
+                                                color: tier === 1 ? Theme.accent : Theme.textSoft()
+                                                font.family: Theme.display
+                                                font.pixelSize: 13
+                                                font.weight: Font.Bold
+                                                style: Theme.textStyle(); styleColor: Theme.shadow
+                                            }
+                                        }
+                                    }
+                                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
+                                }
                             }
-                            Text {
-                                id: valueText
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: !modelData.disabled && modelData.min !== null
-                                text: "≥ " + (modelData.min !== null ? win.statAmount(modelData.min) : "")
-                                color: Theme.accent
-                                font.family: Theme.display
-                                font.pixelSize: 13
-                                font.weight: Font.Bold
-                                style: Theme.textStyle(); styleColor: Theme.shadow
-                            }
-                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
-                            MouseArea { id: statMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: win.store.toggleStat(modelData.index) }
                         }
                     }
 
@@ -225,15 +458,27 @@ Panel {
                     // always the same …), on request.
                     Item {
                         width: pageColumn.width
-                        height: hiddenCount > 0 ? 28 : 0
-                        visible: hiddenCount > 0
+                        height: hiddenCount > 0 && !win.showSettings ? 32 : 0
+                        visible: hiddenCount > 0 && !win.showSettings
                         readonly property int hiddenCount: win.v ? win.v.stats.filter(function (s) { return !!s.hidden }).length : 0
                         Chip {
-                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.bottom: parent.bottom
                             text: win.showHidden ? "Fewer lines" : parent.hiddenCount + (parent.hiddenCount === 1 ? " more line" : " more lines")
                             on: win.showHidden
                             onClicked: win.showHidden = !win.showHidden
                         }
+                    }
+                    Text {
+                        width: pageColumn.width
+                        // Only where mods can be: not for currency and the like.
+                        visible: win.v !== null && !win.v.advanced && !win.showSettings && win.v.api !== "bulk" && win.v.stats.length > 0
+                        topPadding: 8
+                        wrapMode: Text.WordWrap
+                        text: "For prefixes, suffixes and tiers hold Alt (the game's advanced mod key) while pressing Ctrl+C."
+                        color: Theme.dim()
+                        font.family: Theme.body
+                        font.pixelSize: 11
+                        style: Theme.textStyle(); styleColor: Theme.shadow
                     }
 
                     Item { width: 1; height: 10 }
@@ -241,15 +486,38 @@ Panel {
                     // SEARCH and what came back.
                     Item {
                         width: pageColumn.width
-                        height: 34
+                        height: win.showSettings ? 0 : 34
+                        visible: !win.showSettings
                         TextButton {
                             id: searchButton
                             anchors.left: parent.left
                             text: win.store && win.store.busy ? "Searching" : "Search"
                             onClicked: win.store.search()
                         }
-                        Text {
+                        // The same search on the trade site, in the browser (only on a click).
+                        TextButton {
+                            id: siteButton
                             anchors.left: searchButton.right
+                            anchors.leftMargin: 6
+                            text: "Trade site ↗"
+                            onClicked: win.store.openTrade()
+                        }
+                        // Into the PoE 2 session's loot (a currency stack or the item with its price).
+                        TextButton {
+                            id: sessionButton
+                            anchors.left: siteButton.right
+                            anchors.leftMargin: 6
+                            visible: !!win.session && (win.session.on || win.session.demoOn) && !!win.v
+                            width: visible ? implicitWidth : 0
+                            text: win.addedFor && win.addedFor === win.v ? "In session ✓" : "+ Session"
+                            onClicked: {
+                                if (win.addedFor === win.v) return
+                                win.session.addFromPrice(win.v, win.r, win.store.checkedText)
+                                win.addedFor = win.v
+                            }
+                        }
+                        Text {
+                            anchors.left: sessionButton.right
                             anchors.leftMargin: 12
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
@@ -268,62 +536,155 @@ Panel {
 
                     Item { width: 1; height: 8 }
 
+                    // poe.ninja's price of a currency item (MN, 2026-11-15: on by
+                    // default, Settings → Plugins → PoE 2 "poe.ninja prices").
+                    Item {
+                        readonly property var n: win.r && win.r.ninja ? win.r.ninja : (win.v ? win.v.ninja : null)
+                        visible: !!n && !win.showSettings
+                        width: pageColumn.width
+                        height: visible ? 26 : 0
+                        Text {
+                            id: ninjaLabel
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "POE.NINJA"
+                            color: Theme.dim()
+                            font.family: Theme.display
+                            font.pixelSize: 11
+                            font.weight: Font.Bold
+                            font.letterSpacing: 1.5
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                        Text {
+                            anchors.left: ninjaLabel.right
+                            anchors.leftMargin: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: parent.n ? (parent.n.div >= 1 ? win.amount(parent.n.div) + " div" : win.amount(parent.n.exalted) + " ex") + (parent.n.div >= 1 ? " · " + win.amount(parent.n.exalted) + " ex" : (parent.n.div >= 0.01 ? " · " + win.amount(parent.n.div) + " div" : "")) : ""
+                            color: Theme.text()
+                            font.family: Theme.display
+                            font.pixelSize: 14
+                            font.weight: Font.Bold
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                        Text {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !!parent.n && parent.n.change !== null
+                            text: parent.n && parent.n.change !== null ? "7 days " + (parent.n.change > 0 ? "+" : "") + win.amount(parent.n.change) + " %" : ""
+                            color: Theme.muted()
+                            font.family: Theme.body
+                            font.pixelSize: 11
+                            style: Theme.textStyle(); styleColor: Theme.shadow
+                        }
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
+                    }
+
                     // Listings: the price, how often, the seller's state, how old.
+                    // A click shows the listed item as the trade site does (MN,
+                    // 2026-11-15: "anklicken können und dann sehen ... die werte").
                     Repeater {
-                        model: win.r && win.r.kind === "trade" ? win.r.listed : []
-                        delegate: Item {
+                        model: win.r && win.r.kind === "trade" && !win.showSettings ? win.r.listed : []
+                        delegate: Column {
+                            id: listing
                             required property var modelData
+                            required property int index
+                            readonly property bool open: win.openListing !== "" && win.openListing === (modelData.id || String(index))
                             width: pageColumn.width
-                            height: 24
-                            Rectangle { x: 0; anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; color: win.statusColour(modelData.status) }
-                            Text {
-                                x: 14
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 92
-                                text: win.amount(modelData.amount) + " " + win.currencyName(modelData.currency)
-                                color: modelData.currency === "divine" ? Theme.accentLight : Theme.text()
-                                font.family: Theme.display
-                                font.pixelSize: 14
-                                font.weight: Font.Bold
-                                style: Theme.textStyle(); styleColor: Theme.shadow
+                            Item {
+                                width: parent.width
+                                height: 24
+                                Rectangle { anchors.fill: parent; color: Theme.accent; opacity: listing.open ? 0.08 : rowMouse.containsMouse ? 0.05 : 0 }
+                                Rectangle { x: 0; anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; color: win.statusColour(listing.modelData.status) }
+                                Text {
+                                    x: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 88
+                                    elide: Text.ElideRight
+                                    text: win.amount(listing.modelData.amount) + " " + win.currencyName(listing.modelData.currency)
+                                    color: listing.modelData.currency === "divine" ? Theme.accentLight : Theme.text()
+                                    font.family: Theme.display
+                                    font.pixelSize: 14
+                                    font.weight: Font.Bold
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                // The price in exalted or divine orbs by poe.ninja's rates.
+                                Text {
+                                    x: 104
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 62
+                                    elide: Text.ElideRight
+                                    text: listing.modelData.norm ? "≈ " + win.amount(listing.modelData.norm.amount) + " " + win.currencyName(listing.modelData.norm.currency) : ""
+                                    color: Theme.muted()
+                                    font.family: Theme.body
+                                    font.pixelSize: 11
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Text {
+                                    x: 168
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 28
+                                    text: listing.modelData.times > 1 ? "×" + listing.modelData.times : (listing.modelData.stack > 1 ? listing.modelData.stack + "×" : "")
+                                    color: Theme.muted()
+                                    font.family: Theme.body
+                                    font.pixelSize: 11
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Text {
+                                    x: 198
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - 198 - 96
+                                    elide: Text.ElideRight
+                                    text: listing.modelData.account + (listing.modelData.itemLevel ? " · ilvl " + listing.modelData.itemLevel : "")
+                                    color: listing.modelData.mine ? Theme.accent : Theme.textSoft()
+                                    font.family: Theme.body
+                                    font.pixelSize: 11
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Text {
+                                    anchors.right: openMark.left
+                                    anchors.rightMargin: 6
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: listing.modelData.age
+                                    color: Theme.dim()
+                                    font.family: Theme.body
+                                    font.pixelSize: 11
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Text {
+                                    id: openMark
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 10
+                                    horizontalAlignment: Text.AlignRight
+                                    text: listing.modelData.item ? (listing.open ? "▴" : "▾") : ""
+                                    color: listing.open ? Theme.accent : Theme.dim()
+                                    font.family: Theme.body
+                                    font.pixelSize: 10
+                                    style: Theme.textStyle(); styleColor: Theme.shadow
+                                }
+                                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine; visible: !listing.open }
+                                MouseArea {
+                                    id: rowMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    enabled: !!listing.modelData.item
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: win.openListing = listing.open ? "" : (listing.modelData.id || String(listing.index))
+                                }
                             }
-                            Text {
-                                x: 110
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 34
-                                text: modelData.times > 1 ? "×" + modelData.times : (modelData.stack > 1 ? modelData.stack + "×" : "")
-                                color: Theme.muted()
-                                font.family: Theme.body
-                                font.pixelSize: 11
-                                style: Theme.textStyle(); styleColor: Theme.shadow
+                            // The listed item: name, values, requirements, then its mods
+                            // block by block, each mod's tier on the right.
+                            Loader {
+                                active: listing.open && !!listing.modelData.item
+                                width: parent.width
+                                visible: active
+                                sourceComponent: ListedItem { item: listing.modelData.item; note: listing.modelData.corrupted ? "Corrupted" : "" }
                             }
-                            Text {
-                                x: 148
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width - 148 - 84
-                                elide: Text.ElideRight
-                                text: modelData.account + (modelData.itemLevel ? " · ilvl " + modelData.itemLevel : "")
-                                color: modelData.mine ? Theme.accent : Theme.textSoft()
-                                font.family: Theme.body
-                                font.pixelSize: 11
-                                style: Theme.textStyle(); styleColor: Theme.shadow
-                            }
-                            Text {
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.age
-                                color: Theme.dim()
-                                font.family: Theme.body
-                                font.pixelSize: 11
-                                style: Theme.textStyle(); styleColor: Theme.shadow
-                            }
-                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
                         }
                     }
 
                     // The currency exchange: what one costs, per currency asked.
                     Repeater {
-                        model: win.r && win.r.kind === "bulk" ? win.r.groups : []
+                        model: win.r && win.r.kind === "bulk" && !win.showSettings ? win.r.groups : []
                         delegate: Column {
                             id: group
                             required property var modelData
@@ -359,9 +720,20 @@ Panel {
                                         style: Theme.textStyle(); styleColor: Theme.shadow
                                     }
                                     Text {
-                                        x: 110
+                                        x: 104
                                         anchors.verticalCenter: parent.verticalCenter
-                                        width: parent.width - 110 - 84
+                                        width: 62
+                                        elide: Text.ElideRight
+                                        text: modelData.norm ? "≈ " + win.amount(modelData.norm.amount) + " " + win.currencyName(modelData.norm.currency) : ""
+                                        color: Theme.muted()
+                                        font.family: Theme.body
+                                        font.pixelSize: 11
+                                        style: Theme.textStyle(); styleColor: Theme.shadow
+                                    }
+                                    Text {
+                                        x: 172
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width - 172 - 84
                                         elide: Text.ElideRight
                                         text: modelData.stock + " in stock · " + modelData.account
                                         color: modelData.mine ? Theme.accent : Theme.textSoft()

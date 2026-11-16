@@ -3,6 +3,7 @@ import GameCompanion
 import "theme.js" as Theme
 import "plugins.js" as Plugins
 import "aion2/timekit.js" as TK
+import "poe2"
 
 // Settings: how solid the panels are, the shortcuts, and what this is.
 Panel {
@@ -12,7 +13,7 @@ Panel {
     width: 540
 
     property string tab: nativeWindow.demo.indexOf("display") >= 0 ? "display"
-        : nativeWindow.demo.indexOf("timers") >= 0 ? "plugins"
+        : nativeWindow.demo.indexOf("timers") >= 0 || nativeWindow.demo.indexOf("poe2prefs") >= 0 ? "plugins"
         : nativeWindow.demo.indexOf("sponsor") >= 0 || nativeWindow.demo.indexOf("jellyfin") >= 0 || nativeWindow.demo.indexOf("hwdec") >= 0
         || nativeWindow.demo.indexOf("ytsettings") >= 0 ? "streams" : "general"
     property var keys: JSON.parse(Companion.shortcuts)
@@ -20,11 +21,18 @@ Panel {
     /// The layout being renamed ("" for none).
     property string renaming: ""
     property string layoutMessage: ""
+    /// The layout whose games are being picked ("" for none).
+    property string pickingGames: ""
+    /// Every game a layout can be tied to: [{id, name, layout}].
+    readonly property var layoutGames: JSON.parse(Games.layoutGames)
+    /// What a layout can load for: the desktop (no game), then the games.
+    readonly property var layoutTargets: [{ id: "desktop", name: "Desktop", layout: Companion.desktopLayout }].concat(layoutGames)
     minWidth: 400
     /// The Map panel: the overlay map's settings are kept in its own.
     property var mapSource: null
     /// The Schedule's store (its settings fold out under Event Timers).
     property var timerStore: null
+    property var priceStore: null
     function keyOf(id) {
         for (const k of keys) if (k.id === id) return k.key
         return ""
@@ -88,7 +96,7 @@ Panel {
                     width: parent.width
                     spacing: 10
                     readonly property var all: JSON.parse(Companion.plugins)
-                    property string packageId: nativeWindow.demo.indexOf("pluginsglobal") >= 0 ? "global" : "aion2"
+                    property string packageId: nativeWindow.demo.indexOf("pluginsglobal") >= 0 ? "global" : nativeWindow.demo.indexOf("poe2prefs") >= 0 ? "poe2" : "aion2"
                     readonly property var pack: Plugins.packages.filter((p) => p.id === packageId)[0]
 
                     Row {
@@ -165,8 +173,11 @@ Panel {
                             readonly property bool hasOverlay: p.id === "aion2.map" && !!settings.mapSource
                             // The Event Timers' sources and alerts fold out the same way.
                             readonly property bool hasTimers: p.id === "aion2.timers" && !!settings.timerStore
+                            // The PoE 2 price check's choices (as in its window's ⚙).
+                            readonly property bool hasPrice: p.id === "poe2.price" && !!settings.priceStore
                             property bool expanded: (hasOverlay && nativeWindow.demo.indexOf("overlay") >= 0)
                                 || (hasTimers && nativeWindow.demo.indexOf("timers") >= 0)
+                                || (hasPrice && nativeWindow.demo.indexOf("poe2prefs") >= 0)
                             height: headHeight + (expanded ? overlayBox.height + 12 : 0)
                             opacity: (p.fixed || c.on) && usable ? 1 : 0.55
                             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
@@ -233,11 +244,11 @@ Panel {
                                 y: 10
                                 spacing: 8
                                 SmallToggle {
-                                    visible: plugRow.hasTimers
+                                    visible: plugRow.hasTimers || plugRow.hasPrice
                                     width: 92
                                     text: "SETTINGS " + (plugRow.expanded ? "▴" : "▾")
                                     on: plugRow.expanded
-                                    tip: "Where the times come from, and the alerts"
+                                    tip: plugRow.hasPrice ? "Search range, listings, currency, seller, tiers" : "Where the times come from, and the alerts"
                                     onClicked: plugRow.expanded = !plugRow.expanded
                                 }
                                 SmallToggle {
@@ -274,7 +285,7 @@ Panel {
                                 y: plugRow.headHeight
                                 width: plugRow.width - 42
                                 height: item ? item.implicitHeight : 0
-                                sourceComponent: plugRow.hasTimers ? timersComponent : overlayComponent
+                                sourceComponent: plugRow.hasTimers ? timersComponent : plugRow.hasPrice ? priceComponent : overlayComponent
                             }
                         }
                     }
@@ -781,7 +792,7 @@ Panel {
                             }
                         }
                     }
-                    Hint { text: "Keeps which panels are open, where they are, their size, what is pinned and the opacity. A name that exists is replaced." }
+                    Hint { text: "Keeps which panels are open, where they are, their size, what is pinned, the opacity and how see-through the videos and the chat are. A name that exists is replaced." }
                     Hint {
                         visible: settings.layoutMessage.length > 0
                         text: settings.layoutMessage
@@ -796,13 +807,20 @@ Panel {
                     }
                     Repeater {
                         model: settings.layouts
-                        delegate: Item {
+                        delegate: Column {
+                          id: layoutEntry
+                          required property string modelData
+                          readonly property var games: settings.layoutGames.filter((g) => g.layout === modelData)
+                          readonly property bool desktop: Companion.desktopLayout === modelData
+                          readonly property bool picking: settings.pickingGames === modelData
+                          width: parent.width
+                          spacing: 0
+                          Item {
                             id: layoutRow
-                            required property string modelData
+                            readonly property string modelData: layoutEntry.modelData
                             readonly property bool editing: settings.renaming === modelData
                             width: parent.width
                             height: 46
-                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
                             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                                 visible: !layoutRow.editing
                                 anchors.left: parent.left
@@ -840,6 +858,11 @@ Panel {
                                 }
                                 TextButton {
                                     visible: !layoutRow.editing
+                                    text: layoutEntry.picking ? "Done" : "Games"
+                                    onClicked: settings.pickingGames = layoutEntry.picking ? "" : layoutRow.modelData
+                                }
+                                TextButton {
+                                    visible: !layoutRow.editing
                                     text: "Rename"
                                     onClicked: settings.renaming = layoutRow.modelData
                                 }
@@ -850,7 +873,11 @@ Panel {
                                     onClicked: {
                                         const name = renameField.text.trim()
                                         if (name === layoutRow.modelData) { settings.renaming = ""; return }
-                                        if (Companion.renameLayout(layoutRow.modelData, name)) settings.renaming = ""
+                                        if (Companion.renameLayout(layoutRow.modelData, name)) {
+                                            if (settings.pickingGames === layoutRow.modelData) settings.pickingGames = name
+                                            settings.renaming = ""
+                                            Games.layoutsChanged()
+                                        }
                                         else settings.layoutMessage = name.length === 0 ? "A layout needs a name." : "\u201c" + name + "\u201d exists already."
                                     }
                                 }
@@ -868,13 +895,84 @@ Panel {
                                     hoverColor: Theme.red
                                     onClicked: {
                                         Companion.deleteLayout(layoutRow.modelData)
+                                        Games.layoutsChanged()
                                         settings.layoutMessage = "Deleted \u201c" + layoutRow.modelData + "\u201d."
                                     }
                                 }
                             }
+                          }
+                          // Which games load it when they start.
+                          Hint {
+                            visible: !layoutEntry.picking
+                            width: parent.width
+                            topPadding: 2
+                            bottomPadding: 10
+                            text: (layoutEntry.desktop ? "Desktop: loads when Game Companion starts and when a game ends. " : "")
+                                + (layoutEntry.games.length > 0
+                                    ? "Loads when " + layoutEntry.games.map((g) => g.name).join(", ") + " starts."
+                                    : layoutEntry.desktop ? "" : "No game loads it. “Games” picks the ones that do.")
+                            color: layoutEntry.games.length > 0 || layoutEntry.desktop ? Theme.textSoft() : Theme.dim()
+                          }
+                          Flow {
+                            visible: layoutEntry.picking
+                            width: parent.width
+                            spacing: 8
+                            topPadding: 4
+                            bottomPadding: 10
+                            Repeater {
+                                model: layoutEntry.picking ? settings.layoutTargets : []
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    readonly property bool on: modelData.layout === layoutEntry.modelData
+                                    width: gameChip.implicitWidth + 20
+                                    height: 28
+                                    color: gameMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.12) : "transparent"
+                                    border.color: on ? Theme.accent : Theme.track
+                                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                        id: gameChip
+                                        anchors.centerIn: parent
+                                        text: parent.modelData.name
+                                            + (!parent.on && parent.modelData.layout.length > 0 ? "  · " + parent.modelData.layout : "")
+                                        color: parent.on ? Theme.accent : Theme.textSoft()
+                                        font.family: Theme.body
+                                        font.pixelSize: 12
+                                    }
+                                    MouseArea {
+                                        id: gameMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            const name = parent.on ? "" : layoutEntry.modelData
+                                            if (parent.modelData.id === "desktop") Companion.setDesktop(name)
+                                            else Games.setLayout(parent.modelData.id, name)
+                                        }
+                                    }
+                                    Accessible.role: Accessible.CheckBox
+                                    Accessible.name: modelData.name
+                                    Accessible.checked: on
+                                }
+                            }
+                          }
+                          Hint {
+                            visible: layoutEntry.picking
+                            width: parent.width
+                            bottomPadding: 10
+                            text: settings.layoutGames.length === 0
+                                ? "No installed game found yet (Games)."
+                                : "Desktop and each game load one layout: picking it here takes it from another."
+                          }
+                          Rectangle { width: parent.width; height: 1; color: Theme.rowLine }
                         }
                     }
-                    Hint { text: "Later, each game can bring its own layout, loaded when it starts." }
+                    Item { width: 1; height: 4 }
+                    OnOff {
+                        width: parent.width
+                        text: "Go back to the earlier arrangement when the game ends"
+                        on: Companion.layoutBack
+                        onToggled: Companion.setLayoutBackOn(!Companion.layoutBack)
+                    }
+                    Hint { text: "A game's layout loads when it starts. When it ends, the Desktop layout loads, or without one, what was open before comes back where it was. Layouts keep the video windows' and the chat's see-through too. Changes made during the game are not saved into its layout: save it again under the same name for that." }
                 }
 
                 // Streams
@@ -1442,6 +1540,7 @@ Panel {
 
     Component { id: overlayComponent; OverlaySettings { map: settings.mapSource } }
     Component { id: timersComponent; ScheduleSettings { store: settings.timerStore } }
+    Component { id: priceComponent; PriceSettings { store: settings.priceStore } }
 
     // The Event Timers' settings (canvas board T3): where the times come
     // from, and how alerts show.

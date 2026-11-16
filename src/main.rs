@@ -9,6 +9,7 @@ mod apps_object;
 mod armory;
 mod companion;
 mod covers;
+mod ending;
 mod emotes;
 mod games;
 mod games_object;
@@ -26,12 +27,16 @@ mod meter_import;
 mod native;
 mod poe2;
 mod poe2_kit;
+mod poe2_log;
+mod poe2_log_object;
 mod poe2_object;
 mod protondb;
 mod radio;
 mod radio_object;
 mod settings;
 mod shortcuts;
+mod sound;
+mod sound_object;
 mod sponsorblock;
 mod start_with;
 mod streams;
@@ -82,16 +87,104 @@ fn main() {
     quit_on_signals();
     cxx_qt::init_crate!(game_companion);
     cxx_qt::init_qml_module!("GameCompanion");
+    // Qt's own reconnect after a broken Wayland connection (KDE sets
+    // QT_WAYLAND_RECONNECT) ended the app without a word at logout: it
+    // connected again to nothing and Qt called _exit (MN, 0.8.64). Without
+    // it, a broken connection reaches `gc_display_lost`, which ends cleanly.
+    // GC_WAYLAND_RECONNECT=1 keeps Qt's way.
+    if std::env::var_os("GC_WAYLAND_RECONNECT").is_none() {
+        std::env::remove_var("QT_WAYLAND_RECONNECT");
+    }
+    quit_step(QuitStep::Qt);
     let code = native::run();
-    // Where the last video stopped, if not yet written.
-    library::save_now();
-    // Brave and Legcord back as they were; what Game Companion started for
-    // them closes (unless the person chose otherwise).
-    apps::quit();
-    poe2_kit::stop();
-    voice_overlay::quit();
+    tidy();
+    quit_step(QuitStep::Done);
     log::end(code);
     std::process::exit(code);
+}
+
+/// What is put in order after Qt (or without it, `gc_display_lost`).
+fn tidy() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        // Where the last video stopped, if not yet written.
+        quit_step(QuitStep::Library);
+        library::save_now();
+        // Brave and Legcord back as they were; what Game Companion started
+        // for them closes (unless the person chose otherwise).
+        quit_step(QuitStep::Apps);
+        apps::quit();
+        quit_step(QuitStep::Children);
+        poe2_kit::stop();
+        poe2_log::stop();
+        voice_overlay::quit();
+        // Anything still running that we started (mpv, the sound chains,
+        // the meter's helper, a curl): none stays behind.
+        ending::children();
+    });
+}
+
+/// Called by cpp/native.cpp when the Wayland connection broke (the session
+/// ends, or KWin went away): Qt would end the process right after, without
+/// its windows and the QML taken down. Puts everything in order and ends.
+#[no_mangle]
+pub extern "C" fn gc_display_lost() {
+    log::write("app", "quit: the Wayland connection broke (the session ends or KWin went away)");
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(8));
+        log::forced(&format!("quit hung for 8 s after the Wayland connection broke while {}: ending anyway", quit_step_text()));
+        // SAFETY: the tidy quit hung: end anyway.
+        unsafe { libc::_exit(1) };
+    });
+    quit_step(QuitStep::QtWindows);
+    // What modules finish themselves when Qt takes them down (the meter's
+    // battle history).
+    ending::run_hooks();
+    tidy();
+    quit_step(QuitStep::Done);
+    log::end(0);
+    // Not exit(): Qt's and C++'s own clean-up would talk to a display that
+    // is gone.
+    // SAFETY: ends the process; everything is written and put in order.
+    unsafe { libc::_exit(0) };
+}
+
+/// Where the app is on its way out, for the log when a quit hangs.
+#[derive(Clone, Copy)]
+#[repr(usize)]
+enum QuitStep {
+    Qt = 0,
+    QtWindows,
+    Library,
+    Apps,
+    Children,
+    Done,
+}
+
+static QUIT_STEP: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+fn quit_step(step: QuitStep) {
+    QUIT_STEP.store(step as usize, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// What the app was doing at the step it reached, in words.
+fn quit_step_text() -> &'static str {
+    match QUIT_STEP.load(std::sync::atomic::Ordering::SeqCst) {
+        0 => "Qt's event loop had not ended",
+        1 => "closing the windows, the QML and the modules",
+        2 => "writing the YouTube library",
+        3 => "putting Brave and Legcord back (KWin)",
+        4 => "ending the child processes",
+        _ => "writing the end",
+    }
+}
+
+/// Called by cpp/native.cpp when Qt's event loop has ended, before Qt
+/// takes its windows and the QML down.
+#[no_mangle]
+pub extern "C" fn gc_loop_ended() {
+    quit_step(QuitStep::QtWindows);
+    log::write("app", "Qt's event loop ended");
 }
 
 /// SIGTERM, SIGINT or SIGHUP (the session ending, `kill`): the app quits as
@@ -142,7 +235,7 @@ fn quit_on_signals() {
                 native::quit();
                 std::thread::spawn(|| {
                     std::thread::sleep(std::time::Duration::from_secs(10));
-                    log::write("app", "quit hung for 10 s after the signal: ending anyway");
+                    log::forced(&format!("quit hung for 10 s after the signal while {}: ending anyway", quit_step_text()));
                     // SAFETY: the tidy quit hung: end anyway.
                     unsafe { libc::_exit(1) };
                 });

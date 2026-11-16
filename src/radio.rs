@@ -167,6 +167,9 @@ impl Player {
             .arg("--ytdl=no")
             .arg("--load-unsafe-playlists=no")
             .arg("--audio-display=no")
+            // Its streams are told apart by this name (the sound module
+            // puts it on Music).
+            .arg("--audio-client-name=game-companion-radio")
             .arg("--network-timeout=15")
             // Room for short hangs of the system: a second of sound ready
             // at the sound card, and the stream read a few seconds ahead

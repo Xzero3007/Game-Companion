@@ -78,6 +78,14 @@ pub fn end(code: i32) {
     let _ = std::fs::remove_file(marker());
 }
 
+/// The app ends hard after a hang it noted itself (`why`): the log says
+/// so, and the next start does not take it for a crash.
+pub fn forced(why: &str) {
+    write("app", why);
+    write("app", "end: forced (exit code 1)");
+    let _ = std::fs::remove_file(marker());
+}
+
 /// Writes one line: time, area, text (secrets cut, home folder as `~`).
 pub fn write(area: &str, text: &str) {
     let line = format!("{} [{area}] {}\n", now(), clean(text));
@@ -98,6 +106,45 @@ pub fn write(area: &str, text: &str) {
     if log.file.write_all(line.as_bytes()).is_ok() {
         log.written += line.len() as u64;
     }
+}
+
+/// The sound module's own log (MN, 2026-11-16: "einen log bereich für
+/// sound"): `~/.cache/game-companion/sound.log`, moved to `.log.1` past
+/// 1 MB. What the chains are, PipeWire's own warnings (xruns), each
+/// stream's move and a snapshot of the graph (rates, quantum, errors) on
+/// start and on "Copy sound log". No app or chat contents.
+pub fn sound_path() -> PathBuf {
+    dir().join("sound.log")
+}
+
+static SOUND: Mutex<()> = Mutex::new(());
+
+pub fn sound(text: &str) {
+    let _guard = SOUND.lock().unwrap_or_else(|e| e.into_inner());
+    if std::env::var("GC_LOG").as_deref() == Ok("off") {
+        return;
+    }
+    let path = sound_path();
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() > LIMIT / 2) {
+        let _ = std::fs::rename(&path, path.with_extension("log.1"));
+    }
+    let _ = std::fs::create_dir_all(dir());
+    let Some(mut file) = open(&path) else { return };
+    let mut out = String::new();
+    for line in text.lines() {
+        out.push_str(&format!("{} {}\n", now(), clean(line)));
+    }
+    if MIRROR.load(Ordering::Relaxed) {
+        eprint!("{out}");
+    }
+    let _ = file.write_all(out.as_bytes());
+}
+
+/// The last `lines` lines of the sound log (for "Copy sound log").
+pub fn sound_tail(lines: usize) -> String {
+    let text = std::fs::read_to_string(sound_path()).unwrap_or_default();
+    let all: Vec<&str> = text.lines().collect();
+    all[all.len().saturating_sub(lines)..].join("\n")
 }
 
 /// Shorthand: `log_line!("poe2", "answer {status}")`.

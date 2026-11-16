@@ -41,6 +41,10 @@ pub mod qobject {
         #[qproperty(QString, youtube)]
         #[qproperty(QString, youtube_state)]
         #[qproperty(QString, youtube_message)]
+        /// When the shown lists were loaded (seconds since 1970, 0 not yet):
+        /// for the subscriptions, when their feeds were last asked.
+        #[qproperty(f64, twitch_as_of)]
+        #[qproperty(f64, youtube_as_of)]
         /// Twitch logins kept with the star (JSON list).
         #[qproperty(QString, favourites)]
         /// YouTube channels: added by hand and FreeTube's (JSON `[{"id","name","freetube"}]`).
@@ -332,6 +336,8 @@ pub struct StreamsRust {
     youtube: QString,
     youtube_state: QString,
     youtube_message: QString,
+    twitch_as_of: f64,
+    youtube_as_of: f64,
     favourites: QString,
     channels: QString,
     channel_pictures: QString,
@@ -1176,6 +1182,7 @@ fn show_known(thread: &cxx_qt::CxxQtThread<qobject::Streams>, request: u64, know
 /// videos, or their lengths), as many pages as show now, if they still
 /// show: a list cut back to its first page put the view back at its top.
 fn show_subscriptions_later(thread: &cxx_qt::CxxQtThread<qobject::Streams>, all: Vec<Value>, st: &settings::StreamsSettings, gone: usize, text: String) {
+    let as_of = feeds_as_of(&subs_shown(), &read_feed_cache());
     let (list, hidden) = filter_videos(all, st);
     let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
         if obj.rust().youtube_request != SUBS_REQUEST.load(Ordering::Relaxed) {
@@ -1194,8 +1201,44 @@ fn show_subscriptions_later(thread: &cxx_qt::CxxQtThread<qobject::Streams>, all:
         obj.as_mut().set_youtube_has_more(more);
         obj.as_mut().set_youtube(q(&Value::Array(list).to_string()));
         obj.as_mut().set_youtube_state(q("ready"));
+        if as_of > 0.0 {
+            obj.as_mut().set_youtube_as_of(as_of);
+        }
         obj.set_youtube_message(q(&message));
     });
+}
+
+/// The channels of the subscriptions list that shows (a group's or all).
+fn subs_shown_lock() -> &'static Mutex<Vec<String>> {
+    static SHOWN: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+    SHOWN.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+fn subs_shown() -> Vec<String> {
+    subs_shown_lock().lock().unwrap_or_else(|p| p.into_inner()).clone()
+}
+
+fn set_subs_shown(ids: &[String]) {
+    *subs_shown_lock().lock().unwrap_or_else(|p| p.into_inner()) = ids.to_vec();
+}
+
+/// Shows the stored videos of the channels that show now (after a look in
+/// the background that was asked for other channels, e.g. all before a
+/// group was chosen).
+fn show_shown_subscriptions(thread: &cxx_qt::CxxQtThread<qobject::Streams>, text: String) {
+    let ids = subs_shown();
+    if ids.is_empty() {
+        return;
+    }
+    let all = newest_of(cached_videos(&ids, &read_feed_cache()), 300);
+    keep_subscriptions(&ids, &all, 0);
+    let st = settings::read(|s| s.streams.clone());
+    show_subscriptions_later(thread, all, &st, 0, text);
+}
+
+/// When the channels' feeds were last asked (seconds since 1970, 0 never).
+fn feeds_as_of(ids: &[String], cache: &serde_json::Map<String, Value>) -> f64 {
+    ids.iter().filter_map(|id| cache.get(id)?["at"].as_u64()).max().unwrap_or(0) as f64
 }
 
 /// A channel's videos from its feed have no lengths: yt-dlp's look at its
@@ -1224,6 +1267,13 @@ fn lengths_later(ids: Vec<String>, st: settings::StreamsSettings, thread: cxx_qt
     std::thread::spawn(move || {
         let changed = fill_lengths(&ids, 40);
         LENGTHS_RUNNING.store(false, Ordering::Relaxed);
+        // Another group shows by now: its own stored videos, never these.
+        if subs_shown() != ids {
+            if changed {
+                show_shown_subscriptions(&thread, text);
+            }
+            return;
+        }
         if changed {
             let all = newest_of(cached_videos(&ids, &read_feed_cache()), 300);
             keep_subscriptions(&ids, &all, gone);
@@ -1276,6 +1326,8 @@ impl Default for StreamsRust {
             youtube: q("[]"),
             youtube_state: q("idle"),
             youtube_message: QString::default(),
+            twitch_as_of: 0.0,
+            youtube_as_of: 0.0,
             favourites: q(&serde_json::to_string(&s.favourites).unwrap_or_else(|_| "[]".into())),
             channels: q(&channels_json(&s)),
             channel_pictures: q(&pictures_json(&s)),
@@ -1427,6 +1479,7 @@ impl qobject::Streams {
             self.as_mut().seen_news();
         }
         if Self::demo_mode() {
+            self.as_mut().set_twitch_as_of(unix_now() as f64);
             return;
         }
         if view == "search" && text.trim().is_empty() {
@@ -1477,6 +1530,7 @@ impl qobject::Streams {
                         };
                         obj.as_mut().set_twitch(q(&Value::Array(cards).to_string()));
                         obj.as_mut().set_twitch_state(q("ready"));
+                        obj.as_mut().set_twitch_as_of(unix_now() as f64);
                         obj.set_twitch_message(q(&message));
                     }
                     Err(why) => {
@@ -1700,6 +1754,7 @@ impl qobject::Streams {
             self.as_mut().set_trend_section(q(&text));
         }
         if Self::demo_mode() && !matches!(view.as_str(), "playlist" | "history") {
+            self.as_mut().set_youtube_as_of(unix_now() as f64);
             return;
         }
         // The user's own lists: at once, nothing fetched.
@@ -1719,6 +1774,7 @@ impl qobject::Streams {
             }
             self.as_mut().set_youtube(q(&Value::Array(list).to_string()));
             self.as_mut().set_youtube_state(q("ready"));
+            self.as_mut().set_youtube_as_of(unix_now() as f64);
             self.set_youtube_message(q(&format!("{n} videos")));
             return;
         }
@@ -1733,6 +1789,7 @@ impl qobject::Streams {
             self.as_mut().rust_mut().youtube_request += 1;
             self.as_mut().set_youtube(q("[]"));
             self.as_mut().set_youtube_state(q("idle"));
+            self.as_mut().set_youtube_as_of(0.0);
             self.set_youtube_message(QString::default());
             return;
         }
@@ -1752,6 +1809,9 @@ impl qobject::Streams {
             // whether new videos are being looked for in the background.
             let mut missing = 0;
             let mut updating = false;
+            // When it was loaded: now, or for the subscriptions when their
+            // feeds were last asked (a stored list shows at once).
+            let mut as_of = unix_now() as f64;
             let result = (|| -> Result<Vec<Value>, String> {
                 match view.as_str() {
                     "game" => streams::youtube_search_with(&st.game.youtube, game_sp(&st), 20, lang),
@@ -1787,10 +1847,12 @@ impl qobject::Streams {
                         }
                         ids.truncate(MAX_CHANNELS);
                         SUBS_REQUEST.store(request, Ordering::Relaxed);
+                        set_subs_shown(&ids);
                         let force = FEEDS_FORCED.swap(false, Ordering::Relaxed);
                         if !force {
                             if let Some((kept, gone)) = kept_subscriptions(&ids) {
                                 missing = gone;
+                                as_of = feeds_as_of(&ids, &read_feed_cache());
                                 lengths_later(ids.clone(), st.clone(), thread.clone(), gone, text.clone());
                                 return Ok(kept);
                             }
@@ -1799,6 +1861,7 @@ impl qobject::Streams {
                         let cache = read_feed_cache();
                         let (_, ask) = plan_feeds(&ids, &cache, now, KEEP_SUBSCRIPTIONS.as_secs(), force);
                         let stored = newest_of(cached_videos(&ids, &cache), 300);
+                        as_of = feeds_as_of(&ids, &cache);
                         if ask.is_empty() {
                             keep_subscriptions(&ids, &stored, 0);
                             lengths_later(ids.clone(), st.clone(), thread.clone(), 0, text.clone());
@@ -1815,6 +1878,14 @@ impl qobject::Streams {
                                 std::thread::spawn(move || {
                                     let (all, gone, _) = update_feeds(&ids, ask, now, |_, _| {});
                                     SUBS_UPDATING.store(false, Ordering::Relaxed);
+                                    // Another group shows by now: its own
+                                    // stored videos (these were asked too),
+                                    // never these (MN: the whole list came
+                                    // back over a group).
+                                    if subs_shown() != ids {
+                                        show_shown_subscriptions(&thread, text);
+                                        return;
+                                    }
                                     let all = newest_of(all, 300);
                                     keep_subscriptions(&ids, &all, gone);
                                     show_subscriptions_later(&thread, all, &st, gone, text.clone());
@@ -1842,6 +1913,7 @@ impl qobject::Streams {
                         // Kept before leaving anything out: a changed filter
                         // needs no new fetch.
                         missing = gone;
+                        as_of = feeds_as_of(&ids, &read_feed_cache());
                         let all = newest_of(all, 300);
                         keep_subscriptions(&ids, &all, missing);
                         lengths_later(ids.clone(), st.clone(), thread.clone(), missing, text.clone());
@@ -1874,6 +1946,7 @@ impl qobject::Streams {
                         let message = subscriptions_message(n, gone, missing, updating);
                         obj.as_mut().set_youtube(q(&Value::Array(videos).to_string()));
                         obj.as_mut().set_youtube_state(q("ready"));
+                        obj.as_mut().set_youtube_as_of(as_of);
                         obj.set_youtube_message(q(&message));
                     }
                     Err(why) => {
@@ -2120,7 +2193,7 @@ impl qobject::Streams {
 
     fn save_opacity(self: Pin<&mut Self>, slot: &QString, percent: i32) {
         let slot = slot.to_string();
-        if slot == "twitch" || slot == "youtube" || slot == "chat" || slot == "dps" {
+        if matches!(slot.as_str(), "twitch" | "youtube" | "jellyfin" | "chat" | "dps") {
             let p = percent.clamp(if slot == "chat" || slot == "dps" { 10 } else { 50 }, 100) as u8;
             settings::change(|s| s.streams.video_opacity.insert(slot.clone(), p));
         }
@@ -2628,6 +2701,16 @@ impl qobject::Streams {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn as_of_is_the_last_ask() {
+        let cache = json!({ "UCa": { "at": 100, "videos": [] }, "UCb": { "at": 250, "videos": [] }, "UCc": { "videos": [] } });
+        let cache = cache.as_object().unwrap();
+        let ids = |l: &[&str]| l.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(feeds_as_of(&ids(&["UCa", "UCb"]), cache), 250.0);
+        assert_eq!(feeds_as_of(&ids(&["UCa", "UCc"]), cache), 100.0);
+        assert_eq!(feeds_as_of(&ids(&["UCc", "UCx"]), cache), 0.0);
+    }
 
     #[test]
     fn feed_cache_plans() {

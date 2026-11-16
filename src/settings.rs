@@ -65,6 +65,17 @@ pub struct Settings {
     pub radio: RadioSettings,
     /// Saved arrangements, by the name the user gave them.
     pub layouts: BTreeMap<String, Layout>,
+    /// When a game's layout ends, the arrangement from before it comes
+    /// back (MN, 2026-11-15).
+    pub layout_back: bool,
+    /// The arrangement from right before a game loaded its layout, kept
+    /// until the game ends (also over a restart of the app).
+    pub before_game: Option<Layout>,
+    /// The game `before_game` was kept for, by id.
+    pub before_game_for: String,
+    /// The layout for the desktop, without a game: loaded when the app
+    /// starts and when a game ends ("" = none; MN, 2026-11-16).
+    pub desktop_layout: String,
     pub streams: StreamsSettings,
     /// The Jellyfin tab's choices (the server and its key are kept apart,
     /// in `jellyfin.json`).
@@ -89,6 +100,8 @@ pub struct Settings {
     /// The PoE 2 price check's choices (league, on), as QML keeps them
     /// (`qml/poe2/PriceStore.qml`); empty takes the defaults.
     pub poe2: serde_json::Map<String, serde_json::Value>,
+    /// The sound module (channels, mic chain, stream mix; `sound`).
+    pub sound: crate::sound::SoundSettings,
 }
 
 /// One plugin's choice: on or off, and where its button sits.
@@ -329,6 +342,10 @@ pub struct Layout {
     pub accent_level: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bar: Option<BarSettings>,
+    /// How much each video window and the chat and DPS grounds show, by
+    /// slot (missing in layouts saved before it existed).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opacities: Option<BTreeMap<String, u8>>,
 }
 
 /// A layout's name: trimmed, at most 40 characters, not empty.
@@ -433,6 +450,10 @@ impl Default for Settings {
             dps_closed: false,
             radio: RadioSettings::default(),
             layouts: BTreeMap::new(),
+            layout_back: true,
+            before_game: None,
+            before_game_for: String::new(),
+            desktop_layout: String::new(),
             streams: StreamsSettings::default(),
             jellyfin: JellyfinSettings::default(),
             games: Default::default(),
@@ -442,6 +463,7 @@ impl Default for Settings {
             apps_over_full: true,
             voice: serde_json::Map::new(),
             poe2: serde_json::Map::new(),
+            sound: crate::sound::SoundSettings::default(),
         }
     }
 }
@@ -590,6 +612,7 @@ mod tests {
                 text_level: Some(0.7),
                 accent_level: Some(0.8),
                 bar: Some(BarSettings { offset: -300.0, scale: 0.8 }),
+                opacities: Some(BTreeMap::from([("jellyfin".into(), 70)])),
             },
         );
         s.pins.insert("radio".into());

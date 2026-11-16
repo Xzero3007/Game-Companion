@@ -5,6 +5,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Channels
 
+- Characters in one view (branch `claude/project-thread-ykfdu6`, 2026-11-15, MN: "nimm die drei reiter von diesem fenster und verein sie"): the tabs Roster, Content and Limits are gone. Header with refill, resets and siege; the server's content as cards; one table, a row per character: the roster's columns, then SERVER-WIDE (Buy / Craft Odyle Energy of that character's server), THIS CHARACTER (Buy, Craft, Kinah, Abyss pts) and CONTENT LEFT (Nightmare, Ascension, Corridors); under it keys, entries and usage time of the character clicked in the table (`prefs.limitsOf`). Hidden ids kept ("c:", "o:", "t:", "m:"). Panel 1180 wide by default. `CK.compact` for narrow cells.
 - `main` = stable. Only what the person accepted lands there. Every push
   publishes release `v{version}-{run}` (latest).
 - `beta` = test builds. Every push publishes pre-release
@@ -24,6 +25,24 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.69 beta (2026-11-14): #158 mic floor: a level gate after rnnoise (entry below).
+- 0.8.68 beta (2026-11-14): #156 #156 mic gain, mic EQ with presets, limiter, extra noise suppression and auto level switches (entry below).
+- 0.8.67 beta (2026-11-14): #154 #154 PoE 2: the trade site's leagues only while PoE 2 runs (no request at every start) (entry below).
+- 0.8.66 beta (2026-11-14): #152 end cleanly when the Wayland connection breaks (logout) (entry below).
+- 0.8.65 beta (2026-11-14): #150 sound presets lift audibly, mic gate catches the first word, WebRTC noise suppression (entry below).
+- 0.8.64 beta (2026-11-14): #148 sound-only strip at the top opens its lists below (entry below).
+- 0.8.63 beta (2026-11-14): #146 Videos: sound only is a slim player strip (entry below).
+- 0.8.62 beta (2026-11-14): #144 mic through the echo canceller whole again (1920-frame blocks); #143 Streams: group stays, reload chip with time, Channels keep place, sound only hides with the hub (entry below).
+- 0.8.61 beta (2026-11-14): #141 echo canceller listens only (no distortion), sound log (entry below).
+- 0.8.60 beta (2026-11-16): #138 quit cleanly when the session ends (KWin calls time out after 2 s); QML warnings; Armory portrait address; #134 sound module (off by default) with the SOUND panel; #139 Desktop layout, layouts keep the videos' see-through (entry below).
+- 0.8.59 beta (2026-11-14): #136 #132 video play statistics also after a file's end; Characters: note for a character without keys, shorter charged note (entry below).
+- 0.8.58 beta (2026-11-16): #131 #132 #133 layouts tied to games, back to the earlier arrangement when a game ends; AION 2 Characters in one view; videos no longer wait inside Qt's render (entry below).
+- 0.8.57 beta (2026-11-14): #129 PoE 2: league under settings, min and max both kept, Evasion in the trade link, session currency chips, WHERE tile (entry below).
+- 0.8.56 beta (2026-11-14): #119 DPS meter closes when AION 2 ends (entry below).
+- 0.8.55 beta (2026-11-14): #126 PoE 2 session part 2: loot by hand, + Session in the price check, worth from poe.ninja (entry below).
+- 0.8.54 beta (2026-11-14): #123 PoE 2 session tracker part 1: reads Client.txt (entry below).
+- 0.8.53 beta (2026-11-14): #121 PoE 2 price check: layout like the game with min/max, EE2 settings, Trade site, listings with mods and tiers, poe.ninja prices (entry below).
+- 0.8.52 beta (2026-11-14): #120 Print flicker (desktop tools never count as a full-screen game), newest first sorts by date, UP NEXT tiles and click fix, dragged video holds its picture (entry below).
 - 0.8.51 beta (2026-11-14): #116 Next video: the shown list goes along, ⏭, UP NEXT, AUTOPLAY, close the player when nothing follows (entry below).
 - 0.8.50 beta (2026-11-14): #114 (+ #113) Print/Spectacle: videos stand still and parts let clicks through while its selection is open; more YouTube dates via yt-dlp; kit tests without fixed sleeps (entry below).
 - 0.8.49 beta (2026-11-14): #110 YouTube: dates from the channels' feeds for searches, Trending, History and playlists; SORT button; wider unsubscribe menu (entry below).
@@ -781,6 +800,12 @@ own end and AUTOPLAY into the next video (the sandbox reaches no YouTube).
 Possible follow-up from QA (0.8.50 review): `gcShot` could also check
 `w.layer === 9` (overlay) so a full-screen Spectacle editor never counts.
 
+Beta fixes after 0.8.51 (MN, "alles abarbeiten"): Print flicker (Spectacle
+was taken for a full-screen game while Brave was shown: `desktop_tool`),
+"Newest first" sorted by date in the game's search, UP NEXT as tiles
+(click plays, whole titles, scrolls), a dragged video holds its picture
+still. The drag stutter note above is done with that, to be confirmed.
+
 ## Branch `claude/project-thread-pv2u8z` (from beta): Boss panel (A5)
 
 Boss Notes and Boss Callouts as one Boss window (canvas page "boss", MN's
@@ -1003,8 +1028,38 @@ nach". PoE 2 1.0 comes in December: everything must work by then.
   price and armory demos was the same or lower.
 - Not checked here (no network to the trade site): real searches, the
   rate limits and Ctrl+C in the real game. QA and MN check those.
-- Later (asked, not built): poe.ninja estimates (needs MN's yes for the
-  host), a Client.txt reader, filter manager, levelling guide.
+- Later (asked, not built): a Client.txt reader, filter manager,
+  levelling guide.
+- 2026-11-15, second round (MN: "Aufbau wie im Spiel", EE2's settings,
+  plan `/mnt/project-files/game-companion/poe2-price-plan.md`):
+  - Fixes for stable, each its own PR: #101 leagues with spaces (EE2
+    writes "Runes of Aldur" unencoded; `encode_address`, curl `globoff`),
+    #104 clipboard watcher connects again and `watchError` shows.
+  - Features (beta only, after the stable cut): `view().mods` groups
+    (implicit/enchant/runes, prefixes, suffixes, tiers and ranges as the
+    game writes them), min/max fields, `PriceSettings.qml` (window ⚙ and
+    Settings → Plugins → PoE 2), "Trade site ↗" (`tradeLink()`,
+    `Poe2.openTrade`, xdg-open, www.pathofexile.com/trade2 pages only).
+  - Third round (MN's test of 0.8.51: "ich muss die gelisteten items sehen
+    können"): a click on a listing shows its item (`ListedItem.qml`, the
+    kit's `item` from EE2's DisplayItem); poe.ninja prices
+    (`tools/poe2-ee2/ninja.ts`, `poe2::ninja_allowed`, setting `ninja`, on
+    by default): listings in ex/div, a currency's own price with its 7-day
+    change. Only the Currency overview so far; uniques and other exchange
+    kinds (fragments, runes, essences …) need their `type` names, unknown
+    here (poe.ninja is blocked in the sandbox and on the bench: MN ran the
+    curls for leagues and Currency).
+  - Fourth round (MN's test of 0.8.55): the league moved into the price
+    check's settings (the window's dropdown opened under the chips);
+    min and max no longer clear each other (`setStat` "keep"); the trade
+    site link ticks its filter groups (`disabled: false`; Evasion Rating's
+    max showed under unticked Equipment Filters); folded mod rows say
+    "searched under VALUES/TOTALS"; the session's "Add currency" opens in
+    place; the WHERE tile shows the area as its value. Drops by the loot
+    filter's sound: MN declined for now ("die töne spinnen schon mal").
+  - Next: best tier with its range (needs PoE 2 mod data whose licence
+    allows it; RePoE's data is GGG's); not poeprices.info until it knows
+    PoE 2.
 
 ## Branch `claude/project-thread-6m4xx8` (from beta): open Brave and Legcord taken over again
 
@@ -1037,3 +1092,73 @@ taken over, no second Brave, the watcher saw it itself), `restart.sh`
   scripts go to /mnt/project-files/game-companion/arch-test/.
 - Before a release: idle CPU 0 ticks (scratchpad cpu.sh pattern: utime +
   stime from /proc/<pid>/stat over 10 s).
+
+## Branch `claude/project-thread-arn9fm` (from beta): PoE 2 session tracker
+
+MN, 2026-11-15 ("dieselbe Art Session-Tracker wie bei AION 2", plan in the
+project folder `poe2-session-plan.md`; no GGG API, no network). Part 1:
+
+- `src/poe2_log.rs` + `src/poe2_log_object.rs` (`Poe2Log` singleton): finds
+  `logs/Client.txt` (running PoE 2's cwd or program folder via /proc, Steam
+  libraries, Wine prefixes in ~/Games; `GC_POE2_LOG`, or the path typed in
+  the panel), follows it in a thread once a second while PoE 2 runs (starts
+  at the end, only events of the last 3 min before the watch), and hands
+  QML `heard(events)`: `area` ("Generating level N area "Id" with seed S"),
+  `named` ("[SCENE] Set Source [X]" / ": You have entered X."), `level`
+  (": Name (Class) is now level N", German too), `death` (the own
+  character's only), `afk`. Chat, whispers, trade and server lines are never
+  matched (tests `chat_and_whispers_are_never_taken`). Files:
+  ~/.local/share/game-companion/poe2/session/ (current, history, prefs).
+- `qml/poe2/sessionkit.js` (`node tools/poe2-session-test.js`): areas by id
+  (Map…, Hideout…, …town, G1_/C_G1_/P1_ campaign), time per kind and act,
+  maps (same seed = same map through a portal), deaths, levels; a session
+  ends after a pause (AFK or game closed) longer than 30 min or 1 h
+  (MN's choice) or at midnight (`cutAt`, `carryOn`).
+- `SessionStore.qml` (Main), `SessionPanel.qml` (panel `poe2-session`,
+  game row button SESSION, right-click switches the window),
+  `SessionWindow.qml` (one line over the game). Plugin `poe2.session`.
+  Redraws on events and once a minute while shown and PoE 2 runs.
+  `GC_DEMO=session`.
+- Part 1 is in beta as 0.8.54 (#125). Part 2, loot told by hand:
+  - sessionkit: `loot {cur, names, items}` per session, `addCurrency`
+    (never below 0), `addItem` (200 kept), `removeItem`, `medianDiv`,
+    `worth(s, rates)` → div, ex, unknown; `view` gives `loot`, `worth`,
+    `worthPerHour`. Tests in the same node file.
+  - SessionStore: poe.ninja's exchange overview through `Poe2.request`
+    (ids from 77000, `Poe2.answered`), the price check's league or
+    poe.ninja's first, only when the session holds loot, kept 30 min,
+    again after 4 min on failure; off with the price check's "poe.ninja
+    prices"; with no league chosen it takes the price check kit's pick
+    (the trade site's list, saved as the price check's league), poe.ninja's
+    leagues list only if that fails. `addFromPrice(view, result, text)`: a currency item (`ninja.id`)
+    adds the copied stack (`Stack Size:` / `Stapelgröße:`), another item
+    the median of the five cheapest listings in divines (or no price).
+  - SessionPanel LOOT: worth, per hour, items without price; Divine,
+    Exalted, Chaos and any held currency with − / +; "Add currency" from
+    poe.ninja's list; items with × to take one out. SessionWindow shows
+    "≈ X div". PriceWindow "+ Session" (says "In session ✓" until the next
+    item). `GC_DEMO=session` has loot and made-up rates.
+  - Stash reading is not possible for PoE 2 (GGG: account stashes PoE 1
+    only); to be talked over with MN once everything else is done
+    (BACKLOG L1b).
+- To check on the real game: the exact Client.txt lines of PoE 2 (area ids,
+  "[SCENE]" lines, German texts), and that AFK turns on by itself.
+
+## Branch `claude/project-thread-fzph43` (from beta): sound module backend
+
+MN approved the plan (doc "Sound-Modul: Bauplan", 2026-11-15). Done: the
+backend (`src/sound.rs`, `src/sound_object.rs`, see CLAUDE.md "Sound
+module"), wired in Main (`Sound.begin()`, `Sound.setGame`). Checked against
+a headless PipeWire 1.0: channels, echo reference, mic chain and stream mix
+appear and link as planned, live EQ lands, a new stream is moved onto
+Medien, the default output stays, the chains end with the app.
+Panel (2026-11-16, MN chose MIXER A on the canvas page "Sound", B kept in
+mind; SOUND always in the bar, right click = quick row): `SoundPanel.qml`
+with MIXER, MIC, APPS, STREAM (on/off and the mic device are in the panel
+itself, so no Settings → Sound page), `SoundRow.qml`, the mic meter
+(`parec`, only while shown) and the hear test. Checked: demo screenshots,
+the meter showing TALKING for a test tone through a pipe source on the
+headless PipeWire, 222 tests, clippy.
+Not yet: the mic test on MN's UR22 + HS7 (`sound/mikro-probe/` in the
+project folder), load measurement with `ton-log.sh`, QA and a beta.
+
