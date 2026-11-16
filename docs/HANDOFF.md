@@ -25,6 +25,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.66 beta (2026-11-14): #152 end cleanly when the Wayland connection breaks (logout) (entry below).
 - 0.8.65 beta (2026-11-14): #150 sound presets lift audibly, mic gate catches the first word, WebRTC noise suppression (entry below).
 - 0.8.64 beta (2026-11-14): #148 sound-only strip at the top opens its lists below (entry below).
 - 0.8.63 beta (2026-11-14): #146 Videos: sound only is a slim player strip (entry below).
