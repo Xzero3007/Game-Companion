@@ -160,7 +160,15 @@ Item {
         function onPausedChanged() { if (video.paused) win.keepPosition(true) }
     }
 
+    /// How smoothly it played, into the app's log (codec, size, hardware
+    /// decoder, dropped and late frames; no titles or addresses).
+    function logStats() {
+        if (!item || typeof video.playStats !== "function") return
+        const s = video.playStats()
+        if (s) Companion.log("video", label + " " + item.kind + ": " + s)
+    }
     function play(what) {
+        logStats()
         if (jelly && item && jf.started) jfStopped()
         keepPosition()
         item = what
@@ -225,6 +233,7 @@ Item {
         video.play(path, "", 0)
     }
     function stop() {
+        logStats()
         if (jelly && jf.started) jfStopped()
         keepPosition()
         nextTimer.stop()
