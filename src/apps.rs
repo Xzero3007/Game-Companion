@@ -27,7 +27,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
@@ -538,6 +538,19 @@ pub struct Kwin {
     kwin: Arc<Mutex<String>>,
     done: Arc<(Mutex<Vec<String>>, Condvar)>,
     next: AtomicU64,
+    /// KWin let a call run out of time (it hangs, or the session is
+    /// ending): further calls are skipped until the watcher loads again.
+    stuck: AtomicBool,
+}
+
+/// How long one call to KWin may take. zbus waits for ever by default:
+/// at logout KWin kept its bus name but no longer answered, and the quit
+/// hung on the first call (MN, 0.8.57).
+const KWIN_CALL_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Whether a call failed because it ran out of time.
+fn timed_out(e: &zbus::Error) -> bool {
+    matches!(e, zbus::Error::InputOutput(io) if io.kind() == std::io::ErrorKind::TimedOut)
 }
 
 /// Whether this is a KDE Plasma session (KWin runs the windows).
@@ -549,12 +562,12 @@ pub fn on_kde() -> bool {
 impl Kwin {
     /// Connects and serves the listener; `on_event` runs on zbus's thread.
     pub fn connect(on_event: impl Fn(Event) + Send + Sync + 'static) -> zbus::Result<Kwin> {
-        let conn = Connection::session()?;
+        let conn = zbus::blocking::connection::Builder::session()?.method_timeout(KWIN_CALL_TIMEOUT).build()?;
         let kwin = Arc::new(Mutex::new(String::new()));
         let done = Arc::new((Mutex::new(Vec::new()), Condvar::new()));
         let listener = Listener { on_event: Box::new(on_event), kwin: kwin.clone(), done: done.clone() };
         conn.object_server().at(PATH, listener)?;
-        let me = Kwin { conn, kwin, done, next: AtomicU64::new(1) };
+        let me = Kwin { conn, kwin, done, next: AtomicU64::new(1), stuck: AtomicBool::new(false) };
         me.find_kwin()?;
         Ok(me)
     }
@@ -573,18 +586,35 @@ impl Kwin {
     }
 
     fn scripting(&self) -> zbus::Result<zbus::blocking::Proxy<'_>> {
+        if self.stuck.load(Ordering::Relaxed) {
+            return Err(zbus::Error::Failure("KWin does not answer".into()));
+        }
         zbus::blocking::Proxy::new(&self.conn, "org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting")
+    }
+
+    /// Notes a call that ran out of time: KWin is skipped from now on.
+    fn check<T>(&self, result: zbus::Result<T>) -> zbus::Result<T> {
+        if let Err(e) = &result {
+            if timed_out(e) && !self.stuck.swap(true, Ordering::Relaxed) {
+                crate::log::write("apps", "KWin did not answer within 2 s: its calls are skipped until it answers again");
+            }
+        }
+        result
     }
 
     /// Loads a script file under `name` (one by that name goes first) and
     /// runs it.
     fn load(&self, file: &Path, name: &str) -> zbus::Result<()> {
         let scripting = self.scripting()?;
-        let loaded: bool = scripting.call("isScriptLoaded", &(name,)).unwrap_or(false);
+        let loaded: bool = match self.check(scripting.call("isScriptLoaded", &(name,))) {
+            Ok(loaded) => loaded,
+            Err(e) if timed_out(&e) => return Err(e),
+            Err(_) => false,
+        };
         if loaded {
-            let _: bool = scripting.call("unloadScript", &(name,))?;
+            let _: bool = self.check(scripting.call("unloadScript", &(name,)))?;
         }
-        let id: i32 = scripting.call("loadScript", &(file.to_string_lossy().as_ref(), name))?;
+        let id: i32 = self.check(scripting.call("loadScript", &(file.to_string_lossy().as_ref(), name)))?;
         if id < 0 {
             return Err(zbus::Error::Failure(format!("KWin did not load {name}")));
         }
@@ -595,21 +625,22 @@ impl Kwin {
         // every loaded script that is not running yet, ours included.
         let path = format!("/Scripting/Script{id}");
         if let Ok(script) = zbus::blocking::Proxy::new(&self.conn, "org.kde.KWin", path.as_str(), "org.kde.kwin.Script") {
-            let _: zbus::Result<()> = script.call("run", &());
+            let _: zbus::Result<()> = self.check(script.call("run", &()));
         }
-        let () = scripting.call("start", &())?;
+        let () = self.check(scripting.call("start", &()))?;
         Ok(())
     }
 
     fn unload(&self, name: &str) {
         if let Ok(scripting) = self.scripting() {
-            let _: zbus::Result<bool> = scripting.call("unloadScript", &(name,));
+            let _: zbus::Result<bool> = self.check(scripting.call("unloadScript", &(name,)));
         }
     }
 
     /// Loads the watcher (again).
     pub fn watch(&self, keys: &[&str]) -> zbus::Result<()> {
         self.find_kwin()?;
+        self.stuck.store(false, Ordering::Relaxed);
         let file = script_file(WATCHER)?;
         std::fs::write(&file, watcher_script(&self.bus_name(), keys)).map_err(io)?;
         let result = self.load(&file, WATCHER);

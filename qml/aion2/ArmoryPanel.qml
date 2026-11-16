@@ -137,7 +137,9 @@ Panel {
                     anchors.fill: parent
                     asynchronous: true
                     fillMode: Image.PreserveAspectCrop
-                    source: panel.snap && panel.snap.profile && panel.snap.profile.portrait ? panel.snap.profile.portrait : ""
+                    // NC's address can come HTML-escaped ("&amp;charKey="): the server
+                    // then answers no picture.
+                    source: panel.snap && panel.snap.profile && panel.snap.profile.portrait ? String(panel.snap.profile.portrait).replace(/&amp;/g, "&") : ""
                     visible: status === Image.Ready
                 }
             }
