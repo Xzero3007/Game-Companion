@@ -607,7 +607,7 @@ Panel {
                                     visible: !!(r.est && r.est.charged)
                                     font.pixelSize: 11
                                     color: Theme.dim()
-                                    text: r.est ? "+" + r.est.charged + " charged" : ""
+                                    text: r.est ? "+" + r.est.charged : ""
                                 }
                             }
                         }
@@ -665,6 +665,15 @@ Panel {
                     color: Theme.textSoft()
                     font.pixelSize: 12
                 }
+                Line {
+                    visible: panel.extraView.key !== "" && panel.extraView.tickets.length === 0
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    elide: Text.ElideNone
+                    font.pixelSize: 11
+                    color: Theme.muted()
+                    text: "No keys or entries known yet for " + panel.extraView.name + ": log in with it once (the game says them at a login)."
+                }
                 Grid {
                     id: extraCol
                     readonly property int cols: width >= 900 ? 3 : 2
@@ -682,7 +691,7 @@ Panel {
                     elide: Text.ElideNone
                     font.pixelSize: 11
                     color: Theme.dim()
-                    text: "As the game last said. ≈: recharged since, an estimate. +N: from recharge items. Server-wide: what all characters on that server can buy and craft together. Daily Duty: the server's characters together, back to 0 at the daily reset. Abyss Corridors: done of those your side holds since the last Artifact Siege. Shop limits and crafts come once the shop or the crafting window has opened on a character. Click a character for its keys and entries. Names and highest counts: the game client, via SkeeveAN's Aion-DPS-Meter (MIT)."
+                    text: "As the game last said. ≈: recharged since, an estimate. +N: from recharge items (in Odyle energy: charged). Server-wide: what all characters on that server can buy and craft together. Daily Duty: the server's characters together, back to 0 at the daily reset. Abyss Corridors: done of those your side holds since the last Artifact Siege. Shop limits and crafts come once the shop or the crafting window has opened on a character. Click a character for its keys and entries. Names and highest counts: the game client, via SkeeveAN's Aion-DPS-Meter (MIT)."
                 }
             }
         }
