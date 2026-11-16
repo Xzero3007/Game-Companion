@@ -596,9 +596,11 @@ learnt, so nothing has to be asked or worked out again.
   EasyEffects' 20 filters caused the dropouts, without it none):
   `src/sound.rs`, `src/sound_object.rs` (the `Sound` singleton). Channels
   `sonar_game/chat/media/music` (filter chains, pre-gain + 5 biquads,
-  Sonar light's presets), echo reference `gc_echo_ref` they all play
-  through when the mic chain is on (WebRTC echo-cancel, speakers instead of
-  a headset), mic chain → source `gc_mic` "Game Companion Mikro" (rnnoise
+  Sonar light's presets), WebRTC echo-cancel in monitor mode when the mic
+  chain's echo is on (speakers instead of a headset; its reference
+  `gc_aec.reference` listens to the default output's monitor; nothing
+  plays through it: in 0.8.60 the channels played through its sink and
+  everything heard was distorted on MN's UR22), mic chain → source `gc_mic` "Game Companion Mikro" (rnnoise
   with its VAD as the voice gate, voice EQ, sc4m compressor if installed;
   takes one input with `stream.dont-remix`), stream mix: loopbacks from
   the channels' monitors and the mic into `gc_stream_in`, OBS records the
@@ -628,7 +630,13 @@ learnt, so nothing has to be asked or worked out again.
   quick row shows (`Main.soundMeter`; kept until the worker runs). MN
   switches Legcord's own noise filter, echo and auto gain off.
   `GC_DEMO=sound[,soundmic|,soundapps|,soundstream|,soundeq][,soundee]`,
-  `soundrow`. Test signal without hardware: `pactl load-module
+  `soundrow`. Sound log (MN, 2026-11-16): `~/.cache/game-companion/sound.log`
+  (`log::sound`): each start's settings and the whole config, the child
+  pipewire's stderr (log.level 2, 400 lines a run), stream moves, volumes,
+  and a snapshot (`sound::snapshot`: clock settings, cards and profiles,
+  sinks with volumes, streams, pw-top's quantum/rate/ERR, the child's CPU)
+  8 s after a start and on the panel's "Copy sound log" (`Sound.report`,
+  then `Sound.logText(700)` to the clipboard). Test signal without hardware: `pactl load-module
   module-pipe-source source_name=pipe_mic file=/tmp/pipe_mic format=s16le
   rate=48000 channels=1` as the mic device and raw samples written to the
   fifo (our router moves every playing stream, also one aimed at a sink).

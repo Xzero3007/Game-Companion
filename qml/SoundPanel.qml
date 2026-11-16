@@ -410,6 +410,30 @@ Panel {
                 : panel.tab === "mic" ? "In Legcord switch its own noise filter, echo and auto volume off: ours does it."
                 : "Runs in Game Companion's own PipeWire part; your system's PipeWire is not changed."
         }
+        // The sound log (MN, 2026-11-16): a fresh snapshot of the graph,
+        // then the log's last lines on the clipboard.
+        Row {
+            spacing: 8
+            Chip {
+                id: copyLog
+                property bool waiting: false
+                property bool done: false
+                text: waiting ? "Looking (5 s)…" : done ? "Copied" : "Copy sound log"
+                onClicked: { if (waiting) return; done = false; waiting = true; Sound.report() }
+                Connections {
+                    target: Sound
+                    function onReportingChanged() {
+                        if (!Sound.reporting && copyLog.waiting) {
+                            copyLog.waiting = false
+                            nativeWindow.copyText(Sound.logText(700))
+                            copyLog.done = true
+                        }
+                    }
+                }
+            }
+            Chip { text: "Open log folder"; onClicked: Companion.openLogFolder() }
+            Small { anchors.verticalCenter: parent.verticalCenter; text: "sound.log: setup, PipeWire's warnings, dropouts" }
+        }
     }
 
     // ------------------------------------------------------------ parts ----
