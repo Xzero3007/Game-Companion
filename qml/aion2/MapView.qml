@@ -118,6 +118,9 @@ Item {
                 readonly property var cr: modelData.split("_").map(Number)
                 readonly property real tx: cr[0] * view.map.tile
                 readonly property real ty: cr[1] * view.map.tile
+                // A tile of the map shown now: on a switch the old map's tiles
+                // briefly see the new key (asked for HornCave/lo/5_0.webp).
+                readonly property bool mine: view.map ? view.map.tiles.indexOf(modelData) >= 0 : false
                 // On screen now (with a tile's margin).
                 readonly property bool seen: {
                     const x0 = view.cx - view.width / 2 / view.zoom, x1 = view.cx + view.width / 2 / view.zoom
@@ -130,7 +133,7 @@ Item {
                 height: width
                 Image {
                     anchors.fill: parent
-                    source: parent.seen && view.dir.length > 0 ? view.dir + "/tiles/" + view.mapKey + "/lo/" + parent.modelData + ".webp" : ""
+                    source: parent.seen && parent.mine && view.dir.length > 0 ? view.dir + "/tiles/" + view.mapKey + "/lo/" + parent.modelData + ".webp" : ""
                     asynchronous: true
                     cache: false
                     smooth: true
@@ -138,7 +141,7 @@ Item {
                 Image {
                     anchors.fill: parent
                     visible: status === Image.Ready
-                    source: parent.seen && tiles.sharp && view.dir.length > 0 ? view.dir + "/tiles/" + view.mapKey + "/" + parent.modelData + ".webp" : ""
+                    source: parent.seen && parent.mine && tiles.sharp && view.dir.length > 0 ? view.dir + "/tiles/" + view.mapKey + "/" + parent.modelData + ".webp" : ""
                     asynchronous: true
                     cache: false
                     smooth: true

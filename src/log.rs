@@ -78,6 +78,14 @@ pub fn end(code: i32) {
     let _ = std::fs::remove_file(marker());
 }
 
+/// The app ends hard after a hang it noted itself (`why`): the log says
+/// so, and the next start does not take it for a crash.
+pub fn forced(why: &str) {
+    write("app", why);
+    write("app", "end: forced (exit code 1)");
+    let _ = std::fs::remove_file(marker());
+}
+
 /// Writes one line: time, area, text (secrets cut, home folder as `~`).
 pub fn write(area: &str, text: &str) {
     let line = format!("{} [{area}] {}\n", now(), clean(text));

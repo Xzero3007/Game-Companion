@@ -215,7 +215,6 @@ Panel {
                     anchors.left: parent.left
                     anchors.leftMargin: 6
                     anchors.verticalCenter: parent.verticalCenter
-                    width: visible ? implicitWidth : 0
                     text: "BOSS"
                     color: Theme.accent
                     font.family: Theme.display
@@ -224,8 +223,10 @@ Panel {
                     font.letterSpacing: 1.5
                 }
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
-                    anchors.left: bossTag.right
-                    anchors.leftMargin: bossTag.visible ? 6 : 6
+                    // Measured from the bar's left: a width bound to the BOSS
+                    // tag's own implicit width looped.
+                    anchors.left: parent.left
+                    anchors.leftMargin: bossTag.visible ? 12 + bossTag.implicitWidth : 6
                     anchors.right: hpText.left
                     anchors.rightMargin: 8
                     anchors.verticalCenter: parent.verticalCenter

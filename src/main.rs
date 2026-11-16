@@ -84,17 +84,60 @@ fn main() {
     quit_on_signals();
     cxx_qt::init_crate!(game_companion);
     cxx_qt::init_qml_module!("GameCompanion");
+    quit_step(QuitStep::Qt);
     let code = native::run();
     // Where the last video stopped, if not yet written.
+    quit_step(QuitStep::Library);
     library::save_now();
     // Brave and Legcord back as they were; what Game Companion started for
     // them closes (unless the person chose otherwise).
+    quit_step(QuitStep::Apps);
     apps::quit();
+    quit_step(QuitStep::Children);
     poe2_kit::stop();
     poe2_log::stop();
     voice_overlay::quit();
+    quit_step(QuitStep::Done);
     log::end(code);
     std::process::exit(code);
+}
+
+/// Where the app is on its way out, for the log when a quit hangs.
+#[derive(Clone, Copy)]
+#[repr(usize)]
+enum QuitStep {
+    Qt = 0,
+    QtWindows,
+    Library,
+    Apps,
+    Children,
+    Done,
+}
+
+static QUIT_STEP: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+fn quit_step(step: QuitStep) {
+    QUIT_STEP.store(step as usize, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// What the app was doing at the step it reached, in words.
+fn quit_step_text() -> &'static str {
+    match QUIT_STEP.load(std::sync::atomic::Ordering::SeqCst) {
+        0 => "Qt's event loop had not ended",
+        1 => "Qt was closing its windows and the QML",
+        2 => "writing the YouTube library",
+        3 => "putting Brave and Legcord back (KWin)",
+        4 => "ending the child processes",
+        _ => "writing the end",
+    }
+}
+
+/// Called by cpp/native.cpp when Qt's event loop has ended, before Qt
+/// takes its windows and the QML down.
+#[no_mangle]
+pub extern "C" fn gc_loop_ended() {
+    quit_step(QuitStep::QtWindows);
+    log::write("app", "Qt's event loop ended");
 }
 
 /// SIGTERM, SIGINT or SIGHUP (the session ending, `kill`): the app quits as
@@ -145,7 +188,7 @@ fn quit_on_signals() {
                 native::quit();
                 std::thread::spawn(|| {
                     std::thread::sleep(std::time::Duration::from_secs(10));
-                    log::write("app", "quit hung for 10 s after the signal: ending anyway");
+                    log::forced(&format!("quit hung for 10 s after the signal while {}: ending anyway", quit_step_text()));
                     // SAFETY: the tidy quit hung: end anyway.
                     unsafe { libc::_exit(1) };
                 });

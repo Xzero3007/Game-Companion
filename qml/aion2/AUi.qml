@@ -102,7 +102,6 @@ QtObject {
     /// A small square tick box.
     component Tick: Item {
         property bool on: false
-        property bool enabled: true
         signal toggled
         width: 16
         height: 16

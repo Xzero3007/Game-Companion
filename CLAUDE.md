@@ -195,7 +195,15 @@ learnt, so nothing has to be asked or worked out again.
   (close-on-exec, so mpv and the installer never inherit it); a second
   start prints "already running" and ends. Ending cleanly: mpv children die
   with the app (PR_SET_PDEATHSIG); for an update the app quits and, if Qt
-  hangs, exits after 5 s anyway (the installer waits for its pid).
+  hangs, exits after 5 s anyway (the installer waits for its pid). On
+  SIGTERM/SIGINT/SIGHUP it quits as "Turn off" does, ends hard after 10 s
+  and logs the step it hung at (`main.rs` `QuitStep`; `gc_loop_ended`
+  marks Qt's loop ending) as `end: forced`. Calls to KWin time out after
+  2 s (`KWIN_CALL_TIMEOUT`; zbus waits for ever by default), after one
+  timeout the rest are skipped (`Kwin.stuck`, reset by `watch`): at logout
+  KWin kept its bus name but stopped answering and `apps::quit` hung (MN,
+  0.8.57). Check: `dbus-run-session` with a made-up KWin that stops
+  answering, then SIGTERM (project folder `arch-test/quit-hang/`).
 - The app's log (`src/log.rs`, MN 2026-11-15: "bau ein log ein", "nein zu
   persönlichen daten und mehr daten als nötig"):
   `~/.cache/game-companion/game-companion.log`, moved to `.log.1` past 2 MB,
