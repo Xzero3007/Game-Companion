@@ -370,7 +370,13 @@ fn mic_chain(c: &mut String, mic: &Mic, echo: bool, inst: &Installed) {
     let (source, pos) = if echo {
         ("gc_aec.source".to_string(), if mic.channel == "FR" || mic.channel == "AUX1" { "FR" } else { "FL" })
     } else {
-        (mic.device.clone(), mic.channel.as_str())
+        // Pro Audio devices call their inputs AUX0, AUX1.
+        let pos = match (is_pro(&mic.device), mic.channel.as_str()) {
+            (true, "FL") => "AUX0",
+            (true, "FR") => "AUX1",
+            (_, p) => p,
+        };
+        (mic.device.clone(), pos)
     };
     let pos = if ["FL", "FR", "AUX0", "AUX1", "MONO"].contains(&pos) { pos } else { "FL" };
     let _ = writeln!(c, "      capture.props = {{ node.name = \"gc_mic.in\" target.object = {} audio.position = [ {pos} ] stream.dont-remix = true node.passive = true }}", sj(&source));
@@ -663,6 +669,16 @@ pub enum Cmd {
     Move(u64, String),
     /// Look at the streams again (and move them).
     Refresh,
+    /// The mic's level meter on or off (only while something shows it).
+    Meter(bool),
+    /// From the meter's reader: level 0 to 100, voice passes the gate.
+    Level(u8, bool),
+    /// Record the mic 10 s and play it back.
+    Hear,
+    /// From the hear test: "recording", "playing" or "" (done).
+    Hearing(String),
+    /// Ask EasyEffects to quit (the person's click).
+    CloseEasyEffects,
 }
 
 /// What the worker tells the Qt side.
@@ -676,6 +692,10 @@ pub enum Event {
     Mics(Vec<(String, String)>),
     /// EasyEffects runs.
     EasyEffects(bool),
+    /// The mic after its chain: level 0 to 100, voice passes the gate.
+    Level(u8, bool),
+    /// The hear test: "recording", "playing" or "".
+    Hearing(String),
 }
 
 /// Starts the worker thread (once, from the Qt thread; the children it
@@ -702,6 +722,10 @@ struct Worker<F: Fn(Event)> {
     proc_root: PathBuf,
     /// Streams put on a channel by hand (index → channel): left there.
     pinned: BTreeMap<u64, String>,
+    /// The meter's `parec` (only while wanted and the chains run).
+    meter: Option<std::process::Child>,
+    meter_wanted: bool,
+    hearing: bool,
 }
 
 fn tool(name: &str) -> std::process::Command {
@@ -731,7 +755,7 @@ fn ours(node: &str) -> bool {
 
 impl<F: Fn(Event)> Worker<F> {
     fn new(tell: F, me: std::sync::mpsc::Sender<Cmd>) -> Self {
-        Self { tell, me, settings: SoundSettings::default(), game: GameAudio::default(), child: None, watcher: None, running_conf: String::new(), ids: BTreeMap::new(), proc_root: PathBuf::from("/proc"), pinned: BTreeMap::new() }
+        Self { tell, me, settings: SoundSettings::default(), game: GameAudio::default(), child: None, watcher: None, running_conf: String::new(), ids: BTreeMap::new(), proc_root: PathBuf::from("/proc"), pinned: BTreeMap::new(), meter: None, meter_wanted: false, hearing: false }
     }
 
     fn run(mut self, rx: std::sync::mpsc::Receiver<Cmd>) {
@@ -772,6 +796,21 @@ impl<F: Fn(Event)> Worker<F> {
                         refresh = true;
                     }
                     Cmd::Refresh => refresh = true,
+                    Cmd::Meter(on) => {
+                        self.meter_wanted = *on;
+                        self.meter();
+                    }
+                    Cmd::Level(level, voice) => (self.tell)(Event::Level(*level, *voice)),
+                    Cmd::Hear => self.hear(),
+                    Cmd::Hearing(stage) => {
+                        self.hearing = !stage.is_empty();
+                        (self.tell)(Event::Hearing(stage.clone()));
+                    }
+                    Cmd::CloseEasyEffects => {
+                        quiet("easyeffects", &["--quit"]);
+                        std::thread::sleep(std::time::Duration::from_millis(600));
+                        (self.tell)(Event::EasyEffects(easyeffects_running(&self.proc_root)));
+                    }
                 }
             }
             if refresh {
@@ -807,6 +846,7 @@ impl<F: Fn(Event)> Worker<F> {
                 self.volumes();
                 self.watch();
                 self.streams(true);
+                self.meter();
             }
             Err(why) => {
                 crate::log::write("sound", &format!("chains did not start: {why}"));
@@ -968,7 +1008,107 @@ impl<F: Fn(Event)> Worker<F> {
         (self.tell)(Event::Apps(listed));
     }
 
+    /// Runs or ends the level meter: `parec` of the finished mic
+    /// (after its gate), 16 kHz mono, read in 100 ms pieces on its own
+    /// thread; a change is told only when it shows.
+    fn meter(&mut self) {
+        use std::io::Read;
+        use std::os::unix::process::CommandExt;
+        let want = self.meter_wanted && self.child.is_some() && self.settings.mic.on;
+        if !want {
+            if let Some(mut m) = self.meter.take() {
+                let _ = m.kill();
+                let _ = m.wait();
+                (self.tell)(Event::Level(0, false));
+            }
+            return;
+        }
+        if self.meter.as_mut().is_some_and(|c| matches!(c.try_wait(), Ok(None))) {
+            return;
+        }
+        // parec (libpulse, beside pactl): plain samples on stdout, and a
+        // latency of 100 ms keeps its wake-ups few.
+        let mut cmd = tool("parec");
+        cmd.args(["--raw", "--format=s16le", "--rate=16000", "--channels=1", "--latency-msec=100", &format!("--device={MIC}")]).stdout(std::process::Stdio::piped());
+        // SAFETY: as above.
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                Ok(())
+            });
+        }
+        let Ok(mut child) = cmd.spawn() else { return };
+        let Some(mut out) = child.stdout.take() else { return };
+        let me = self.me.clone();
+        std::thread::Builder::new()
+            .name("sound-meter".into())
+            .spawn(move || {
+                let mut buf = vec![0u8; 3200];
+                let mut last = (255u8, false);
+                while out.read_exact(&mut buf).is_ok() {
+                    let (level, voice) = level_of(&buf);
+                    if (level as i16 - last.0 as i16).abs() >= 3 || voice != last.1 {
+                        last = (level, voice);
+                        if me.send(Cmd::Level(level, voice)).is_err() {
+                            break;
+                        }
+                    }
+                }
+            })
+            .ok();
+        self.meter = Some(child);
+    }
+
+    /// The hear test: 10 s of the finished mic into a file in the runtime
+    /// dir, then played back (to the default output), then deleted.
+    fn hear(&mut self) {
+        use std::os::unix::process::CommandExt;
+        if self.hearing || self.child.is_none() || !self.settings.mic.on {
+            return;
+        }
+        let Some(dir) = conf_path().and_then(|p| p.parent().map(Path::to_path_buf)) else { return };
+        let file = dir.join("game-companion-mic-test.wav");
+        let me = self.me.clone();
+        self.hearing = true;
+        std::thread::Builder::new()
+            .name("sound-hear".into())
+            .spawn(move || {
+                // This thread waits for both children: PR_SET_PDEATHSIG holds.
+                let run = |mut cmd: std::process::Command, secs: u64| {
+                    // SAFETY: as above.
+                    unsafe {
+                        cmd.pre_exec(|| {
+                            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                            Ok(())
+                        });
+                    }
+                    let Ok(mut c) = cmd.spawn() else { return };
+                    let end = std::time::Instant::now() + std::time::Duration::from_secs(secs);
+                    while matches!(c.try_wait(), Ok(None)) && std::time::Instant::now() < end {
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+                    let _ = c.kill();
+                    let _ = c.wait();
+                };
+                let _ = me.send(Cmd::Hearing("recording".into()));
+                let mut rec = tool("pw-record");
+                rec.args(["--target", MIC, "--rate", "48000", "--channels", "1"]).arg(&file).stdout(std::process::Stdio::null());
+                run(rec, 10);
+                let _ = me.send(Cmd::Hearing("playing".into()));
+                let mut play = tool("pw-play");
+                play.arg(&file).stdout(std::process::Stdio::null());
+                run(play, 12);
+                let _ = std::fs::remove_file(&file);
+                let _ = me.send(Cmd::Hearing(String::new()));
+            })
+            .ok();
+    }
+
     fn stop_child(&mut self) {
+        if let Some(mut m) = self.meter.take() {
+            let _ = m.kill();
+            let _ = m.wait();
+        }
         if let Some(mut c) = self.child.take() {
             let _ = c.kill();
             let _ = c.wait();
@@ -987,12 +1127,26 @@ impl<F: Fn(Event)> Worker<F> {
     }
 }
 
+/// 100 ms of 16-bit mono: the level 0 to 100 (−60 to 0 dBFS) and whether a
+/// voice passes (the gate leaves near silence when closed).
+pub fn level_of(pcm: &[u8]) -> (u8, bool) {
+    let n = pcm.len() / 2;
+    if n == 0 {
+        return (0, false);
+    }
+    let sum: f64 = pcm.chunks_exact(2).map(|b| f64::from(i16::from_le_bytes([b[0], b[1]])) / 32768.0).map(|v| v * v).sum();
+    let rms = (sum / n as f64).sqrt();
+    let db = if rms > 0.0 { 20.0 * rms.log10() } else { -120.0 };
+    let level = ((db + 60.0) / 60.0 * 100.0).clamp(0.0, 100.0).round() as u8;
+    (level, db > -50.0)
+}
+
 /// Whether two asks change the same thing (then only the newer counts).
 fn same_target(a: &Cmd, b: &Cmd) -> bool {
     match (a, b) {
         (Cmd::Eq(x, _), Cmd::Eq(y, _)) | (Cmd::Send(x, _), Cmd::Send(y, _)) => x == y,
         (Cmd::Move(x, _), Cmd::Move(y, _)) => x == y,
-        (Cmd::Apply(_), Cmd::Apply(_)) | (Cmd::Volumes(_), Cmd::Volumes(_)) | (Cmd::Gate(..), Cmd::Gate(..)) | (Cmd::Game(_), Cmd::Game(_)) => true,
+        (Cmd::Apply(_), Cmd::Apply(_)) | (Cmd::Level(..), Cmd::Level(..)) | (Cmd::Meter(_), Cmd::Meter(_)) | (Cmd::Volumes(_), Cmd::Volumes(_)) | (Cmd::Gate(..), Cmd::Gate(..)) | (Cmd::Game(_), Cmd::Game(_)) => true,
         _ => false,
     }
 }
@@ -1003,6 +1157,26 @@ mod tests {
 
     fn app(index: u64, name: &str, binary: &str, pid: u32, sink: &str) -> App {
         App { index, sink: sink.into(), name: name.into(), binary: binary.into(), pid, node: String::new() }
+    }
+
+    #[test]
+    fn level_from_pcm() {
+        assert_eq!(level_of(&[0u8; 3200]), (0, false));
+        let loud: Vec<u8> = (0..1600).flat_map(|i| if i % 2 == 0 { 16384i16 } else { -16384 }.to_le_bytes()).collect();
+        let (level, voice) = level_of(&loud);
+        assert!(voice && (88..=92).contains(&level), "{level}");
+        let faint: Vec<u8> = (0..1600).flat_map(|i| if i % 2 == 0 { 50i16 } else { -50 }.to_le_bytes()).collect();
+        assert!(!level_of(&faint).1);
+    }
+
+    #[test]
+    fn pro_audio_inputs_are_aux() {
+        let s = SoundSettings {
+            on: true,
+            mic: Mic { on: true, echo: false, device: "alsa_input.usb-Yamaha_Steinberg_UR22mkII-00.pro-input-0".into(), channel: "FR".into(), ..Mic::default() },
+            ..SoundSettings::default()
+        };
+        assert!(config(&s, &Installed::default()).contains("audio.position = [ AUX1 ] stream.dont-remix"));
     }
 
     #[test]

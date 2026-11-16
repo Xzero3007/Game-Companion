@@ -602,6 +602,22 @@ learnt, so nothing has to be asked or worked out again.
   null sinks as fake devices, then the ignored test
   `write_config_for_bench` (GC_SOUND_CONF, GC_SOUND_MIC) and `pipewire -c`,
   or the app itself with `sound.on` in a scratch settings.json.
+  Panel (canvas page "Sound", MIXER variant A; MN 2026-11-16):
+  `qml/SoundPanel.qml` (MIXER: volume, preset and EQ in place per channel,
+  ChatMix; MIC: input, Input 1/2 = FL/FR, mapped to AUX0/AUX1 on Pro Audio,
+  gate, echo, voice, "Record 10 s and play back" = `Sound.hear`; APPS;
+  STREAM: sends and the OBS tracks), SOUND always in the bar, a right click
+  opens `qml/SoundRow.qml` (quick row under the player row, pinnable,
+  id `sound-row`). The mic's meter (`Sound.level`, `Sound.talking`) is a
+  `parec` of `gc_mic` (pw-record 1.0 has no raw output) read on its own
+  thread, told only on a change, and runs only while the MIC tab or the
+  quick row shows (`Main.soundMeter`; kept until the worker runs). MN
+  switches Legcord's own noise filter, echo and auto gain off.
+  `GC_DEMO=sound[,soundmic|,soundapps|,soundstream|,soundeq][,soundee]`,
+  `soundrow`. Test signal without hardware: `pactl load-module
+  module-pipe-source source_name=pipe_mic file=/tmp/pipe_mic format=s16le
+  rate=48000 channels=1` as the mic device and raw samples written to the
+  fifo (our router moves every playing stream, also one aimed at a sink).
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
 - Video loudness (MN, 2026-11-14: videos quieter than the radio, which is

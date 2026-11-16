@@ -1142,8 +1142,13 @@ module"), wired in Main (`Sound.begin()`, `Sound.setGame`). Checked against
 a headless PipeWire 1.0: channels, echo reference, mic chain and stream mix
 appear and link as planned, live EQ lands, a new stream is moved onto
 Medien, the default output stays, the chains end with the app.
-Not yet: the panel (design on the canvas first: MIXER, MIKRO, APPS, STREAM
-tabs, bar button SOUND), Settings → Sound (on/off, mic device), the mic
-test on MN's UR22 + HS7 (`sound/mikro-probe/` in the project folder), load
-measurement with `ton-log.sh`.
+Panel (2026-11-16, MN chose MIXER A on the canvas page "Sound", B kept in
+mind; SOUND always in the bar, right click = quick row): `SoundPanel.qml`
+with MIXER, MIC, APPS, STREAM (on/off and the mic device are in the panel
+itself, so no Settings → Sound page), `SoundRow.qml`, the mic meter
+(`parec`, only while shown) and the hear test. Checked: demo screenshots,
+the meter showing TALKING for a test tone through a pipe source on the
+headless PipeWire, 222 tests, clippy.
+Not yet: the mic test on MN's UR22 + HS7 (`sound/mikro-probe/` in the
+project folder), load measurement with `ton-log.sh`, QA and a beta.
 

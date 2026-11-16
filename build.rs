@@ -40,6 +40,8 @@ fn main() {
         QmlFile::from("qml/Requests.qml"),
         QmlFile::from("qml/SelectBox.qml"),
         QmlFile::from("qml/VoiceOverlay.qml"),
+        QmlFile::from("qml/SoundPanel.qml"),
+        QmlFile::from("qml/SoundRow.qml"),
         QmlFile::from("qml/Tag.qml"),
         QmlFile::from("qml/aion2/MapView.qml"),
         QmlFile::from("qml/aion2/MapOverlay.qml"),

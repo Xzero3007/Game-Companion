@@ -30,6 +30,12 @@ pub mod qobject {
         #[qproperty(QString, apps)]
         /// The settings (`SoundSettings`) as JSON.
         #[qproperty(QString, prefs)]
+        /// The finished mic's level, 0 to 100 (only while the meter runs).
+        #[qproperty(i32, level)]
+        /// A voice passes the gate (only while the meter runs).
+        #[qproperty(bool, talking)]
+        /// The hear test: "recording", "playing" or "".
+        #[qproperty(QString, hearing)]
         type Sound = super::SoundRust;
 
         /// Starts the worker (once, from Main).
@@ -80,6 +86,18 @@ pub mod qobject {
         /// Looks at the streams again.
         #[qinvokable]
         fn refresh(self: Pin<&mut Sound>);
+
+        /// The mic's meter: on only while the MIC tab or the quick row shows.
+        #[qinvokable]
+        fn set_meter(self: Pin<&mut Sound>, on: bool);
+
+        /// Records the mic 10 s and plays it back.
+        #[qinvokable]
+        fn hear(self: Pin<&mut Sound>);
+
+        /// Asks EasyEffects to quit.
+        #[qinvokable]
+        fn close_easy_effects(self: Pin<&mut Sound>);
     }
 
     impl cxx_qt::Threading for Sound {}
@@ -89,17 +107,80 @@ pub struct SoundRust {
     state: QString,
     apps: QString,
     prefs: QString,
+    level: i32,
+    talking: bool,
+    hearing: QString,
     tx: Option<Sender<Cmd>>,
     running: bool,
     why: String,
     easy: bool,
     mics: Vec<(String, String)>,
+    meter_on: bool,
 }
 
 impl Default for SoundRust {
     fn default() -> Self {
         let s = settings::read(|s| s.sound.clone());
-        let mut me = Self { state: QString::default(), apps: QString::from("[]"), prefs: QString::from(&json_of(&s)), tx: None, running: false, why: String::new(), easy: false, mics: Vec::new() };
+        // GC_DEMO=sound: running, with made-up programs and inputs.
+        if demo() {
+            return Self::demo(s);
+        }
+        let mut me = Self { state: QString::default(), apps: QString::from("[]"), prefs: QString::from(&json_of(&s)), level: 0, talking: false, hearing: QString::default(), tx: None, running: false, why: String::new(), easy: false, mics: Vec::new(), meter_on: false };
+        me.state = QString::from(&me.state_json(&s));
+        me
+    }
+}
+
+fn demo() -> bool {
+    std::env::var("GC_DEMO").is_ok_and(|d| d.split(',').any(|p| p.starts_with("sound")))
+}
+
+impl SoundRust {
+    fn demo(mut s: SoundSettings) -> Self {
+        s.on = true;
+        s.mic.on = true;
+        s.mic.device = "alsa_input.usb-Yamaha_Steinberg_UR22mkII-00.pro-input-0".into();
+        s.chatmix = 15;
+        if let Some(c) = s.channels.get_mut("game") {
+            c.preset = "Racing".into();
+            c.volume = 72;
+        }
+        if let Some(c) = s.channels.get_mut("chat") {
+            c.preset = "Sprache".into();
+            c.volume = 85;
+        }
+        if let Some(c) = s.channels.get_mut("media") {
+            c.volume = 50;
+        }
+        if let Some(c) = s.channels.get_mut("music") {
+            c.preset = "Bass-Boost".into();
+            c.volume = 40;
+        }
+        s.routes.insert("brave".into(), "music".into());
+        let apps = json!([
+            { "index": 41, "name": "Path of Exile 2", "binary": "PathOfExileSteam.exe", "program": "PathOfExileSteam.exe", "channel": "game", "fixed": false },
+            { "index": 42, "name": "Legcord", "binary": "legcord", "program": "legcord", "channel": "chat", "fixed": false },
+            { "index": 43, "name": "Game Companion radio", "binary": "mpv", "program": "mpv", "channel": "music", "fixed": false },
+            { "index": 44, "name": "Brave · YouTube", "binary": "brave", "program": "brave", "channel": "music", "fixed": true },
+            { "index": 45, "name": "System sounds", "binary": "", "program": "System sounds", "channel": "media", "fixed": false }
+        ]);
+        let mut me = Self {
+            state: QString::default(),
+            apps: QString::from(&apps.to_string()),
+            prefs: QString::from(&json_of(&s)),
+            level: 78,
+            talking: true,
+            hearing: QString::default(),
+            tx: None,
+            running: true,
+            why: String::new(),
+            easy: std::env::var("GC_DEMO").is_ok_and(|d| d.contains("soundee")),
+            mics: vec![
+                ("alsa_input.usb-Yamaha_Steinberg_UR22mkII-00.pro-input-0".into(), "UR22mkII Pro Audio".into()),
+                ("alsa_input.pci-0000_0c_00.4.analog-stereo".into(), "Starship/Matisse HD Audio Analog Stereo".into()),
+            ],
+            meter_on: false,
+        };
         me.state = QString::from(&me.state_json(&s));
         me
     }
@@ -158,7 +239,7 @@ impl qobject::Sound {
     }
 
     fn begin(mut self: Pin<&mut Self>) {
-        if self.rust().tx.is_some() {
+        if self.rust().tx.is_some() || demo() {
             return;
         }
         // Sonar light's choices, once.
@@ -183,6 +264,9 @@ impl qobject::Sound {
         self.as_mut().rust_mut().tx = tx;
         let s = settings::read(|s| s.sound.clone());
         self.send(Cmd::Apply(Box::new(s)));
+        if self.rust().meter_on {
+            self.send(Cmd::Meter(true));
+        }
     }
 
     fn take(mut self: Pin<&mut Self>, e: Event) {
@@ -192,6 +276,19 @@ impl qobject::Sound {
                 self.as_mut().rust_mut().why = why;
             }
             Event::EasyEffects(on) => self.as_mut().rust_mut().easy = on,
+            Event::Level(level, voice) => {
+                if self.rust().level != i32::from(level) {
+                    self.as_mut().set_level(i32::from(level));
+                }
+                if self.rust().talking != voice {
+                    self.as_mut().set_talking(voice);
+                }
+                return;
+            }
+            Event::Hearing(stage) => {
+                self.as_mut().set_hearing(QString::from(&stage));
+                return;
+            }
             Event::Mics(m) => self.as_mut().rust_mut().mics = m,
             Event::Apps(list) => {
                 let routes = settings::read(|s| s.sound.routes.clone());
@@ -358,5 +455,20 @@ impl qobject::Sound {
 
     fn refresh(self: Pin<&mut Self>) {
         self.send(Cmd::Refresh);
+    }
+
+    fn set_meter(mut self: Pin<&mut Self>, on: bool) {
+        // Kept: the worker may not run yet (begin sends it then).
+        self.as_mut().rust_mut().meter_on = on;
+        self.send(Cmd::Meter(on));
+    }
+
+    fn hear(self: Pin<&mut Self>) {
+        self.send(Cmd::Hear);
+    }
+
+    fn close_easy_effects(self: Pin<&mut Self>) {
+        crate::log::write("sound", "EasyEffects asked to quit");
+        self.send(Cmd::CloseEasyEffects);
     }
 }
