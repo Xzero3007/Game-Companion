@@ -545,6 +545,10 @@ pub fn channel_for(app: &App, routes: &BTreeMap<String, String>, game: &GameAudi
     if b.contains("legcord") || n.contains("legcord") || b == "discord" || n == "discord" || b.contains("vesktop") {
         return "chat";
     }
+    // Game Companion's own radio (its mpv names itself so).
+    if n.contains("game-companion-radio") {
+        return "music";
+    }
     if ["spotify", "strawberry", "elisa", "audacious", "rhythmbox", "lollypop", "amarok", "clementine", "deadbeef", "cmus", "mpd", "tidal-hifi", "feishin"].iter().any(|m| b == *m || n == *m) {
         return "music";
     }
@@ -680,6 +684,10 @@ pub enum Cmd {
     Hearing(String),
     /// Ask EasyEffects to quit (the person's click).
     CloseEasyEffects,
+    /// The channels' level meters on or off (only while the MIXER shows).
+    ChannelMeters(bool),
+    /// From a channel meter's reader: channel index, level 0 to 100.
+    ChannelLevel(u8, u8),
     /// Write a snapshot of the graph into the sound log ("Copy sound log").
     Report,
     /// From the snapshot's thread: done.
@@ -703,6 +711,8 @@ pub enum Event {
     Hearing(String),
     /// A snapshot is being written (true) or done (false).
     Reporting(bool),
+    /// A channel's level (index in CHANNELS, 0 to 100).
+    ChannelLevel(u8, u8),
 }
 
 /// Starts the worker thread (once, from the Qt thread; the children it
@@ -733,6 +743,9 @@ struct Worker<F: Fn(Event)> {
     meter: Option<std::process::Child>,
     meter_wanted: bool,
     hearing: bool,
+    /// The channels' meters (`parec` of each channel's monitor).
+    channel_meters: Vec<std::process::Child>,
+    channel_meters_wanted: bool,
 }
 
 fn tool(name: &str) -> std::process::Command {
@@ -762,7 +775,7 @@ fn ours(node: &str) -> bool {
 
 impl<F: Fn(Event)> Worker<F> {
     fn new(tell: F, me: std::sync::mpsc::Sender<Cmd>) -> Self {
-        Self { tell, me, settings: SoundSettings::default(), game: GameAudio::default(), child: None, watcher: None, running_conf: String::new(), ids: BTreeMap::new(), proc_root: PathBuf::from("/proc"), pinned: BTreeMap::new(), meter: None, meter_wanted: false, hearing: false }
+        Self { tell, me, settings: SoundSettings::default(), game: GameAudio::default(), child: None, watcher: None, running_conf: String::new(), ids: BTreeMap::new(), proc_root: PathBuf::from("/proc"), pinned: BTreeMap::new(), meter: None, meter_wanted: false, hearing: false, channel_meters: Vec::new(), channel_meters_wanted: false }
     }
 
     fn run(mut self, rx: std::sync::mpsc::Receiver<Cmd>) {
@@ -813,6 +826,11 @@ impl<F: Fn(Event)> Worker<F> {
                         self.hearing = !stage.is_empty();
                         (self.tell)(Event::Hearing(stage.clone()));
                     }
+                    Cmd::ChannelMeters(on) => {
+                        self.channel_meters_wanted = *on;
+                        self.channel_meters();
+                    }
+                    Cmd::ChannelLevel(i, level) => (self.tell)(Event::ChannelLevel(*i, *level)),
                     Cmd::Report => self.report(0),
                     Cmd::Reported => (self.tell)(Event::Reporting(false)),
                     Cmd::CloseEasyEffects => {
@@ -878,6 +896,7 @@ impl<F: Fn(Event)> Worker<F> {
                 self.watch();
                 self.streams(true);
                 self.meter();
+                self.channel_meters();
             }
             Err(why) => {
                 crate::log::write("sound", &format!("chains did not start: {why}"));
@@ -992,6 +1011,10 @@ impl<F: Fn(Event)> Worker<F> {
     fn eq(&mut self, key: &str, eq: &[f64; 6]) {
         if let Some((_, node, _)) = CHANNELS.iter().find(|(k, _, _)| *k == key) {
             self.set_props(node, &eq_params(eq));
+            // Read it back: what the filter now holds (MN, 2026-11-16: no
+            // difference heard when switching presets).
+            let held = self.ids.get(*node).and_then(|id| output("pw-cli", &["enum-params", &id.to_string(), "Props"])).map(|t| held_params(&t)).unwrap_or_else(|| "(not read)".into());
+            crate::log::sound(&format!("eq {key}: asked {eq:?}; the filter holds {held}"));
         }
     }
 
@@ -1117,6 +1140,60 @@ impl<F: Fn(Event)> Worker<F> {
         self.meter = Some(child);
     }
 
+    /// One `parec` per channel on its monitor (8 kHz mono, 100 ms blocks),
+    /// only while the MIXER shows and the chains run; a level is told only
+    /// when it changed.
+    fn channel_meters(&mut self) {
+        use std::io::Read;
+        use std::os::unix::process::CommandExt;
+        let want = self.channel_meters_wanted && self.child.is_some();
+        let alive = !self.channel_meters.is_empty() && self.channel_meters.iter_mut().all(|c| matches!(c.try_wait(), Ok(None)));
+        if want && alive {
+            return;
+        }
+        for mut m in self.channel_meters.drain(..) {
+            let _ = m.kill();
+            let _ = m.wait();
+        }
+        if !want {
+            for i in 0..CHANNELS.len() {
+                (self.tell)(Event::ChannelLevel(i as u8, 0));
+            }
+            return;
+        }
+        for (i, (_, node, _)) in CHANNELS.iter().enumerate() {
+            let mut cmd = tool("parec");
+            cmd.args(["--raw", "--format=s16le", "--rate=8000", "--channels=1", "--latency-msec=100", &format!("--device={node}.monitor")]).stdout(std::process::Stdio::piped());
+            // SAFETY: as above.
+            unsafe {
+                cmd.pre_exec(|| {
+                    libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                    Ok(())
+                });
+            }
+            let Ok(mut child) = cmd.spawn() else { continue };
+            let Some(mut out) = child.stdout.take() else { continue };
+            let me = self.me.clone();
+            std::thread::Builder::new()
+                .name("sound-chmeter".into())
+                .spawn(move || {
+                    let mut buf = vec![0u8; 1600];
+                    let mut last = 255u8;
+                    while out.read_exact(&mut buf).is_ok() {
+                        let (level, _) = level_of(&buf);
+                        if (level as i16 - last as i16).abs() >= 3 {
+                            last = level;
+                            if me.send(Cmd::ChannelLevel(i as u8, level)).is_err() {
+                                break;
+                            }
+                        }
+                    }
+                })
+                .ok();
+            self.channel_meters.push(child);
+        }
+    }
+
     /// The hear test: 10 s of the finished mic into a file in the runtime
     /// dir, then played back (to the default output), then deleted.
     fn hear(&mut self) {
@@ -1182,6 +1259,10 @@ impl<F: Fn(Event)> Worker<F> {
     }
 
     fn stop_child(&mut self) {
+        for mut m in self.channel_meters.drain(..) {
+            let _ = m.kill();
+            let _ = m.wait();
+        }
         if let Some(mut m) = self.meter.take() {
             let _ = m.kill();
             let _ = m.wait();
@@ -1264,6 +1345,27 @@ fn snapshot(child: Option<u32>, proc_root: &Path) -> String {
     o
 }
 
+/// The filter's values from `pw-cli enum-params <id> Props`: each
+/// `String "name"` followed by its `Float`, as "name=value" pairs.
+pub fn held_params(text: &str) -> String {
+    let mut out = Vec::new();
+    let mut name: Option<String> = None;
+    for line in text.lines().map(str::trim) {
+        if let Some(rest) = line.strip_prefix("String ") {
+            let n = rest.trim_matches('"');
+            name = (n.starts_with("pre:") || n.starts_with('b') && n.contains(":Gain")).then(|| n.to_string());
+        } else if let (Some(n), Some(v)) = (name.take(), line.strip_prefix("Float ")) {
+            let v: f64 = v.trim().parse().unwrap_or(f64::NAN);
+            out.push(format!("{n}={v:.2}"));
+        }
+    }
+    if out.is_empty() {
+        "(nothing)".into()
+    } else {
+        out.join(" ")
+    }
+}
+
 pub fn level_of(pcm: &[u8]) -> (u8, bool) {
     let n = pcm.len() / 2;
     if n == 0 {
@@ -1281,6 +1383,8 @@ fn same_target(a: &Cmd, b: &Cmd) -> bool {
     match (a, b) {
         (Cmd::Eq(x, _), Cmd::Eq(y, _)) | (Cmd::Send(x, _), Cmd::Send(y, _)) => x == y,
         (Cmd::Move(x, _), Cmd::Move(y, _)) => x == y,
+        (Cmd::ChannelLevel(x, _), Cmd::ChannelLevel(y, _)) => x == y,
+        (Cmd::ChannelMeters(_), Cmd::ChannelMeters(_)) => true,
         (Cmd::Apply(_), Cmd::Apply(_)) | (Cmd::Level(..), Cmd::Level(..)) | (Cmd::Meter(_), Cmd::Meter(_)) | (Cmd::Volumes(_), Cmd::Volumes(_)) | (Cmd::Gate(..), Cmd::Gate(..)) | (Cmd::Game(_), Cmd::Game(_)) => true,
         _ => false,
     }
@@ -1292,6 +1396,19 @@ mod tests {
 
     fn app(index: u64, name: &str, binary: &str, pid: u32, sink: &str) -> App {
         App { index, sink: sink.into(), name: name.into(), binary: binary.into(), pid, node: String::new() }
+    }
+
+    #[test]
+    fn filter_values_read_back() {
+        let t = "Object: size 96\n  Prop: key params\n    Struct: size 72\n      String \"pre:Mult\"\n      Float 0.562341\n      String \"b1:Gain\"\n      Float 6.000000\n      String \"b1:Freq\"\n      Float 80.0\n";
+        assert_eq!(held_params(t), "pre:Mult=0.56 b1:Gain=6.00");
+        assert_eq!(held_params(""), "(nothing)");
+    }
+
+    #[test]
+    fn radio_goes_on_music() {
+        let a = App { index: 1, sink: String::new(), name: "game-companion-radio".into(), binary: "mpv".into(), pid: 0, node: String::new() };
+        assert_eq!(channel_for(&a, &BTreeMap::new(), &GameAudio::default(), Path::new("/nonexistent")), "music");
     }
 
     #[test]

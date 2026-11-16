@@ -636,7 +636,14 @@ learnt, so nothing has to be asked or worked out again.
   and a snapshot (`sound::snapshot`: clock settings, cards and profiles,
   sinks with volumes, streams, pw-top's quantum/rate/ERR, the child's CPU)
   8 s after a start and on the panel's "Copy sound log" (`Sound.report`,
-  then `Sound.logText(700)` to the clipboard). Test signal without hardware: `pactl load-module
+  then `Sound.logText(700)` to the clipboard). Each EQ change logs what
+  was asked and what the filter holds (`pw-cli enum-params`, `held_params`).
+  Channel meters in the MIXER (MN, 2026-11-16: "woran ich sehen kann das
+  es funktioniert"): a `parec` per channel monitor (8 kHz mono, before the
+  EQ), only while the MIXER shows (`Main.soundChannelMeters`,
+  `Sound.setChannelMeters`, `Sound.channelLevels` "a,b,c,d"), told only on
+  a change. The radio's mpv names itself `game-companion-radio`
+  (`--audio-client-name`) and goes on Music. Test signal without hardware: `pactl load-module
   module-pipe-source source_name=pipe_mic file=/tmp/pipe_mic format=s16le
   rate=48000 channels=1` as the mic device and raw samples written to the
   fifo (our router moves every playing stream, also one aimed at a sink).
