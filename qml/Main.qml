@@ -395,19 +395,19 @@ Overlay {
     Surface {
         wanted: twitchVideo.active && (twitchVideo.soundOnly ? Companion.shown : root.onScreen(twitchVideo.panelId))
         stack: twitchVideo.fullScreen ? 100 : 2
-        extra: twitchVideo.overStrip ? Qt.rect(0, -twitchVideo.overRoom, twitchVideo.width, twitchVideo.height + twitchVideo.overRoom) : Qt.rect(0, 0, 0, 0)
+        extra: twitchVideo.overStrip ? Qt.rect(0, twitchVideo.stripDown ? 0 : -twitchVideo.overRoom, twitchVideo.width, twitchVideo.height + twitchVideo.overRoom) : Qt.rect(0, 0, 0, 0)
         part: VideoWindow { id: twitchVideo; slot: "twitch" }
     }
     Surface {
         wanted: youtubeVideo.active && (youtubeVideo.soundOnly ? Companion.shown : root.onScreen(youtubeVideo.panelId))
         stack: youtubeVideo.fullScreen ? 100 : 2
-        extra: youtubeVideo.overStrip ? Qt.rect(0, -youtubeVideo.overRoom, youtubeVideo.width, youtubeVideo.height + youtubeVideo.overRoom) : Qt.rect(0, 0, 0, 0)
+        extra: youtubeVideo.overStrip ? Qt.rect(0, youtubeVideo.stripDown ? 0 : -youtubeVideo.overRoom, youtubeVideo.width, youtubeVideo.height + youtubeVideo.overRoom) : Qt.rect(0, 0, 0, 0)
         part: VideoWindow { id: youtubeVideo; slot: "youtube" }
     }
     Surface {
         wanted: jellyfinVideo.active && (jellyfinVideo.soundOnly ? Companion.shown : root.onScreen(jellyfinVideo.panelId))
         stack: jellyfinVideo.fullScreen ? 100 : 2
-        extra: jellyfinVideo.overStrip ? Qt.rect(0, -jellyfinVideo.overRoom, jellyfinVideo.width, jellyfinVideo.height + jellyfinVideo.overRoom) : Qt.rect(0, 0, 0, 0)
+        extra: jellyfinVideo.overStrip ? Qt.rect(0, jellyfinVideo.stripDown ? 0 : -jellyfinVideo.overRoom, jellyfinVideo.width, jellyfinVideo.height + jellyfinVideo.overRoom) : Qt.rect(0, 0, 0, 0)
         part: VideoWindow { id: jellyfinVideo; slot: "jellyfin" }
     }
 
