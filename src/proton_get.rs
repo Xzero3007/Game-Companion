@@ -196,11 +196,17 @@ pub fn cpu_v3(cpuinfo: &str) -> bool {
 pub fn pick_asset(flavour: Flavour, release: &Release, v3: bool) -> Option<(Asset, Option<Asset>)> {
     let archive = |a: &&Asset| a.name.ends_with(".tar.gz") || a.name.ends_with(".tar.xz") || a.name.ends_with(".tar.zst");
     let chosen = match flavour {
-        Flavour::Ge => release.assets.iter().filter(archive).find(|a| a.name.starts_with("GE-Proton")),
+        // Since GE-Proton11-4 the archives carry the architecture and an
+        // aarch64 build sits beside the x86_64 one (ProtonUp-Qt ffc1e7a,
+        // f9c46b8): never the ARM one; .tar.gz first, as GE's CI uploads.
+        Flavour::Ge => {
+            let ge = release.assets.iter().filter(archive).filter(|a| a.name.starts_with("GE-Proton") && !arm(&a.name));
+            ge.clone().find(|a| a.name.ends_with(".tar.gz")).or_else(|| ge.clone().next())
+        }
         Flavour::Cachy => {
             let plain = |a: &&Asset| {
                 let stem = a.name.split(".tar.").next().unwrap_or("");
-                stem.ends_with("x86_64") && !stem.contains("arm") && !stem.contains("aarch")
+                stem.ends_with("x86_64") && !arm(stem)
             };
             let v3_build = |a: &&Asset| a.name.split(".tar.").next().unwrap_or("").ends_with("x86_64_v3");
             let cachy = release.assets.iter().filter(archive).filter(|a| a.name.starts_with("proton-cachyos"));
@@ -224,6 +230,11 @@ pub fn pick_asset(flavour: Flavour, release: &Release, v3: bool) -> Option<(Asse
     Some((chosen.clone(), sum))
 }
 
+fn arm(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.contains("aarch64") || lower.contains("arm64")
+}
+
 /// The SHA-512 for `file` from a `.sha512sum` file's text ("<hex>  <name>"
 /// lines, or one hash alone).
 pub fn sha512_from(text: &str, file: &str) -> Option<String> {
@@ -237,9 +248,11 @@ pub fn sha512_from(text: &str, file: &str) -> Option<String> {
             return Some(h.to_ascii_lowercase());
         }
     }
+    // One hash alone (no file named).
     if lines.len() == 1 {
-        let h = lines[0].split_whitespace().next()?;
-        if hex(h) {
+        let mut parts = lines[0].split_whitespace();
+        let h = parts.next()?;
+        if hex(h) && parts.next().is_none() {
             return Some(h.to_ascii_lowercase());
         }
     }
@@ -859,6 +872,19 @@ mod tests {
         let r = &parse_releases(Flavour::Ge, &ge).unwrap()[0];
         let (a, s) = pick_asset(Flavour::Ge, r, true).unwrap();
         assert_eq!((a.name.as_str(), s.unwrap().name.as_str()), ("GE-Proton11-12.tar.gz", "GE-Proton11-12.sha512sum"));
+        // GE since 11-4: an aarch64 build first in the list.
+        let ge = format!(
+            "[{}]",
+            release(
+                Flavour::Ge,
+                "GE-Proton11-12",
+                &["GE-Proton11-12-aarch64.tar.gz", "GE-Proton11-12-aarch64.sha512sum", "GE-Proton11-12-x86_64.tar.gz", "GE-Proton11-12-x86_64.sha512sum"]
+            )
+        );
+        let r = &parse_releases(Flavour::Ge, &ge).unwrap()[0];
+        let (a, s) = pick_asset(Flavour::Ge, r, true).unwrap();
+        assert_eq!((a.name.as_str(), s.unwrap().name.as_str()), ("GE-Proton11-12-x86_64.tar.gz", "GE-Proton11-12-x86_64.sha512sum"));
+        assert_eq!(version_key(Flavour::Ge, "GE-Proton11-5-x86_64"), Some((11, 5, 0)));
         assert!(cpu_v3("flags\t\t: fpu sse avx avx2 bmi1 bmi2 fma movbe f16c abm\n"));
         assert!(!cpu_v3("flags\t\t: fpu sse avx\n"));
     }
@@ -870,6 +896,7 @@ mod tests {
         assert_eq!(sha512_from(&format!("{h} *./x.tar.xz\n"), "x.tar.xz").as_deref(), Some(h.as_str()));
         assert_eq!(sha512_from(&format!("{h}\n"), "x.tar.xz").as_deref(), Some(h.as_str()));
         assert_eq!(sha512_from(&format!("{h}  a\n{h}  b\n"), "c"), None);
+        assert_eq!(sha512_from(&format!("{h}  other.tar.gz\n"), "x.tar.xz"), None, "a line naming another file");
         assert_eq!(sha512_from("short  x", "x"), None);
     }
 
