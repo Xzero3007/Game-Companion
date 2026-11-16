@@ -25,6 +25,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.70 beta (2026-11-14): #161 Get Proton: GE-Proton and Proton-CachyOS downloads in the Proton overview (entry below).
 - 0.8.69 beta (2026-11-14): #158 mic floor: a level gate after rnnoise (entry below).
 - 0.8.68 beta (2026-11-14): #156 #156 mic gain, mic EQ with presets, limiter, extra noise suppression and auto level switches (entry below).
 - 0.8.67 beta (2026-11-14): #154 #154 PoE 2: the trade site's leagues only while PoE 2 runs (no request at every start) (entry below).
