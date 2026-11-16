@@ -402,7 +402,11 @@ learnt, so nothing has to be asked or worked out again.
   Channels list swaps like the video list (`channelModel`,
   `swapChannels`): putting a channel into a group kept jumping to the top.
   A video window on SOUND ONLY (`VideoWindow.soundOnly`) goes with the hub,
-  pinned or not, as the radio does.
+  pinned or not, as the radio does, and is a slim strip without picture
+  (`compact`: its bars, always shown, `compactHeight` 90; MN 0.8.62: the
+  last picture stood still); `fullHeight` and the place with a picture are
+  kept (`remember`), the bottom edge stays; lists and notes open above it
+  and the surface grows upwards meanwhile (`overStrip`, Surface `extra`).
   Lists keep their place when their array is replaced (load more, the
   background subscriptions look, lengths coming in; MN 0.8.37: jumped to
   the top): `StreamsPanel.listModel` is set by `swapList` from
