@@ -81,26 +81,45 @@ Panel {
     onListWantedChanged: swapList()
     function swapList() {
         const v = listArea.shown
-        const sameList = listKey === modelKey && v && (v === list || v === grid) && listModel && listModel.length > 0
-        let keep = null
-        if (sameList && v.contentY - v.originY > 1) {
-            // The first row seen and how far it is scrolled past.
-            const at = v.indexAt(v.width / 2, v.contentY + 1)
-            const first = at >= 0 ? itemKey(listModel[at]) : ""
-            if (first) {
-                const item = v.itemAtIndex(at)
-                keep = { key: first, at: at, off: item ? v.contentY - item.y : 0 }
-            }
-        }
+        const sameList = listKey === modelKey && v && (v === list || v === grid)
+        const keep = sameList ? placeIn(v, listModel) : null
         modelKey = listKey
         listModel = listWanted
+        backTo(v, keep, listWanted, v === list ? listWheel : gridWheel)
+    }
+    /// The first row seen in `v` and how far it is scrolled past (null at
+    /// the top).
+    function placeIn(v, model) {
+        if (!v || !model || model.length === 0 || v.contentY - v.originY <= 1) return null
+        const at = v.indexAt(v.width / 2, v.contentY + 1)
+        const first = at >= 0 ? itemKey(model[at]) : ""
+        if (!first) return null
+        const item = v.itemAtIndex(at)
+        return { key: first, at: at, off: item ? v.contentY - item.y : 0 }
+    }
+    /// Scrolls `v`, which now shows `model`, back to the row `keep` saw.
+    function backTo(v, keep, model, wheel) {
         if (!keep) return
-        const index = listWanted.findIndex((x) => itemKey(x) === keep.key)
+        const index = model.findIndex((x) => itemKey(x) === keep.key)
         if (index < 0) return
-        if (index !== keep.at) (v === list ? listWheel : gridWheel).stop()
+        if (index !== keep.at) wheel.stop()
         v.forceLayout()
         v.positionViewAtIndex(index, ListView.Beginning)
         v.contentY += keep.off
+    }
+    /// The channel list as shown: swapped like `listModel`, so putting a
+    /// channel into a group keeps the place (MN, 2026-11-16: it jumped to
+    /// the top). Another group starts at its top.
+    property var channelModel: []
+    property string channelModelGroup: ""
+    onChannelsShownChanged: swapChannels()
+    function swapChannels() {
+        const v = listArea.shown
+        const sameList = channelModelGroup === Streams.group && (v === channelList || v === channelGrid)
+        const keep = sameList ? placeIn(v, channelModel) : null
+        channelModelGroup = Streams.group
+        channelModel = channelsShown
+        backTo(v, keep, channelsShown, v === channelList ? channelListWheel : channelGridWheel)
     }
     readonly property var jfAccount: Jellyfin.account.length > 0 ? JSON.parse(Jellyfin.account) : null
     /// Jellyfin's libraries: the way in (library, show, season), each
@@ -215,7 +234,7 @@ Panel {
 
     property bool loadedOnce: false
     onVisibleChanged: if (visible && !loadedOnce) firstLoad()
-    Component.onCompleted: { swapList(); if (visible && !loadedOnce) firstLoad() }
+    Component.onCompleted: { swapList(); swapChannels(); if (visible && !loadedOnce) firstLoad() }
     function firstLoad() {
         loadedOnce = true
         Streams.refreshAccount()
@@ -492,6 +511,26 @@ Panel {
         target: Streams
         function onLiveNewCountChanged() { if (panel.visible && panel.onTwitch && (panel.twView === "following" || panel.twView === "favourites")) Streams.seenNews() }
     }
+    /// When the shown list was loaded, for the button above it ("As of
+    /// 12:14", "As of 15 Nov 12:14"; MN, 2026-11-16).
+    property real jfAsOf: 0
+    Connections {
+        target: Jellyfin
+        function onStateChanged() { if (Jellyfin.state === "ready") panel.jfAsOf = Date.now() / 1000 }
+    }
+    readonly property bool listLoading: onJelly ? Jellyfin.state === "loading" : onTwitch ? Streams.twitchState === "loading" : Streams.youtubeState === "loading"
+    readonly property real asOf: onJelly ? jfAsOf : onTwitch ? Streams.twitchAsOf : Streams.youtubeAsOf
+    function asOfText(secs) {
+        if (!(secs > 0)) return ""
+        const d = new Date(secs * 1000)
+        const now = new Date()
+        const pad = (n) => (n < 10 ? "0" : "") + n
+        const time = pad(d.getHours()) + ":" + pad(d.getMinutes())
+        if (d.toDateString() === now.toDateString()) return time
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        return d.getDate() + " " + months[d.getMonth()] + " " + time
+    }
+    function loadAgain() { if (!onJelly) Streams.forget(); reload() }
     function since(iso) {
         if (!iso) return ""
         const m = Math.round((Date.now() - Date.parse(iso)) / 60000)
@@ -505,26 +544,61 @@ Panel {
 
         // Twitch / YouTube / Jellyfin; back, forth, tiles or rows.
         Item {
+            id: topRow
             width: parent.width
             height: 30
             Row {
+                id: siteTabs
                 spacing: 18
                 height: 30
                 SiteTab { name: "twitch"; label: "Twitch" }
                 SiteTab { name: "youtube"; label: "YouTube" }
                 SiteTab { name: "jellyfin"; label: "Jellyfin" }
             }
+            // The reload and sort buttons' words, as long as they fit beside
+            // the tabs: "As of 12:14" and "Sort: Newest first", then "12:14",
+            // then "Newest first", then the reload icon alone.
+            readonly property string reloadWords: panel.listLoading ? "Loading…" : panel.asOf > 0 ? "As of " + panel.asOfText(panel.asOf) : "Load again"
+            readonly property string reloadShort: panel.listLoading || !(panel.asOf > 0) ? "" : panel.asOfText(panel.asOf)
+            readonly property string sortWords: "Sort: " + panel.ytSortName + " ▾"
+            readonly property string sortShort: panel.ytSortName + " ▾"
+            /// Room for both buttons' texts (each chip's frame and the
+            /// reload icon counted).
+            readonly property real room: width - siteTabs.implicitWidth - (rightRow.implicitWidth - reloadChip.implicitWidth - (ytSortChip.visible ? ytSortChip.implicitWidth : 0))
+                - 16 - 30 - (ytSortChip.visible ? 18 : 0)
+            readonly property real sortLongW: ytSortChip.visible ? sortLong.advanceWidth : 0
+            readonly property real sortShortW: ytSortChip.visible ? sortBrief.advanceWidth : 0
+            /// 0 both in full, 1 the time and the sort in full, 2 both short,
+            /// 3 the icon and the sort short.
+            readonly property int fit: (reloadLong.advanceWidth + 6) + sortLongW <= room ? 0
+                : (reloadBrief.advanceWidth + 6) + sortLongW <= room ? 1
+                : (reloadBrief.advanceWidth + 6) + sortShortW <= room ? 2 : 3
+            TextMetrics { id: reloadLong; font: reloadChip.textFont; text: topRow.reloadWords.toUpperCase() }
+            TextMetrics { id: reloadBrief; font: reloadChip.textFont; text: topRow.reloadShort.toUpperCase() }
+            TextMetrics { id: sortLong; font: reloadChip.textFont; text: topRow.sortWords.toUpperCase() }
+            TextMetrics { id: sortBrief; font: reloadChip.textFont; text: topRow.sortShort.toUpperCase() }
             Row {
+                id: rightRow
                 anchors.right: parent.right
                 anchors.rightMargin: -6
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
+                // Load again, with when the list is from (MN, 2026-11-16:
+                // the footer's small ↻ moved up as a real button).
+                Chip {
+                    id: reloadChip
+                    anchors.verticalCenter: parent.verticalCenter
+                    icon: "refresh"
+                    text: topRow.fit === 0 ? topRow.reloadWords : topRow.fit < 3 ? topRow.reloadShort : ""
+                    onClicked: panel.loadAgain()
+                }
+                Item { width: 8; height: 1 }
                 // The list's order (MN, 0.8.43).
                 Chip {
                     id: ytSortChip
                     visible: panel.ytSortOptions.length > 0
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Sort: " + panel.ytSortName + " ▾"
+                    text: topRow.fit < 2 ? topRow.sortWords : topRow.sortShort
                     onClicked: {
                         const view = panel.ytView
                         panel.openMenu(ytSortChip, "filter", { options: panel.ytSortOptions.map((o) => ({ id: o.id, name: (o.id === panel.ytSort ? "✓ " : "") + o.name })),
@@ -1172,7 +1246,7 @@ Panel {
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 visible: panel.channelsView && !panel.tiles
-                model: visible ? panel.channelsShown : []
+                model: visible ? panel.channelModel : []
                 delegate: channelRow
             }
             GridView {
@@ -1185,13 +1259,13 @@ Panel {
                 visible: panel.channelsView && panel.tiles
                 cellWidth: Math.floor(width / listArea.channelColumns)
                 cellHeight: 72
-                model: visible ? panel.channelsShown : []
+                model: visible ? panel.channelModel : []
                 delegate: channelTile
             }
             WheelScroll { id: listWheel; flick: list; step: 79 * 2 }
             WheelScroll { id: gridWheel; flick: grid; step: grid.cellHeight }
-            WheelScroll { flick: channelList; step: 58 * 3 }
-            WheelScroll { flick: channelGrid; step: 72 * 2 }
+            WheelScroll { id: channelListWheel; flick: channelList; step: 58 * 3 }
+            WheelScroll { id: channelGridWheel; flick: channelGrid; step: 72 * 2 }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.centerIn: parent
                 width: parent.width - 60
@@ -1245,16 +1319,6 @@ Panel {
                     font.family: Theme.body
                     font.pixelSize: 11
                 }
-            }
-            IconButton {
-                anchors.right: parent.right
-                anchors.rightMargin: 10
-                anchors.verticalCenter: parent.verticalCenter
-                icon: "refresh"
-                iconSize: 13
-                color: Theme.dim()
-                tip: "Load again"
-                onClicked: { if (!panel.onJelly) Streams.forget(); panel.reload() }
             }
         }
     }

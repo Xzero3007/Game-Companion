@@ -390,6 +390,19 @@ learnt, so nothing has to be asked or worked out again.
   while Brave was shown, it lost its full-screen mark, took it back, five
   times, and the screens flickered (MN, 0.8.51). `GC_DEMO=…,shot` sets it (under xcb the one-pixel mask
   also hides the windows: an X11 artifact).
+  Subscriptions in the background (feeds, lengths) show only for the
+  channels shown now (`subs_shown`, set with `SUBS_REQUEST`): a look
+  started for All and finished after a group was chosen showed every
+  channel's videos over the group (MN, 0.8.59); it shows the group's stored
+  videos instead (`show_shown_subscriptions`). The top row's reload chip
+  (MN, 2026-11-16, was a small ↻ in the footer) says when the list is from:
+  `Streams.youtubeAsOf` (subscriptions: the newest feed ask of the shown
+  channels, `feeds_as_of`), `twitchAsOf`, Jellyfin's by QML; its words and
+  the sort chip's shorten to fit beside the tabs (`topRow.fit`). The
+  Channels list swaps like the video list (`channelModel`,
+  `swapChannels`): putting a channel into a group kept jumping to the top.
+  A video window on SOUND ONLY (`VideoWindow.soundOnly`) goes with the hub,
+  pinned or not, as the radio does.
   Lists keep their place when their array is replaced (load more, the
   background subscriptions look, lengths coming in; MN 0.8.37: jumped to
   the top): `StreamsPanel.listModel` is set by `swapList` from

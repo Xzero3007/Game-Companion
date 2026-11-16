@@ -9,6 +9,10 @@ Item {
     property bool on: false
     /// A small mark before the text (the game's purple, a live count).
     property color dot: "transparent"
+    /// A small icon before the text (HudIcon's name, "" none).
+    property string icon: ""
+    /// The text's font, for measuring.
+    readonly property alias textFont: label.font
     signal clicked
     implicitWidth: row.implicitWidth + 18
     implicitHeight: 24
@@ -22,7 +26,17 @@ Item {
         anchors.centerIn: parent
         spacing: 6
         Rectangle { visible: chip.dot.a > 0; anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; color: chip.dot }
+        HudIcon {
+            visible: chip.icon !== ""
+            anchors.verticalCenter: parent.verticalCenter
+            name: chip.icon
+            size: 12
+            lineWidth: 2.4
+            color: chip.on ? Theme.accent : (mouse.containsMouse ? Theme.text() : Theme.muted())
+        }
         Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+            id: label
+            visible: chip.text !== ""
             text: chip.text.toUpperCase()
             color: chip.on ? Theme.accent : (mouse.containsMouse ? Theme.text() : Theme.muted())
             font.family: Theme.display
