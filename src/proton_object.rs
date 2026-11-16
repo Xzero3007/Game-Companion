@@ -32,6 +32,9 @@ pub mod qobject {
         /// Goes up when a Proton was installed or removed (the overview
         /// reads the installed builds again).
         #[qproperty(i32, revision)]
+        /// Steam restarts by itself after an install (settings
+        /// `proton_restart_steam`; never while a game runs).
+        #[qproperty(bool, restart_after)]
         type ProtonGet = super::ProtonGetRust;
 
         /// Looks for new releases (GitHub at most every 6 hours unless
@@ -44,6 +47,14 @@ pub mod qobject {
         /// "cachyos") for a target ("steam" or "heroic").
         #[qinvokable]
         fn install(self: Pin<&mut ProtonGet>, flavour: &QString, target: &QString);
+
+        /// Keeps whether Steam restarts after an install.
+        #[qinvokable]
+        fn set_restart(self: Pin<&mut ProtonGet>, on: bool);
+
+        /// Restarts Steam now (the button after an install).
+        #[qinvokable]
+        fn restart_steam(self: Pin<&mut ProtonGet>);
 
         /// Stops the running download.
         #[qinvokable]
@@ -68,6 +79,7 @@ pub mod qobject {
 pub struct ProtonGetRust {
     state: QString,
     revision: i32,
+    restart_after: bool,
     base: Value,
     job: Value,
     checking: bool,
@@ -77,7 +89,13 @@ pub struct ProtonGetRust {
 
 impl Default for ProtonGetRust {
     fn default() -> Self {
-        Self { state: QString::from("{}"), revision: 0, base: json!({}), job: Value::Null, checking: false, error: String::new(), games: Vec::new() }
+        Self {
+            state: QString::from("{}"),
+            revision: 0,
+            restart_after: crate::settings::read(|s| s.proton_restart_steam),
+            base: json!({}), job: Value::Null, checking: false, error: String::new(),
+            games: Vec::new(),
+        }
     }
 }
 
@@ -90,8 +108,7 @@ fn home() -> Option<PathBuf> {
 }
 
 fn steam_running() -> bool {
-    let Ok(dir) = std::fs::read_dir("/proc") else { return false };
-    dir.flatten().any(|e| std::fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == "steam"))
+    pg::steam_running(Path::new("/proc"))
 }
 
 impl qobject::ProtonGet {
@@ -124,7 +141,7 @@ impl qobject::ProtonGet {
         self.as_mut().rust_mut().error.clear();
         self.as_mut().publish();
         let games = self.rust().games.clone();
-        let busy = !self.rust().job.is_null() && self.rust().job["step"] == "download";
+        let busy = matches!(self.rust().job["step"].as_str(), Some("download" | "check" | "unpack" | "steam"));
         let thread = self.qt_thread();
         std::thread::Builder::new()
             .name("proton-look".into())
@@ -142,7 +159,7 @@ impl qobject::ProtonGet {
 
     fn install(mut self: Pin<&mut Self>, flavour: &QString, target: &QString) {
         let job = &self.rust().job;
-        if !job.is_null() && matches!(job["step"].as_str(), Some("download" | "check" | "unpack")) {
+        if !job.is_null() && matches!(job["step"].as_str(), Some("download" | "check" | "unpack" | "steam")) {
             return;
         }
         let Some(flavour) = Flavour::from_id(&flavour.to_string()) else { return };
@@ -161,6 +178,7 @@ impl qobject::ProtonGet {
         crate::log::write("proton", &format!("{}: installing {} for {}", flavour.id(), release.tag, target.id));
         let thread = self.qt_thread();
         let tag = release.tag.clone();
+        let restart = *self.restart_after();
         let spawned = std::thread::Builder::new().name("proton-get".into()).spawn(move || {
             let mut last = Step::Check;
             let mut tell = |step: Step| {
@@ -172,6 +190,7 @@ impl qobject::ProtonGet {
                     Step::Download { done, total } => json!({"step": "download", "done": done, "total": total}),
                     Step::Check => json!({"step": "check"}),
                     Step::Unpack => json!({"step": "unpack"}),
+                    Step::Steam => json!({"step": "steam"}),
                 };
                 let _ = thread.queue(move |mut obj: Pin<&mut qobject::ProtonGet>| {
                     let job = &mut obj.as_mut().rust_mut().job;
@@ -185,9 +204,22 @@ impl qobject::ProtonGet {
             };
             let result = pg::install(flavour, &release, &target, cpu_v3(), &mut tell);
             let steam = target.id == "steam" && steam_running();
+            // Steam restarted so it sees the new build (not while a game runs).
+            let restarted = if result.is_ok() && steam && restart && !pg::steam_game_running(Path::new("/proc")) {
+                tell(Step::Steam);
+                Some(pg::restart_steam(&home))
+            } else {
+                None
+            };
+            let restart_note = match &restarted {
+                Some(Ok(true)) => "restarted".to_string(),
+                Some(Ok(false)) | None => String::new(),
+                Some(Err(why)) => why.clone(),
+            };
+            let steam = steam && !matches!(restarted, Some(Ok(_)));
             let _ = thread.queue(move |mut obj: Pin<&mut qobject::ProtonGet>| {
                 obj.as_mut().rust_mut().job = match result {
-                    Ok(name) => json!({"flavour": flavour.id(), "tag": tag, "target": target.id, "step": "done", "name": name, "steamRunning": steam}),
+                    Ok(name) => json!({"flavour": flavour.id(), "tag": tag, "target": target.id, "step": "done", "name": name, "steamRunning": steam, "steam": restart_note}),
                     Err(why) if why == "Stopped" => json!({"flavour": flavour.id(), "tag": tag, "target": target.id, "step": "stopped"}),
                     Err(why) => json!({"flavour": flavour.id(), "tag": tag, "target": target.id, "step": "failed", "error": why}),
                 };
@@ -202,6 +234,39 @@ impl qobject::ProtonGet {
             self.as_mut().rust_mut().job = Value::Null;
             self.publish();
         }
+    }
+
+    fn set_restart(mut self: Pin<&mut Self>, on: bool) {
+        crate::settings::change(|s| s.proton_restart_steam = on);
+        self.as_mut().set_restart_after(on);
+    }
+
+    fn restart_steam(mut self: Pin<&mut Self>) {
+        if demo().is_some() || !matches!(self.rust().job["step"].as_str(), Some("done")) {
+            return;
+        }
+        let Some(home) = home() else { return };
+        self.as_mut().rust_mut().job["step"] = json!("steam");
+        self.as_mut().publish();
+        let thread = self.qt_thread();
+        std::thread::Builder::new()
+            .name("proton-steam".into())
+            .spawn(move || {
+                let result = pg::restart_steam(&home);
+                let _ = thread.queue(move |mut obj: Pin<&mut qobject::ProtonGet>| {
+                    let job = &mut obj.as_mut().rust_mut().job;
+                    job["step"] = json!("done");
+                    match result {
+                        Ok(_) => {
+                            job["steam"] = json!("restarted");
+                            job["steamRunning"] = json!(false);
+                        }
+                        Err(why) => job["steam"] = json!(why),
+                    }
+                    obj.publish();
+                });
+            })
+            .ok();
     }
 
     fn cancel(self: Pin<&mut Self>) {
@@ -272,8 +337,10 @@ fn cpu_v3() -> bool {
 fn read_state(force: bool, games: &[String], busy: bool) -> (Value, String) {
     let Some(home) = home() else { return (json!({}), "No home folder".into()) };
     let targets = pg::targets(&home);
+    // What a crash or a kill left (no job runs now).
     if !busy {
         pg::tidy_leftovers(&targets);
+        pg::tidy_downloads();
     }
     let mut error = String::new();
     {

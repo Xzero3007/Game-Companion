@@ -21,7 +21,7 @@ Column {
     readonly property var flavours: s.flavours || []
     readonly property var targets: s.targets || []
     readonly property var job: s.job || null
-    readonly property bool running: job !== null && ["download", "check", "unpack"].indexOf(job.step) >= 0
+    readonly property bool running: job !== null && ["download", "check", "unpack", "steam"].indexOf(job.step) >= 0
     property string target: "steam"
     /// The folder waiting for "Remove?" to be answered.
     property string asking: ""
@@ -148,6 +148,47 @@ Column {
         color: Theme.dim()
         font.family: Theme.body
         font.pixelSize: 12
+    }
+
+    // Steam reads its Protons only when it starts.
+    Item {
+        visible: box.targets.some((t) => t.id === "steam")
+        x: 16
+        width: parent.width - 32
+        height: visible ? 26 : 0
+        Rectangle {
+            id: restartBox
+            anchors.verticalCenter: parent.verticalCenter
+            width: 14
+            height: 14
+            color: ProtonGet.restartAfter ? Theme.accent : "transparent"
+            border.color: ProtonGet.restartAfter ? Theme.accent : Theme.track
+            HudIcon {
+                anchors.centerIn: parent
+                visible: ProtonGet.restartAfter
+                name: "check"
+                size: 11
+                lineWidth: 2.4
+                color: "#121116"
+            }
+        }
+        Text { style: Theme.textStyle(); styleColor: Theme.shadow
+            anchors.left: restartBox.right
+            anchors.leftMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Restart Steam after installing, so it sees the new Proton (never while a game runs)"
+            color: Theme.textSoft()
+            font.family: Theme.body
+            font.pixelSize: 12
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: ProtonGet.setRestart(!ProtonGet.restartAfter)
+        }
+        Accessible.role: Accessible.CheckBox
+        Accessible.name: "Restart Steam after installing"
+        Accessible.checked: ProtonGet.restartAfter
     }
 
     Repeater {
@@ -296,9 +337,9 @@ Column {
             width: parent.width
             height: visible ? 46 : 0
             readonly property var j: fl.myJob || ({})
-            readonly property real share: j.step === "download" && j.total > 0 ? Math.min(1, j.done / j.total) : (j.step === "check" || j.step === "unpack" ? 1 : 0)
+            readonly property real share: j.step === "download" && j.total > 0 ? Math.min(1, j.done / j.total) : (["check", "unpack", "steam"].indexOf(j.step) >= 0 ? 1 : 0)
             Rectangle {
-                visible: ["download", "check", "unpack"].indexOf(parent.j.step) >= 0
+                visible: ["download", "check", "unpack", "steam"].indexOf(parent.j.step) >= 0
                 x: 16
                 y: 10
                 width: parent.width - 32 - 90
@@ -309,7 +350,7 @@ Column {
             Text { style: Theme.textStyle(); styleColor: Theme.shadow
                 x: 16
                 y: 20
-                width: parent.width - 32 - 90
+                width: parent.width - 32 - (parent.j.step === "done" && parent.j.steamRunning ? 220 : 90)
                 elide: Text.ElideRight
                 text: {
                     const j = parent.j
@@ -317,8 +358,11 @@ Column {
                     if (j.step === "download") return "Downloading " + j.tag + ": " + box.mb(j.done) + (j.total > 0 ? " of " + box.mb(j.total) + " · " + Math.round(parent.share * 100) + " %" : "")
                     if (j.step === "check") return "Checking the checksum…"
                     if (j.step === "unpack") return "Unpacking for " + where + "…"
-                    if (j.step === "done") return "Installed " + j.name + " for " + where + "." + (j.steamRunning ? " Restart Steam so it sees it." : "") + " Pick it per game below."
-                    if (j.step === "stopped") return "Stopped. Nothing was left behind."
+                    if (j.step === "steam") return "Installed " + j.name + ". Restarting Steam…"
+                    if (j.step === "done") return "Installed " + j.name + " for " + where + "."
+                        + (j.steam === "restarted" ? " Steam was restarted and sees it." : j.steam ? " Steam not restarted: " + j.steam + "." : j.steamRunning ? " Restart Steam so it sees it." : "")
+                        + " Pick it per game below."
+                    if (j.step === "stopped") return "Cancelled. Nothing was left behind."
                     if (j.step === "failed") return "Not installed: " + j.error + "."
                     return ""
                 }
@@ -327,15 +371,28 @@ Column {
                 font.pixelSize: 12
             }
             TextButton {
+                id: okButton
                 anchors.right: parent.right
                 anchors.rightMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
+                visible: parent.j.step !== "steam"
                 text: box.running ? "Cancel" : "OK"
                 danger: box.running
                 pixelSize: 11
                 pad: 10
                 implicitHeight: 26
                 onClicked: box.running ? ProtonGet.cancel() : ProtonGet.dismiss()
+            }
+            TextButton {
+                anchors.right: okButton.left
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                visible: parent.j.step === "done" && parent.j.steamRunning === true
+                text: "Restart Steam"
+                pixelSize: 11
+                pad: 10
+                implicitHeight: 26
+                onClicked: ProtonGet.restartSteam()
             }
         }
         // pacman's proton-cachyos

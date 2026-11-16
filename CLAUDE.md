@@ -742,6 +742,12 @@ learnt, so nothing has to be asked or worked out again.
   again (`ProtonGet.revision`). pacman's proton-cachyos(-slr): `pacman -Q`,
   `-Si` and `vercmp` only (no network), "comes with your system update".
   Release lists kept in ~/.cache/game-companion/proton-releases.json.
+  Steam restarts after an install (MN, 2026-11-16; settings
+  `proton_restart_steam`, default on, the box under GET PROTON;
+  `restart_steam`: `steam -shutdown`, up to 40 s, then `steam -silent` in
+  its own session, flatpak if no `steam`), never while a Steam game runs
+  (a "SteamLaunch" reaper, `steam_game_running`); then "Restart Steam"
+  shows beside OK. A look also removes half downloads when no job runs.
   `GC_DEMO=games,proton[,protonjob]`; `GC_PROTON_FAKE=<dir>` reads
   `ge.json`/`cachyos.json` there instead of GitHub.
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)

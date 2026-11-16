@@ -455,6 +455,89 @@ fn run_text(command: &mut Command) -> Option<String> {
     out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+// ------------------------------------------------------------- Steam ----
+
+fn proc_any(proc_root: &Path, test: &dyn Fn(&Path) -> bool) -> bool {
+    let Ok(dir) = std::fs::read_dir(proc_root) else { return false };
+    dir.flatten().filter(|e| e.file_name().to_string_lossy().bytes().all(|b| b.is_ascii_digit())).any(|e| test(&e.path()))
+}
+
+/// Whether Steam runs.
+pub fn steam_running(proc_root: &Path) -> bool {
+    proc_any(proc_root, &|p| std::fs::read_to_string(p.join("comm")).is_ok_and(|c| c.trim() == "steam"))
+}
+
+/// Whether a Steam game runs (Steam starts each through its `reaper` with
+/// "SteamLaunch" on the command line).
+pub fn steam_game_running(proc_root: &Path) -> bool {
+    proc_any(proc_root, &|p| {
+        std::fs::read(p.join("cmdline")).is_ok_and(|c| c.split(|&b| b == 0).any(|a| a == b"SteamLaunch"))
+    })
+}
+
+/// Restarts Steam so it sees a new Proton: asks it to shut down (`steam
+/// -shutdown`), waits up to 40 s for it to end and starts it again in the
+/// tray (`steam -silent`, its own session: it outlives Game Companion).
+/// Never while a Steam game runs. Ok(false): Steam wasn't running.
+pub fn restart_steam(home: &Path) -> Result<bool, String> {
+    let proc_root = Path::new("/proc");
+    if !steam_running(proc_root) {
+        return Ok(false);
+    }
+    if steam_game_running(proc_root) {
+        return Err("a game runs: restart Steam yourself after playing".into());
+    }
+    let flatpak = !which("steam") && home.join(".var/app/com.valvesoftware.Steam").is_dir();
+    let command = |args: &[&str]| {
+        let mut c = if flatpak {
+            let mut c = Command::new("flatpak");
+            c.args(["run", "com.valvesoftware.Steam"]);
+            c
+        } else {
+            Command::new("steam")
+        };
+        c.args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+        c
+    };
+    crate::log::write("proton", "restarting Steam for the new Proton");
+    let mut shutdown = command(&["-shutdown"]);
+    detached(&mut shutdown).map_err(|e| format!("Steam couldn't be asked to close ({e})"))?;
+    let deadline = Instant::now() + Duration::from_secs(40);
+    while steam_running(proc_root) {
+        if Instant::now() > deadline || CANCEL.load(Ordering::SeqCst) {
+            return Err("Steam didn't close: restart it yourself".into());
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    std::thread::sleep(Duration::from_secs(1));
+    let mut start = command(&["-silent"]);
+    detached(&mut start).map_err(|e| format!("Steam didn't start again ({e})"))?;
+    crate::log::write("proton", "Steam started again");
+    Ok(true)
+}
+
+fn which(program: &str) -> bool {
+    std::env::var_os("PATH").is_some_and(|paths| std::env::split_paths(&paths).any(|d| d.join(program).is_file()))
+}
+
+/// Starts a program in its own session (not ended with Game Companion);
+/// a thread waits for it so no zombie stays.
+fn detached(command: &mut Command) -> std::io::Result<()> {
+    use std::os::unix::process::CommandExt;
+    // SAFETY: only setsid in the child before exec.
+    unsafe {
+        command.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        });
+    }
+    let mut child = command.spawn()?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
 // -------------------------------------------------------------- curl ----
 
 fn curl() -> Command {
@@ -512,6 +595,8 @@ pub enum Step {
     Download { done: u64, total: u64 },
     Check,
     Unpack,
+    /// Steam is being restarted.
+    Steam,
 }
 
 /// Downloads, checks and unpacks one release into `target`. Returns the
@@ -553,7 +638,11 @@ pub fn install(flavour: Flavour, release: &Release, target: &Target, v3: bool, s
             .stderr(Stdio::piped());
         let started = Instant::now();
         run_child(&mut child, &mut || step(Step::Download { done: std::fs::metadata(&file).map(|m| m.len()).unwrap_or(0), total: asset.size }))
-            .map_err(|e| if e.is_empty() { "The download failed".to_string() } else { format!("The download failed: {e}") })?;
+            .map_err(|e| match e.as_str() {
+                "Stopped" => e,
+                "" => "The download failed".to_string(),
+                _ => format!("The download failed: {e}"),
+            })?;
         let size = std::fs::metadata(&file).map(|m| m.len()).unwrap_or(0);
         if asset.size > 0 && size != asset.size {
             return Err("The download is incomplete".into());
@@ -575,6 +664,7 @@ pub fn install(flavour: Flavour, release: &Release, target: &Target, v3: bool, s
             TOOLS_STALE.store(true, Ordering::SeqCst);
             crate::log::write("proton", &format!("{}: installed {name} for {}", flavour.id(), target.id));
         }
+        Err(why) if why == "Stopped" => crate::log::write("proton", &format!("{}: {} cancelled", flavour.id(), release.tag)),
         Err(why) => crate::log::write("proton", &format!("{}: {} not installed: {why}", flavour.id(), release.tag)),
     }
     result
@@ -597,7 +687,11 @@ fn unpack(flavour: Flavour, file: &Path, archive: &str, dir: &Path, partial: &Pa
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
-    run_child(&mut tar, &mut || {}).map_err(|e| if e.is_empty() { "Unpacking failed".to_string() } else { format!("Unpacking failed: {e}") })?;
+    run_child(&mut tar, &mut || {}).map_err(|e| match e.as_str() {
+        "Stopped" => e,
+        "" => "Unpacking failed".to_string(),
+        _ => format!("Unpacking failed: {e}"),
+    })?;
     let tops: Vec<PathBuf> = std::fs::read_dir(partial).map_err(|e| e.to_string())?.flatten().map(|e| e.path()).collect();
     let [top] = tops.as_slice() else { return Err("The archive doesn't hold one Proton folder".into()) };
     let mut name = top.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
@@ -941,6 +1035,25 @@ mod tests {
         tidy_leftovers(&targets);
         assert!(!steam.join(format!("{PARTIAL}GE-Proton11-1")).exists());
         assert!(steam.join("GE-Proton9-20").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn steam_and_its_games() {
+        let root = std::env::temp_dir().join(format!("gc-steamproc-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let put = |pid: &str, comm: &str, cmdline: &[u8]| {
+            std::fs::create_dir_all(root.join(pid)).unwrap();
+            std::fs::write(root.join(pid).join("comm"), comm).unwrap();
+            std::fs::write(root.join(pid).join("cmdline"), cmdline).unwrap();
+        };
+        put("10", "bash\n", b"bash\0");
+        assert!(!steam_running(&root));
+        put("11", "steam\n", b"/home/me/.steam/steam/ubuntu12_32/steam\0-silent\0");
+        assert!(steam_running(&root));
+        assert!(!steam_game_running(&root));
+        put("12", "reaper\n", b"/home/me/.steam/steam/ubuntu12_32/reaper\0SteamLaunch\0AppId=2694490\0--\0");
+        assert!(steam_game_running(&root));
         let _ = std::fs::remove_dir_all(&root);
     }
 
