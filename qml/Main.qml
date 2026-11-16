@@ -18,6 +18,8 @@ Overlay {
     property bool settingsOpen: false
     property bool radioOpen: false
     property bool streamsOpen: false
+    property bool soundOpen: false
+    property bool soundRowOpen: false
     property bool gamesOpen: false
     property bool dpsOpen: false
     property bool mapOpen: false
@@ -83,6 +85,8 @@ Overlay {
         if (sessionOpen) ids.push("poe2-session")
         if (radioOpen) ids.push("radio")
         if (streamsOpen) ids.push("streams")
+        if (soundOpen) ids.push("sound")
+        if (soundRowOpen) ids.push("sound-row")
         return ids
     }
     function openFrom(ids) {
@@ -98,6 +102,8 @@ Overlay {
         sessionOpen = ids.indexOf("poe2-session") >= 0
         radioOpen = ids.indexOf("radio") >= 0
         streamsOpen = ids.indexOf("streams") >= 0
+        soundOpen = ids.indexOf("sound") >= 0
+        soundRowOpen = ids.indexOf("sound-row") >= 0
     }
 
     // The open panels are kept, so an update or a restart brings back what
@@ -132,6 +138,8 @@ Overlay {
         if (demo.indexOf("unlocked") >= 0 && Companion.locked) Companion.toggleLocked()
         if (demo.indexOf("settings") >= 0) settingsOpen = true
         if (demo.indexOf("radio") >= 0) radioOpen = true
+        if (demo.indexOf("sound") >= 0) soundOpen = true
+        if (demo.indexOf("soundrow") >= 0) soundRowOpen = true
         if (demo.indexOf("games") >= 0) gamesOpen = true
         if (demo.indexOf("dps") >= 0) dpsOpen = true
         if (demo.indexOf("map") >= 0) mapOpen = true
@@ -163,6 +171,8 @@ Overlay {
         if (demo.indexOf("hidden") >= 0 && Companion.shown) Companion.toggleShown()
         Streams.begin()
         Apps.begin(); VoiceChat.begin()
+        // The sound module: channels, mic chain, stream mix (only if on).
+        Sound.begin(); Sound.setGame(Games.running)
         if (demo.indexOf("appmenu") >= 0) bar.menuFor = "brave"
     }
 
@@ -196,6 +206,7 @@ Overlay {
     Connections {
         target: Games
         function onStopped(id) {
+            Sound.setGame("")
             // Brave and Legcord back where and how they were.
             Apps.gameStopped()
             if (id === root.aionId && Aion2.active) {
@@ -213,6 +224,7 @@ Overlay {
             if (back.length > 0) root.openFrom(JSON.parse(back))
         }
         function onStarted(id) {
+            Sound.setGame(id)
             Apps.gameStarted(Games.runningKnown)
             // AION 2's module reads while the game runs.
             if (Games.runningKnown === "aion2") root.aionStarted(id)
@@ -302,6 +314,10 @@ Overlay {
             gameHasModule: Games.runningKnown.length > 0
             streamsOpen: root.streamsOpen
             onStreamsClicked: root.streamsOpen = !root.streamsOpen
+            soundOpen: root.soundOpen
+            soundRowOpen: root.soundRowOpen
+            onSoundClicked: root.soundOpen = !root.soundOpen
+            onSoundRightClicked: root.soundRowOpen = !root.soundRowOpen
             onSettingsClicked: root.settingsOpen = !root.settingsOpen
             onUpdateClicked: { root.settingsOpen = true; Updates.install() }
             onRadioClicked: root.radioOpen = !root.radioOpen
@@ -409,6 +425,26 @@ Overlay {
         }
     }
 
+    // The sound's quick row, under the player row (right click on SOUND).
+    readonly property bool soundRowShown: root.soundRowOpen && root.onScreen("sound-row")
+    Surface {
+        wanted: root.soundRowShown
+        stack: 5
+        part: SoundRow {
+            id: soundRow
+            transformOrigin: Item.TopLeft
+            scale: Companion.barScale
+            x: Math.max(0, Math.min(root.width - width * scale, bar.x + (bar.shownWidth - width * scale) / 2))
+            y: hubHint.playerRowShown ? playerRow.y + playerRow.height * playerRow.scale + 2
+                : gameRow.onScreen ? gameRow.y + gameRow.height * gameRow.scale + 2
+                : Companion.shown ? bar.height * bar.scale : 0
+            onCloseClicked: root.soundRowOpen = false
+        }
+    }
+    // The mic's meter runs only while the MIC tab or the quick row shows.
+    readonly property bool soundMeter: (root.soundRowShown && soundRow.micOn) || (root.soundOpen && root.onScreen("sound") && soundPanel.meterWanted)
+    onSoundMeterChanged: Sound.setMeter(soundMeter)
+
     Surface {
         wanted: hubHint.opacity > 0
         clickable: false
@@ -416,7 +452,8 @@ Overlay {
         part: HubHint {
             id: hubHint
             x: (root.width - width) / 2
-            y: playerRowShown ? playerRow.y + playerRow.height * playerRow.scale + 6
+            y: root.soundRowShown ? soundRow.y + soundRow.height * soundRow.scale + 6
+                : playerRowShown ? playerRow.y + playerRow.height * playerRow.scale + 6
                 : gameRow.onScreen ? gameRow.y + gameRow.height * gameRow.scale + 6 : 6
             readonly property bool playerRowShown: playerRow.active && root.onScreen("player-row")
             key: root.keyOf("toggle")
@@ -710,6 +747,17 @@ Overlay {
             defaultX: 24
             defaultY: 120
             onCloseClicked: root.radioOpen = false
+        }
+    }
+
+    Surface {
+        wanted: root.soundOpen && root.onScreen("sound")
+        stack: 3
+        part: SoundPanel {
+            id: soundPanel
+            defaultX: Math.max(24, (root.width - width) / 2)
+            defaultY: 140
+            onCloseClicked: root.soundOpen = false
         }
     }
 

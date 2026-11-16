@@ -21,6 +21,10 @@ Item {
     property bool gameHasModule: false
     property bool streamsOpen: false
     signal streamsClicked
+    property bool soundOpen: false
+    property bool soundRowOpen: false
+    signal soundClicked
+    signal soundRightClicked
     property string gameName: ""
     signal settingsClicked
     signal hideClicked
@@ -153,6 +157,16 @@ Item {
             active: bar.streamsOpen
             tip: "Streams: Twitch and YouTube"
             onClicked: bar.streamsClicked()
+        }
+        // Always in the bar (MN, 2026-11-16); a right click: the quick row.
+        HudButton {
+            icon: "equalizer"
+            label: "Sound"
+            active: bar.soundOpen
+            dot: bar.soundRowOpen ? "on" : ""
+            tip: "Sound: channels, mic and stream · right click: quick row"
+            onClicked: bar.soundClicked()
+            onRightClicked: bar.soundRightClicked()
         }
         AppButton { id: braveButton; appId: "brave"; icon: "browser" }
         AppButton { id: legcordButton; appId: "legcord"; icon: "headset" }
