@@ -598,7 +598,9 @@ learnt, so nothing has to be asked or worked out again.
   36 of every 42 ms at 24 fps (`GC_DEBUG_RENDER=1` prints each frame's
   render time). On stop or switch each video window logs `[video]` with
   `MpvVideo.playStats()` (codec, size, fps, hwdec, dropped and late
-  frames).
+  frames). At a file's end mpv has already let it go (every value "-"):
+  the values read while it played (on time-pos, every 2 s at most,
+  `m_lastStats`) stand in.
 - The video player (`MpvVideo`) exists only while something plays (a
   Loader in `VideoWindow`; `idleVideo` stands in): closing frees mpv and
   its video memory.
