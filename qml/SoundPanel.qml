@@ -248,7 +248,7 @@ Panel {
                         width: parent.width
                         label: "Opens at"
                         from: 50; to: 99; step: 1
-                        value: panel.mic().threshold || 85
+                        value: panel.mic().threshold || 60
                         unit: " %"
                         onPicked: (v) => Sound.setMic(JSON.stringify({ threshold: v }))
                     }
@@ -256,7 +256,7 @@ Panel {
                         width: parent.width
                         label: "Stays open"
                         from: 100; to: 1500; step: 50
-                        value: panel.mic().grace || 300
+                        value: panel.mic().grace || 500
                         unit: " ms"
                         onPicked: (v) => Sound.setMic(JSON.stringify({ grace: Math.round(v) }))
                     }
