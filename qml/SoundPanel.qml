@@ -59,6 +59,15 @@ Panel {
         return n.length > 0 ? n.join(", ") : "nothing plays"
     }
     function mic() { return prefs.mic || ({}) }
+    readonly property var micPresetHelp: ({
+        "Flat": "Nothing changed: your mic as it is.",
+        "Clear voice": "The everyday choice: a little less boom, a little more presence. Easy to follow in Legcord.",
+        "Radio": "Full and close like a radio host: more body, less mud, clear top. Sounds best with Clean up on.",
+        "Podcast": "Like Radio, but gentler: natural with a bit of polish, good for long talks and streams.",
+        "Warm": "Softer and rounder, less sharp. Good if your mic sounds harsh or thin.",
+        "Deep": "Much more body and depth. Good for a thin-sounding mic; too much on a close mic gets boomy.",
+        "Bright": "Less boom, more air and detail. Good for a dull mic or one far away."
+    })
     function micName() {
         const d = mic().device || ""
         for (const m of st.mics || []) if (m.name === d) return m.desc
@@ -246,6 +255,15 @@ Panel {
                     }
                     SliderRow {
                         width: parent.width
+                        label: "Mic gain"
+                        from: 0; to: 30; step: 1
+                        value: panel.mic().gain !== undefined ? panel.mic().gain : 12
+                        unit: " dB"
+                        onPicked: (v) => Sound.setMic(JSON.stringify({ gain: Math.round(v) }))
+                    }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "Turns the mic up before anything else. Set it so the bar above reaches about two thirds when you talk normally. Too quiet, and the gate opens late." }
+                    SliderRow {
+                        width: parent.width
                         label: "Opens at"
                         from: 50; to: 99; step: 1
                         value: panel.mic().threshold || 60
@@ -260,7 +278,7 @@ Panel {
                         unit: " ms"
                         onPicked: (v) => Sound.setMic(JSON.stringify({ grace: Math.round(v) }))
                     }
-                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "The gate asks the noise filter how sure it is that this is a voice, not how loud it is: keys and a fan stay out. Higher opens less often." }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "The gate asks the noise filter how sure it is that this is a voice, not how loud it is: keys and a fan stay out. Opens at: lower lets quiet words through, higher keeps more noise out. Stays open: longer cuts fewer word ends." }
                 }
                 // Right: speakers, voice, hear it.
                 Column {
@@ -273,7 +291,21 @@ Panel {
                         checked: panel.mic().echo !== false
                         onToggled: (v) => Sound.setMic(JSON.stringify({ echo: v }))
                     }
-                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "Everything you hear goes through one point; the mic removes exactly that. No headset needed." }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "On with speakers: what they play is taken back out of the mic. Off with a headset: nothing to take out, and the voice stays untouched." }
+                    SwitchRow {
+                        width: parent.width
+                        text: "Extra noise suppression"
+                        checked: panel.mic().extra_ns === true
+                        onToggled: (v) => Sound.setMic(JSON.stringify({ extra_ns: v }))
+                    }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "Takes out a little more of what is left of the speakers, but with music or voices playing your voice can sound like under water. Mostly off." }
+                    SwitchRow {
+                        width: parent.width
+                        text: "Auto level"
+                        checked: panel.mic().auto_level === true
+                        onToggled: (v) => Sound.setMic(JSON.stringify({ auto_level: v }))
+                    }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "Turns quiet talking up and loud talking down by itself, like EasyEffects' auto gain. Handy if you move away from the mic; it can lift the room in pauses. Mic gain first, this only if needed." }
                     Head { text: "VOICE"; topPadding: 6 }
                     Item {
                         width: parent.width
@@ -284,16 +316,17 @@ Panel {
                     Small { visible: !panel.st.rnnoise; width: parent.width; wrapMode: Text.WordWrap; color: Theme.red; text: "Install noise-suppression-for-voice: without it the mic does not open and close by itself." }
                     SwitchRow {
                         width: parent.width
-                        text: "Voice EQ: less rumble, more presence"
+                        text: "Clean up: no rumble, even out loud and quiet words"
                         checked: panel.mic().voice !== false
                         onToggled: (v) => Sound.setMic(JSON.stringify({ voice: v }))
                     }
                     Item {
                         width: parent.width
                         height: 22
-                        Line { anchors.verticalCenter: parent.verticalCenter; text: "Even out loud and quiet words" }
-                        Small { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: panel.st.compressor ? "installed" : "needs swh-plugins" }
+                        Line { anchors.verticalCenter: parent.verticalCenter; text: "Compressor and limiter" }
+                        Small { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: panel.st.compressor && panel.st.limiter ? "installed" : "needs swh-plugins"; color: panel.st.compressor && panel.st.limiter ? Theme.accent : Theme.red }
                     }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "Clean up cuts the hum below 80 Hz and brings loud and quiet words closer together: leave it on. The limiter at the end never lets the mic go past full, however loud." }
                     Head { text: "HEAR IT"; topPadding: 6 }
                     Chip {
                         text: Sound.hearing === "recording" ? "Recording… talk now" : Sound.hearing === "playing" ? "Playing back…" : "Record 10 s and play back"
@@ -303,6 +336,86 @@ Panel {
                     Small { width: parent.width; wrapMode: Text.WordWrap; text: panel.on && panel.mic().on ? "Your voice as Legcord gets it, after the filters." : "Needs Sound and the mic on." }
                 }
             }
+
+            // The mic's EQ: presets and five voice bands, live.
+            Item { width: 1; height: 2 }
+            Item {
+                width: parent.width
+                height: 20
+                Head { anchors.verticalCenter: parent.verticalCenter; text: "MIC EQ" }
+                Small { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (panel.mic().eq_preset || "Own") }
+            }
+            Flow {
+                width: parent.width
+                spacing: 6
+                Repeater {
+                    model: panel.st.micPresets || []
+                    delegate: Chip {
+                        required property var modelData
+                        text: modelData.name
+                        on: (panel.mic().eq_preset === undefined ? "Clear voice" : panel.mic().eq_preset) === modelData.name
+                        onClicked: Sound.setMic(JSON.stringify({ eq_preset: modelData.name }))
+                    }
+                }
+            }
+            Small { width: parent.width; wrapMode: Text.WordWrap; text: panel.micPresetHelp[panel.mic().eq_preset === undefined ? "Clear voice" : panel.mic().eq_preset] || "Your own values." }
+            Item {
+                width: parent.width
+                height: 150
+                Row {
+                    spacing: 14
+                    Repeater {
+                        model: [["Body", "120 Hz"], ["Mud", "300 Hz"], ["Nasal", "1 kHz"], ["Presence", "4 kHz"], ["Air", "10 kHz"]]
+                        delegate: Band {
+                            required property var modelData
+                            required property int index
+                            label: modelData[0]
+                            value: (panel.st.micEq || [0, 0, 0, 0, 0])[index] || 0
+                            onPicked: (v) => {
+                                const e = (panel.st.micEq || [0, 0, 0, 0, 0]).slice()
+                                e[index] = v
+                                Sound.setMic(JSON.stringify({ eq_preset: "", eq: e }))
+                            }
+                        }
+                    }
+                }
+                Column {
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 18
+                    spacing: 6
+                    Row {
+                        spacing: 6
+                        Rectangle {
+                            width: 110; height: 24; color: "transparent"; border.color: micName.activeFocus ? Theme.accent : "#3a3842"
+                            TextInput {
+                                id: micName
+                                x: 6; width: parent.width - 12
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: Theme.text(); font.family: Theme.body; font.pixelSize: 11; clip: true
+                                selectionColor: Theme.accent
+                                Small { visible: micName.text.length === 0; text: "Preset name" }
+                                Accessible.name: "Mic preset name"
+                            }
+                        }
+                        Chip {
+                            text: "Save"
+                            onClicked: if (micName.text.trim().length > 0) { Sound.saveMicPreset(micName.text.trim(), JSON.stringify(panel.st.micEq || [0, 0, 0, 0, 0])); micName.text = "" }
+                        }
+                    }
+                    Row {
+                        anchors.right: parent.right
+                        spacing: 6
+                        Chip {
+                            visible: (panel.st.micPresets || []).some((p) => p.own && p.name === panel.mic().eq_preset)
+                            text: "Delete preset"
+                            onClicked: Sound.deleteMicPreset(panel.mic().eq_preset)
+                        }
+                        Chip { text: "Flat"; onClicked: Sound.setMic(JSON.stringify({ eq_preset: "Flat" })) }
+                    }
+                }
+            }
+            Small { width: parent.width; wrapMode: Text.WordWrap; text: "Body: fullness of the voice. Mud: boomy, boxy sound, usually turned down. Nasal: honky, as through the nose. Presence: clear and in front, words easy to follow. Air: breath and shine; too much hisses. Changes are heard at once: try them with Record 10 s and play back." }
         }
 
         // ----------------------------------------------------------- APPS

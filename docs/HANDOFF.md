@@ -25,6 +25,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.68 beta (2026-11-14): #156 #156 mic gain, mic EQ with presets, limiter, extra noise suppression and auto level switches (entry below).
 - 0.8.67 beta (2026-11-14): #154 #154 PoE 2: the trade site's leagues only while PoE 2 runs (no request at every start) (entry below).
 - 0.8.66 beta (2026-11-14): #152 end cleanly when the Wayland connection breaks (logout) (entry below).
 - 0.8.65 beta (2026-11-14): #150 sound presets lift audibly, mic gate catches the first word, WebRTC noise suppression (entry below).
