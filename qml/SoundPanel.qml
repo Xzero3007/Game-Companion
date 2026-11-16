@@ -311,6 +311,22 @@ Panel {
                     Small { width: parent.width; wrapMode: Text.WordWrap; text: "On with speakers: what they play is taken back out of the mic. Off with a headset: nothing to take out, and the voice stays untouched." }
                     SwitchRow {
                         width: parent.width
+                        text: "Duck while I talk"
+                        checked: panel.mic().duck === true
+                        onToggled: (v) => Sound.setMic(JSON.stringify({ duck: v }))
+                    }
+                    SliderRow {
+                        visible: panel.mic().duck === true
+                        width: parent.width
+                        label: "Quieter by"
+                        from: -30; to: -3; step: 1
+                        value: panel.mic().duck_db === undefined ? -12 : panel.mic().duck_db
+                        unit: " dB"
+                        onPicked: (v) => Sound.setMic(JSON.stringify({ duck_db: Math.round(v) }))
+                    }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "While you talk, everything the computer plays (game, chat, videos, music) gets quieter, and comes back half a second after you stop. Less of the speakers reaches the mic, so the echo canceller takes out less of you: on with speakers, when you sound like under water while a video or Discord talks. -12 dB is clearly quieter; -6 dB if you still want to hear everyone well. Not needed with a headset. The stream mix (Game Companion Stream) keeps the full sound." }
+                    SwitchRow {
+                        width: parent.width
                         text: "Extra noise suppression"
                         checked: panel.mic().extra_ns === true
                         onToggled: (v) => Sound.setMic(JSON.stringify({ extra_ns: v }))
@@ -333,17 +349,25 @@ Panel {
                     Small { visible: !panel.st.rnnoise; width: parent.width; wrapMode: Text.WordWrap; color: Theme.red; text: "Install noise-suppression-for-voice: without it the mic does not open and close by itself." }
                     SwitchRow {
                         width: parent.width
-                        text: "Clean up: no rumble, even out loud and quiet words"
+                        text: "Clean up: no rumble"
                         checked: panel.mic().voice !== false
                         onToggled: (v) => Sound.setMic(JSON.stringify({ voice: v }))
                     }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "Cuts the hum and rumble below 80 Hz (desk, fan, mains): the voice itself is not touched. Leave it on." }
+                    SwitchRow {
+                        width: parent.width
+                        text: "Even out"
+                        checked: panel.mic().even_out === true
+                        onToggled: (v) => Sound.setMic(JSON.stringify({ even_out: v }))
+                    }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: !panel.st.compressor ? "Needs swh-plugins." : "A gentle compressor: loud words a little quieter, so loud and quiet ones sit closer together. On if you get loud in a fight and people turn you down; off if your voice seems to rise and fall by itself." }
                     Item {
                         width: parent.width
                         height: 22
-                        Line { anchors.verticalCenter: parent.verticalCenter; text: "Compressor and limiter" }
-                        Small { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: panel.st.compressor && panel.st.limiter ? "installed" : "needs swh-plugins"; color: panel.st.compressor && panel.st.limiter ? Theme.accent : Theme.red }
+                        Line { anchors.verticalCenter: parent.verticalCenter; text: "Limiter" }
+                        Small { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: panel.st.limiter ? "always on" : "needs swh-plugins"; color: panel.st.limiter ? Theme.accent : Theme.red }
                     }
-                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "Clean up cuts the hum below 80 Hz and brings loud and quiet words closer together: leave it on. The limiter at the end never lets the mic go past full, however loud." }
+                    Small { width: parent.width; wrapMode: Text.WordWrap; text: "At the very end: never lets the mic go past full, however loud you shout. You don't hear it work." }
                     Head { text: "HEAR IT"; topPadding: 6 }
                     Chip {
                         text: Sound.hearing === "recording" ? "Recording… talk now" : Sound.hearing === "playing" ? "Playing back…" : "Record 10 s and play back"

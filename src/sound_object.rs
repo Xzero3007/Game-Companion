@@ -434,11 +434,19 @@ impl qobject::Sound {
             min_level: before.min_level,
             eq_preset: before.eq_preset.clone(),
             eq: before.eq,
+            duck: before.duck,
+            duck_db: before.duck_db,
+            voice: before.voice,
+            even_out: before.even_out,
             ..mic.clone()
         } == before;
+        mic.duck_db = sound::duck_db(mic.duck_db);
         let s = self.as_mut().change(|s| s.mic = mic.clone());
         if live_only {
             self.send(Cmd::Gate(Box::new(mic.clone()), s.mic_eq()));
+            if mic.duck != before.duck || mic.duck_db != before.duck_db {
+                self.send(Cmd::DuckPrefs(mic.duck, mic.duck_db));
+            }
             self.show_state();
         } else {
             self.send(Cmd::Apply(Box::new(s)));
