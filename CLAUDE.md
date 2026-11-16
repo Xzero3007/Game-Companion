@@ -273,7 +273,13 @@ learnt, so nothing has to be asked or worked out again.
   own height). Layouts (`settings.layouts`, the person, 2026-11-12) copy
   places, pins, alpha and the open panels (`Main.openPanels()`); loading one
   raises `Companion.layoutRevision`, and every panel places itself again.
-  Planned: a game can bring its own layout (step 4).
+  A game brings its own layout (MN, 2026-11-15): `games.layouts` by game
+  id, picked in Settings → Layouts ("Games", `Games.layoutGames` = the
+  watch list, built-in `known:` games too) or in the game's edit form;
+  `Main` `onStarted` keeps the arrangement (`Companion.keepBeforeGame`,
+  settings `before_game`/`before_game_for`, kept over a restart during
+  that game) and loads the layout; `onStopped` → `backFromGame` brings it
+  back if `layout_back` (default on).
 - Streams (`src/streams.rs`, `src/streams_object.rs`, `qml/StreamsPanel.qml`,
   `qml/VideoWindow.qml`): ported from meter patches 0047, 0059 to 0061, 0068
   and the plugin. Requests through curl with its settings on stdin
@@ -586,6 +592,13 @@ learnt, so nothing has to be asked or worked out again.
   multisampled layer per icon (shapes alone were not clipped by a list's
   clip in the software renderer), which cost video memory. Needs qt6-svg
   (sandbox: `apt install qt6-svg-dev`).
+- Video timing (MN, 2026-11-16: Jellyfin didn't play smoothly): mpv runs
+  with `video-timing-offset=0`. With mpv's default (0.05) every
+  `render_render` waited on Qt's render thread for the frame's time, about
+  36 of every 42 ms at 24 fps (`GC_DEBUG_RENDER=1` prints each frame's
+  render time). On stop or switch each video window logs `[video]` with
+  `MpvVideo.playStats()` (codec, size, fps, hwdec, dropped and late
+  frames).
 - The video player (`MpvVideo`) exists only while something plays (a
   Loader in `VideoWindow`; `idleVideo` stands in): closing frees mpv and
   its video memory.

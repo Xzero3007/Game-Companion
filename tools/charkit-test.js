@@ -2,7 +2,7 @@
 const fs=require('fs');
 const src=(f)=>fs.readFileSync(require('path').join(__dirname,'..','qml','aion2')+'/'+f,'utf8').split('\n').filter(l=>!l.startsWith('.pragma')&&!l.startsWith('.import')).join('\n');
 const T={}; new Function('T', src('chartickets.js')+'\nT.TICKETS=TICKETS;')(T);
-const K={}; new Function('T','K', src('charkit.js')+'\nfor (const n of ["merge","empty","estimate","fullAt","nextRefill","countNow","capFor","content","sumOfChars","ticketNow","nextDaily","nextWeekly","keepSiege","OTHER","CONTENT"]) K[n]=eval(n);')(T,K);
+const K={}; new Function('T','K', src('charkit.js')+'\nfor (const n of ["merge","empty","estimate","fullAt","nextRefill","countNow","capFor","content","sumOfChars","ticketNow","nextDaily","nextWeekly","keepSiege","OTHER","CONTENT","compact"]) K[n]=eval(n);')(T,K);
 const assert=require('assert');
 const now=Date.UTC(2026,10,13,12,0);
 const s=K.empty();
@@ -43,4 +43,5 @@ assert.equal(K.ticketNow('102', ch.tickets['102'], now+86400000).stale,true);
 const before=JSON.stringify(s); K.merge(s,Object.assign({},c,{seenAt:{}}),now+5000);
 assert.equal(s.chars[key].counts["1"]===undefined,true);
 assert.equal(s.servers["2004"].counts["1"].at, now);
+assert.equal(K.compact(1000000),"1M"); assert.equal(K.compact(812400),"812k"); assert.equal(K.compact(1250000),"1.3M"); assert.equal(K.compact(2134),"2,134");
 console.log('ok');

@@ -34,6 +34,9 @@ pub mod qobject {
         #[qproperty(QString, autostart_mode)]
         /// Whether the hub shows when a game starts.
         #[qproperty(bool, show_on_game)]
+        /// A game's layout ends: the arrangement from before it comes back
+        /// (settings `layout_back`).
+        #[qproperty(bool, layout_back)]
         /// Whether the icon shows in the desktop's tray.
         #[qproperty(bool, tray)]
         /// How solid the panels are, 0.05 to 1. QML may set it while a
@@ -210,6 +213,21 @@ pub mod qobject {
         #[qinvokable]
         fn delete_layout(self: Pin<&mut Companion>, name: &QString);
 
+        /// A game's layout is about to load: keeps the arrangement as it is
+        /// now (with the open panels, a JSON list), unless one is kept
+        /// already for this game (the app started again while it ran).
+        #[qinvokable]
+        fn keep_before_game(self: Pin<&mut Companion>, game: &QString, open: &QString);
+
+        /// The game ended: brings back the arrangement kept before it (if
+        /// "back" is on) and forgets it; returns the panels to open as a
+        /// JSON list ("" if nothing comes back).
+        #[qinvokable]
+        fn back_from_game(self: Pin<&mut Companion>) -> QString;
+
+        #[qinvokable]
+        fn set_layout_back_on(self: Pin<&mut Companion>, on: bool);
+
         /// Opens KDE's shortcut settings, to change the keys.
         #[qinvokable]
         fn open_shortcut_settings(self: &Companion) -> bool;
@@ -228,6 +246,7 @@ pub struct CompanionRust {
     shown: bool,
     autostart_mode: QString,
     show_on_game: bool,
+    layout_back: bool,
     tray: bool,
     alpha: f64,
     text_level: f64,
@@ -260,7 +279,7 @@ impl Default for CompanionRust {
             (s.text_level, numbers_json(&s.alpha_presets), numbers_json(&s.text_presets), s.bar)
         });
         let (accent_level, accent_presets) = settings::read(|s| (s.accent_level, numbers_json(&s.accent_presets)));
-        let (show_on_game, tray) = settings::read(|s| (s.show_on_game, s.tray));
+        let (show_on_game, tray, layout_back) = settings::read(|s| (s.show_on_game, s.tray, s.layout_back));
         let wheel_speed = settings::read(|s| settings::clamp_wheel_speed(s.wheel_speed as i32)) as i32;
         let shortcut_state: Vec<_> = shortcuts::ALL.iter().map(|s| (s.id, shortcuts::Status::Bound(None))).collect();
         Self {
@@ -272,6 +291,7 @@ impl Default for CompanionRust {
             shown: !std::env::args().any(|a| a == "--hidden"),
             autostart_mode: QString::from(autostart_mode()),
             show_on_game,
+            layout_back,
             tray,
             alpha,
             text_level,
@@ -758,15 +778,7 @@ impl qobject::Companion {
         let Some(name) = settings::layout_name(&name.to_string()) else { return false };
         let open: Vec<String> = serde_json::from_str(&open.to_string()).unwrap_or_default();
         let json = settings::change(|s| {
-            let layout = settings::Layout {
-                open,
-                places: s.places.clone(),
-                pins: s.pins.clone(),
-                alpha: s.alpha,
-                text_level: Some(s.text_level),
-                accent_level: Some(s.accent_level),
-                bar: Some(s.bar),
-            };
+            let layout = current_layout(s, open);
             s.layouts.insert(name, layout);
             layouts_json(&s.layouts)
         });
@@ -774,34 +786,13 @@ impl qobject::Companion {
         true
     }
 
-    fn load_layout(mut self: Pin<&mut Self>, name: &QString) -> QString {
+    fn load_layout(self: Pin<&mut Self>, name: &QString) -> QString {
         let name = name.to_string();
         let loaded = settings::change(|s| {
             let layout = s.layouts.get(&name)?.clone();
-            s.places = layout.places;
-            s.pins = layout.pins;
-            s.alpha = settings::clamp_alpha(layout.alpha);
-            if let Some(level) = layout.text_level {
-                s.text_level = settings::clamp_text_level(level);
-            }
-            if let Some(level) = layout.accent_level {
-                s.accent_level = settings::clamp_text_level(level);
-            }
-            if let Some(bar) = layout.bar {
-                s.bar = bar.tidy();
-            }
-            Some((layout.open, s.alpha, s.text_level, s.accent_level, s.bar, pins_json(&s.pins)))
+            Some(apply_layout(s, layout))
         });
-        let Some((open, alpha, text_level, accent_level, bar, pins)) = loaded else { return QString::default() };
-        self.as_mut().set_alpha(alpha);
-        self.as_mut().set_text_level(text_level);
-        self.as_mut().set_accent_level(accent_level);
-        self.as_mut().set_bar_offset(bar.offset);
-        self.as_mut().set_bar_scale(bar.scale);
-        self.as_mut().set_pins(QString::from(&pins));
-        let revision = self.layout_revision().wrapping_add(1);
-        self.as_mut().set_layout_revision(revision);
-        QString::from(&serde_json::to_string(&open).unwrap_or_else(|_| "[]".into()))
+        self.show_layout(loaded)
     }
 
     fn rename_layout(self: Pin<&mut Self>, name: &QString, new_name: &QString) -> bool {
@@ -840,12 +831,101 @@ impl qobject::Companion {
         self.set_layouts(QString::from(&json));
     }
 
+    fn keep_before_game(self: Pin<&mut Self>, game: &QString, open: &QString) {
+        let game = game.to_string();
+        let open: Vec<String> = serde_json::from_str(&open.to_string()).unwrap_or_default();
+        settings::change(|s| {
+            if s.before_game.is_none() || s.before_game_for != game {
+                s.before_game = Some(current_layout(s, open));
+                s.before_game_for = game;
+            }
+        });
+    }
+
+    fn back_from_game(self: Pin<&mut Self>) -> QString {
+        let loaded = settings::change(|s| {
+            s.before_game_for.clear();
+            let layout = s.before_game.take()?;
+            s.layout_back.then(|| apply_layout(s, layout))
+        });
+        self.show_layout(loaded)
+    }
+
+    fn set_layout_back_on(self: Pin<&mut Self>, on: bool) {
+        settings::change(|s| s.layout_back = on);
+        self.set_layout_back(on);
+    }
+
     fn open_shortcut_settings(&self) -> bool {
         shortcuts::open_desktop_settings()
     }
 
     fn version(&self) -> QString {
         QString::from(&version_text())
+    }
+}
+
+/// What a layout keeps, taken from the settings as they are now.
+fn current_layout(s: &settings::Settings, open: Vec<String>) -> settings::Layout {
+    settings::Layout {
+        open,
+        places: s.places.clone(),
+        pins: s.pins.clone(),
+        alpha: s.alpha,
+        text_level: Some(s.text_level),
+        accent_level: Some(s.accent_level),
+        bar: Some(s.bar),
+    }
+}
+
+/// What a loaded layout changed, for the properties.
+struct Applied {
+    open: Vec<String>,
+    alpha: f64,
+    text_level: f64,
+    accent_level: f64,
+    bar: settings::BarSettings,
+    pins: String,
+}
+
+/// Takes a layout into the settings.
+fn apply_layout(s: &mut settings::Settings, layout: settings::Layout) -> Applied {
+    s.places = layout.places;
+    s.pins = layout.pins;
+    s.alpha = settings::clamp_alpha(layout.alpha);
+    if let Some(level) = layout.text_level {
+        s.text_level = settings::clamp_text_level(level);
+    }
+    if let Some(level) = layout.accent_level {
+        s.accent_level = settings::clamp_text_level(level);
+    }
+    if let Some(bar) = layout.bar {
+        s.bar = bar.tidy();
+    }
+    Applied {
+        open: layout.open,
+        alpha: s.alpha,
+        text_level: s.text_level,
+        accent_level: s.accent_level,
+        bar: s.bar,
+        pins: pins_json(&s.pins),
+    }
+}
+
+impl qobject::Companion {
+    /// Shows a loaded layout: properties, every panel placed again; the
+    /// panels to open as a JSON list ("" when nothing was loaded).
+    fn show_layout(mut self: Pin<&mut Self>, loaded: Option<Applied>) -> QString {
+        let Some(a) = loaded else { return QString::default() };
+        self.as_mut().set_alpha(a.alpha);
+        self.as_mut().set_text_level(a.text_level);
+        self.as_mut().set_accent_level(a.accent_level);
+        self.as_mut().set_bar_offset(a.bar.offset);
+        self.as_mut().set_bar_scale(a.bar.scale);
+        self.as_mut().set_pins(QString::from(&a.pins));
+        let revision = self.layout_revision().wrapping_add(1);
+        self.as_mut().set_layout_revision(revision);
+        QString::from(&serde_json::to_string(&a.open).unwrap_or_else(|_| "[]".into()))
     }
 }
 

@@ -65,6 +65,14 @@ pub struct Settings {
     pub radio: RadioSettings,
     /// Saved arrangements, by the name the user gave them.
     pub layouts: BTreeMap<String, Layout>,
+    /// When a game's layout ends, the arrangement from before it comes
+    /// back (MN, 2026-11-15).
+    pub layout_back: bool,
+    /// The arrangement from right before a game loaded its layout, kept
+    /// until the game ends (also over a restart of the app).
+    pub before_game: Option<Layout>,
+    /// The game `before_game` was kept for, by id.
+    pub before_game_for: String,
     pub streams: StreamsSettings,
     /// The Jellyfin tab's choices (the server and its key are kept apart,
     /// in `jellyfin.json`).
@@ -433,6 +441,9 @@ impl Default for Settings {
             dps_closed: false,
             radio: RadioSettings::default(),
             layouts: BTreeMap::new(),
+            layout_back: true,
+            before_game: None,
+            before_game_for: String::new(),
             streams: StreamsSettings::default(),
             jellyfin: JellyfinSettings::default(),
             games: Default::default(),

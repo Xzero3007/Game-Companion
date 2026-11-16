@@ -112,6 +112,9 @@ public:
     Q_INVOKABLE void stop();
     /// Jumps to `seconds` (absolute) or by `seconds` (relative).
     Q_INVOKABLE void seek(double seconds, bool relative);
+    /// For the log: codec, size, frame rate, hardware decoder, frames
+    /// dropped and shown late ("" without mpv).
+    Q_INVOKABLE QString playStats() const;
 
     std::shared_ptr<MpvCore> core() const { return m_core; }
 
