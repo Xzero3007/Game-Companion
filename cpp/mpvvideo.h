@@ -4,6 +4,7 @@
 // (import GameCompanion.Video).
 #pragma once
 
+#include <QtCore/QElapsedTimer>
 #include <QtCore/QObject>
 #include <QtCore/QString>
 #include <QtCore/QVariantList>
@@ -113,7 +114,8 @@ public:
     /// Jumps to `seconds` (absolute) or by `seconds` (relative).
     Q_INVOKABLE void seek(double seconds, bool relative);
     /// For the log: codec, size, frame rate, hardware decoder, frames
-    /// dropped and shown late ("" without mpv).
+    /// dropped and shown late ("" without mpv). After a file played to its
+    /// end mpv has let it go: then the last values taken while it played.
     Q_INVOKABLE QString playStats() const;
 
     std::shared_ptr<MpvCore> core() const { return m_core; }
@@ -191,6 +193,10 @@ private:
     bool m_positionMissed = false;
     bool m_hasPicture = false;
     void setHasPicture(bool on);
+    /// playStats() as it read while the file played (every 2 s at most).
+    QString liveStats(bool *loaded = nullptr) const;
+    QString m_lastStats;
+    QElapsedTimer m_statsClock;
 };
 
 /// Registers MpvVideo for QML.

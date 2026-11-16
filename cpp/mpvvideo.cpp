@@ -524,6 +524,13 @@ void MpvVideo::stop()
 
 QString MpvVideo::playStats() const
 {
+    bool loaded = false;
+    const QString live = liveStats(&loaded);
+    return loaded || m_lastStats.isEmpty() ? live : m_lastStats;
+}
+
+QString MpvVideo::liveStats(bool *loaded) const
+{
     if (!m_mpv || !mpv().get_property_string || !mpv().free) {
         return QString();
     }
@@ -535,8 +542,12 @@ QString MpvVideo::playStats() const
         }
         return s;
     };
+    const QString width = get("width");
+    if (loaded) {
+        *loaded = width != QStringLiteral("-");
+    }
     return QStringLiteral("codec %1 %2x%3 %4 fps, hwdec %5, dropped %6 (decoder %7), late %8")
-        .arg(get("video-format"), get("width"), get("height"), get("container-fps"), get("hwdec-current"),
+        .arg(get("video-format"), width, get("height"), get("container-fps"), get("hwdec-current"),
              get("frame-drop-count"), get("decoder-frame-drop-count"), get("vo-delayed-frame-count"));
 }
 
@@ -674,6 +685,8 @@ void MpvVideo::readEvents()
             break;
         }
         case MPV_EVENT_START_FILE:
+            m_lastStats.clear();
+            m_statsClock.invalidate();
             m_why.clear();
             emit whyChanged();
             setHeldUntil(0);
@@ -730,6 +743,16 @@ void MpvVideo::readEvents()
                     emit volumeChanged();
                 } else if (name == "time-pos") {
                     m_position = v;
+                    // Kept for the log: at the file's end mpv has already let
+                    // it go when the window asks (every value "-").
+                    if (!m_statsClock.isValid() || m_statsClock.elapsed() >= 2000) {
+                        bool loaded = false;
+                        const QString s = liveStats(&loaded);
+                        if (loaded) {
+                            m_lastStats = s;
+                        }
+                        m_statsClock.start();
+                    }
                     // Frozen: the time and bar wait too (each would draw a frame).
                     if (m_frozen) {
                         m_positionMissed = true;

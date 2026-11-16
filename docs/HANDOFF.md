@@ -25,6 +25,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.59 beta (2026-11-14): #136 #132 video play statistics also after a file's end; Characters: note for a character without keys, shorter charged note (entry below).
 - 0.8.58 beta (2026-11-16): #131 #132 #133 layouts tied to games, back to the earlier arrangement when a game ends; AION 2 Characters in one view; videos no longer wait inside Qt's render (entry below).
 - 0.8.57 beta (2026-11-14): #129 PoE 2: league under settings, min and max both kept, Evasion in the trade link, session currency chips, WHERE tile (entry below).
 - 0.8.56 beta (2026-11-14): #119 DPS meter closes when AION 2 ends (entry below).
