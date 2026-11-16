@@ -600,7 +600,12 @@ learnt, so nothing has to be asked or worked out again.
   chain's echo is on (speakers instead of a headset; its reference
   `gc_aec.reference` listens to the default output's monitor; nothing
   plays through it: in 0.8.60 the channels played through its sink and
-  everything heard was distorted on MN's UR22), mic chain → source `gc_mic` "Game Companion Mikro" (rnnoise
+  everything heard was distorted on MN's UR22; its block is 1920 frames,
+  `node.latency` 1920/48000, and its capture holds the graph at
+  `node.force-quantum` 1920: PipeWire's echo-cancel hands its source one
+  block per cycle, so 480 blocks in MN's 2048 graph lost three quarters of
+  the voice, 0.8.61; bench: `pw-metadata -n settings 0 clock.force-quantum
+  2048` reproduces it), mic chain → source `gc_mic` "Game Companion Mikro" (rnnoise
   with its VAD as the voice gate, voice EQ, sc4m compressor if installed;
   takes one input with `stream.dont-remix`), stream mix: loopbacks from
   the channels' monitors and the mic into `gc_stream_in`, OBS records the
