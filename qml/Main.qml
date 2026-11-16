@@ -123,6 +123,13 @@ Overlay {
                 dpsClosed = k.dpsClosed === true
             }
         } catch (e) { }
+        // The desktop's layout, when there is one (a game that runs loads
+        // its own over it).
+        const desktop = Companion.loadDesktop()
+        if (desktop.length > 0) {
+            openFrom(JSON.parse(desktop))
+            if (!Aion2.active) dpsOpen = false
+        }
         keepsOpen = true
     }
 
@@ -208,7 +215,8 @@ Overlay {
             }
             if (root.shownForGame && Companion.shown) Companion.toggleShown()
             root.shownForGame = false
-            // Its layout ends: the arrangement from before it comes back.
+            // Its layout ends: the desktop's layout or the arrangement from
+            // before it comes back.
             const back = Companion.backFromGame()
             if (back.length > 0) root.openFrom(JSON.parse(back))
         }
