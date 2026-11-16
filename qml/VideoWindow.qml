@@ -27,6 +27,8 @@ Item {
     /// Where it starts: bottom left (Twitch) or bottom right (YouTube).
     property bool rightSide: slot === "youtube"
     property string quality: jelly ? Jellyfin.quality : Streams.quality
+    /// Sound only: no picture, so its window goes when the hub hides.
+    readonly property bool soundOnly: quality === "audio"
     /// 0 to 100, as the bars show it.
     property int volume: Streams.volume
     /// How much of the video shows (0.5 to 1), kept for each window.

@@ -25,6 +25,7 @@ new session (or the same one after a usage limit) carries on from here.
 
 ## Done
 
+- 0.8.62 beta (2026-11-14): #144 mic through the echo canceller whole again (1920-frame blocks); #143 Streams: group stays, reload chip with time, Channels keep place, sound only hides with the hub (entry below).
 - 0.8.61 beta (2026-11-14): #141 echo canceller listens only (no distortion), sound log (entry below).
 - 0.8.60 beta (2026-11-16): #138 quit cleanly when the session ends (KWin calls time out after 2 s); QML warnings; Armory portrait address; #134 sound module (off by default) with the SOUND panel; #139 Desktop layout, layouts keep the videos' see-through (entry below).
 - 0.8.59 beta (2026-11-14): #136 #132 video play statistics also after a file's end; Characters: note for a character without keys, shorter charged note (entry below).

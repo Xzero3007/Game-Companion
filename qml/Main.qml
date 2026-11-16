@@ -390,19 +390,20 @@ Overlay {
     }
 
     // Videos sit under the panels, over the game; full screen, the video's
-    // window covers the screen.
+    // window covers the screen. Sound only, a video goes with the hub as the
+    // radio does, pinned or not (MN, 2026-11-16: a black window stayed).
     Surface {
-        wanted: twitchVideo.active && root.onScreen(twitchVideo.panelId)
+        wanted: twitchVideo.active && (twitchVideo.soundOnly ? Companion.shown : root.onScreen(twitchVideo.panelId))
         stack: twitchVideo.fullScreen ? 100 : 2
         part: VideoWindow { id: twitchVideo; slot: "twitch" }
     }
     Surface {
-        wanted: youtubeVideo.active && root.onScreen(youtubeVideo.panelId)
+        wanted: youtubeVideo.active && (youtubeVideo.soundOnly ? Companion.shown : root.onScreen(youtubeVideo.panelId))
         stack: youtubeVideo.fullScreen ? 100 : 2
         part: VideoWindow { id: youtubeVideo; slot: "youtube" }
     }
     Surface {
-        wanted: jellyfinVideo.active && root.onScreen(jellyfinVideo.panelId)
+        wanted: jellyfinVideo.active && (jellyfinVideo.soundOnly ? Companion.shown : root.onScreen(jellyfinVideo.panelId))
         stack: jellyfinVideo.fullScreen ? 100 : 2
         part: VideoWindow { id: jellyfinVideo; slot: "jellyfin" }
     }

@@ -298,11 +298,19 @@ pub fn config(s: &SoundSettings, inst: &Installed) -> String {
 /// (its sound goes to the default output: a loop).
 const LOW: &str = "priority.session = 0 priority.driver = 0";
 
+/// The echo canceller's block (frames at 48 kHz) and the graph's quantum
+/// while it runs. PipeWire's echo-cancel hands its source one block per
+/// cycle: with WebRTC's 10 ms (480) blocks in a 2048 graph (MN's UR22,
+/// min-quantum 1024) three quarters of the voice were lost and it sounded
+/// broken (0.8.61). Four blocks (1920) and the graph held at 1920 while it
+/// runs (`node.force-quantum`) fit exactly: no gaps on the bench.
+pub const AEC_BLOCK: u32 = 1920;
+
 fn echo_cancel(c: &mut String, mic: &Mic) {
     let capture_pos = if is_pro(&mic.device) { "[ AUX0 AUX1 ]" } else { "[ FL FR ]" };
     let _ = writeln!(
         c,
-        "  {{ name = libpipewire-module-echo-cancel\n    args = {{\n      library.name = aec/libspa-aec-webrtc\n      monitor.mode = true\n      audio.channels = 2\n      audio.position = [ FL FR ]\n      aec.args = {{ webrtc.extended_filter = true webrtc.delay_agnostic = true webrtc.high_pass_filter = true webrtc.noise_suppression = false webrtc.gain_control = false }}\n      capture.props = {{ node.name = \"gc_aec.capture\" target.object = {} audio.position = {capture_pos} node.passive = true }}\n      source.props = {{ node.name = \"gc_aec.source\" node.description = {} {LOW} }}\n      sink.props = {{ node.name = {} }}\n    }}\n  }}",
+        "  {{ name = libpipewire-module-echo-cancel\n    args = {{\n      library.name = aec/libspa-aec-webrtc\n      monitor.mode = true\n      node.latency = \"{AEC_BLOCK}/48000\"\n      audio.channels = 2\n      audio.position = [ FL FR ]\n      aec.args = {{ webrtc.extended_filter = true webrtc.delay_agnostic = true webrtc.high_pass_filter = true webrtc.noise_suppression = false webrtc.gain_control = false }}\n      capture.props = {{ node.name = \"gc_aec.capture\" target.object = {} audio.position = {capture_pos} node.passive = true node.force-quantum = {AEC_BLOCK} }}\n      source.props = {{ node.name = \"gc_aec.source\" node.description = {} {LOW} }}\n      sink.props = {{ node.name = {} }}\n    }}\n  }}",
         sj(&mic.device),
         sj("Game Companion Mikro (roh)"),
         sj(ECHO_REF),
@@ -750,6 +758,8 @@ struct Worker<F: Fn(Event)> {
 
 fn tool(name: &str) -> std::process::Command {
     let mut c = std::process::Command::new(name);
+    // Plain numbers (pw-cli printed "0,56" in a German locale: read as NaN).
+    c.env("LC_ALL", "C");
     c.stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null());
     c
 }
@@ -1466,6 +1476,8 @@ mod tests {
         // The canceller only listens (monitor mode): no channel plays
         // through it.
         assert!(c.contains("monitor.mode = true"));
+        assert!(c.contains("node.latency = \"1920/48000\""));
+        assert!(c.contains("node.force-quantum = 1920"));
         assert!(c.contains("playback.props = { node.name = \"sonar_game.out\" node.passive = true }"));
         assert!(!c.contains("target.object = \"gc_aec.reference\""));
         assert!(c.contains("\"VAD Threshold (%)\" = 85.0"));

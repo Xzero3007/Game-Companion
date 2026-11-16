@@ -390,6 +390,19 @@ learnt, so nothing has to be asked or worked out again.
   while Brave was shown, it lost its full-screen mark, took it back, five
   times, and the screens flickered (MN, 0.8.51). `GC_DEMO=…,shot` sets it (under xcb the one-pixel mask
   also hides the windows: an X11 artifact).
+  Subscriptions in the background (feeds, lengths) show only for the
+  channels shown now (`subs_shown`, set with `SUBS_REQUEST`): a look
+  started for All and finished after a group was chosen showed every
+  channel's videos over the group (MN, 0.8.59); it shows the group's stored
+  videos instead (`show_shown_subscriptions`). The top row's reload chip
+  (MN, 2026-11-16, was a small ↻ in the footer) says when the list is from:
+  `Streams.youtubeAsOf` (subscriptions: the newest feed ask of the shown
+  channels, `feeds_as_of`), `twitchAsOf`, Jellyfin's by QML; its words and
+  the sort chip's shorten to fit beside the tabs (`topRow.fit`). The
+  Channels list swaps like the video list (`channelModel`,
+  `swapChannels`): putting a channel into a group kept jumping to the top.
+  A video window on SOUND ONLY (`VideoWindow.soundOnly`) goes with the hub,
+  pinned or not, as the radio does.
   Lists keep their place when their array is replaced (load more, the
   background subscriptions look, lengths coming in; MN 0.8.37: jumped to
   the top): `StreamsPanel.listModel` is set by `swapList` from
@@ -600,7 +613,12 @@ learnt, so nothing has to be asked or worked out again.
   chain's echo is on (speakers instead of a headset; its reference
   `gc_aec.reference` listens to the default output's monitor; nothing
   plays through it: in 0.8.60 the channels played through its sink and
-  everything heard was distorted on MN's UR22), mic chain → source `gc_mic` "Game Companion Mikro" (rnnoise
+  everything heard was distorted on MN's UR22; its block is 1920 frames,
+  `node.latency` 1920/48000, and its capture holds the graph at
+  `node.force-quantum` 1920: PipeWire's echo-cancel hands its source one
+  block per cycle, so 480 blocks in MN's 2048 graph lost three quarters of
+  the voice, 0.8.61; bench: `pw-metadata -n settings 0 clock.force-quantum
+  2048` reproduces it), mic chain → source `gc_mic` "Game Companion Mikro" (rnnoise
   with its VAD as the voice gate, voice EQ, sc4m compressor if installed;
   takes one input with `stream.dont-remix`), stream mix: loopbacks from
   the channels' monitors and the mic into `gc_stream_in`, OBS records the
