@@ -1134,7 +1134,7 @@ pub fn level_of(pcm: &[u8]) -> (u8, bool) {
     if n == 0 {
         return (0, false);
     }
-    let sum: f64 = pcm.chunks_exact(2).map(|b| f64::from(i16::from_le_bytes([b[0], b[1]])) / 32768.0).map(|v| v * v).sum();
+    let sum: f64 = (0..n).map(|i| f64::from(i16::from_le_bytes([pcm[2 * i], pcm[2 * i + 1]])) / 32768.0).map(|v| v * v).sum();
     let rms = (sum / n as f64).sqrt();
     let db = if rms > 0.0 { 20.0 * rms.log10() } else { -120.0 };
     let level = ((db + 60.0) / 60.0 * 100.0).clamp(0.0, 100.0).round() as u8;
