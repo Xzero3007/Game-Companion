@@ -445,7 +445,8 @@ fn tools(places: &Places, refresh: bool) -> Arc<Vec<launch_options::Tool>> {
     static TOOLS: Mutex<Option<Arc<Vec<launch_options::Tool>>>> = Mutex::new(None);
     let mut kept = TOOLS.lock().unwrap_or_else(|p| p.into_inner());
     match kept.as_ref() {
-        Some(list) if !refresh => list.clone(),
+        // A Proton was installed or removed in the app.
+        Some(list) if !refresh && !crate::proton_get::TOOLS_STALE.swap(false, Ordering::SeqCst) => list.clone(),
         _ => {
             let list = Arc::new(launch_options::all_tools(places));
             *kept = Some(list.clone());

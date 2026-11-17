@@ -31,6 +31,8 @@ mod poe2_log;
 mod poe2_log_object;
 mod poe2_object;
 mod protondb;
+mod proton_get;
+mod proton_object;
 mod radio;
 mod radio_object;
 mod settings;
@@ -116,6 +118,8 @@ fn tidy() {
         apps::quit();
         quit_step(QuitStep::Children);
         poe2_kit::stop();
+        // A Proton download: curl or tar ended, half-done files removed.
+        proton_get::stop();
         poe2_log::stop();
         voice_overlay::quit();
         // Anything still running that we started (mpv, the sound chains,

@@ -7,6 +7,7 @@ the end.
 
 ## Done
 
+- 0.8.70 beta (2026-11-14): #161 Get Proton: GE-Proton and Proton-CachyOS downloads in the Proton overview (entry below).
 - 0.8.69 beta (2026-11-14): #158 mic floor: a level gate after rnnoise (entry below).
 - 0.8.68 beta (2026-11-14): #156 #156 mic gain, mic EQ with presets, limiter, extra noise suppression and auto level switches (entry below).
 - 0.8.67 beta (2026-11-14): #154 #154 PoE 2: the trade site's leagues only while PoE 2 runs (no request at every start) (entry below).
@@ -1129,3 +1130,17 @@ the meter showing TALKING for a test tone through a pipe source on the
 headless PipeWire, 222 tests, clippy.
 Not yet: the mic test on MN's UR22 + HS7 (`sound/mikro-probe/` in the
 project folder), load measurement with `ton-log.sh`, QA and a beta.
+
+
+## Branch `claude/project-thread-ejzcy3` (from beta): Get Proton
+
+MN, 2026-11-16 ("ja" to the plan in the project folder
+`proton-download/plan.md`; GE-Proton and Proton-CachyOS only, targets Steam
+and Heroic, release notes and a release link in the app, "do I need it").
+`src/proton_get.rs`, `src/proton_object.rs` (`ProtonGet`),
+`qml/ProtonDownloads.qml` at the top of the Proton overview; see CLAUDE.md
+"Get Proton". Checked: unit tests (addresses, asset pick per CPU, checksum
+lines, versions, notes and named games, unpack into place, leftovers),
+demo screenshots `GC_DEMO=games,proton[,protonjob]`. The sandbox can't
+reach api.github.com for these repositories: the real release list and a
+real download (and quitting during one) are for the Arch bench / QA.

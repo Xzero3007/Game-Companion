@@ -16,25 +16,28 @@ so a new session carries on from here; details of each step go to
   (`updater::running_beta`). The root script accepts the latest stable or
   the newest beta build. Going back to stable installs stable's latest even
   if its build number is lower.
-- When the person says a beta is good: merge `beta` into `main` (fast
-  forward if possible), bump nothing extra, push.
+- When the person says a beta is good: a pull request "Stable X (#N)"
+  into `main` carrying beta's tree (`git merge -s ours` of main into a
+  branch from beta), squash-merged; bump nothing extra. (Until 2026-11-17
+  this line said "merge beta into main, fast forward if possible", which
+  was no longer how it was done.)
 - Milestones: a branch `milestone/<name>` at each working step on beta
   (`git branch milestone/x && git push origin milestone/x`; tag pushes are
   refused by this environment's git proxy), so a broken step can be reset
   without losing the rest.
 
 
-## Now (2026-11-16)
+## Now (2026-11-17)
 
-- Stable and beta are both 0.8.69 (stable PR #160, MN's yes after own
-  test); every build thread is closed.
+- Stable is 0.8.69 (PR #160, MN's yes after own test); beta is 0.8.70
+  (Get Proton, #161 via #163), waiting for MN's test.
 - The live list of wishes, decisions and bugs is the project folder's
   `game-companion/BACKLOG.md` (kept by the backlog thread); open points
   noted on older steps are in `docs/history.md` ("Open", "Next").
 - Working lean since 2026-11-16: draft pull requests build nothing, text
   changes start no build, notes per part in `docs/notes/` (CLAUDE.md).
 - Next big topics: making Game Companion public (plan doc in the release
-  thread), downloading Proton versions (N1, own build thread).
+  thread).
 
 ## Testing
 

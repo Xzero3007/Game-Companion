@@ -93,6 +93,15 @@ index; the details of each part are in `docs/notes/` (see "Where things are").
   Plugins → PoE 2 "poe.ninja prices" (MN, 2026-11-15: "standartmäßig an
   kann man aber auch aus klicken"). poeprices.info: not until it
   knows PoE 2 (MN chose so, 2026-11-15; EE2 itself switched it off).
+  Proton downloads (MN, 2026-11-16, "ja"; plan in the project folder
+  `proton-download/plan.md`): api.github.com's release lists of
+  GloriousEggroll/proton-ge-custom and CachyOS/proton-cachyos only, their
+  release files from github.com/<repo>/releases/download/ (the redirect
+  checked first: objects.githubusercontent.com or
+  release-assets.githubusercontent.com only; `proton_get::download_ok`,
+  `redirect_ok`), asked when the Proton overview opens (at most every 6 h)
+  or on its ↻; "Release ↗" opens the release page in the browser only on a
+  click (`release_page_ok`).
   Brave Origin, Legcord and Rusty Path of Building are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
@@ -154,6 +163,7 @@ that part.
 | Brave, Legcord, voice | `docs/notes/apps.md` | KWin watcher and scripts, full-screen handling, the Legcord voice overlay plugin |
 | Sound | `docs/notes/sound.md` | channels, mic chain, echo canceller, ducking, front child, panel, meters, sound log, bench without hardware |
 | AION 2 | `docs/notes/aion2.md` | parser crate and capture helper, Pet Finder, Schedule, Boss area, LOOT, Armory |
+| Games and Proton | `docs/notes/games.md` | Get Proton (GE-Proton, Proton-CachyOS: release lists, checksums, install for Steam and Heroic, Steam restart); game detection, the Games tab and the launch option checker are described in `docs/history.md` ("step 4") |
 | Path of Exile 2 | `docs/notes/poe2.md` | price check (EE2 kit in QuickJS, trade API, poe.ninja), session tracker, Path of Building, Qt JIT off |
 
 ## Checking a change
