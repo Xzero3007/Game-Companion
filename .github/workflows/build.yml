@@ -6,10 +6,17 @@ name: Build
 # manifest (latest.json) that the app's update check reads. Every push to
 # beta publishes a pre-release (the beta channel) and points the rolling
 # release `beta-channel` (its latest.json) at it.
+#
+# Working lean (MN, 2026-11-16): a draft pull request builds nothing (its
+# thread tests locally first); the check runs once it is marked ready and on
+# every later push. Changes to text only start no build at all.
 on:
   push:
     branches: [main, beta]
+    paths-ignore: ['**.md', 'docs/**', 'mockups/**']
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ['**.md', 'docs/**', 'mockups/**']
   workflow_dispatch:
 
 permissions:
@@ -22,6 +29,7 @@ concurrency:
 
 jobs:
   arch:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     container: archlinux:latest
     env:
