@@ -24,6 +24,15 @@ Column {
     property bool steamRunning: false
 
     readonly property var tools: overview ? overview.tools.filter((t) => t.kind !== "tool") : []
+    // One name column as wide as the longest build (MN, 0.8.70: long
+    // proton-cachyos names were cut and looked alike).
+    FontMetrics { id: versionMetrics; font.family: Theme.body; font.pixelSize: 13; font.weight: Font.DemiBold }
+    readonly property real versionW: {
+        let w = 230
+        for (const t of tools)
+            w = Math.max(w, versionMetrics.advanceWidth(t.label + (t.kind === "wine" ? " (Wine)" : "")))
+        return Math.ceil(w) + 6
+    }
     readonly property var used: overview ? overview.games : []
     readonly property var changedIds: Object.keys(picks).filter((id) => {
         const g = used.find((u) => u.id === id)
@@ -381,8 +390,9 @@ Column {
         readonly property var t: modelData
         readonly property var users: view.used.filter((u) => u.inUse === t.name)
         readonly property bool isDefault: view.overview !== null && view.overview.steamDefault === t.name
+        readonly property real nameCol: Math.max(160, Math.min(view.versionW, width - 34 - 20 - 260))
         width: content.width
-        height: Math.max(40, gamesFlow.implicitHeight + 12)
+        height: Math.max(40, gamesFlow.implicitHeight + 12, versionName.implicitHeight + 16)
         Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
         Rectangle {
             x: 16
@@ -392,10 +402,11 @@ Column {
             color: version.users.length > 0 ? Theme.accent : "#5a5764"
         }
         Text { style: Theme.textStyle(); styleColor: Theme.shadow
+            id: versionName
             x: 34
-            width: 230
+            width: version.nameCol
             anchors.verticalCenter: parent.verticalCenter
-            elide: Text.ElideRight
+            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
             text: version.t.label + (version.t.kind === "wine" ? " (Wine)" : "")
             color: version.users.length > 0 ? Theme.text() : Theme.muted()
             font.family: Theme.body
@@ -404,7 +415,7 @@ Column {
         }
         Flow {
             id: gamesFlow
-            x: 276
+            x: 34 + version.nameCol + 12
             anchors.verticalCenter: parent.verticalCenter
             width: parent.width - x - (defaultTag.visible ? defaultTag.width + 12 : 0) - 60
             spacing: 4
@@ -472,7 +483,7 @@ Column {
         Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.05) }
         Text { style: Theme.textStyle(); styleColor: Theme.shadow
             x: 16
-            width: parent.width - 16 - 60 - 230 - 44
+            width: parent.width - 16 - 60 - select.width - 44
             anchors.verticalCenter: parent.verticalCenter
             elide: Text.ElideRight
             text: view.nameOf(row.u.id)
@@ -504,7 +515,7 @@ Column {
             anchors.right: parent.right
             anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            width: 230
+            width: Math.max(230, Math.min(330, row.width * 0.4))
             height: 34
             choices: view.choices
             options: Launch.choicesFor(view.tools, row.u.launcher, view.overview ? view.overview.steamDefault : "")

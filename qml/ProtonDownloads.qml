@@ -222,12 +222,17 @@ Column {
 
         Rectangle { width: parent.width; height: 1; color: Theme.rowLine }
         // Title row
+        // Title row; the buttons go to a second line when they don't fit
+        // beside the title (QA, 0.8.70: UP TO DATE ran under "What's new").
         Item {
+            id: titleRow
+            readonly property bool narrow: titleLeft.implicitWidth + titleRight.implicitWidth + 48 > width
             width: parent.width
-            height: 36
+            height: narrow ? 66 : 36
             Row {
+                id: titleLeft
                 x: 16
-                anchors.verticalCenter: parent.verticalCenter
+                y: (36 - height) / 2
                 spacing: 10
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow
                     anchors.verticalCenter: parent.verticalCenter
@@ -258,9 +263,10 @@ Column {
                 }
             }
             Row {
+                id: titleRight
                 anchors.right: parent.right
                 anchors.rightMargin: 16
-                anchors.verticalCenter: parent.verticalCenter
+                y: titleRow.narrow ? 36 + (30 - height) / 2 : (36 - height) / 2
                 spacing: 8
                 TextButton {
                     visible: !!fl.latest && fl.latest.notes !== ""
@@ -472,7 +478,7 @@ Column {
                         x: 34
                         width: inst.nameCol
                         anchors.verticalCenter: parent.verticalCenter
-                        wrapMode: Text.WrapAnywhere
+                        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                         text: inst.modelData.name
                         color: inst.users > 0 ? Theme.text() : Theme.muted()
                         font.family: Theme.body
