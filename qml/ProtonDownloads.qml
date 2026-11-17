@@ -40,6 +40,17 @@ Column {
         const t = tools.find((x) => x.path === path)
         return t ? used.filter((u) => u.inUse === t.name).length : 0
     }
+    // One name column for both flavours, as wide as the longest name
+    // (MN, 0.8.70: proton-cachyos names were cut and looked alike).
+    FontMetrics { id: nameMetrics; font.family: Theme.body; font.pixelSize: 12 }
+    readonly property real nameW: {
+        let w = 120
+        for (const f of flavours)
+            for (const i of (f.installed || []))
+                w = Math.max(w, nameMetrics.advanceWidth(i.name))
+        return Math.ceil(w) + 6
+    }
+
     function mb(bytes) { return Math.round(bytes / 1048576) + " MB" }
     function ago(seconds) {
         if (!seconds) return "not yet"
@@ -412,72 +423,147 @@ Column {
                 font.pixelSize: 11
             }
         }
-        // Installed downloads
+        // Installed downloads, newest first, under STEAM / HEROIC when
+        // both hold some.
         Repeater {
+            id: instList
             model: fl.f.installed
+            readonly property bool both: {
+                const l = fl.f.installed || []
+                return l.some((i) => i.target !== (l[0] || {}).target)
+            }
             delegate: Item {
                 id: inst
                 required property var modelData
+                required property int index
                 readonly property int users: box.usersOf(modelData.path)
                 readonly property bool asked: box.asking === modelData.path
+                readonly property bool head: instList.both
+                    && (index === 0 || fl.f.installed[index - 1].target !== modelData.target)
+                readonly property real nameCol: Math.max(120, Math.min(box.nameW, fl.width - 34 - 20 - 420))
                 width: fl.width
-                height: 30
-                Rectangle {
+                readonly property bool notesOpen: box.open[modelData.path] === true
+                height: line.y + line.height + (notesOpen ? rowNotes.height + 6 : 0)
+                Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                    visible: inst.head
                     x: 16
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 6
-                    height: 6
-                    color: inst.users > 0 ? Theme.accent : "#5a5764"
-                }
-                Text { style: Theme.textStyle(); styleColor: Theme.shadow
-                    x: 34
-                    width: 230
-                    anchors.verticalCenter: parent.verticalCenter
-                    elide: Text.ElideRight
-                    text: inst.modelData.name
-                    color: inst.users > 0 ? Theme.text() : Theme.muted()
-                    font.family: Theme.body
-                    font.pixelSize: 12
-                }
-                Text { style: Theme.textStyle(); styleColor: Theme.shadow
-                    x: 276
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - x - removeRow.width - 28
-                    elide: Text.ElideRight
-                    text: (inst.modelData.target === "heroic" ? "Heroic" : "Steam") + " · "
-                        + (inst.asked ? (inst.users > 0 ? "Remove it? " + inst.users + (inst.users === 1 ? " game uses" : " games use") + " it and would need another Proton." : "Remove it?")
-                            : inst.users > 0 ? "used by " + inst.users + (inst.users === 1 ? " game" : " games") : "not used")
-                    color: inst.asked && inst.users > 0 ? Theme.red : Theme.dim()
-                    font.family: Theme.body
+                    y: 8
+                    text: inst.modelData.target === "heroic" ? "HEROIC" : "STEAM"
+                    color: Theme.muted()
+                    font.family: Theme.display
                     font.pixelSize: 11
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1.5
                 }
-                Row {
-                    id: removeRow
-                    anchors.right: parent.right
-                    anchors.rightMargin: 16
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 6
-                    TextButton {
-                        visible: inst.asked
-                        text: "Keep"
-                        pixelSize: 10
-                        pad: 8
-                        implicitHeight: 22
-                        onClicked: box.asking = ""
+                Item {
+                    id: line
+                    y: inst.head ? 26 : 0
+                    width: parent.width
+                    height: Math.max(30, nameText.implicitHeight + 12)
+                    Rectangle {
+                        x: 16
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 6
+                        height: 6
+                        color: inst.users > 0 ? Theme.accent : "#5a5764"
                     }
-                    TextButton {
-                        enabled: !box.running && !box.s.checking
-                        opacity: enabled ? 1 : 0.4
-                        text: "Remove"
-                        danger: true
-                        pixelSize: 10
-                        pad: 8
-                        implicitHeight: 22
-                        onClicked: {
-                            if (!inst.asked) { box.asking = inst.modelData.path; return }
-                            box.asking = ""
-                            ProtonGet.remove(inst.modelData.path)
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                        id: nameText
+                        x: 34
+                        width: inst.nameCol
+                        anchors.verticalCenter: parent.verticalCenter
+                        wrapMode: Text.WrapAnywhere
+                        text: inst.modelData.name
+                        color: inst.users > 0 ? Theme.text() : Theme.muted()
+                        font.family: Theme.body
+                        font.pixelSize: 12
+                    }
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                        x: 34 + inst.nameCol + 20
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - x - removeRow.width - 28
+                        wrapMode: Text.Wrap
+                        text: (instList.both ? "" : (inst.modelData.target === "heroic" ? "Heroic · " : "Steam · "))
+                            + (inst.asked ? (inst.users > 0 ? "Remove it? " + inst.users + (inst.users === 1 ? " game uses" : " games use") + " it and would need another Proton." : "Remove it?")
+                                : (inst.users > 0 ? "used by " + inst.users + (inst.users === 1 ? " game" : " games") : "not used")
+                                    + (inst.modelData.latest ? " · newest release" : ""))
+                        color: inst.asked && inst.users > 0 ? Theme.red
+                            : inst.modelData.latest && !inst.asked ? Theme.accent : Theme.dim()
+                        font.family: Theme.body
+                        font.pixelSize: 11
+                    }
+                    Row {
+                        id: removeRow
+                        anchors.right: parent.right
+                        anchors.rightMargin: 16
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 6
+                        TextButton {
+                            visible: !inst.asked && inst.modelData.notes !== ""
+                            text: inst.notesOpen ? "Notes ▴" : "Notes ▾"
+                            pixelSize: 10
+                            pad: 8
+                            implicitHeight: 22
+                            onClicked: {
+                                const o = Object.assign({}, box.open)
+                                o[inst.modelData.path] = !inst.notesOpen
+                                box.open = o
+                            }
                         }
+                        TextButton {
+                            visible: !inst.asked && inst.modelData.page !== ""
+                            text: "Release ↗"
+                            pixelSize: 10
+                            pad: 8
+                            implicitHeight: 22
+                            onClicked: ProtonGet.openRelease(inst.modelData.page)
+                        }
+                        TextButton {
+                            visible: inst.asked
+                            text: "Keep"
+                            pixelSize: 10
+                            pad: 8
+                            implicitHeight: 22
+                            onClicked: box.asking = ""
+                        }
+                        TextButton {
+                            enabled: !box.running && !box.s.checking
+                            opacity: enabled ? 1 : 0.4
+                            text: "Remove"
+                            danger: true
+                            pixelSize: 10
+                            pad: 8
+                            implicitHeight: 22
+                            onClicked: {
+                                if (!inst.asked) { box.asking = inst.modelData.path; return }
+                                box.asking = ""
+                                ProtonGet.remove(inst.modelData.path)
+                            }
+                        }
+                    }
+                }
+                // This version's own release notes
+                Rectangle {
+                    id: rowNotes
+                    visible: inst.notesOpen
+                    x: 34
+                    y: line.y + line.height
+                    width: parent.width - 34 - 16
+                    height: rowNotesText.implicitHeight + 16
+                    color: "#141318"
+                    border.color: "#2a2830"
+                    Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                        id: rowNotesText
+                        x: 10
+                        y: 8
+                        width: parent.width - 20
+                        wrapMode: Text.WordWrap
+                        textFormat: Text.PlainText
+                        text: (inst.modelData.tag ? inst.modelData.tag + " · " + inst.modelData.date + "\n\n" : "") + inst.modelData.notes
+                        color: Theme.textSoft()
+                        font.family: Theme.body
+                        font.pixelSize: 11
+                        lineHeight: 1.15
                     }
                 }
             }
