@@ -78,7 +78,7 @@ impl Flavour {
     }
 
     fn api_url(self) -> String {
-        format!("https://api.github.com/repos/{}/releases?per_page=8", self.repo())
+        format!("https://api.github.com/repos/{}/releases?per_page=30", self.repo())
     }
 
     /// A folder name this flavour's downloads have.
@@ -389,7 +389,42 @@ pub fn installed(targets: &[Target]) -> Vec<Installed> {
             }
         }
     }
+    sort_installed(&mut list, targets);
     list
+}
+
+/// Newest first within each target (MN, 0.8.70: sorted as text, 11-12
+/// stood after 11-1 and 10.0 builds before 11.0).
+pub fn sort_installed(list: &mut [Installed], targets: &[Target]) {
+    let place = |id: &str| targets.iter().position(|t| t.id == id).unwrap_or(usize::MAX);
+    list.sort_by(|a, b| {
+        place(a.target)
+            .cmp(&place(b.target))
+            .then_with(|| (a.flavour == Flavour::Cachy).cmp(&(b.flavour == Flavour::Cachy)))
+            .then_with(|| version_key(b.flavour, &b.name).cmp(&version_key(a.flavour, &a.name)))
+            .then_with(|| natural(&b.name).cmp(&natural(&a.name)))
+    });
+}
+
+/// A name cut into text and numbers, so "11-12" sorts after "11-7".
+fn natural(name: &str) -> Vec<(String, u64)> {
+    let mut out = Vec::new();
+    let mut text = String::new();
+    let mut chars = name.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c.is_ascii_digit() {
+            let mut n = c.to_digit(10).unwrap_or(0) as u64;
+            while let Some(d) = chars.peek().and_then(|d| d.to_digit(10)) {
+                n = n.saturating_mul(10).saturating_add(d as u64);
+                chars.next();
+            }
+            out.push((std::mem::take(&mut text), n));
+        } else {
+            text.push(c);
+        }
+    }
+    out.push((text, 0));
+    out
 }
 
 /// Whether `path` is a downloaded Proton folder the app may remove: a
@@ -1057,6 +1092,32 @@ mod tests {
         tidy_leftovers(&targets);
         assert!(!steam.join(format!("{PARTIAL}GE-Proton11-1")).exists());
         assert!(steam.join("GE-Proton9-20").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn installed_newest_first() {
+        let root = std::env::temp_dir().join(format!("gc-proton-sort-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let steam = root.join("steam");
+        let heroic = root.join("heroic");
+        for n in ["GE-Proton10-34", "GE-Proton11-1", "GE-Proton11-12-x86_64", "GE-Proton11-7-x86_64",
+            "proton-cachyos-10.0-20260424-slr-x86_64", "proton-cachyos-11.0-20261015-slr-x86_64",
+            "proton-cachyos-11.0-20260506-slr-x86_64", "proton-cachyos-10.0-sunset-slr-x86_64"] {
+            std::fs::create_dir_all(steam.join(n)).unwrap();
+        }
+        std::fs::create_dir_all(heroic.join("proton-cachyos-11.0-20260702-slr-x86_64")).unwrap();
+        let targets = vec![
+            Target { id: "steam", label: "Steam", dir: steam },
+            Target { id: "heroic", label: "Heroic", dir: heroic },
+        ];
+        let names: Vec<String> = installed(&targets).into_iter().map(|i| i.name).collect();
+        assert_eq!(names, vec![
+            "GE-Proton11-12-x86_64", "GE-Proton11-7-x86_64", "GE-Proton11-1", "GE-Proton10-34",
+            "proton-cachyos-11.0-20261015-slr-x86_64", "proton-cachyos-11.0-20260506-slr-x86_64",
+            "proton-cachyos-10.0-20260424-slr-x86_64", "proton-cachyos-10.0-sunset-slr-x86_64",
+            "proton-cachyos-11.0-20260702-slr-x86_64",
+        ]);
         let _ = std::fs::remove_dir_all(&root);
     }
 
