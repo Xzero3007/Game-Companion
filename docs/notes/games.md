@@ -33,5 +33,10 @@ written up here; their steps are in `docs/history.md` ("step 4", "games-launch")
   watches for Steam to come back), never while a Steam game runs
   (a "SteamLaunch" reaper, `steam_game_running`); then "Restart Steam"
   shows beside OK. A look also removes half downloads when no job runs.
-  `GC_DEMO=games,proton[,protonjob]`; `GC_PROTON_FAKE=<dir>` reads
+  Installed downloads (MN, 0.8.70: names were cut): newest first per
+  target (`sort_installed`), under STEAM / HEROIC when both hold some,
+  one name column as wide as the longest name (wraps only when narrow),
+  each with its own release's Notes and Release ↗ when the kept list
+  (30 releases) has it. `GC_DEMO=games,proton[,protonjob|,protonmany]`;
+  `GC_PROTON_FAKE=<dir>` reads
   `ge.json`/`cachyos.json` there instead of GitHub.
