@@ -94,6 +94,9 @@ pub struct Settings {
     /// Brave and Legcord stay over a game in full screen: while one is shown,
     /// the game's window loses its full-screen mark (same size, no border).
     pub apps_over_full: bool,
+    /// After a Proton was installed from the Proton overview, Steam is
+    /// restarted so it sees it (not while a game runs; MN, 2026-11-16).
+    pub proton_restart_steam: bool,
     /// The voice overlay's choices (Settings → Apps → Legcord), as QML
     /// keeps them (`qml/VoiceOverlay.qml`); empty takes the defaults.
     pub voice: serde_json::Map<String, serde_json::Value>,
@@ -461,6 +464,7 @@ impl Default for Settings {
             packages: BTreeMap::new(),
             apps: BTreeMap::new(),
             apps_over_full: true,
+            proton_restart_steam: true,
             voice: serde_json::Map::new(),
             poe2: serde_json::Map::new(),
             sound: crate::sound::SoundSettings::default(),

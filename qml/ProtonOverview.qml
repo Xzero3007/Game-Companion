@@ -59,6 +59,11 @@ Column {
         req.ask(Games.launcherState("steam:0"), (a) => view.steamRunning = !!a && a.running === true)
     }
     Component.onCompleted: load()
+    // A Proton was installed or removed here: read the builds again.
+    Connections {
+        target: ProtonGet
+        function onRevisionChanged() { view.load() }
+    }
 
     Timer {
         interval: 3000
@@ -163,6 +168,14 @@ Column {
                 id: content
                 width: flick.width
                 bottomPadding: 6
+                // New GE-Proton and Proton-CachyOS from GitHub.
+                ProtonDownloads {
+                    width: content.width
+                    games: view.games
+                    tools: view.overview ? view.overview.tools : []
+                    used: view.used
+                }
+                Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.1) }
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow
                     visible: view.overview === null
                     padding: 16

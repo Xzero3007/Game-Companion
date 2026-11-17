@@ -93,6 +93,15 @@ learnt, so nothing has to be asked or worked out again.
   Plugins → PoE 2 "poe.ninja prices" (MN, 2026-11-15: "standartmäßig an
   kann man aber auch aus klicken"). poeprices.info: not until it
   knows PoE 2 (MN chose so, 2026-11-15; EE2 itself switched it off).
+  Proton downloads (MN, 2026-11-16, "ja"; plan in the project folder
+  `proton-download/plan.md`): api.github.com's release lists of
+  GloriousEggroll/proton-ge-custom and CachyOS/proton-cachyos only, their
+  release files from github.com/<repo>/releases/download/ (the redirect
+  checked first: objects.githubusercontent.com or
+  release-assets.githubusercontent.com only; `proton_get::download_ok`,
+  `redirect_ok`), asked when the Proton overview opens (at most every 6 h)
+  or on its ↻; "Release ↗" opens the release page in the browser only on a
+  click (`release_page_ok`).
   Brave Origin, Legcord and Rusty Path of Building are the
   person's own programs. Before saying something is done, grep for hosts and
   links: `grep -rnoE "https?://[a-z0-9.-]+" src cpp qml`.
@@ -712,6 +721,37 @@ learnt, so nothing has to be asked or worked out again.
   module-pipe-source source_name=pipe_mic file=/tmp/pipe_mic format=s16le
   rate=48000 channels=1` as the mic device and raw samples written to the
   fifo (our router moves every playing stream, also one aimed at a sink).
+- Get Proton (MN, 2026-11-16): `src/proton_get.rs` (logic),
+  `src/proton_object.rs` (the `ProtonGet` singleton), `qml/ProtonDownloads.qml`
+  at the top of the Proton overview. GE-Proton and Proton-CachyOS (its SLR
+  build; x86_64_v3 when the CPU has it, `cpu_v3`) from GitHub: the latest
+  release, its notes as plain text ("What's new"), the library's games the
+  notes since the installed version name ("Worth it", `mentions`), Install
+  for Steam (the first `steam_roots` folder's compatibilitytools.d) or
+  Heroic (tools/proton). A job: checksum first (the release's `.sha512sum`,
+  else GitHub's sha256 `digest`; none → refused), curl to
+  ~/.cache/game-companion/proton/ (progress by the file's size every
+  250 ms, only while it runs), tar into `.gc-partial-<tag>` beside the
+  builds, the one folder with a `proton` file renamed into place (named as
+  the archive when its own name is not a download's). curl and tar have
+  PR_SET_PDEATHSIG; Cancel and `proton_get::stop` (main's `tidy`) kill
+  them and remove the leftovers, which every look also removes after a
+  crash. Remove: only folders named like a download, directly in a
+  target, no links; asked first, with how many games use it. After an
+  install or removal `TOOLS_STALE` makes the overview read the builds
+  again (`ProtonGet.revision`). pacman's proton-cachyos(-slr): `pacman -Q`,
+  `-Si` and `vercmp` only (no network), "comes with your system update".
+  Release lists kept in ~/.cache/game-companion/proton-releases.json.
+  Steam restarts after an install (MN, 2026-11-16; settings
+  `proton_restart_steam`, default on, the box under GET PROTON;
+  `restart_steam`: one detached `sh` (`RESTART_SCRIPT`, own session, so
+  it finishes when the app quits meanwhile): `steam -shutdown`, up to 40 s
+  (pgrep), then `steam -silent`; flatpak if no `steam`; the app only
+  watches for Steam to come back), never while a Steam game runs
+  (a "SteamLaunch" reaper, `steam_game_running`); then "Restart Steam"
+  shows beside OK. A look also removes half downloads when no job runs.
+  `GC_DEMO=games,proton[,protonjob]`; `GC_PROTON_FAKE=<dir>` reads
+  `ge.json`/`cachyos.json` there instead of GitHub.
 - Hardware decoding: `Streams.hwdec` (settings `streams.hwdec`, default on)
   sets mpv's `hwdec` (auto-safe or no), at once while playing.
 - Video loudness (MN, 2026-11-14: videos quieter than the radio, which is
