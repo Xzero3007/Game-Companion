@@ -416,10 +416,19 @@ pub fn state_json(lists: &[(Flavour, Vec<pg::Release>)], installed: &[pg::Instal
                 "haveLatest": have_latest,
                 "since": since.len(),
                 "named": named,
-                "installed": mine.iter().map(|i| json!({
-                    "name": i.name, "path": i.path.to_string_lossy(), "target": i.target,
-                    "latest": latest_key.is_some() && pg::version_key(f, &i.name) == latest_key,
-                })).collect::<Vec<_>>(),
+                "installed": mine.iter().map(|i| {
+                    let key = pg::version_key(f, &i.name);
+                    // Its own release's notes (MN, 0.8.70), when the kept list has it.
+                    let own = key.and_then(|k| releases.iter().find(|r| pg::version_key(f, &r.tag) == Some(k)));
+                    json!({
+                        "name": i.name, "path": i.path.to_string_lossy(), "target": i.target,
+                        "latest": latest_key.is_some() && key == latest_key,
+                        "tag": own.map(|r| r.tag.as_str()).unwrap_or(""),
+                        "date": own.and_then(|r| r.published.get(..10)).unwrap_or(""),
+                        "page": own.map(|r| r.page.as_str()).unwrap_or(""),
+                        "notes": own.map(|r| pg::notes_text(&r.body, 1400)).unwrap_or_default(),
+                    })
+                }).collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -463,14 +472,27 @@ fn demo_base(games: &[String]) -> Value {
             vec![rel(Flavour::Cachy, "cachyos-11.0-20261015-slr", "proton-cachyos-11.0-20261015-slr-x86_64_v3.tar.xz", "- Rebased on Proton 11.0\n- NTSync on by default\n- FSR 4 upgrade fixes", "2026-10-20T21:21:00Z")],
         ),
     ];
-    let installed = vec![
+    let mut installed = vec![
         pg::Installed { flavour: Flavour::Ge, name: "GE-Proton10-25".into(), path: "/home/me/.local/share/Steam/compatibilitytools.d/GE-Proton10-25".into(), target: "steam" },
         pg::Installed { flavour: Flavour::Ge, name: "GE-Proton9-20".into(), path: "/home/me/.local/share/Steam/compatibilitytools.d/GE-Proton9-20".into(), target: "steam" },
     ];
+    // GC_DEMO=games,proton,protonmany: a long list as on MN's computer.
+    if demo().is_some_and(|d| d.contains("protonmany")) {
+        let steam = ["GE-Proton11-12-x86_64", "GE-Proton11-7-x86_64", "GE-Proton11-1", "proton-cachyos-10.0-20260330-slr-x86_64_v3",
+            "proton-cachyos-10.0-20260424-slr-x86_64_v3", "proton-cachyos-10.0-sunset-slr-x86_64_v3", "proton-cachyos-11.0-20260506-slr-x86_64",
+            "proton-cachyos-11.0-20260506-slr-x86_64_v3", "proton-cachyos-11.0-20261015-slr-x86_64_v3", "proton-cachyos-11.0-20260601-slr-x86_64_v3"];
+        for (target, names) in [("steam", &steam[..]), ("heroic", &["proton-cachyos-11.0-20260602-slr-x86_64_v3", "proton-cachyos-11.0-20260702-slr-x86_64_v3"][..])] {
+            for n in names {
+                let flavour = if n.starts_with("GE") { Flavour::Ge } else { Flavour::Cachy };
+                installed.push(pg::Installed { flavour, name: (*n).into(), path: format!("/demo/{target}/{n}").into(), target });
+            }
+        }
+    }
     let targets = vec![
         pg::Target { id: "steam", label: "Steam", dir: "~/.local/share/Steam/compatibilitytools.d".into() },
         pg::Target { id: "heroic", label: "Heroic", dir: "~/.config/heroic/tools/proton".into() },
     ];
+    pg::sort_installed(&mut installed, &targets);
     let mut base = state_json(&lists, &installed, &targets, games, true);
     base["checkedAt"] = json!(pg::now() - 3600);
     base["pacman"] = json!([{"pkg": "proton-cachyos-slr", "have": "1:11.0.20261014-1", "repo": "1:11.0.20261015-1", "newer": true}]);

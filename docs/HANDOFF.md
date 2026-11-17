@@ -29,6 +29,7 @@ so a new session carries on from here; details of each step go to
 
 ## Now (2026-11-17)
 
+- 0.8.71 beta (2026-11-17): #164 Get Proton: full names, newest first, notes for every installed version.
 - Stable is 0.8.69 (PR #160, MN's yes after own test); beta is 0.8.70
   (Get Proton, #161 via #163), waiting for MN's test.
 - The live list of wishes, decisions and bugs is the project folder's
