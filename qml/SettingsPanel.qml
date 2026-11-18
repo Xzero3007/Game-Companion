@@ -38,9 +38,14 @@ Panel {
         for (const k of keys) if (k.id === id) return k.key
         return ""
     }
-    /// Room for the pages: from the panel's place down to the screen's
-    /// bottom, less the header and the tabs.
-    readonly property real room: Math.max(200, (parent ? parent.height : 900) - y - 68 - tabRow.height - 25 - 8)
+    /// Room for the pages: 520 px plus what the corner added (it pulls
+    /// both ways now; MN, 2026-11-18: the panel reached the screen's bottom,
+    /// couldn't be pushed up and the corner only made it wider), never past
+    /// the screen's bottom. Longer pages scroll inside.
+    stretchy: true
+    minGrow: -320
+    maxGrow: 1200
+    readonly property real room: Math.max(200, Math.min(520 + grow, (parent ? parent.height : 900) - y - 68 - tabRow.height - 25 - 8))
     onTabChanged: scroller.contentY = 0
     signal saveLayoutRequested(string name)
     signal hdrTestRequested

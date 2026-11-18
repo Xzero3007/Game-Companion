@@ -304,3 +304,18 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   `video-keys.sh`, `video-drag2.sh`, `video-opacity.sh`, `video-drop.sh`
   (`GC_HDR_DROP_AFTER=<ms>` makes it fail while playing). Real HDR
   brightness only on MN's screen.
+  0.8.75 on MN's NVIDIA RTX 4090 (KWin): the picture stayed black while
+  the time ran (SDR too); the test picture worked. Since then the drawing
+  thread reads back 9 pixels every 60 frames until one isn't black; six
+  black looks in a row fall back by themselves ("fell back: the picture
+  stayed black"), a failed `eglSwapBuffers` too. The log line carries EGL's
+  and GL's vendor, renderer and version (`MpvVideo.hdrInfo`). Bench:
+  `VIDEO=/tmp/black.mp4 WAIT=20 video-drop.sh` falls back, a test picture
+  doesn't.
+  MN's 0.8.75 log said "8 bit": NVIDIA offers 10 bit only as RGB10_A2,
+  so configurations with alpha are taken too (shown opaque with
+  EGL_EXT_present_opaque), and the display is asked for as a platform
+  display (as Qt does). A fall back starts a fresh mpv: one whose render
+  context moved while playing went on without hwdec ("hwdec -"). mpv's
+  lines about drawing and decoding go to the log while the surface draws
+  (`hdrNote`, "[video] hdr mpv …", 30 per window).

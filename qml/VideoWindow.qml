@@ -906,7 +906,8 @@ Item {
                 muted: win.muted
                 audioName: "Game Companion · " + (win.jelly ? "Jellyfin" : win.slot === "twitch" ? "Twitch" : "YouTube")
                 hdr: win.keyPrefs.hdr
-                onHdrStateChanged: Companion.log("video", "hdr " + hdrState)
+                onHdrStateChanged: Companion.log("video", "hdr " + hdrState + (hdrInfo ? " · " + hdrInfo : ""))
+                onHdrNote: (line) => Companion.log("video", "hdr mpv " + line)
             }
         }
     }
