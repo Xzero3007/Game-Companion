@@ -158,7 +158,7 @@ that part.
 | Overlay core | `docs/notes/overlay.md` | one surface per part (layer shell, drag, input regions, screenshots), `Companion`, shortcuts, display settings and `Theme`, settings file, hub hidden, panels and layouts (per game, Desktop), `WheelScroll`, `HudIcon` |
 | Lifecycle | `docs/notes/lifecycle.md` | one copy at a time, ending cleanly (signals, KWin timeouts, logout, children), the app's log, updates and channels |
 | Radio | `docs/notes/radio.md` | mpv child, station hosts, dead stations |
-| Streams | `docs/notes/streams.md` | Twitch, YouTube (feeds, library, lengths, dates, sorting), video player (`MpvVideo`, watchdog, ads, freezing while dragged), Twitch chat, hwdec, loudness, video timing, xvfb checks |
+| Streams | `docs/notes/streams.md` | Twitch, YouTube (feeds, library, lengths, dates, sorting), video player (`MpvVideo`, watchdog, ads, freezing while dragged, HDR surface), Twitch chat, hwdec, loudness, video timing, xvfb checks |
 | Jellyfin | `docs/notes/jellyfin.md` | home network only, account, pictures, playback, music, the fake server |
 | Brave, Legcord, voice | `docs/notes/apps.md` | KWin watcher and scripts, full-screen handling, the Legcord voice overlay plugin |
 | Sound | `docs/notes/sound.md` | channels, mic chain, echo canceller, ducking, front child, panel, meters, sound log, bench without hardware |
