@@ -335,3 +335,29 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   "SDR" while one shows without (`MpvVideo.sourceHdr`). The strip's volume
   bars (and the video window's) step by the player's `volume_step`, one
   step per wheel notch (`VolumeBar` adds up angleDelta).
+  0.8.77 on MN's NVIDIA 620.70.06: mpv's frame buffer was lit, the
+  window's stayed 0/0/0, and EGL listed no 10-bit configs at all: NVIDIA's
+  egl-wayland (the EGL window surface) was the broken part; the HDR test
+  (an shm buffer of its own) showed PQ in 10 bit. Since 0.8.78 there is no
+  EGL window surface: the drawing thread has a context only (surfaceless,
+  `EGL_KHR_no_config_context`) and hands its frames over as buffers of
+  ours (`HdrBuffers`, cpp/hdrbuffers.*), three of them, on an event queue
+  of its own, a frame skipped (never waited for) when the compositor holds
+  all three. First choice dmabuf: `zwp_linux_dmabuf_v1` version 3 (its
+  format/modifier pairs in `WlColor::dmabufFormats`), libgbm loaded with
+  dlopen on EGL's own render node (`EGL_EXT_device_query`), XB30 (10 bit)
+  before XR30, XB24, XR24, a modifier both EGL
+  (`eglQueryDmaBufModifiersEXT`, not external-only) and the compositor
+  know, else the implicit layout if the compositor lists it; the buffer is
+  an EGLImage texture mpv draws into, `glFinish` before the commit (NVIDIA
+  has no implicit sync), the wl_buffer asked for with `create` and waited
+  for (never `create_immed`: a refusal there ends Qt's connection). If any
+  of that fails it switches to shm for good: mpv into a texture of ours,
+  `glReadPixels` into an shm buffer (XB30 as RGBA + 2_10_10_10_REV, XR30
+  and XR24 as BGRA), one copy per frame. `GC_HDR_PATH=dmabuf|shm` tries
+  only that way. The log names it: `… ; dmabuf XB30 (10 bit)`, "buffers:
+  dmabuf XB30, modifier 0x…, 1 plane(s)", "dmabuf failed (…): shm
+  instead", "picture seen after 60 frames (…, shm XB30 (10 bit))". The
+  black check reads mpv's frame buffer (the buffer itself). The bench
+  (Sway pixman, no GPU, no /dev/dri) only checks shm; dmabuf only on MN's
+  card.
