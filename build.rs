@@ -94,7 +94,6 @@ fn main() {
     // description) and asks Qt for its window's surface (Qt's private
     // QPlatformNativeInterface header, under QtGui/<version>).
     println!("cargo::rustc-link-lib=wayland-client");
-    println!("cargo::rustc-link-lib=wayland-egl");
     println!("cargo::rustc-link-lib=EGL");
     let qt_private = qt_gui_private_include();
     if layer_shell {
@@ -124,6 +123,8 @@ fn main() {
         .cpp_file("cpp/hdrtest.cpp")
         .cpp_file("cpp/hdrvideo.h")
         .cpp_file("cpp/hdrvideo.cpp")
+        .cpp_file("cpp/hdrbuffers.h")
+        .cpp_file("cpp/hdrbuffers.cpp")
         .qrc_resources([
             "assets/fonts/Rajdhani-Bold.ttf",
             "assets/fonts/Rajdhani-SemiBold.ttf",

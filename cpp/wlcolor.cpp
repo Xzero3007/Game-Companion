@@ -7,6 +7,7 @@
 #include <wayland-client.h>
 #include "protocols/alpha-modifier-v1-client.h"
 #include "protocols/color-management-v1-client.h"
+#include "protocols/linux-dmabuf-v1-client.h"
 #include "protocols/viewporter-client.h"
 
 #include <cstring>
@@ -17,6 +18,7 @@
 #pragma GCC diagnostic ignored "-Wattributes"
 #include "protocols/alpha-modifier-v1-protocol.c"
 #include "protocols/color-management-v1-protocol.c"
+#include "protocols/linux-dmabuf-v1-protocol.c"
 #include "protocols/viewporter-protocol.c"
 #pragma GCC diagnostic pop
 
@@ -31,6 +33,13 @@ const wp_color_manager_v1_listener managerListener = { onIntent, onFeature, onTf
 
 void onShmFormat(void *d, wl_shm *, uint32_t f) { static_cast<WlColor *>(d)->shmFormats << f; }
 const wl_shm_listener shmListener = { onShmFormat };
+
+void onDmabufFormat(void *, zwp_linux_dmabuf_v1 *, uint32_t) {}
+void onDmabufModifier(void *d, zwp_linux_dmabuf_v1 *, uint32_t f, uint32_t hi, uint32_t lo)
+{
+    static_cast<WlColor *>(d)->dmabufFormats << qMakePair(f, (uint64_t(hi) << 32) | lo);
+}
+const zwp_linux_dmabuf_v1_listener dmabufListener = { onDmabufFormat, onDmabufModifier };
 
 void onGlobal(void *d, wl_registry *r, uint32_t name, const char *iface, uint32_t version)
 {
@@ -50,6 +59,9 @@ void onGlobal(void *d, wl_registry *r, uint32_t name, const char *iface, uint32_
         c->viewporter = static_cast<wp_viewporter *>(wl_registry_bind(r, name, &wp_viewporter_interface, 1));
     } else if (is(wp_alpha_modifier_v1_interface) && !c->alpha) {
         c->alpha = static_cast<wp_alpha_modifier_v1 *>(wl_registry_bind(r, name, &wp_alpha_modifier_v1_interface, 1));
+    } else if (is(zwp_linux_dmabuf_v1_interface) && !c->dmabuf && version >= 3) {
+        c->dmabuf = static_cast<zwp_linux_dmabuf_v1 *>(wl_registry_bind(r, name, &zwp_linux_dmabuf_v1_interface, 3));
+        zwp_linux_dmabuf_v1_add_listener(c->dmabuf, &dmabufListener, c);
     }
 }
 void onGlobalRemove(void *, wl_registry *, uint32_t) {}

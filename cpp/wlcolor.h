@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QtCore/QList>
+#include <QtCore/QPair>
 #include <QtCore/QString>
 #include <cstdint>
 
@@ -14,6 +15,7 @@ struct wp_color_manager_v1;
 struct wp_image_description_v1;
 struct wp_viewporter;
 struct wp_alpha_modifier_v1;
+struct zwp_linux_dmabuf_v1;
 class QWindow;
 
 /// What the Wayland compositor offers for surfaces of our own beside Qt's
@@ -32,6 +34,10 @@ struct WlColor
     wp_color_manager_v1 *manager = nullptr;
     wp_viewporter *viewporter = nullptr;
     wp_alpha_modifier_v1 *alpha = nullptr;
+    /// Buffers in graphics memory (version 3: its formats come as
+    /// format/modifier pairs, kept in `dmabufFormats`).
+    zwp_linux_dmabuf_v1 *dmabuf = nullptr;
+    QList<QPair<uint32_t, uint64_t>> dmabufFormats;
     QList<uint32_t> features, tfs, primaries, shmFormats;
     bool managerDone = false;
 
