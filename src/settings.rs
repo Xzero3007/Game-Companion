@@ -200,13 +200,18 @@ pub struct PlayerPrefs {
     /// The picture on a surface of its own, so HDR videos show in HDR
     /// (MN, 2026-11-18, "Weg C"); falls back to the old way by itself.
     pub hdr: bool,
+    /// Where HDR may come on (MN, 2026-11-18: "bis dato jelly und yt"):
+    /// Twitch's streams off, YouTube and Jellyfin on.
+    pub hdr_twitch: bool,
+    pub hdr_youtube: bool,
+    pub hdr_jellyfin: bool,
     /// Keys changed by hand: action → key sequences (the rest keep their defaults).
     pub key_map: BTreeMap<String, Vec<String>>,
 }
 
 impl Default for PlayerPrefs {
     fn default() -> Self {
-        Self { hide_pointer: 10, keys: true, seek_step: 5, volume_step: 5, wheel_volume: true, hdr: true, key_map: BTreeMap::new() }
+        Self { hide_pointer: 10, keys: true, seek_step: 5, volume_step: 5, wheel_volume: true, hdr: true, hdr_twitch: false, hdr_youtube: true, hdr_jellyfin: true, key_map: BTreeMap::new() }
     }
 }
 
@@ -760,6 +765,7 @@ mod tests {
         assert!(old.player.keys);
         assert!(old.player.wheel_volume);
         assert!(old.player.hdr);
+        assert!(!old.player.hdr_twitch && old.player.hdr_youtube && old.player.hdr_jellyfin);
         let p: PlayerPrefs = serde_json::from_str(
             r#"{"hide_pointer": 999, "seek_step": 0, "volume_step": 90, "key_map": {"pause": ["", "Space", "K", "P", "X"], "": ["Q"]}}"#,
         )

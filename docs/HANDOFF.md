@@ -33,7 +33,13 @@ so a new session carries on from here; details of each step go to
 - 0.8.75 beta (2026-11-18): #172 HDR video on a subsurface of its own.
 - 0.8.74 beta (2026-11-18): #170 Video: the mouse wheel changes the volume.
 - 0.8.73 beta (2026-11-18): #168 Video player: keys and a pointer that hides in full screen.
-- Branch claude/project-thread-188og6 (2026-11-18): fixes for 0.8.75. On MN's NVIDIA, HDR video showed only black. The surface now checks its own picture and falls back when it stays black, then starts a fresh mpv (otherwise hwdec was lost). It also asks EGL for a platform display, takes 10 bit as RGB10_A2, and logs more (EGL/GL, mpv's lines). The Settings panel has a steady height and its corner now resizes vertically too. Waiting for QA, a beta and MN's log line "[video] hdr …".
+- Branch claude/project-thread-188og6 (2026-11-18): fixes for 0.8.76.
+  - HDR video: mpv now draws into an FBO of ours, then a blit (MN's NVIDIA showed black).
+  - Twitch after a fall back: the window reloads the stream.
+  - HDR badge in the video bar.
+  - HDR per source: YouTube and Jellyfin on, Twitch off.
+  - The strip's wheel steps by `volume_step`.
+  - Waiting for QA, a beta and MN's log line "[video] hdr mpv surface: …".
 - 0.8.72 beta (2026-11-17): #166 Get Proton: readable title row and build names in the overview.
 - 0.8.71 beta (2026-11-17): #164 Get Proton: full names, newest first, notes for every installed version.
 - Stable is 0.8.69 (PR #160, MN's yes after own test); beta is 0.8.70

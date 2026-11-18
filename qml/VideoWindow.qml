@@ -874,6 +874,10 @@ Item {
 
     // The picture on its own (HDR) surface under the window: the window
     // stays see-through over it (MN, 2026-11-18, "Weg C").
+    /// An HDR video on the HDR surface (PQ described): the bar says "HDR".
+    readonly property bool hdrShown: !!video.hdrState && video.hdrState.indexOf("hdr (") === 0
+    /// An HDR video, whichever way it is drawn.
+    readonly property bool hdrSource: !!video.sourceHdr
     readonly property bool hdrSurface: {
         const v = videoLoader.item
         return !!v && v.visible && (v.hdrState.indexOf("sdr") === 0 || v.hdrState.indexOf("hdr") === 0)
@@ -905,9 +909,15 @@ Item {
                 local: win.jelly
                 muted: win.muted
                 audioName: "Game Companion · " + (win.jelly ? "Jellyfin" : win.slot === "twitch" ? "Twitch" : "YouTube")
-                hdr: win.keyPrefs.hdr
+                // Per source (Settings → Streams → Videos → HDR).
+                hdr: win.keyPrefs.hdr && (win.jelly ? win.keyPrefs.hdr_jellyfin : win.slot === "twitch" ? win.keyPrefs.hdr_twitch : win.keyPrefs.hdr_youtube)
                 onHdrStateChanged: Companion.log("video", "hdr " + hdrState + (hdrInfo ? " · " + hdrInfo : ""))
                 onHdrNote: (line) => Companion.log("video", "hdr mpv " + line)
+                onReloadNeeded: (at) => {
+                    if (!win.item) return
+                    if (win.item.kind === "file") play(win.item.id, "", at)
+                    else win.load(win.seekable ? at : 0)
+                }
             }
         }
     }
@@ -929,6 +939,8 @@ Item {
     QtObject {
         id: idleVideo
         property string state: "idle"
+        property string hdrState: ""
+        property bool sourceHdr: false
         property string error: ""
         property string title: ""
         property bool paused: false
@@ -1054,9 +1066,31 @@ Item {
                 font.weight: Font.Bold
                 font.letterSpacing: 1.5
             }
+            // HDR at a glance (MN, 2026-11-18): gold "HDR" while an HDR video
+            // shows in HDR, grey "SDR" while an HDR video shows without it.
+            Rectangle {
+                id: hdrBadge
+                visible: win.hdrShown || win.hdrSource
+                anchors.verticalCenter: parent.verticalCenter
+                width: hdrText.implicitWidth + 10
+                height: 16
+                color: "transparent"
+                border.width: 1
+                border.color: win.hdrShown ? Theme.accent : Theme.dim()
+                Text {
+                    id: hdrText
+                    anchors.centerIn: parent
+                    text: win.hdrShown ? "HDR" : "SDR"
+                    color: win.hdrShown ? Theme.accent : Theme.dim()
+                    font.family: Theme.display
+                    font.pixelSize: 10
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1
+                }
+            }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 90
+                width: parent.width - 90 - (hdrBadge.visible ? hdrBadge.width + 8 : 0)
                 elide: Text.ElideRight
                 text: win.item ? (win.item.kind === "twitch" ? win.item.name + (win.item.game ? " · " + win.item.game : "")
                     : win.item.kind === "twitchvod" || win.item.kind === "twitchclip" ? [win.item.name, win.item.title].filter((t) => t).join(" · ")
@@ -1209,6 +1243,7 @@ Item {
             VolumeBar {
                 anchors.verticalCenter: parent.verticalCenter
                 compact: true
+                step: win.keyPrefs.volume_step
                 value: win.volume
                 onStepped: (d) => win.setVolume(win.volume + d)
                 onPicked: (v) => win.setVolume(v)

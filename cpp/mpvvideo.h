@@ -78,6 +78,8 @@ class MpvVideo : public QQuickFramebufferObject
     /// For the log: the HDR surface's EGL and GL (vendor, renderer,
     /// version) and its bits ("" before it started).
     Q_PROPERTY(QString hdrInfo READ hdrInfo NOTIFY hdrStateChanged)
+    /// The video playing is HDR (PQ or HLG), whichever way it is drawn.
+    Q_PROPERTY(bool sourceHdr READ sourceHdr NOTIFY sourceHdrChanged)
 
 public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
@@ -109,6 +111,7 @@ public:
     void setHdr(bool on);
     QString hdrState() const { return m_hdrState; }
     QString hdrInfo() const { return m_hdrInfo; }
+    bool sourceHdr() const { return m_sourceHdr; }
     void setFrozen(bool on);
     /// mpv has a new frame: drawn unless frozen.
     void newFrame();
@@ -166,6 +169,11 @@ signals:
     void hasPictureChanged();
     void hdrChanged();
     void hdrStateChanged();
+    void sourceHdrChanged();
+    /// The HDR surface fell back while a video played: mpv started anew, the
+    /// window asks for the video again from `position` (a new Streamlink
+    /// pipe, a new Jellyfin session).
+    void reloadNeeded(double position);
     /// One of mpv's lines while the HDR surface draws (for the log).
     void hdrNote(const QString &line);
 
