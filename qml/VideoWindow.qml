@@ -4,6 +4,7 @@ import GameCompanion
 import GameCompanion.Video
 import "theme.js" as Theme
 import "drag.js" as Drag
+import "playerkeys.js" as PK
 
 // A video over the game: Twitch's, YouTube's or the Jellyfin server's, each
 // in its own window.
@@ -101,7 +102,7 @@ Item {
 
     // ---------- YouTube: where it stopped, playlists ----------
     /// Seekable: YouTube, Jellyfin, Twitch's past broadcasts and clips.
-    readonly property bool seekable: !!item && (item.kind === "youtube" || item.kind === "twitchvod" || item.kind === "twitchclip" || jelly)
+    readonly property bool seekable: !!item && (item.kind === "file" || item.kind === "youtube" || item.kind === "twitchvod" || item.kind === "twitchclip" || jelly)
     /// The YouTube video's details as the lists have them.
     function videoJson() {
         if (!item) return ""
@@ -410,9 +411,17 @@ Item {
         }
         function onNextFound(slot, after, next) {
             if (slot !== win.slot || !win.item || win.item.id !== after) return
+            const now = win.nextNow
+            win.nextNow = false
+            if (now && next.length === 0) { win.say("NOTHING FOLLOWS"); return }
             // No next episode or track after the end: nothing follows.
             if (next.length === 0) { win.nothingFollows(); return }
             const it = JSON.parse(next)
+            // Asked for by its key: at once.
+            if (now) {
+                win.play({ kind: "jellyfin", id: it.id, title: it.name, name: it.sub, item: it, start: 0 })
+                return
+            }
             // The album's next (or previous) track: at once.
             if (it.type === "Audio") {
                 win.play({ kind: "jellyfin", id: it.id, title: it.name, name: it.sub, item: it, start: 0 })
@@ -597,6 +606,197 @@ Item {
         onActivated: win.toggleFullScreen()
     }
 
+    // Full screen: the pointer hides after it stood still for a while
+    // (Settings → Streams → Videos, 10 s by default; MN, 2026-11-18), the
+    // bars with it; any move brings both back. One single-shot timer, only
+    // while full screen and the pointer stands.
+    readonly property var keyPrefs: PK.prefs(Streams.player)
+    property bool pointerIdle: false
+    readonly property bool hidesPointer: fullScreen && active && keyPrefs.hide_pointer > 0 && !Companion.locked
+    onHidesPointerChanged: { pointerIdle = false; if (hidesPointer) idleTimer.restart(); else idleTimer.stop() }
+    property point pointerAt: Qt.point(-1, -1)
+    function pointerMoved(at) {
+        if (!hidesPointer) return
+        if (Math.abs(at.x - pointerAt.x) < 2 && Math.abs(at.y - pointerAt.y) < 2) return
+        pointerAt = at
+        pointerIdle = false
+        idleTimer.restart()
+    }
+    Timer {
+        id: idleTimer
+        interval: Math.max(1, win.keyPrefs.hide_pointer) * 1000
+        onTriggered: {
+            if (!win.hidesPointer) return
+            // A list open stays usable: the pointer waits for it.
+            if (win.anyPicker) restart()
+            else win.pointerIdle = true
+        }
+    }
+
+    // The player's keys (MN, 2026-11-18): after a click into the window
+    // (the surface takes keys then) and in full screen. Changed in Settings
+    // → Streams → Videos; playerkeys.js holds the list.
+    readonly property bool keysOn: keyPrefs.keys && active && !Companion.locked
+    property bool muted: false
+    /// A key asked for the next episode: it plays at once when found.
+    property bool nextNow: false
+    Repeater {
+        model: PK.ACTIONS
+        delegate: Item {
+            required property var modelData
+            Shortcut {
+                sequences: PK.keysOf(win.keyPrefs, modelData.id)
+                enabled: win.keysOn
+                onActivated: win.keyAction(modelData.id)
+            }
+        }
+    }
+    // 0 to 9: to 0 % to 90 % (fixed).
+    Repeater {
+        model: 10
+        delegate: Item {
+            required property int index
+            Shortcut {
+                sequence: String(index)
+                enabled: win.keysOn
+                onActivated: win.seekTo(win.video.duration * index / 10)
+            }
+        }
+    }
+    function keyAction(id) {
+        const p = keyPrefs
+        switch (id) {
+        case "pause": {
+            const wasPlaying = playing && !video.paused
+            togglePause()
+            say(wasPlaying ? "PAUSED" : "PLAY")
+            break
+        }
+        case "back": seekBy(-p.seek_step); break
+        case "forward": seekBy(p.seek_step); break
+        case "backLong": seekBy(-10); break
+        case "forwardLong": seekBy(10); break
+        case "volumeUp": case "volumeDown":
+            muted = false
+            setVolume(volume + (id === "volumeUp" ? p.volume_step : -p.volume_step))
+            say("VOLUME " + volume + " %")
+            break
+        case "mute": muted = !muted; say(muted ? "MUTED" : "SOUND ON"); break
+        case "fullScreen": toggleFullScreen(); break
+        case "start": seekTo(0); break
+        case "end": seekTo(video.duration - 1); break
+        case "chapterBack": case "chapterNext": chapterStep(id === "chapterNext" ? 1 : -1); break
+        case "slower": case "faster": {
+            if (!seekable) break
+            const list = PK.SPEEDS
+            let at = 0
+            for (let i = 0; i < list.length; i++) if (list[i] <= video.speed + 0.01) at = i
+            at = Math.max(0, Math.min(list.length - 1, at + (id === "faster" ? 1 : -1)))
+            video.speed = list[at]
+            say(list[at] + "×")
+            break
+        }
+        case "normalSpeed": if (seekable) { video.speed = 1; say("1×") } break
+        case "next": nextByKey(); break
+        case "previous": previousByKey(); break
+        case "skip": skipByKey(); break
+        case "subtitles": cycleTrack(subtitlePicker, (i) => chooseSubtitle(i), "SUBTITLES"); break
+        case "audio": cycleTrack(audioPicker, (i) => chooseAudio(i), "SOUND"); break
+        case "chat": if (slot === "twitch") Streams.saveChatOpen(!Streams.chatOpen); break
+        case "info": peekTimer.restart(); break
+        }
+    }
+    function seekBy(d) {
+        if (!seekable || video.duration <= 0) return
+        video.seek(d, true)
+        say((d < 0 ? "− " : "+ ") + Math.abs(d) + " s")
+    }
+    function seekTo(t) {
+        if (!seekable || video.duration <= 0) return
+        video.seek(Math.max(0, Math.min(video.duration, t)), false)
+        say(clock(Math.max(0, t)) + " / " + clock(video.duration))
+    }
+    function chapterStep(step) {
+        const c = video.chapters
+        if (!seekable || c.length < 2) return
+        let at = -1
+        c.forEach((x, i) => { if (x.time <= video.position) at = i })
+        // Back a few seconds into a chapter: its start first, as players do.
+        let to = step > 0 ? at + 1 : (at >= 0 && video.position - c[at].time > 3 ? at : at - 1)
+        to = Math.max(0, Math.min(c.length - 1, to))
+        if (step > 0 && to === at) return
+        video.seek(c[to].time, false)
+        say(c[to].title || "CHAPTER " + (to + 1))
+    }
+    function nextByKey() {
+        if (nextItem) {
+            const it = nextItem
+            nextTimer.stop(); nextNote = ""; nextItem = null
+            play(it)
+        } else if (nextInQueue) {
+            playNext()
+        } else if (music && item.item.albumId) {
+            Jellyfin.findTrack(slot, item.item.albumId, item.id, 1)
+        } else if (jelly && item && item.item && item.item.type === "Episode" && item.item.seriesId) {
+            nextNow = true
+            Jellyfin.findNext(slot, item.item.seriesId, item.id)
+        } else {
+            say("NOTHING FOLLOWS")
+        }
+    }
+    function previousByKey() {
+        if (music && item.item.albumId) Jellyfin.findTrack(slot, item.item.albumId, item.id, -1)
+        else if (item && item.kind === "youtube" && item.queue && item.index > 0) playAt(item.index - 1)
+        else if (seekable && video.duration > 0) seekTo(0)
+    }
+    function skipByKey() {
+        if (jelly && jfSegment) { jfSkip(); return }
+        // The SponsorBlock part it is in now (also one only marked).
+        const at = video.position
+        for (let i = 0; i < segments.length; i++) {
+            const seg = segments[i]
+            if (at >= seg.start && at < seg.end - 0.5) {
+                video.seek(seg.end, false)
+                say("SKIPPED: " + (segmentNames[seg.category] || seg.category).toUpperCase())
+                return
+            }
+        }
+    }
+    function cycleTrack(picker, choose, label) {
+        const o = picker.options
+        if (!jelly || o.length < 2) return
+        let at = o.findIndex((x) => x.id === picker.current)
+        at = (at + 1) % o.length
+        choose(Number(o[at].id))
+        say(label + ": " + o[at].name)
+    }
+    // "I": the bars for a moment.
+    Timer { id: peekTimer; interval: 3000 }
+    // What a key did, a moment in the window's top centre.
+    property string osd: ""
+    function say(text) { osd = text; osdTimer.restart() }
+    Timer { id: osdTimer; interval: 1200; onTriggered: win.osd = "" }
+    Rectangle {
+        visible: win.osd.length > 0 && !win.compact
+        z: 40
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: win.showBars ? 48 : 14
+        width: osdText.implicitWidth + 24
+        height: 30
+        color: Qt.rgba(12 / 255, 12 / 255, 15 / 255, 0.85)
+        Text {
+            id: osdText
+            style: Theme.textStyle(); styleColor: Theme.shadow
+            anchors.centerIn: parent
+            text: win.osd
+            color: Theme.text()
+            font.family: Theme.display
+            font.pixelSize: 14
+            font.weight: Font.Bold
+            font.letterSpacing: 1.5
+        }
+    }
+
     function setQuality(q) {
         if (jelly) Jellyfin.saveQuality(q)
         else Streams.saveQuality(q)
@@ -696,6 +896,7 @@ Item {
                 levelling: Streams.evenLoudness
                 // Jellyfin: the home network's server, nothing else.
                 local: win.jelly
+                muted: win.muted
                 audioName: "Game Companion · " + (win.jelly ? "Jellyfin" : win.slot === "twitch" ? "Twitch" : "YouTube")
             }
         }
@@ -763,10 +964,14 @@ Item {
     HoverHandler {
         id: pointerOn
         enabled: !Companion.locked
+        // Any move over the window, its buttons too: the pointer is back.
+        // (Qt sends hover again with every frame while a video plays, at
+        // the same place: only a real move counts.)
+        onPointChanged: win.pointerMoved(point.scenePosition)
     }
     readonly property bool anyPicker: qualityPicker.open || opacityPicker.open || audioPicker.open || subtitlePicker.open
         || speedPicker.open || chapterPicker.open || playlistPicker.open || upNextPicker.open
-    readonly property bool barsWanted: pointerOn.hovered || anyPicker
+    readonly property bool barsWanted: (pointerOn.hovered && !pointerIdle) || anyPicker || peekTimer.running
     onBarsWantedChanged: if (!barsWanted) barsLinger.restart()
     Timer { id: barsLinger; interval: 700 }
 
@@ -779,7 +984,7 @@ Item {
         hoverEnabled: true
         target: win
         moves: !win.fullScreen
-        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+        cursorShape: win.pointerIdle ? Qt.BlankCursor : pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         onReleased: if (!win.fullScreen) win.remember()
         onDoubleClicked: win.togglePause()
     }

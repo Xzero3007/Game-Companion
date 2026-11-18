@@ -239,3 +239,24 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
 - Video checks under xvfb are flaky: the picture sometimes goes black or
   striped after a few seconds in one run and not the next (llvmpipe under
   load). Repeat a run before believing a regression.
+- Player keys and pointer (MN, 2026-11-18): `qml/playerkeys.js` lists the
+  actions and their default keys (Space/K pause, ←/→ step, J/L 10 s, ↑/↓
+  volume, M mute, F full screen, Home/End, PgUp/PgDown chapters, [ ] and
+  Backspace speed, N/P next/previous, S skip, V/A Jellyfin tracks, C chat,
+  I bars; 0 to 9 and Esc fixed). `VideoWindow` makes one `Shortcut` per
+  action (a Repeater of Items, so each finds its window), enabled while
+  unlocked and the window plays; the surface has keys only after a click
+  into it (Surface/native.cpp), so they work in the small window after a
+  click and in full screen, never by themselves. A key's effect shows
+  1.2 s in the window's top centre (`say`). Full screen: a single-shot
+  timer (`idleTimer`, only while full screen) hides the pointer
+  (`BlankCursor` on the MoveArea) and the bars after `hide_pointer` s;
+  only a real move (≥ 2 px) brings them back: Qt sends hover again with
+  every frame while a video plays. Settings `streams.player`
+  (`PlayerPrefs`: hide_pointer 10, keys, seek_step 5, volume_step 5,
+  key_map action → keys), `Streams.player` JSON, `Streams.savePlayer`;
+  Settings → Streams → Videos "Pointer and keys" records a key
+  (`PK.sequenceOf`), refuses one another action has. Check under
+  `xvfb-run` with xcb: `GC_DEMO=unlocked GC_TEST_VIDEO=<file>`, click
+  into the video, `xdotool windowfocus --sync` (no window manager), then
+  `xdotool key` without `--window`. `GC_DEMO=settings,hwdec[,recordkey]`.

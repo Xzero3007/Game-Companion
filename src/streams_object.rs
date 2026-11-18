@@ -70,6 +70,9 @@ pub mod qobject {
         #[qproperty(bool, autoplay)]
         /// A video window closes at the end when nothing follows.
         #[qproperty(bool, close_at_end)]
+        /// The player's pointer hiding and keys: JSON `{"hide_pointer",
+        /// "keys", "seek_step", "volume_step", "key_map": {action: [keys]}}`.
+        #[qproperty(QString, player)]
         /// YouTube lists: what is left out. JSON `{"shorts", "watched",
         /// "channels": [{id, name}], "words": [..]}`.
         #[qproperty(QString, filters)]
@@ -185,6 +188,10 @@ pub mod qobject {
         /// Settings → Streams → Videos "Close the player when nothing follows".
         #[qinvokable]
         fn save_close_at_end(self: Pin<&mut Streams>, on: bool);
+
+        /// Settings → Streams → Videos "Pointer and keys" (the JSON of `player`).
+        #[qinvokable]
+        fn save_player(self: Pin<&mut Streams>, json: &QString);
 
         /// How much of a video window shows, in percent (50 to 100).
         #[qinvokable]
@@ -351,6 +358,7 @@ pub struct StreamsRust {
     even_loudness: bool,
     autoplay: bool,
     close_at_end: bool,
+    player: QString,
     filters: QString,
     groups: QString,
     group: QString,
@@ -1342,6 +1350,7 @@ impl Default for StreamsRust {
             even_loudness: s.even_loudness,
             autoplay: s.autoplay,
             close_at_end: s.close_at_end,
+            player: q(&serde_json::to_string(&s.player).unwrap_or_default()),
             filters: q(&filters_json(&s)),
             groups: q(&groups_json(&s)),
             group: q(&s.group),
@@ -2176,6 +2185,14 @@ impl qobject::Streams {
     fn save_close_at_end(self: Pin<&mut Self>, on: bool) {
         settings::change(|s| s.streams.close_at_end = on);
         self.set_close_at_end(on);
+    }
+
+    fn save_player(self: Pin<&mut Self>, json: &QString) {
+        let Ok(prefs) = serde_json::from_str::<settings::PlayerPrefs>(&json.to_string()) else { return };
+        let prefs = prefs.clamped();
+        let text = serde_json::to_string(&prefs).unwrap_or_default();
+        settings::change(|s| s.streams.player = prefs);
+        self.set_player(q(&text));
     }
 
     fn save_hwdec(self: Pin<&mut Self>, on: bool) {

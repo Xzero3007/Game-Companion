@@ -27,8 +27,10 @@ so a new session carries on from here; details of each step go to
   without losing the rest.
 
 
-## Now (2026-11-17)
+## Now (2026-11-18)
 
+- 0.8.73 beta (2026-11-18): #168 Video player: keys and a pointer that hides in full screen.
+- Branch claude/project-thread-188og6 (2026-11-18): video player keys (in the small window after a click and in full screen), pointer hidden in full screen after 10 s, both in Settings → Streams → Videos; waiting for QA and a beta.
 - 0.8.72 beta (2026-11-17): #166 Get Proton: readable title row and build names in the overview.
 - 0.8.71 beta (2026-11-17): #164 Get Proton: full names, newest first, notes for every installed version.
 - Stable is 0.8.69 (PR #160, MN's yes after own test); beta is 0.8.70
