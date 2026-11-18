@@ -45,6 +45,9 @@ function prefs(json) {
         volume_step: p.volume_step || 5,
         wheel_volume: p.wheel_volume === undefined ? true : !!p.wheel_volume,
         hdr: p.hdr === undefined ? true : !!p.hdr,
+        hdr_twitch: !!p.hdr_twitch,
+        hdr_youtube: p.hdr_youtube === undefined ? true : !!p.hdr_youtube,
+        hdr_jellyfin: p.hdr_jellyfin === undefined ? true : !!p.hdr_jellyfin,
         key_map: p.key_map || {}
     }
 }

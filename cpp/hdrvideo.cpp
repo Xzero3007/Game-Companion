@@ -1,6 +1,7 @@
 #include "hdrvideo.h"
 #include "wlcolor.h"
 
+#include <QtCore/QStringList>
 #include <QtGui/QWindow>
 #include <QtQuick/QQuickWindow>
 
@@ -33,6 +34,47 @@ using GlReadPixels = void (*)(int, int, int, int, unsigned int, unsigned int, vo
 using GlGetError = unsigned int (*)();
 constexpr unsigned int kGlVendor = 0x1F00, kGlRenderer = 0x1F01, kGlVersion = 0x1F02;
 constexpr unsigned int kGlFramebuffer = 0x8D40, kGlRgba = 0x1908, kGlUnsignedByte = 0x1401;
+constexpr unsigned int kGlTexture2d = 0x0DE1, kGlColorAttachment0 = 0x8CE0, kGlReadFramebuffer = 0x8CA8,
+                       kGlDrawFramebuffer = 0x8CA9, kGlColorBufferBit = 0x4000, kGlNearest = 0x2600,
+                       kGlTextureMinFilter = 0x2801, kGlTextureMagFilter = 0x2800, kGlFramebufferComplete = 0x8CD5,
+                       kGlRgb10A2 = 0x8059, kGlRgba8 = 0x8058, kGlUnsignedInt2101010Rev = 0x8368;
+
+// mpv draws into a frame buffer of ours (a texture of known format, as on
+// Qt's way, which works on MN's NVIDIA), then it is copied onto the
+// window's own (0.8.76: mpv straight into the window's showed only black
+// on NVIDIA 620).
+struct Gl
+{
+    void (*genFramebuffers)(int, unsigned int *) = nullptr;
+    void (*deleteFramebuffers)(int, const unsigned int *) = nullptr;
+    void (*genTextures)(int, unsigned int *) = nullptr;
+    void (*deleteTextures)(int, const unsigned int *) = nullptr;
+    void (*bindTexture)(unsigned int, unsigned int) = nullptr;
+    void (*texImage2D)(unsigned int, int, int, int, int, int, unsigned int, unsigned int, const void *) = nullptr;
+    void (*texParameteri)(unsigned int, unsigned int, int) = nullptr;
+    void (*framebufferTexture2D)(unsigned int, unsigned int, unsigned int, unsigned int, int) = nullptr;
+    unsigned int (*checkFramebufferStatus)(unsigned int) = nullptr;
+    void (*blitFramebuffer)(int, int, int, int, int, int, int, int, unsigned int, unsigned int) = nullptr;
+    void (*bindFramebuffer)(unsigned int, unsigned int) = nullptr;
+    bool load()
+    {
+#define GC_GL(f, n) f = reinterpret_cast<decltype(f)>(eglGetProcAddress(n))
+        GC_GL(genFramebuffers, "glGenFramebuffers");
+        GC_GL(deleteFramebuffers, "glDeleteFramebuffers");
+        GC_GL(genTextures, "glGenTextures");
+        GC_GL(deleteTextures, "glDeleteTextures");
+        GC_GL(bindTexture, "glBindTexture");
+        GC_GL(texImage2D, "glTexImage2D");
+        GC_GL(texParameteri, "glTexParameteri");
+        GC_GL(framebufferTexture2D, "glFramebufferTexture2D");
+        GC_GL(checkFramebufferStatus, "glCheckFramebufferStatus");
+        GC_GL(blitFramebuffer, "glBlitFramebuffer");
+        GC_GL(bindFramebuffer, "glBindFramebuffer");
+#undef GC_GL
+        return genFramebuffers && deleteFramebuffers && genTextures && deleteTextures && bindTexture && texImage2D
+            && texParameteri && framebufferTexture2D && checkFramebufferStatus && blitFramebuffer && bindFramebuffer;
+    }
+};
 
 } // namespace
 
@@ -131,6 +173,27 @@ void HdrVideo::run()
     // 10 bits per channel (PQ in 8 bits shows bands), else 8; without
     // alpha if there is such a configuration, else with it (NVIDIA offers
     // 10 bits only as RGB10_A2: MN's log said "8 bit"), shown opaque.
+    // For the log: what the driver offers with 10 bits (MN's NVIDIA gave 8).
+    QString tenBit;
+    {
+        const EGLint any10[] = {EGL_RED_SIZE, 10, EGL_GREEN_SIZE, 10, EGL_BLUE_SIZE, 10, EGL_NONE};
+        EGLConfig cs[64];
+        EGLint n = 0;
+        if (eglChooseConfig(dpy, any10, cs, 64, &n)) {
+            QStringList seen;
+            for (EGLint i = 0; i < n; ++i) {
+                EGLint r = 0, a = 0, st = 0, rt = 0;
+                eglGetConfigAttrib(dpy, cs[i], EGL_RED_SIZE, &r);
+                eglGetConfigAttrib(dpy, cs[i], EGL_ALPHA_SIZE, &a);
+                eglGetConfigAttrib(dpy, cs[i], EGL_SURFACE_TYPE, &st);
+                eglGetConfigAttrib(dpy, cs[i], EGL_RENDERABLE_TYPE, &rt);
+                if (r != 10) continue;
+                const QString one = QStringLiteral("a%1%2%3").arg(a).arg(st & EGL_WINDOW_BIT ? "w" : "").arg(rt & EGL_OPENGL_BIT ? "gl" : "");
+                if (!seen.contains(one)) seen << one;
+            }
+            tenBit = seen.isEmpty() ? QStringLiteral("none") : seen.join(',');
+        }
+    }
     EGLConfig config = nullptr;
     const EGLint wanted[][2] = {{10, 0}, {10, 2}, {8, 0}, {8, 8}};
     for (const auto &[bits, alpha] : wanted) {
@@ -185,7 +248,8 @@ void HdrVideo::run()
                      .arg(QString::fromUtf8(eglQueryString(dpy, EGL_VENDOR)), QString::fromUtf8(eglQueryString(dpy, EGL_VERSION)),
                           str(kGlVendor), str(kGlRenderer), str(kGlVersion))
                      .arg(m_bits)
-                 + (m_alphaBits > 0 ? QStringLiteral(" with %1 bit alpha%2").arg(m_alphaBits).arg(std::strstr(ext, "EGL_EXT_present_opaque") ? ", shown opaque" : "") : QString());
+                 + (m_alphaBits > 0 ? QStringLiteral(" with %1 bit alpha%2").arg(m_alphaBits).arg(std::strstr(ext, "EGL_EXT_present_opaque") ? ", shown opaque" : "") : QString())
+                 + QStringLiteral("; 10-bit configs: ") + tenBit;
         m_started = true;
         m_ack.notify_all();
     }
@@ -195,6 +259,29 @@ void HdrVideo::run()
     // black on his NVIDIA card): it fails, and Qt's drawing takes over.
     int framesDrawn = 0, blackLooks = 0;
     bool probing = glBindFramebuffer && glReadPixels;
+    Gl gl;
+    const bool ownFbo = gl.load() && !qEnvironmentVariableIsSet("GC_HDR_DIRECT");
+    unsigned int fbo = 0, tex = 0;
+    int fboW = 0, fboH = 0;
+    auto dropFbo = [&] {
+        if (fbo) gl.deleteFramebuffers(1, &fbo);
+        if (tex) gl.deleteTextures(1, &tex);
+        fbo = tex = 0;
+        fboW = fboH = 0;
+    };
+    // Lit: any of 9 pixels of the frame buffer bound for reading.
+    auto litNow = [&](int fw, int fh, QString *seen) {
+        bool lit = false;
+        for (int i = 1; i <= 3; ++i) {
+            for (int j = 1; j <= 3; ++j) {
+                unsigned char px[4] = {0, 0, 0, 0};
+                glReadPixels(fw * i / 4, fh * j / 4, 1, 1, kGlRgba, kGlUnsignedByte, px);
+                lit = lit || px[0] > 8 || px[1] > 8 || px[2] > 8;
+                if (seen && i == 2 && j == 2) *seen = QStringLiteral("%1/%2/%3").arg(px[0]).arg(px[1]).arg(px[2]);
+            }
+        }
+        return lit;
+    };
 
     EGLSurface surface = EGL_NO_SURFACE;
     wl_egl_window *window = nullptr;
@@ -254,24 +341,64 @@ void HdrVideo::run()
             draw = true;
         }
         if (draw && surface != EGL_NO_SURFACE && w > 0 && h > 0) {
-            m_hooks.render(w, h);
+            if (ownFbo && (fboW != w || fboH != h)) {
+                dropFbo();
+                gl.genTextures(1, &tex);
+                gl.bindTexture(kGlTexture2d, tex);
+                gl.texParameteri(kGlTexture2d, kGlTextureMinFilter, int(kGlNearest));
+                gl.texParameteri(kGlTexture2d, kGlTextureMagFilter, int(kGlNearest));
+                const bool ten = m_bits == 10;
+                gl.texImage2D(kGlTexture2d, 0, int(ten ? kGlRgb10A2 : kGlRgba8), w, h, 0, kGlRgba,
+                              ten ? kGlUnsignedInt2101010Rev : kGlUnsignedByte, nullptr);
+                gl.bindTexture(kGlTexture2d, 0);
+                gl.genFramebuffers(1, &fbo);
+                gl.bindFramebuffer(kGlFramebuffer, fbo);
+                gl.framebufferTexture2D(kGlFramebuffer, kGlColorAttachment0, kGlTexture2d, tex, 0);
+                const unsigned int status = gl.checkFramebufferStatus(kGlFramebuffer);
+                gl.bindFramebuffer(kGlFramebuffer, 0);
+                if (status != kGlFramebufferComplete) {
+                    emit note(QStringLiteral("own frame buffer incomplete (0x%1): straight into the window").arg(status, 0, 16));
+                    dropFbo();
+                } else {
+                    fboW = w;
+                    fboH = h;
+                }
+            }
+            if (fbo) {
+                // mpv top row first into ours (as on Qt's way), copied
+                // upside down onto the window's (bottom row first).
+                m_hooks.render(int(fbo), w, h, m_bits == 10 ? int(kGlRgb10A2) : int(kGlRgba8), false);
+                gl.bindFramebuffer(kGlReadFramebuffer, fbo);
+                gl.bindFramebuffer(kGlDrawFramebuffer, 0);
+                gl.blitFramebuffer(0, 0, w, h, 0, h, w, 0, kGlColorBufferBit, kGlNearest);
+                gl.bindFramebuffer(kGlFramebuffer, 0);
+            } else {
+                m_hooks.render(0, w, h, 0, true);
+            }
             ++framesDrawn;
             if (probing && framesDrawn % 60 == 0) {
-                glBindFramebuffer(kGlFramebuffer, 0);
-                bool lit = false;
-                for (int i = 1; i <= 3 && !lit; ++i) {
-                    for (int j = 1; j <= 3 && !lit; ++j) {
-                        unsigned char px[4] = {0, 0, 0, 0};
-                        glReadPixels(w * i / 4, h * j / 4, 1, 1, kGlRgba, kGlUnsignedByte, px);
-                        lit = px[0] > 8 || px[1] > 8 || px[2] > 8;
-                    }
+                QString inOurs, inWindow;
+                bool oursLit = false;
+                if (fbo) {
+                    glBindFramebuffer(kGlFramebuffer, fbo);
+                    oursLit = litNow(w, h, &inOurs);
                 }
+                glBindFramebuffer(kGlFramebuffer, 0);
+                const bool lit = litNow(w, h, &inWindow);
                 if (glGetError) glGetError();
                 if (lit) {
                     probing = false;
-                } else if (++blackLooks >= 6) {
-                    probing = false;
-                    emit failed(QStringLiteral("the picture stayed black"));
+                    emit note(QStringLiteral("picture seen after %1 frames (%2x%3, centre %4)").arg(framesDrawn).arg(w).arg(h).arg(inWindow));
+                } else {
+                    if (blackLooks == 0) {
+                        emit note(QStringLiteral("black after %1 frames (%2x%3): mpv's frame buffer %4, the window's %5")
+                                      .arg(framesDrawn).arg(w).arg(h)
+                                      .arg(fbo ? (oursLit ? QStringLiteral("lit ") : QStringLiteral("black ")) + inOurs : QStringLiteral("-"), inWindow));
+                    }
+                    if (++blackLooks >= 6) {
+                        probing = false;
+                        emit failed(QStringLiteral("the picture stayed black"));
+                    }
                 }
             }
             if (!eglSwapBuffers(dpy, surface)) {
@@ -284,6 +411,7 @@ void HdrVideo::run()
             }
         }
     }
+    dropFbo();
     if (m_hooks.done) m_hooks.done();
     eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     if (surface != EGL_NO_SURFACE) eglDestroySurface(dpy, surface);
