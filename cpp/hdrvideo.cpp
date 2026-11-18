@@ -25,6 +25,15 @@ void *eglProc(void *, const char *name)
     return reinterpret_cast<void *>(eglGetProcAddress(name));
 }
 
+// The few GL calls of its own (the rest are mpv's): through EGL, so no
+// link to libGL.
+using GlGetString = const unsigned char *(*)(unsigned int);
+using GlBindFramebuffer = void (*)(unsigned int, unsigned int);
+using GlReadPixels = void (*)(int, int, int, int, unsigned int, unsigned int, void *);
+using GlGetError = unsigned int (*)();
+constexpr unsigned int kGlVendor = 0x1F00, kGlRenderer = 0x1F01, kGlVersion = 0x1F02;
+constexpr unsigned int kGlFramebuffer = 0x8D40, kGlRgba = 0x1908, kGlUnsignedByte = 0x1401;
+
 } // namespace
 
 HdrVideo::HdrVideo(Hooks hooks, QObject *parent)
@@ -97,7 +106,15 @@ void HdrVideo::run()
     };
     // The same EGL display as Qt's (one per wl_display): initialised again
     // here (harmless), never terminated (it would end Qt's too).
-    EGLDisplay dpy = eglGetDisplay(reinterpret_cast<EGLNativeDisplayType>(wl->display));
+    // The way Qt asks for it (a platform display): the same EGLDisplay as
+    // Qt's on every driver (NVIDIA's guesses the platform otherwise).
+    using GetPlatformDisplay = EGLDisplay (*)(EGLenum, void *, const EGLint *);
+    auto getPlatformDisplay = reinterpret_cast<GetPlatformDisplay>(eglGetProcAddress("eglGetPlatformDisplayEXT"));
+    constexpr EGLenum kPlatformWayland = 0x31D8; // EGL_PLATFORM_WAYLAND_KHR
+    EGLDisplay dpy = getPlatformDisplay ? getPlatformDisplay(kPlatformWayland, wl->display, nullptr) : EGL_NO_DISPLAY;
+    if (dpy == EGL_NO_DISPLAY) {
+        dpy = eglGetDisplay(reinterpret_cast<EGLNativeDisplayType>(wl->display));
+    }
     if (dpy == EGL_NO_DISPLAY || !eglInitialize(dpy, nullptr, nullptr)) {
         fail(QStringLiteral("no EGL display"));
         return;
@@ -111,12 +128,15 @@ void HdrVideo::run()
         fail(QStringLiteral("EGL has no desktop OpenGL"));
         return;
     }
-    // 10 bits per channel (PQ in 8 bits shows bands); 8 if there is none.
+    // 10 bits per channel (PQ in 8 bits shows bands), else 8; without
+    // alpha if there is such a configuration, else with it (NVIDIA offers
+    // 10 bits only as RGB10_A2: MN's log said "8 bit"), shown opaque.
     EGLConfig config = nullptr;
-    for (const EGLint bits : {10, 8}) {
+    const EGLint wanted[][2] = {{10, 0}, {10, 2}, {8, 0}, {8, 8}};
+    for (const auto &[bits, alpha] : wanted) {
         const EGLint want[] = {
             EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
-            EGL_RED_SIZE, bits, EGL_GREEN_SIZE, bits, EGL_BLUE_SIZE, bits, EGL_NONE,
+            EGL_RED_SIZE, bits, EGL_GREEN_SIZE, bits, EGL_BLUE_SIZE, bits, EGL_ALPHA_SIZE, alpha, EGL_NONE,
         };
         EGLConfig configs[64];
         EGLint count = 0;
@@ -127,12 +147,11 @@ void HdrVideo::run()
             eglGetConfigAttrib(dpy, configs[i], EGL_GREEN_SIZE, &g);
             eglGetConfigAttrib(dpy, configs[i], EGL_BLUE_SIZE, &b);
             eglGetConfigAttrib(dpy, configs[i], EGL_ALPHA_SIZE, &a);
-            // No alpha: the picture is opaque (its see-through comes from
-            // the alpha modifier).
-            if (r == bits && g == bits && b == bits && a == 0) config = configs[i];
+            if (r == bits && g == bits && b == bits && a == alpha) config = configs[i];
         }
         if (config) {
             m_bits = bits;
+            m_alphaBits = alpha;
             break;
         }
     }
@@ -152,11 +171,30 @@ void HdrVideo::run()
         fail(QStringLiteral("mpv could not draw with it"));
         return;
     }
+    auto glGetString = reinterpret_cast<GlGetString>(eglGetProcAddress("glGetString"));
+    auto glBindFramebuffer = reinterpret_cast<GlBindFramebuffer>(eglGetProcAddress("glBindFramebuffer"));
+    auto glReadPixels = reinterpret_cast<GlReadPixels>(eglGetProcAddress("glReadPixels"));
+    auto glGetError = reinterpret_cast<GlGetError>(eglGetProcAddress("glGetError"));
+    auto str = [&](unsigned int what) {
+        const unsigned char *v = glGetString ? glGetString(what) : nullptr;
+        return v ? QString::fromUtf8(reinterpret_cast<const char *>(v)) : QStringLiteral("?");
+    };
     {
         std::lock_guard<std::mutex> g(m_lock);
+        m_info = QStringLiteral("EGL %1 %2; GL %3, %4, %5; %6 bit")
+                     .arg(QString::fromUtf8(eglQueryString(dpy, EGL_VENDOR)), QString::fromUtf8(eglQueryString(dpy, EGL_VERSION)),
+                          str(kGlVendor), str(kGlRenderer), str(kGlVersion))
+                     .arg(m_bits)
+                 + (m_alphaBits > 0 ? QStringLiteral(" with %1 bit alpha%2").arg(m_alphaBits).arg(std::strstr(ext, "EGL_EXT_present_opaque") ? ", shown opaque" : "") : QString());
         m_started = true;
         m_ack.notify_all();
     }
+    // Whether mpv's frames have any picture at all: a few pixels read back
+    // every 60 frames until one isn't black. Six black looks in a row (6 to
+    // 12 s of video) mean mpv draws nothing here (MN, 2026-11-18: only
+    // black on his NVIDIA card): it fails, and Qt's drawing takes over.
+    int framesDrawn = 0, blackLooks = 0;
+    bool probing = glBindFramebuffer && glReadPixels;
 
     EGLSurface surface = EGL_NO_SURFACE;
     wl_egl_window *window = nullptr;
@@ -190,7 +228,11 @@ void HdrVideo::run()
                 surface = EGL_NO_SURFACE;
             }
             if (window) {
-                surface = eglCreateWindowSurface(dpy, config, reinterpret_cast<EGLNativeWindowType>(window), nullptr);
+                // A configuration with alpha is still shown opaque (its
+                // see-through comes from the alpha modifier alone).
+                const bool presentOpaque = m_alphaBits > 0 && std::strstr(ext, "EGL_EXT_present_opaque");
+                const EGLint opaque[] = {0x31DF /* EGL_PRESENT_OPAQUE_EXT */, EGL_TRUE, EGL_NONE};
+                surface = eglCreateWindowSurface(dpy, config, reinterpret_cast<EGLNativeWindowType>(window), presentOpaque ? opaque : nullptr);
                 if (surface != EGL_NO_SURFACE && eglMakeCurrent(dpy, surface, surface, ctx)) {
                     // Paced by mpv's frames, never by the compositor: a
                     // hidden surface must not hold this thread.
@@ -213,7 +255,33 @@ void HdrVideo::run()
         }
         if (draw && surface != EGL_NO_SURFACE && w > 0 && h > 0) {
             m_hooks.render(w, h);
-            eglSwapBuffers(dpy, surface);
+            ++framesDrawn;
+            if (probing && framesDrawn % 60 == 0) {
+                glBindFramebuffer(kGlFramebuffer, 0);
+                bool lit = false;
+                for (int i = 1; i <= 3 && !lit; ++i) {
+                    for (int j = 1; j <= 3 && !lit; ++j) {
+                        unsigned char px[4] = {0, 0, 0, 0};
+                        glReadPixels(w * i / 4, h * j / 4, 1, 1, kGlRgba, kGlUnsignedByte, px);
+                        lit = px[0] > 8 || px[1] > 8 || px[2] > 8;
+                    }
+                }
+                if (glGetError) glGetError();
+                if (lit) {
+                    probing = false;
+                } else if (++blackLooks >= 6) {
+                    probing = false;
+                    emit failed(QStringLiteral("the picture stayed black"));
+                }
+            }
+            if (!eglSwapBuffers(dpy, surface)) {
+                const EGLint err = eglGetError();
+                std::lock_guard<std::mutex> g(m_lock);
+                if (!m_swapFailed) {
+                    m_swapFailed = true;
+                    emit failed(QStringLiteral("eglSwapBuffers failed (0x%1)").arg(err, 0, 16));
+                }
+            }
         }
     }
     if (m_hooks.done) m_hooks.done();

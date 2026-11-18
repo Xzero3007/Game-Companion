@@ -57,6 +57,8 @@ public:
     QString error() const { return m_error; }
     /// Bits per colour channel of its frames (10, or 8 where there is no 10).
     int bits() const { return m_bits; }
+    /// For the log: EGL's and GL's vendor, renderer and version, the bits.
+    QString info() const { return m_info; }
 
     /// Where the picture is: in `window`'s coordinates (logical pixels),
     /// shown or not. Made, moved and taken away as needed. Call on the GUI
@@ -83,6 +85,9 @@ private:
     Hooks m_hooks;
     QString m_error;
     int m_bits = 0;
+    int m_alphaBits = 0;
+    QString m_info;
+    bool m_swapFailed = false;
     std::thread m_thread;
     std::mutex m_lock;
     std::condition_variable m_wake, m_ack;

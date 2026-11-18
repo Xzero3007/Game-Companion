@@ -75,6 +75,9 @@ class MpvVideo : public QQuickFramebufferObject
     /// (a plain video on its own surface), "hdr (10 bit)" (PQ / BT.2020),
     /// "hdr refused: … (10 bit)".
     Q_PROPERTY(QString hdrState READ hdrState NOTIFY hdrStateChanged)
+    /// For the log: the HDR surface's EGL and GL (vendor, renderer,
+    /// version) and its bits ("" before it started).
+    Q_PROPERTY(QString hdrInfo READ hdrInfo NOTIFY hdrStateChanged)
 
 public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
@@ -105,6 +108,7 @@ public:
     bool hdr() const { return m_hdr; }
     void setHdr(bool on);
     QString hdrState() const { return m_hdrState; }
+    QString hdrInfo() const { return m_hdrInfo; }
     void setFrozen(bool on);
     /// mpv has a new frame: drawn unless frozen.
     void newFrame();
@@ -162,6 +166,8 @@ signals:
     void hasPictureChanged();
     void hdrChanged();
     void hdrStateChanged();
+    /// One of mpv's lines while the HDR surface draws (for the log).
+    void hdrNote(const QString &line);
 
 protected:
     /// Moved to another window: draw there (a video waiting for its render
@@ -189,6 +195,10 @@ private:
     HdrVideo *m_hdrVideo = nullptr;
     bool m_hdr = true;
     QString m_hdrState = QStringLiteral("off");
+    QString m_hdrInfo;
+    int m_hdrNotes = 0;
+    /// The HDR surface failed or was switched off: not again in this window.
+    bool m_hdrBlocked = false;
     bool m_sourceHdr = false;
     QMetaObject::Connection m_syncConn;
     /// What plays now (played again from where it was after a fall back).

@@ -354,6 +354,9 @@ bool MpvVideo::ensureStarted()
         mpv().set_option_string(m_mpv, "vo", "null");
     }
     mpv().set_option_string(m_mpv, "volume", QByteArray::number(m_volume, 'f', 0).constData());
+    // As the one before it (an mpv started again after the HDR surface).
+    mpv().set_option_string(m_mpv, "mute", m_muted ? "yes" : "no");
+    mpv().set_option_string(m_mpv, "speed", QByteArray::number(m_speed, 'f', 2).constData());
     // Named after its window in the mixer (Sound → APPS, MN 2026-11-16:
     // two rows "Game Companion" said nothing).
     mpv().set_option_string(m_mpv, "audio-client-name", m_audioName.toUtf8().constData());
@@ -389,7 +392,7 @@ bool MpvVideo::ensureStarted()
     m_core->item = this;
     if (!m_hdr) {
         setHdrState(QStringLiteral("off"));
-    } else if (drawable()) {
+    } else if (drawable() && !m_hdrBlocked) {
         startHdr();
     }
     // A renderer made before mpv existed: a new frame buffer makes the context.
@@ -589,6 +592,7 @@ bool MpvVideo::startHdr()
         return false;
     }
     m_hdrVideo = video;
+    m_hdrInfo = video->info();
     m_hdrVideo->setFrozen(m_frozen);
     connect(m_hdrVideo, &HdrVideo::failed, this, &MpvVideo::hdrFailed, Qt::QueuedConnection);
     applyHdrPicture();
@@ -615,23 +619,32 @@ void MpvVideo::dropHdr(const QString &state)
     if (!m_hdrVideo || !m_core) {
         return;
     }
-    // mpv's video output goes with its render context: what plays starts
-    // again where it was, once Qt's renderer has made a new one.
+    // A fresh mpv for Qt's drawing: one that changed its render context
+    // while playing lost its hardware decoding (MN's log, 2026-11-18: a 4K
+    // AV1 video went on with "hwdec -"). What played starts again where it
+    // was, once Qt's renderer has made the new one's context.
     const bool wasPlaying = m_mpv && !m_currentUrl.isEmpty() && m_state != QLatin1String("idle")
         && m_state != QLatin1String("ended") && m_state != QLatin1String("failed");
+    const double at = m_position;
     delete m_hdrVideo;
     m_hdrVideo = nullptr;
     m_core->hdrVideo = nullptr;
     m_core->hdr = false;
-    m_rendering = false;
-    setMpv("target-trc", QStringLiteral("auto"));
-    setMpv("target-prim", QStringLiteral("auto"));
+    m_hdrBlocked = true;
     setHdrState(state);
-    if (wasPlaying) {
-        m_pending = Pending{m_currentUrl, m_currentFormat, m_position, m_currentHeader};
+    if (m_mpv) {
+        mpv().set_wakeup_callback(m_mpv, nullptr, nullptr);
         const char *args[] = {"stop", nullptr};
         mpv().command(m_mpv, args);
-        setState(QStringLiteral("loading"));
+        m_mpv = nullptr;
+    }
+    // Ends with Qt's renderer letting it go, if that still holds it.
+    m_core.reset();
+    m_rendering = false;
+    if (wasPlaying) {
+        play(m_currentUrl, m_currentFormat, at, m_currentHeader);
+    } else {
+        setState(QStringLiteral("idle"));
     }
     update();
 }
@@ -890,6 +903,17 @@ void MpvVideo::readEvents()
                 break;
             }
             const bool fromYtdl = msg->prefix && QByteArray(msg->prefix).contains("ytdl");
+            // While the HDR surface draws: what mpv says about its drawing
+            // and decoding goes to the log (the first 30 lines a window).
+            if (m_hdrVideo && m_hdrNotes < 30 && msg->prefix) {
+                const QByteArray prefix(msg->prefix);
+                const bool drawing = prefix.startsWith("vo") || prefix.contains("hwdec") || prefix.contains("cuda")
+                    || prefix.contains("libmpv") || prefix.startsWith("vd") || prefix.contains("gpu");
+                if (msg->log_level <= MPV_LOG_LEVEL_WARN || (drawing && msg->log_level <= MPV_LOG_LEVEL_INFO)) {
+                    ++m_hdrNotes;
+                    emit hdrNote(QString::fromUtf8(msg->prefix) + QStringLiteral(": ") + line.left(200));
+                }
+            }
             if (msg->log_level > MPV_LOG_LEVEL_WARN) {
                 // "Waiting 23.00 seconds for the stream to become available..."
                 static const QRegularExpression wait(QStringLiteral("^Waiting ([0-9.]+) seconds for the stream"));

@@ -29,10 +29,11 @@ so a new session carries on from here; details of each step go to
 
 ## Now (2026-11-18)
 
+- 0.8.76 beta (2026-11-18): #174 HDR video: fall back when the picture stays black; Settings height.
 - 0.8.75 beta (2026-11-18): #172 HDR video on a subsurface of its own.
 - 0.8.74 beta (2026-11-18): #170 Video: the mouse wheel changes the volume.
 - 0.8.73 beta (2026-11-18): #168 Video player: keys and a pointer that hides in full screen.
-- Branch claude/project-thread-188og6 (2026-11-18): HDR video ("Weg C", MN's "tu es"): the picture on a subsurface of its own with PQ / BT.2020 while an HDR video plays, switch "HDR video" and a fall back by itself, HDR test picture (Settings → Streams → Videos); checked on the Sway bench with `GC_HDR_FORCE=1`; the real brightness only MN can see. Waiting for QA and a beta. Details: docs/notes/streams.md "HDR video".
+- Branch claude/project-thread-188og6 (2026-11-18): fixes for 0.8.75. On MN's NVIDIA, HDR video showed only black. The surface now checks its own picture and falls back when it stays black, then starts a fresh mpv (otherwise hwdec was lost). It also asks EGL for a platform display, takes 10 bit as RGB10_A2, and logs more (EGL/GL, mpv's lines). The Settings panel has a steady height and its corner now resizes vertically too. Waiting for QA, a beta and MN's log line "[video] hdr …".
 - 0.8.72 beta (2026-11-17): #166 Get Proton: readable title row and build names in the overview.
 - 0.8.71 beta (2026-11-17): #164 Get Proton: full names, newest first, notes for every installed version.
 - Stable is 0.8.69 (PR #160, MN's yes after own test); beta is 0.8.70
