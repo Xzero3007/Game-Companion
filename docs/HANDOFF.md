@@ -29,6 +29,7 @@ so a new session carries on from here; details of each step go to
 
 ## Now (2026-11-18)
 
+- 0.8.76 beta (2026-11-18): #174 HDR video: fall back when the picture stays black; Settings height.
 - 0.8.75 beta (2026-11-18): #172 HDR video on a subsurface of its own.
 - 0.8.74 beta (2026-11-18): #170 Video: the mouse wheel changes the volume.
 - 0.8.73 beta (2026-11-18): #168 Video player: keys and a pointer that hides in full screen.
