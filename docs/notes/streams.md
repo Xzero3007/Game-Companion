@@ -260,3 +260,7 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   `xvfb-run` with xcb: `GC_DEMO=unlocked GC_TEST_VIDEO=<file>`, click
   into the video, `xdotool windowfocus --sync` (no window manager), then
   `xdotool key` without `--window`. `GC_DEMO=settings,hwdec[,recordkey]`.
+  The wheel over a video window changes its volume by `volume_step`
+  (`wheel_volume`, default on; the MoveArea's `onWheel`, 120 per notch,
+  a touchpad's small steps add up; MN, 2026-11-18); lists and the
+  opacity button keep their own wheel.
