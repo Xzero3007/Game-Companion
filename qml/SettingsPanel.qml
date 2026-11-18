@@ -1431,7 +1431,28 @@ Panel {
                             on: pk.prefs.hdr
                             onToggled: pk.save((p) => { p.hdr = !p.hdr })
                         }
-                        Hint { text: "The picture lies on a surface of its own under the player window, so an HDR video shows in HDR when HDR is on in KDE's display settings. Where that can't work, the player draws as before by itself. Switched on, it takes hold in the next video window." }
+                        OnOff {
+                            visible: pk.prefs.hdr
+                            width: parent.width
+                            text: "    YouTube"
+                            on: pk.prefs.hdr_youtube
+                            onToggled: pk.save((p) => { p.hdr_youtube = !p.hdr_youtube })
+                        }
+                        OnOff {
+                            visible: pk.prefs.hdr
+                            width: parent.width
+                            text: "    Jellyfin"
+                            on: pk.prefs.hdr_jellyfin
+                            onToggled: pk.save((p) => { p.hdr_jellyfin = !p.hdr_jellyfin })
+                        }
+                        OnOff {
+                            visible: pk.prefs.hdr
+                            width: parent.width
+                            text: "    Twitch"
+                            on: pk.prefs.hdr_twitch
+                            onToggled: pk.save((p) => { p.hdr_twitch = !p.hdr_twitch })
+                        }
+                        Hint { text: "The picture lies on a surface of its own under the player window, so an HDR video shows in HDR when HDR is on in KDE's display settings. Where that can't work, the player draws as before by itself. Above: the sources it may come on for. The player's bar shows a gold HDR while an HDR video shows in HDR. Changes take hold in the next video window." }
                         Item {
                             width: parent.width
                             height: 34

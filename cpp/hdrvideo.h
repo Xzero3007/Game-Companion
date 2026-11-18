@@ -39,8 +39,10 @@ public:
         /// Called on the drawing thread with the context current; false if
         /// mpv could not take it. `getProc` resolves GL functions.
         std::function<bool(void *(*getProc)(void *, const char *))> init;
-        /// Draws one frame: default frame buffer, `w`×`h` pixels, 10 bit.
-        std::function<void(int w, int h)> render;
+        /// Draws one frame into frame buffer `fbo` (0: the window's own),
+        /// `w`×`h` pixels, of GL format `internalFormat` (0 unknown),
+        /// bottom row first when `flip`.
+        std::function<void(int fbo, int w, int h, int internalFormat, bool flip)> render;
         /// Called on the drawing thread before the context goes.
         std::function<void()> done;
     };
@@ -77,6 +79,8 @@ public:
 signals:
     /// It stopped working after it started (from the drawing thread).
     void failed(const QString &why);
+    /// Something for the log (from the drawing thread).
+    void note(const QString &line);
 
 private:
     void run();

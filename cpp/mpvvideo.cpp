@@ -561,10 +561,9 @@ bool MpvVideo::startHdr()
         mpv().render_set_update_callback(core->hdrRender, onHdrUpdate, core.get());
         return true;
     };
-    hooks.render = [core](int w, int h) {
-        // The window's own frame buffer: bottom row first, so flipped.
-        mpv_opengl_fbo target{0, w, h, 0};
-        int flipY = 1;
+    hooks.render = [core](int fbo, int w, int h, int internalFormat, bool flip) {
+        mpv_opengl_fbo target{fbo, w, h, internalFormat};
+        int flipY = flip ? 1 : 0;
         mpv_render_param params[] = {
             {MPV_RENDER_PARAM_OPENGL_FBO, &target},
             {MPV_RENDER_PARAM_FLIP_Y, &flipY},
@@ -595,6 +594,7 @@ bool MpvVideo::startHdr()
     m_hdrInfo = video->info();
     m_hdrVideo->setFrozen(m_frozen);
     connect(m_hdrVideo, &HdrVideo::failed, this, &MpvVideo::hdrFailed, Qt::QueuedConnection);
+    connect(m_hdrVideo, &HdrVideo::note, this, [this](const QString &line) { emit hdrNote(QStringLiteral("surface: ") + line); }, Qt::QueuedConnection);
     applyHdrPicture();
     // Development only: GC_HDR_DROP_AFTER=<ms> lets it fail after that long
     // (the fall back while a video plays, on a test bench).
@@ -621,8 +621,8 @@ void MpvVideo::dropHdr(const QString &state)
     }
     // A fresh mpv for Qt's drawing: one that changed its render context
     // while playing lost its hardware decoding (MN's log, 2026-11-18: a 4K
-    // AV1 video went on with "hwdec -"). What played starts again where it
-    // was, once Qt's renderer has made the new one's context.
+    // AV1 video went on with "hwdec -"). What played is asked for again
+    // where it was (`reloadNeeded`): its window starts it anew.
     const bool wasPlaying = m_mpv && !m_currentUrl.isEmpty() && m_state != QLatin1String("idle")
         && m_state != QLatin1String("ended") && m_state != QLatin1String("failed");
     const double at = m_position;
@@ -642,7 +642,11 @@ void MpvVideo::dropHdr(const QString &state)
     m_core.reset();
     m_rendering = false;
     if (wasPlaying) {
-        play(m_currentUrl, m_currentFormat, at, m_currentHeader);
+        // Its window asks for the video again (a Twitch stream's Streamlink
+        // pipe went with the old mpv: replaying its address played nothing,
+        // MN 0.8.76).
+        setState(QStringLiteral("loading"));
+        emit reloadNeeded(at);
     } else {
         setState(QStringLiteral("idle"));
     }
@@ -971,6 +975,11 @@ void MpvVideo::readEvents()
                 if (p && qstrcmp(p->name, "width") == 0) {
                     setHasPicture(false);
                 }
+                if (p && qstrcmp(p->name, "video-params/gamma") == 0 && m_sourceHdr) {
+                    m_sourceHdr = false;
+                    applyHdrPicture();
+                    emit sourceHdrChanged();
+                }
                 break;
             }
             const QByteArray name(p->name);
@@ -1053,6 +1062,7 @@ void MpvVideo::readEvents()
                 if (hdr != m_sourceHdr) {
                     m_sourceHdr = hdr;
                     applyHdrPicture();
+                    emit sourceHdrChanged();
                 }
             } else if (p->format == MPV_FORMAT_STRING && name == "media-title") {
                 m_title = QString::fromUtf8(*static_cast<char **>(p->data));

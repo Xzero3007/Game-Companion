@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 import GameCompanion
 import "theme.js" as Theme
+import "playerkeys.js" as PK
 
 // The strip under the bar while something plays: one part per player
 // (the radio now; videos later), each with its state, pause, volume and
@@ -79,6 +80,8 @@ Item {
                 hud: true
                 anchors.verticalCenter: parent.verticalCenter
                 compact: true
+                // The player's step (Settings → Streams → Videos).
+                step: PK.prefs(Streams.player).volume_step
                 value: Radio.volume
                 onStepped: (d) => Radio.stepVolume(d)
                 onPicked: (v) => Radio.setVolumeTo(v)
@@ -144,6 +147,7 @@ Item {
                 hud: true
                     anchors.verticalCenter: parent.verticalCenter
                     compact: true
+                    step: PK.prefs(Streams.player).volume_step
                     value: part.v.volume
                     onStepped: (d) => part.v.setVolume(part.v.volume + d)
                     onPicked: (x) => part.v.setVolume(x)

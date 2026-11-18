@@ -70,9 +70,19 @@ Item {
         }
     }
 
+    // One step per notch (120), as the video window's wheel: a touchpad's
+    // or a smooth wheel's small moves add up (MN, 2026-11-18: the strip
+    // jumped by more than the player).
+    property real wheelSum: 0
     WheelHandler {
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onWheel: (event) => vol.stepped(event.angleDelta.y > 0 ? vol.step : -vol.step)
+        onWheel: (event) => {
+            vol.wheelSum += event.angleDelta.y
+            const notches = Math.trunc(vol.wheelSum / 120)
+            if (notches === 0) return
+            vol.wheelSum -= notches * 120
+            vol.stepped(notches * vol.step)
+        }
     }
 
     component StepButton: Item {

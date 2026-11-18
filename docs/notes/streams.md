@@ -319,3 +319,19 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   context moved while playing went on without hwdec ("hwdec -"). mpv's
   lines about drawing and decoding go to the log while the surface draws
   (`hdrNote`, "[video] hdr mpv …", 30 per window).
+  0.8.76 on MN's NVIDIA 620.70.06: still black (EGL NVIDIA, 8 bit), the
+  fall back worked, but Twitch then played nothing: the fresh mpv was
+  handed the old Streamlink pipe (`fdclose://`), gone with the old mpv.
+  Now `reloadNeeded(position)` makes the window ask for the video again
+  (`win.load`: a new Streamlink, a new Jellyfin session). mpv now draws
+  into a frame buffer of ours (a texture of RGB10_A2 or RGBA8, its format
+  passed to mpv as on Qt's way, which works on NVIDIA), copied upside down
+  onto the window's with glBlitFramebuffer (`GC_HDR_DIRECT=1`: straight
+  into the window as before). The log names the driver's 10-bit configs
+  and, at the first black look, whether mpv's frame buffer or only the
+  window's is black. Per source (MN: "bis dato jelly und yt"):
+  `hdr_youtube` and `hdr_jellyfin` on, `hdr_twitch` off. The video
+  window's bar shows a gold "HDR" while an HDR video shows in HDR, a grey
+  "SDR" while one shows without (`MpvVideo.sourceHdr`). The strip's volume
+  bars (and the video window's) step by the player's `volume_step`, one
+  step per wheel notch (`VolumeBar` adds up angleDelta).
