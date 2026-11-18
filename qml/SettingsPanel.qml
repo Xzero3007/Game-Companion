@@ -3,6 +3,7 @@ import GameCompanion
 import "theme.js" as Theme
 import "plugins.js" as Plugins
 import "aion2/timekit.js" as TK
+import "playerkeys.js" as PK
 import "poe2"
 
 // Settings: how solid the panels are, the shortcuts, and what this is.
@@ -1388,6 +1389,151 @@ Panel {
                         onToggled: Streams.saveCloseAtEnd(!Streams.closeAtEnd)
                     }
                     Hint { text: "On: a video window closes by itself at the end of a video, a past broadcast, an episode or a stream, unless something follows (the next in a playlist played through, AUTOPLAY's next video, Jellyfin's next episode). Closing ends its mpv, as the close button does." }
+                    // The video player's pointer and keys (MN, 2026-11-18): how long the
+                    // pointer waits in full screen, the keys on or off, the steps, and
+                    // each key (a click on it, then the new key; Esc stops).
+                    Column {
+                        id: pk
+                        width: parent.width
+                        spacing: 10
+                        readonly property var prefs: PK.prefs(Streams.player)
+                        property string recording: nativeWindow.demo.indexOf("recordkey") >= 0 ? "mute" : ""
+                        property string note: ""
+                        function save(change) {
+                            const p = PK.prefs(Streams.player)
+                            change(p)
+                            Streams.savePlayer(JSON.stringify(p))
+                        }
+                        function nameOf(id) {
+                            const a = PK.ACTIONS.find((x) => x.id === id)
+                            return a ? a.name : ""
+                        }
+                        function take(seq) {
+                            const id = recording
+                            const other = PK.takenBy(prefs, seq, id)
+                            if (other === "fixed") { note = PK.shown(seq) + " is fixed (0 to 9 jump, Esc leaves full screen)"; return }
+                            if (other.length > 0) { note = PK.shown(seq) + " already does: " + nameOf(other); return }
+                            recording = ""
+                            note = ""
+                            save((p) => { p.key_map[id] = [seq] })
+                        }
+                        Item { width: 1; height: 4 }
+                        Label { text: "Pointer and keys" }
+                        Dropdown {
+                            width: parent.width
+                            z: 28
+                            label: "Hide the pointer in full screen after"
+                            options: [{ id: "0", name: "Never" }, { id: "3", name: "3 s" }, { id: "5", name: "5 s" },
+                                      { id: "10", name: "10 s" }, { id: "20", name: "20 s" }]
+                            current: String(pk.prefs.hide_pointer)
+                            onChosen: (id) => pk.save((p) => { p.hide_pointer = parseInt(id) })
+                        }
+                        Hint { text: "In full screen, the pointer and the player's bars go when the mouse stands still this long; moving it brings them back." }
+                        OnOff {
+                            width: parent.width
+                            text: "Player keys"
+                            on: pk.prefs.keys
+                            onToggled: pk.save((p) => { p.keys = !p.keys })
+                        }
+                        Hint { text: "The keys work after a click into a video window, and in full screen. While a video window has them, the game gets no keys: a click into the game gives them back." }
+                        Dropdown {
+                            visible: pk.prefs.keys
+                            width: parent.width
+                            z: 27
+                            label: "Step for " + PK.shown("Left") + " and " + PK.shown("Right")
+                            options: [{ id: "5", name: "5 s" }, { id: "10", name: "10 s" }, { id: "15", name: "15 s" }, { id: "30", name: "30 s" }]
+                            current: String(pk.prefs.seek_step)
+                            onChosen: (id) => pk.save((p) => { p.seek_step = parseInt(id) })
+                        }
+                        Dropdown {
+                            visible: pk.prefs.keys
+                            width: parent.width
+                            z: 26
+                            label: "Volume step for " + PK.shown("Up") + " and " + PK.shown("Down")
+                            options: [{ id: "2", name: "2 %" }, { id: "5", name: "5 %" }, { id: "10", name: "10 %" }]
+                            current: String(pk.prefs.volume_step)
+                            onChosen: (id) => pk.save((p) => { p.volume_step = parseInt(id) })
+                        }
+                        // Takes the next key while one is being changed.
+                        Item {
+                            id: catcher
+                            width: 1
+                            height: 1
+                            focus: pk.recording.length > 0
+                            onFocusChanged: if (focus) forceActiveFocus()
+                            Keys.onPressed: (e) => {
+                                e.accepted = true
+                                if (e.key === Qt.Key_Escape) { pk.recording = ""; pk.note = ""; return }
+                                const seq = PK.sequenceOf(e.key, e.text, e.modifiers)
+                                if (seq.length > 0) pk.take(seq)
+                            }
+                        }
+                        Repeater {
+                            model: pk.prefs.keys ? PK.ACTIONS : []
+                            delegate: Item {
+                                id: keyRow
+                                required property var modelData
+                                readonly property bool changing: pk.recording === modelData.id
+                                readonly property bool changed: !!pk.prefs.key_map[modelData.id]
+                                width: pk.width
+                                height: 32
+                                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rowLine }
+                                Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - keyBox.width - 12
+                                    elide: Text.ElideRight
+                                    text: keyRow.modelData.name
+                                    color: Theme.textSoft()
+                                    font.family: Theme.body
+                                    font.pixelSize: 13
+                                }
+                                Rectangle {
+                                    id: keyBox
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: Math.max(90, keyText.implicitWidth + 20)
+                                    height: 24
+                                    color: keyMouse.containsMouse ? Qt.rgba(224 / 255, 165 / 255, 38 / 255, 0.12) : "transparent"
+                                    border.color: keyRow.changing ? Theme.accent : Theme.track
+                                    Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                        id: keyText
+                                        anchors.centerIn: parent
+                                        text: keyRow.changing ? "PRESS A KEY…" : PK.keysOf(pk.prefs, keyRow.modelData.id).map(PK.shown).join(" / ").toUpperCase()
+                                        color: keyRow.changing || keyRow.changed ? Theme.accent : Theme.text()
+                                        font.family: Theme.display
+                                        font.pixelSize: 13
+                                        font.weight: Font.Bold
+                                        font.letterSpacing: 1
+                                    }
+                                    MouseArea {
+                                        id: keyMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            pk.note = ""
+                                            pk.recording = keyRow.changing ? "" : keyRow.modelData.id
+                                            if (pk.recording.length > 0) catcher.forceActiveFocus()
+                                        }
+                                    }
+                                    Accessible.role: Accessible.Button
+                                    Accessible.name: "Change the key for " + keyRow.modelData.name
+                                }
+                            }
+                        }
+                        Hint {
+                            visible: pk.prefs.keys
+                            text: pk.note.length > 0 ? pk.note
+                                : pk.recording.length > 0 ? "Press the new key for " + pk.nameOf(pk.recording) + " (Esc: keep the old one)."
+                                : "Fixed: 0 to 9 jump to 0 % to 90 %, Esc leaves full screen. A click on a key changes it."
+                            color: pk.note.length > 0 ? Theme.red : Theme.dim()
+                        }
+                        TextButton {
+                            visible: pk.prefs.keys && Object.keys(pk.prefs.key_map).length > 0
+                            text: "Reset keys"
+                            onClicked: { pk.recording = ""; pk.note = ""; pk.save((p) => { p.key_map = {} }) }
+                        }
+                    }
                     }
                 }
 

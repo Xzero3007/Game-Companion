@@ -181,6 +181,44 @@ impl Default for GamePreset {
     }
 }
 
+/// The video player's pointer and keys (Settings → Streams → Videos; MN,
+/// 2026-11-18).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PlayerPrefs {
+    /// Seconds without moving before the pointer hides in full screen (0 never).
+    pub hide_pointer: u32,
+    /// The player's keys work (after a click into its window, or in full screen).
+    pub keys: bool,
+    /// Seconds ← and → jump.
+    pub seek_step: u32,
+    /// Percent ↑ and ↓ change the volume by.
+    pub volume_step: u32,
+    /// Keys changed by hand: action → key sequences (the rest keep their defaults).
+    pub key_map: BTreeMap<String, Vec<String>>,
+}
+
+impl Default for PlayerPrefs {
+    fn default() -> Self {
+        Self { hide_pointer: 10, keys: true, seek_step: 5, volume_step: 5, key_map: BTreeMap::new() }
+    }
+}
+
+impl PlayerPrefs {
+    /// Within the choices the settings offer; at most a few keys per action.
+    pub fn clamped(mut self) -> Self {
+        self.hide_pointer = self.hide_pointer.min(120);
+        self.seek_step = self.seek_step.clamp(1, 120);
+        self.volume_step = self.volume_step.clamp(1, 25);
+        self.key_map.retain(|action, keys| {
+            keys.retain(|k| !k.is_empty() && k.len() <= 40);
+            keys.truncate(3);
+            !action.is_empty() && action.len() <= 40
+        });
+        self
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StreamsSettings {
@@ -208,6 +246,8 @@ pub struct StreamsSettings {
     /// A video window closes at the end when nothing follows (Settings →
     /// Streams → Videos; MN, 2026-11-15).
     pub close_at_end: bool,
+    /// The player's pointer hiding and keys.
+    pub player: PlayerPrefs,
     /// The lists as tiles side by side (true) or as rows.
     pub grid: bool,
     /// How much of each video window shows, in percent (50 to 100), by slot.
@@ -298,6 +338,7 @@ impl Default for StreamsSettings {
             even_loudness: false,
             autoplay: false,
             close_at_end: false,
+            player: PlayerPrefs::default(),
             grid: true,
             video_opacity: BTreeMap::new(),
             sponsorblock: Default::default(),
@@ -704,5 +745,20 @@ mod tests {
     #[test]
     fn video_boost_steps() {
         assert_eq!([-5, 0, 2, 3, 5, 6, 8, 9, 40].map(clamp_video_boost), [0, 0, 0, 3, 3, 6, 6, 9, 9]);
+    }
+
+    #[test]
+    fn player_prefs_default_and_clamped() {
+        let old: StreamsSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(old.player.hide_pointer, 10);
+        assert!(old.player.keys);
+        let p: PlayerPrefs = serde_json::from_str(
+            r#"{"hide_pointer": 999, "seek_step": 0, "volume_step": 90, "key_map": {"pause": ["", "Space", "K", "P", "X"], "": ["Q"]}}"#,
+        )
+        .unwrap();
+        let p = p.clamped();
+        assert_eq!((p.hide_pointer, p.seek_step, p.volume_step), (120, 1, 25));
+        assert_eq!(p.key_map.get("pause").unwrap(), &vec!["Space".to_string(), "K".into(), "P".into()]);
+        assert_eq!(p.key_map.len(), 1);
     }
 }
