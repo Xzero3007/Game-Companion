@@ -1,10 +1,12 @@
 #include "mpvvideo.h"
+#include "hdrvideo.h"
 
 #include <QtCore/QByteArray>
 #include <QtCore/QDateTime>
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QMetaObject>
 #include <QtGui/QOpenGLContext>
+#include <QtGui/QOpenGLFunctions>
 #include <QtOpenGL/QOpenGLFramebufferObject>
 #include <QtQml/QQmlEngine>
 #include <QtQuick/QQuickWindow>
@@ -12,7 +14,9 @@
 #include <QtQuick/QSGRendererInterface>
 #include <QtCore/QPointer>
 #include <QtCore/QRegularExpression>
+#include <QtCore/QTimer>
 
+#include <atomic>
 #include <clocale>
 #include <dlfcn.h>
 #include <mpv/client.h>
@@ -91,6 +95,11 @@ struct MpvCore
     mpv_handle *handle = nullptr;
     /// Gone once the item is: no more redraws are asked of it.
     QPointer<MpvVideo> item;
+    /// mpv draws on the HDR surface's thread (its render context lives
+    /// there): Qt's renderer makes none and stays see-through.
+    std::atomic<bool> hdr{false};
+    HdrVideo *hdrVideo = nullptr;
+    mpv_render_context *hdrRender = nullptr;
     ~MpvCore()
     {
         if (handle) {
@@ -128,17 +137,20 @@ public:
     void synchronize(QQuickFramebufferObject *item) override
     {
         auto core = static_cast<MpvVideo *>(item)->core();
-        if (core && core != m_core && !m_render) {
-            // mpv started after this renderer: a new frame buffer makes the context.
+        const bool hdr = core && core->hdr;
+        if (core && !hdr && !m_render && (core != m_core || m_wasHdr)) {
+            // mpv started after this renderer, or the HDR surface let it
+            // go: a new frame buffer makes the context.
             m_core = core;
             invalidateFramebufferObject();
         }
+        m_wasHdr = hdr;
     }
 
     QOpenGLFramebufferObject *createFramebufferObject(const QSize &size) override
     {
         // Made here, on the render thread, with Qt's GL context current.
-        if (!m_render && m_core && m_core->handle && mpv().ok) {
+        if (!m_render && m_core && m_core->handle && !m_core->hdr && mpv().ok) {
             mpv_opengl_init_params gl{getProcAddress, nullptr};
             const char *api = MPV_RENDER_API_TYPE_OPENGL;
             mpv_render_param params[] = {
@@ -163,6 +175,12 @@ public:
     void render() override
     {
         if (!m_render) {
+            // Nothing of mpv's here (yet, or it draws on the HDR surface
+            // under the window): see-through.
+            QOpenGLFunctions *gl = QOpenGLContext::currentContext()->functions();
+            gl->glClearColor(0, 0, 0, 0);
+            gl->glClear(GL_COLOR_BUFFER_BIT);
+            QQuickOpenGLUtils::resetOpenGLState();
             return;
         }
         QOpenGLFramebufferObject *fbo = framebufferObject();
@@ -198,7 +216,17 @@ private:
 
     std::shared_ptr<MpvCore> m_core;
     mpv_render_context *m_render = nullptr;
+    bool m_wasHdr = false;
 };
+
+// mpv's thread: the HDR surface draws the new frame on its own thread.
+void onHdrUpdate(void *ctx)
+{
+    auto *core = static_cast<MpvCore *>(ctx);
+    if (core->hdrVideo) {
+        core->hdrVideo->frame();
+    }
+}
 
 // What helps with what yt-dlp says, where that is known.
 QString hintFor(const QString &why)
@@ -235,6 +263,7 @@ MpvVideo::MpvVideo(QQuickItem *parent)
 
 MpvVideo::~MpvVideo()
 {
+    disconnect(m_syncConn);
     if (m_mpv) {
         mpv().set_wakeup_callback(m_mpv, nullptr, nullptr);
         // Quiet at once; mpv itself ends with the renderer's render context.
@@ -242,6 +271,9 @@ MpvVideo::~MpvVideo()
         mpv().command(m_mpv, args);
         m_mpv = nullptr;
     }
+    // The HDR surface's thread lets its render context go first.
+    delete m_hdrVideo;
+    m_hdrVideo = nullptr;
     m_core.reset();
 }
 
@@ -349,10 +381,17 @@ bool MpvVideo::ensureStarted()
     mpv().observe_property(m_mpv, 0, "speed", MPV_FORMAT_DOUBLE);
     // The decoded picture's width: none while only sound plays.
     mpv().observe_property(m_mpv, 0, "width", MPV_FORMAT_INT64);
+    // The picture's transfer curve: "pq" or "hlg" for an HDR video.
+    mpv().observe_property(m_mpv, 0, "video-params/gamma", MPV_FORMAT_STRING);
     mpv().set_wakeup_callback(m_mpv, onWakeup, this);
     m_core = std::make_shared<MpvCore>();
     m_core->handle = m_mpv;
     m_core->item = this;
+    if (!m_hdr) {
+        setHdrState(QStringLiteral("off"));
+    } else if (drawable()) {
+        startHdr();
+    }
     // A renderer made before mpv existed: a new frame buffer makes the context.
     update();
     return true;
@@ -390,6 +429,9 @@ void MpvVideo::setFrozen(bool on)
         return;
     }
     m_frozen = on;
+    if (m_hdrVideo) {
+        m_hdrVideo->setFrozen(on);
+    }
     if (!on && m_missed) {
         m_missed = false;
         update();
@@ -453,8 +495,177 @@ bool MpvVideo::play(const QString &url, const QString &format, double start, con
 void MpvVideo::itemChange(ItemChange change, const ItemChangeData &value)
 {
     QQuickFramebufferObject::itemChange(change, value);
-    if (change == ItemSceneChange && value.window) {
-        update();
+    if (change == ItemSceneChange) {
+        disconnect(m_syncConn);
+        if (m_hdrVideo) {
+            m_hdrVideo->detach();
+        }
+        if (value.window) {
+            // Placed each time the window takes its items over (its render
+            // thread, the GUI thread waiting): the picture moves with the
+            // window's own frame.
+            m_syncConn = connect(value.window, &QQuickWindow::beforeSynchronizing, this, [this] { placeHdr(); }, Qt::DirectConnection);
+            update();
+        }
+    }
+}
+
+void MpvVideo::setHdr(bool on)
+{
+    if (m_hdr == on) {
+        return;
+    }
+    m_hdr = on;
+    emit hdrChanged();
+    if (!on && m_hdrVideo) {
+        dropHdr(QStringLiteral("off"));
+    } else if (!on) {
+        setHdrState(QStringLiteral("off"));
+    }
+    // Switched on: with the next start of mpv (the next video window).
+}
+
+void MpvVideo::setHdrState(const QString &state)
+{
+    if (m_hdrState == state) {
+        return;
+    }
+    m_hdrState = state;
+    emit hdrStateChanged();
+}
+
+bool MpvVideo::startHdr()
+{
+    const QString why = HdrVideo::unavailable();
+    if (!why.isEmpty()) {
+        setHdrState(QStringLiteral("unavailable: ") + why);
+        return false;
+    }
+    std::shared_ptr<MpvCore> core = m_core;
+    HdrVideo::Hooks hooks;
+    hooks.init = [core](void *(*getProc)(void *, const char *)) {
+        mpv_opengl_init_params gl{getProc, nullptr};
+        const char *api = MPV_RENDER_API_TYPE_OPENGL;
+        mpv_render_param params[] = {
+            {MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(api)},
+            {MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &gl},
+            {MPV_RENDER_PARAM_INVALID, nullptr},
+        };
+        if (mpv().render_create(&core->hdrRender, core->handle, params) < 0) {
+            core->hdrRender = nullptr;
+            return false;
+        }
+        mpv().render_set_update_callback(core->hdrRender, onHdrUpdate, core.get());
+        return true;
+    };
+    hooks.render = [core](int w, int h) {
+        // The window's own frame buffer: bottom row first, so flipped.
+        mpv_opengl_fbo target{0, w, h, 0};
+        int flipY = 1;
+        mpv_render_param params[] = {
+            {MPV_RENDER_PARAM_OPENGL_FBO, &target},
+            {MPV_RENDER_PARAM_FLIP_Y, &flipY},
+            {MPV_RENDER_PARAM_INVALID, nullptr},
+        };
+        if (core->hdrRender) {
+            mpv().render_render(core->hdrRender, params);
+        }
+    };
+    hooks.done = [core] {
+        if (core->hdrRender) {
+            mpv().render_free(core->hdrRender);
+            core->hdrRender = nullptr;
+        }
+    };
+    auto *video = new HdrVideo(std::move(hooks));
+    core->hdrVideo = video;
+    core->hdr = true;
+    if (!video->start()) {
+        const QString error = video->error();
+        core->hdr = false;
+        delete video;
+        core->hdrVideo = nullptr;
+        setHdrState(QStringLiteral("fell back: ") + error);
+        return false;
+    }
+    m_hdrVideo = video;
+    m_hdrVideo->setFrozen(m_frozen);
+    connect(m_hdrVideo, &HdrVideo::failed, this, &MpvVideo::hdrFailed, Qt::QueuedConnection);
+    applyHdrPicture();
+    // Development only: GC_HDR_DROP_AFTER=<ms> lets it fail after that long
+    // (the fall back while a video plays, on a test bench).
+    const int dropAfter = qEnvironmentVariableIntValue("GC_HDR_DROP_AFTER");
+    if (dropAfter > 0) {
+        QTimer::singleShot(dropAfter, this, [this] { hdrFailed(QStringLiteral("GC_HDR_DROP_AFTER")); });
+    }
+    QMetaObject::invokeMethod(this, "renderReady", Qt::QueuedConnection);
+    update();
+    return true;
+}
+
+void MpvVideo::hdrFailed(const QString &why)
+{
+    if (m_hdrVideo) {
+        dropHdr(QStringLiteral("fell back: ") + why);
+    }
+}
+
+void MpvVideo::dropHdr(const QString &state)
+{
+    if (!m_hdrVideo || !m_core) {
+        return;
+    }
+    // mpv's video output goes with its render context: what plays starts
+    // again where it was, once Qt's renderer has made a new one.
+    const bool wasPlaying = m_mpv && !m_currentUrl.isEmpty() && m_state != QLatin1String("idle")
+        && m_state != QLatin1String("ended") && m_state != QLatin1String("failed");
+    delete m_hdrVideo;
+    m_hdrVideo = nullptr;
+    m_core->hdrVideo = nullptr;
+    m_core->hdr = false;
+    m_rendering = false;
+    setMpv("target-trc", QStringLiteral("auto"));
+    setMpv("target-prim", QStringLiteral("auto"));
+    setHdrState(state);
+    if (wasPlaying) {
+        m_pending = Pending{m_currentUrl, m_currentFormat, m_position, m_currentHeader};
+        const char *args[] = {"stop", nullptr};
+        mpv().command(m_mpv, args);
+        setState(QStringLiteral("loading"));
+    }
+    update();
+}
+
+void MpvVideo::placeHdr()
+{
+    if (!m_hdrVideo) {
+        return;
+    }
+    qreal opacity = 1;
+    for (const QQuickItem *i = this; i; i = i->parentItem()) {
+        opacity *= i->opacity();
+    }
+    const bool shown = isVisible() && window() && window()->isVisible() && opacity > 0.001;
+    m_hdrVideo->place(window(), mapRectToScene(boundingRect()), shown, opacity);
+}
+
+void MpvVideo::applyHdrPicture()
+{
+    if (!m_hdrVideo) {
+        return;
+    }
+    // An HDR video goes out as PQ / BT.2020, untouched (no tone mapping
+    // by mpv: KWin fits it to the screen); anything else as before.
+    setMpv("target-trc", m_sourceHdr ? QStringLiteral("pq") : QStringLiteral("auto"));
+    setMpv("target-prim", m_sourceHdr ? QStringLiteral("bt.2020") : QStringLiteral("auto"));
+    m_hdrVideo->setHdr(m_sourceHdr);
+    const QString bits = QStringLiteral(" (%1 bit)").arg(m_hdrVideo->bits());
+    if (!m_sourceHdr) {
+        setHdrState(QStringLiteral("sdr") + bits);
+    } else if (m_hdrVideo->error().isEmpty()) {
+        setHdrState(QStringLiteral("hdr") + bits);
+    } else {
+        setHdrState(QStringLiteral("hdr refused: ") + m_hdrVideo->error() + bits);
     }
 }
 
@@ -471,6 +682,9 @@ bool MpvVideo::loadPending()
     }
     const Pending p = m_pending;
     m_pending = Pending{};
+    m_currentUrl = p.url;
+    m_currentFormat = p.format;
+    m_currentHeader = p.header;
     const QString &url = p.url;
     const QString &format = p.format;
     const double start = p.start;
@@ -809,6 +1023,13 @@ void MpvVideo::readEvents()
                 }
                 m_chapters = list;
                 emit chaptersChanged();
+            } else if (p->format == MPV_FORMAT_STRING && name == "video-params/gamma") {
+                const QByteArray g(*static_cast<char **>(p->data));
+                const bool hdr = g == "pq" || g == "hlg";
+                if (hdr != m_sourceHdr) {
+                    m_sourceHdr = hdr;
+                    applyHdrPicture();
+                }
             } else if (p->format == MPV_FORMAT_STRING && name == "media-title") {
                 m_title = QString::fromUtf8(*static_cast<char **>(p->data));
                 emit titleChanged();

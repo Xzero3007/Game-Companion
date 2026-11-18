@@ -636,6 +636,19 @@ Overlay {
         part: VoiceOverlay { id: voiceOverlay }
     }
 
+    // The HDR test (Settings → Streams → Videos): its surface only while open.
+    property bool hdrTestOpen: nativeWindow.demo.indexOf("hdrtest") >= 0
+    Surface {
+        wanted: root.hdrTestOpen
+        stack: 7
+        part: HdrTestWindow {
+            shown: root.hdrTestOpen
+            x: (root.width - width) / 2
+            y: Math.max(8, (root.height - height) / 2)
+            onCloseClicked: root.hdrTestOpen = false
+        }
+    }
+
     // An alert over the game: with the hub or without, never in the way
     // for long (20 s, or a click).
     Surface {
@@ -812,6 +825,7 @@ Overlay {
             defaultX: root.width - width - 24
             defaultY: 120
             onCloseClicked: root.settingsOpen = false
+            onHdrTestRequested: root.hdrTestOpen = true
             onSaveLayoutRequested: (name) => Companion.saveLayout(name, JSON.stringify(root.openPanels()))
             onLoadLayoutRequested: (name) => {
                 const open = Companion.loadLayout(name)

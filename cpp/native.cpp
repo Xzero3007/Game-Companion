@@ -1,6 +1,7 @@
 #include "native.h"
 #include "mpvvideo.h"
 #include "twitchchat.h"
+#include "hdrtest.h"
 
 #include <QtCore/QMetaObject>
 #include <QtCore/QMargins>
@@ -610,4 +611,28 @@ int32_t gc_run()
 void gc_quit()
 {
     QMetaObject::invokeMethod(qApp, &QCoreApplication::quit, Qt::QueuedConnection);
+}
+
+QString NativeWindow::hdrTest(QQuickWindow *window, const QRectF &area)
+{
+    if (!m_hdrTest) {
+        m_hdrTest = new HdrTest(this);
+    }
+    return m_hdrTest->show(window, area.toAlignedRect());
+}
+
+void NativeWindow::hdrTestOff()
+{
+    if (m_hdrTest) {
+        m_hdrTest->hide();
+    }
+}
+
+QVariantList NativeWindow::hdrNits() const
+{
+    QVariantList out;
+    for (int n : HdrTest::patchNits()) {
+        out << n;
+    }
+    return out;
 }
