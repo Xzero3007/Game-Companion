@@ -194,13 +194,16 @@ pub struct PlayerPrefs {
     pub seek_step: u32,
     /// Percent ↑ and ↓ change the volume by.
     pub volume_step: u32,
+    /// The mouse wheel over a video window changes its volume (by `volume_step`;
+    /// MN, 2026-11-18).
+    pub wheel_volume: bool,
     /// Keys changed by hand: action → key sequences (the rest keep their defaults).
     pub key_map: BTreeMap<String, Vec<String>>,
 }
 
 impl Default for PlayerPrefs {
     fn default() -> Self {
-        Self { hide_pointer: 10, keys: true, seek_step: 5, volume_step: 5, key_map: BTreeMap::new() }
+        Self { hide_pointer: 10, keys: true, seek_step: 5, volume_step: 5, wheel_volume: true, key_map: BTreeMap::new() }
     }
 }
 
@@ -752,6 +755,7 @@ mod tests {
         let old: StreamsSettings = serde_json::from_str("{}").unwrap();
         assert_eq!(old.player.hide_pointer, 10);
         assert!(old.player.keys);
+        assert!(old.player.wheel_volume);
         let p: PlayerPrefs = serde_json::from_str(
             r#"{"hide_pointer": 999, "seek_step": 0, "volume_step": 90, "key_map": {"pause": ["", "Space", "K", "P", "X"], "": ["Q"]}}"#,
         )

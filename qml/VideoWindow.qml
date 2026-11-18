@@ -987,6 +987,19 @@ Item {
         cursorShape: win.pointerIdle ? Qt.BlankCursor : pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         onReleased: if (!win.fullScreen) win.remember()
         onDoubleClicked: win.togglePause()
+        // The wheel: louder and quieter by the volume step (MN, 2026-11-18).
+        // A notch is 120; a touchpad's small steps add up to one.
+        property real wheelSum: 0
+        onWheel: (w) => {
+            if (!win.keyPrefs.wheel_volume || !win.active) { w.accepted = false; return }
+            wheelSum += w.angleDelta.y
+            const notches = Math.trunc(wheelSum / 120)
+            if (notches === 0) return
+            wheelSum -= notches * 120
+            win.muted = false
+            win.setVolume(win.volume + notches * win.keyPrefs.volume_step)
+            win.say("VOLUME " + win.volume + " %")
+        }
     }
     readonly property bool showBars: compact || (!Companion.locked && (barsWanted || barsLinger.running || nativeWindow.demo.indexOf("video") >= 0))
     onShowBarsChanged: if (!showBars) closePickers()

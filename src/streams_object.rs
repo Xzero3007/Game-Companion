@@ -71,7 +71,7 @@ pub mod qobject {
         /// A video window closes at the end when nothing follows.
         #[qproperty(bool, close_at_end)]
         /// The player's pointer hiding and keys: JSON `{"hide_pointer",
-        /// "keys", "seek_step", "volume_step", "key_map": {action: [keys]}}`.
+        /// "keys", "seek_step", "volume_step", "wheel_volume", "key_map": {action: [keys]}}`.
         #[qproperty(QString, player)]
         /// YouTube lists: what is left out. JSON `{"shorts", "watched",
         /// "channels": [{id, name}], "words": [..]}`.
