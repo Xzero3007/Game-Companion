@@ -43,6 +43,7 @@ function prefs(json) {
         keys: p.keys === undefined ? true : !!p.keys,
         seek_step: p.seek_step || 5,
         volume_step: p.volume_step || 5,
+        wheel_volume: p.wheel_volume === undefined ? true : !!p.wheel_volume,
         key_map: p.key_map || {}
     }
 }

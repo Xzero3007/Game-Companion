@@ -1436,6 +1436,12 @@ Panel {
                             onToggled: pk.save((p) => { p.keys = !p.keys })
                         }
                         Hint { text: "The keys work after a click into a video window, and in full screen. While a video window has them, the game gets no keys: a click into the game gives them back." }
+                        OnOff {
+                            width: parent.width
+                            text: "Mouse wheel changes the volume"
+                            on: pk.prefs.wheel_volume
+                            onToggled: pk.save((p) => { p.wheel_volume = !p.wheel_volume })
+                        }
                         Dropdown {
                             visible: pk.prefs.keys
                             width: parent.width
@@ -1446,10 +1452,10 @@ Panel {
                             onChosen: (id) => pk.save((p) => { p.seek_step = parseInt(id) })
                         }
                         Dropdown {
-                            visible: pk.prefs.keys
+                            visible: pk.prefs.keys || pk.prefs.wheel_volume
                             width: parent.width
                             z: 26
-                            label: "Volume step for " + PK.shown("Up") + " and " + PK.shown("Down")
+                            label: "Volume step for " + PK.shown("Up") + ", " + PK.shown("Down") + " and the wheel"
                             options: [{ id: "2", name: "2 %" }, { id: "5", name: "5 %" }, { id: "10", name: "10 %" }]
                             current: String(pk.prefs.volume_step)
                             onChosen: (id) => pk.save((p) => { p.volume_step = parseInt(id) })
