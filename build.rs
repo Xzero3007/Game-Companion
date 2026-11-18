@@ -126,6 +126,7 @@ fn main() {
             "assets/aion2/odyle.png",
             "qml/theme.js",
             "qml/drag.js",
+            "qml/playerkeys.js",
             "qml/launch.js",
             "qml/plugins.js",
             "qml/aion2/mapkit.js",
