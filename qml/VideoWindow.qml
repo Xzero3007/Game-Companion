@@ -872,8 +872,15 @@ Item {
         else Companion.savePlace(panelId, x, y, width, height)
     }
 
+    // The picture on its own (HDR) surface under the window: the window
+    // stays see-through over it (MN, 2026-11-18, "Weg C").
+    readonly property bool hdrSurface: {
+        const v = videoLoader.item
+        return !!v && v.visible && (v.hdrState.indexOf("sdr") === 0 || v.hdrState.indexOf("hdr") === 0)
+    }
     Rectangle {
         anchors.fill: parent
+        visible: !win.hdrSurface
         color: "#0e0d11"
         opacity: win.videoOpacity
     }
@@ -898,6 +905,8 @@ Item {
                 local: win.jelly
                 muted: win.muted
                 audioName: "Game Companion · " + (win.jelly ? "Jellyfin" : win.slot === "twitch" ? "Twitch" : "YouTube")
+                hdr: win.keyPrefs.hdr
+                onHdrStateChanged: Companion.log("video", "hdr " + hdrState)
             }
         }
     }

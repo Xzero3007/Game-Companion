@@ -43,6 +43,7 @@ Panel {
     readonly property real room: Math.max(200, (parent ? parent.height : 900) - y - 68 - tabRow.height - 25 - 8)
     onTabChanged: scroller.contentY = 0
     signal saveLayoutRequested(string name)
+    signal hdrTestRequested
     signal loadLayoutRequested(string name)
     Component.onCompleted: {
         for (const t of ["display", "layouts", "streams-settings", "shortcuts", "about", "plugins"]) if (nativeWindow.demo.indexOf(t) >= 0) tab = t.replace("-settings", "")
@@ -1418,6 +1419,27 @@ Panel {
                             save((p) => { p.key_map[id] = [seq] })
                         }
                         Item { width: 1; height: 4 }
+                        Label { text: "HDR" }
+                        OnOff {
+                            width: parent.width
+                            text: "HDR video"
+                            on: pk.prefs.hdr
+                            onToggled: pk.save((p) => { p.hdr = !p.hdr })
+                        }
+                        Hint { text: "The picture lies on a surface of its own under the player window, so an HDR video shows in HDR when HDR is on in KDE's display settings. Where that can't work, the player draws as before by itself. Switched on, it takes hold in the next video window." }
+                        Item {
+                            width: parent.width
+                            height: 34
+                            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "HDR test picture"
+                                color: Theme.textSoft()
+                                font.family: Theme.body
+                                font.pixelSize: 13
+                            }
+                            TextButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Show"; onClicked: settings.hdrTestRequested() }
+                        }
+                        Hint { text: "Grey patches from 203 to 1900 nits on an HDR surface of the overlay's own. With HDR on in KDE's display settings, the bright ones glow brighter than the white of the overlay's text; without it they all look alike above 200 nits. The findings go to the log." }
                         Label { text: "Pointer and keys" }
                         Dropdown {
                             width: parent.width

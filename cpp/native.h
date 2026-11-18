@@ -14,6 +14,7 @@
 #include <QtQuick/QQuickItem>
 class QQuickWindow;
 class QScreen;
+class HdrTest;
 
 class NativeWindow : public QObject
 {
@@ -66,6 +67,13 @@ public:
     /// never make it accept them.
     Q_INVOKABLE void setKeyboard(QQuickWindow *window, bool wanted);
 
+    /// HDR feasibility test: PQ patches on a subsurface under `window` at
+    /// `area` (its own coordinates). Returns the findings, one per line.
+    Q_INVOKABLE QString hdrTest(QQuickWindow *window, const QRectF &area);
+    Q_INVOKABLE void hdrTestOff();
+    /// The patches' brightness in nits, left to right.
+    Q_INVOKABLE QVariantList hdrNits() const;
+
     bool eventFilter(QObject *watched, QEvent *event) override;
 
     /// For screenshots: every part shown, as on the screen.
@@ -93,6 +101,7 @@ private:
     QString m_kdePrimary;
     QScreen *m_watched = nullptr;
     bool m_layerShell = false;
+    HdrTest *m_hdrTest = nullptr;
     QString m_demo;
     QString m_testVideo;
     bool m_screenshotMode = false;

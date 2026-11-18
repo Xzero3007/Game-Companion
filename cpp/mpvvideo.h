@@ -13,6 +13,7 @@
 #include <memory>
 
 struct mpv_handle;
+class HdrVideo;
 
 /// One mpv, shared by the item and its renderer (on Qt's render thread): it
 /// ends when both are gone, after the renderer freed its render context.
@@ -65,6 +66,15 @@ class MpvVideo : public QQuickFramebufferObject
     /// Whether a picture is decoded (false while only sound plays: a
     /// YouTube stream whose video part failed to open).
     Q_PROPERTY(bool hasPicture READ hasPicture NOTIFY hasPictureChanged)
+    /// The picture on a surface of its own (HdrVideo), so an HDR video shows
+    /// in HDR (Settings → Streams → Videos "HDR video"). Taken when mpv
+    /// starts; switched off it falls back at once. Anything that keeps it
+    /// from working falls back to Qt's own drawing by itself.
+    Q_PROPERTY(bool hdr READ hdr WRITE setHdr NOTIFY hdrChanged)
+    /// For the log: "off", "unavailable: …", "fell back: …", "sdr (10 bit)"
+    /// (a plain video on its own surface), "hdr (10 bit)" (PQ / BT.2020),
+    /// "hdr refused: … (10 bit)".
+    Q_PROPERTY(QString hdrState READ hdrState NOTIFY hdrStateChanged)
 
 public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
@@ -92,6 +102,9 @@ public:
     QString ytdlOptions() const { return m_ytdlOptions; }
     bool frozen() const { return m_frozen; }
     bool hasPicture() const { return m_hasPicture; }
+    bool hdr() const { return m_hdr; }
+    void setHdr(bool on);
+    QString hdrState() const { return m_hdrState; }
     void setFrozen(bool on);
     /// mpv has a new frame: drawn unless frozen.
     void newFrame();
@@ -147,6 +160,8 @@ signals:
     void ytdlOptionsChanged();
     void frozenChanged();
     void hasPictureChanged();
+    void hdrChanged();
+    void hdrStateChanged();
 
 protected:
     /// Moved to another window: draw there (a video waiting for its render
@@ -157,9 +172,27 @@ private slots:
     void readEvents();
     /// The renderer made mpv's render context: a video can load now.
     void renderReady();
+    /// The HDR surface stopped working: Qt draws the picture again.
+    void hdrFailed(const QString &why);
 
 private:
     bool ensureStarted();
+    /// Starts the HDR surface for mpv (once mpv runs); false falls back.
+    bool startHdr();
+    /// Lets it go: Qt's renderer draws again, what played goes on.
+    void dropHdr(const QString &state);
+    /// Where the HDR surface goes: Qt's render thread, GUI thread waiting.
+    void placeHdr();
+    /// PQ output and description while an HDR video plays.
+    void applyHdrPicture();
+    void setHdrState(const QString &state);
+    HdrVideo *m_hdrVideo = nullptr;
+    bool m_hdr = true;
+    QString m_hdrState = QStringLiteral("off");
+    bool m_sourceHdr = false;
+    QMetaObject::Connection m_syncConn;
+    /// What plays now (played again from where it was after a fall back).
+    QString m_currentUrl, m_currentFormat, m_currentHeader;
     bool loadPending();
     struct Pending
     {

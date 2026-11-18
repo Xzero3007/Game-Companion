@@ -44,6 +44,7 @@ function prefs(json) {
         seek_step: p.seek_step || 5,
         volume_step: p.volume_step || 5,
         wheel_volume: p.wheel_volume === undefined ? true : !!p.wheel_volume,
+        hdr: p.hdr === undefined ? true : !!p.hdr,
         key_map: p.key_map || {}
     }
 }

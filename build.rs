@@ -18,6 +18,7 @@ fn main() {
         QmlFile::from("qml/DpsPanel.qml"),
         QmlFile::from("qml/RadioPanel.qml"),
         QmlFile::from("qml/PlayerRow.qml"),
+        QmlFile::from("qml/HdrTestWindow.qml"),
         QmlFile::from("qml/GameRow.qml"),
         QmlFile::from("qml/HubHint.qml"),
         QmlFile::from("qml/StreamsPanel.qml"),
@@ -89,6 +90,13 @@ fn main() {
     ]);
 
     let layer_shell = std::env::var_os("CARGO_FEATURE_LAYER_SHELL").is_some();
+    // The HDR test talks Wayland itself (a subsurface with a colour
+    // description) and asks Qt for its window's surface (Qt's private
+    // QPlatformNativeInterface header, under QtGui/<version>).
+    println!("cargo::rustc-link-lib=wayland-client");
+    println!("cargo::rustc-link-lib=wayland-egl");
+    println!("cargo::rustc-link-lib=EGL");
+    let qt_private = qt_gui_private_include();
     if layer_shell {
         println!("cargo::rustc-link-lib=LayerShellQtInterface");
     }
@@ -110,6 +118,12 @@ fn main() {
         .cpp_file("cpp/twitchchat.cpp")
         .cpp_file("cpp/jellyfinpictures.h")
         .cpp_file("cpp/jellyfinpictures.cpp")
+        .cpp_file("cpp/wlcolor.h")
+        .cpp_file("cpp/wlcolor.cpp")
+        .cpp_file("cpp/hdrtest.h")
+        .cpp_file("cpp/hdrtest.cpp")
+        .cpp_file("cpp/hdrvideo.h")
+        .cpp_file("cpp/hdrvideo.cpp")
         .qrc_resources([
             "assets/fonts/Rajdhani-Bold.ttf",
             "assets/fonts/Rajdhani-SemiBold.ttf",
@@ -148,10 +162,34 @@ fn main() {
     let builder = unsafe {
         builder.cc_builder(move |cc| {
             cc.include("cpp");
+            for dir in &qt_private {
+                cc.include(dir);
+            }
             if layer_shell {
                 cc.define("GC_LAYER_SHELL", "1");
             }
         })
     };
     builder.build();
+}
+
+/// QtGui's private headers (`<headers>/QtGui/<version>` and its `QtGui`),
+/// found with qmake as cxx-qt finds Qt.
+fn qt_gui_private_include() -> Vec<std::path::PathBuf> {
+    let candidates = std::env::var("QMAKE").ok().into_iter().chain(["qmake6".to_string(), "qmake".to_string()]);
+    for qmake in candidates {
+        let query = |key: &str| {
+            std::process::Command::new(&qmake)
+                .args(["-query", key])
+                .output()
+                .ok()
+                .filter(|o| o.status.success())
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        };
+        if let (Some(headers), Some(version)) = (query("QT_INSTALL_HEADERS"), query("QT_VERSION")) {
+            let base = std::path::Path::new(&headers).join("QtGui").join(&version);
+            return vec![base.clone(), base.join("QtGui")];
+        }
+    }
+    Vec::new()
 }

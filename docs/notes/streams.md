@@ -264,3 +264,43 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   (`wheel_volume`, default on; the MoveArea's `onWheel`, 120 per notch,
   a touchpad's small steps add up; MN, 2026-11-18); lists and the
   opacity button keep their own wheel.
+- HDR video ("Weg C", MN, 2026-11-18; plan and pictures in the project
+  folder `game-companion/hdr/hdr-plan-c.html`): Qt's overlay is 8-bit SDR,
+  so the picture goes on a Wayland subsurface of its own right under the
+  video window's surface (`HdrVideo`, cpp/hdrvideo.*): `place_below`,
+  desync, empty input region, `wp_viewporter` for its size,
+  `wp_alpha_modifier_v1` for the window's opacity, and
+  `wp_color_management_v1` (PQ / BT.2020 parametric description) while an
+  HDR video plays (`video-params/gamma` pq or hlg → mpv `target-trc=pq`,
+  `target-prim=bt.2020`, no tone mapping by mpv; KWin fits it to the
+  screen). A thread of its own draws it with an EGL context of its own on
+  Qt's wl_display (10 bit, else 8; `eglSwapInterval 0`, paced by mpv's
+  update callback; never `eglTerminate`); mpv's render context lives on
+  that thread (`MpvCore::hdrRender`), Qt's renderer makes none and clears
+  its frame buffer see-through, the window's backdrop hides
+  (`VideoWindow.hdrSurface`). Placed on each `beforeSynchronizing` (Qt's
+  render thread, GUI waiting): the subsurface's position takes hold with
+  the window's next commit, so it moves with the window. Our own Wayland
+  objects live on an event queue of ours (`WlColor`, cpp/wlcolor.*), Qt's
+  are untouched; Qt's private `QPlatformNativeInterface` gives the
+  wl_display and a window's wl_surface (build.rs finds QtGui's private
+  headers through qmake). Setting `streams.player.hdr` (default on;
+  Settings → Streams → Videos → HDR "HDR video"; on takes hold with the
+  next video window, off at once). Falls back to Qt's drawing by itself:
+  not Wayland, no colour management or no PQ ("unavailable: …"), no EGL
+  context or mpv can't take it ("fell back: …" at start), or the EGL
+  surface fails later (`HdrVideo::failed` → `dropHdr`: what played starts
+  again where it was). The log says which: `[video] hdr <state>`
+  (`MpvVideo.hdrState`: off, unavailable, fell back, "sdr (10 bit)",
+  "hdr (10 bit)", "hdr refused: …"). HDR test picture: Settings → Streams
+  → Videos "Show" (or `GC_DEMO=hdrtest`): grey patches 203, 400, 800, 1200
+  and 1900 nits (MN's LG G5 with HGIG: 1900 peak, 800 paper white) and a
+  0 → 2000 nit band on an shm subsurface (`HdrTest`), its findings in the
+  log. Bench: Weston 15 (`session-weston.sh`, color-management=true)
+  announces PQ but its LittleCMS can't build the transform and ends the
+  client's connection ("no memory"): no use for PQ itself. Sway and KWin
+  here have no colour management. So the surface is checked on Sway with
+  `GC_HDR_FORCE=1` (everything but the PQ description): `video-hdr.sh`,
+  `video-keys.sh`, `video-drag2.sh`, `video-opacity.sh`, `video-drop.sh`
+  (`GC_HDR_DROP_AFTER=<ms>` makes it fail while playing). Real HDR
+  brightness only on MN's screen.
