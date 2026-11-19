@@ -29,18 +29,15 @@ so a new session carries on from here; details of each step go to
 
 ## Now (2026-11-18)
 
+- 0.8.78 beta (2026-11-18): #178 HDR video hands its frames to the compositor as buffers of its own (dmabuf, else shm, 10 bit; no egl-wayland).
 - 0.8.77 beta (2026-11-18): #176 HDR video draws through its own frame buffer (NVIDIA black picture); Twitch reloads after a fall back; HDR/SDR badge; HDR per source; bar wheel step.
 - 0.8.76 beta (2026-11-18): #174 HDR video: fall back when the picture stays black; Settings height.
 - 0.8.75 beta (2026-11-18): #172 HDR video on a subsurface of its own.
 - 0.8.74 beta (2026-11-18): #170 Video: the mouse wheel changes the volume.
 - 0.8.73 beta (2026-11-18): #168 Video player: keys and a pointer that hides in full screen.
-- Branch claude/project-thread-188og6 (2026-11-18): fixes for 0.8.76.
-  - HDR video: mpv now draws into an FBO of ours, then a blit (MN's NVIDIA showed black).
-  - Twitch after a fall back: the window reloads the stream.
-  - HDR badge in the video bar.
-  - HDR per source: YouTube and Jellyfin on, Twitch off.
-  - The strip's wheel steps by `volume_step`.
-  - Waiting for QA, a beta and MN's log line "[video] hdr mpv surface: …".
+- Branch claude/project-thread-188og6 (2026-11-18): HDR video without egl-wayland (0.8.77 still black on MN's NVIDIA).
+  - Frames go to KWin as buffers of ours: dmabuf (GBM, 10 bit), else shm (`HdrBuffers`).
+  - Waiting for QA, a beta and MN's log lines "[video] hdr …" (which way runs, picture seen).
 - 0.8.72 beta (2026-11-17): #166 Get Proton: readable title row and build names in the overview.
 - 0.8.71 beta (2026-11-17): #164 Get Proton: full names, newest first, notes for every installed version.
 - Stable is 0.8.69 (PR #160, MN's yes after own test); beta is 0.8.70

@@ -13,7 +13,6 @@
 class QWindow;
 struct wl_surface;
 struct wl_subsurface;
-struct wl_egl_window;
 struct wp_viewport;
 struct wp_alpha_modifier_surface_v1;
 struct wp_color_management_surface_v1;
@@ -21,14 +20,15 @@ struct wp_image_description_v1;
 
 /// The video picture on a surface of its own (MN, 2026-11-18, "Weg C"): a
 /// Wayland subsurface right under the video window's surface, drawn by a
-/// thread of its own with an EGL context of its own (10 bits per channel),
+/// thread of its own with an EGL context of its own, its frames handed over
+/// as buffers of ours (HdrBuffers: dmabuf, else shm; 10 bits per channel),
 /// described to KWin as PQ / BT.2020 while an HDR video plays, else as
 /// plain sRGB. The window above stays see-through over it, so its bars,
 /// lists and notes lie on the picture as before. The subsurface moves and
 /// resizes with the window by itself; it never takes clicks.
 ///
 /// mpv's render context lives on this thread (the hooks): `init` makes it
-/// once the context is current, `render` draws into the default frame
+/// once the context is current, `render` draws into a buffer's frame
 /// buffer, `done` lets it go before the context goes.
 class HdrVideo : public QObject
 {
@@ -59,7 +59,7 @@ public:
     QString error() const { return m_error; }
     /// Bits per colour channel of its frames (10, or 8 where there is no 10).
     int bits() const { return m_bits; }
-    /// For the log: EGL's and GL's vendor, renderer and version, the bits.
+    /// For the log: EGL's and GL's vendor, renderer and version, the buffers.
     QString info() const { return m_info; }
 
     /// Where the picture is: in `window`'s coordinates (logical pixels),
@@ -89,7 +89,6 @@ private:
     Hooks m_hooks;
     QString m_error;
     int m_bits = 0;
-    int m_alphaBits = 0;
     QString m_info;
     bool m_swapFailed = false;
     std::thread m_thread;
@@ -98,14 +97,13 @@ private:
     // Shared with the drawing thread (under m_lock).
     bool m_quit = false, m_wantFrame = false, m_frozen = false;
     bool m_started = false, m_failed = false;
-    wl_egl_window *m_eglWindow = nullptr; // set by the GUI thread
-    bool m_windowChanged = false, m_surfaceGone = true;
+    wl_surface *m_target = nullptr; // set by the GUI thread
+    bool m_targetChanged = false, m_surfaceGone = true;
     int m_pixW = 0, m_pixH = 0;
     bool m_resize = false;
 
     // GUI side (Qt's render thread too, while the GUI thread waits).
     std::recursive_mutex m_gui;
-    wl_egl_window *m_eglWindowOwned = nullptr;
     QPointer<QWindow> m_window;
     wl_surface *m_parent = nullptr;
     wl_surface *m_surface = nullptr;
