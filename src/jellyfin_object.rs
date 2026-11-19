@@ -173,7 +173,8 @@ fn demo_items() -> Value {
         json!({ "id": format!("{i:0>32}"), "type": kind, "name": name, "sub": sub, "series": "", "code": "",
                 "playable": true, "openable": false, "seriesId": "", "seasonId": "", "collection": "", "runtime": runtime,
                 "position": position, "percent": if runtime > 0.0 { position / runtime * 100.0 } else { 0.0 },
-                "played": false, "unplayed": 0, "picture": "", "poster": "" })
+                "played": false, "unplayed": 0, "picture": "", "poster": "",
+                "hdr": (["", "HDR", "DV", "", "HDR10+"][i % 5]) })
     };
     json!([
         one(1, "Episode title", "Series name · S2 E5", "Episode", 2700.0, 1620.0),

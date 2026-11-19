@@ -35,9 +35,8 @@ so a new session carries on from here; details of each step go to
 - 0.8.75 beta (2026-11-18): #172 HDR video on a subsurface of its own.
 - 0.8.74 beta (2026-11-18): #170 Video: the mouse wheel changes the volume.
 - 0.8.73 beta (2026-11-18): #168 Video player: keys and a pointer that hides in full screen.
-- Branch claude/project-thread-188og6 (2026-11-18): HDR video without egl-wayland (0.8.77 still black on MN's NVIDIA).
-  - Frames go to KWin as buffers of ours: dmabuf (GBM, 10 bit), else shm (`HdrBuffers`).
-  - Waiting for QA, a beta and MN's log lines "[video] hdr …" (which way runs, picture seen).
+- 0.8.78 on MN's RTX 4090: HDR works (dmabuf XB30, 10 bit, picture seen).
+- Branch claude/project-thread-188og6 (2026-11-19): HDR badges on video pictures (YouTube looked at once per video with yt-dlp, kept; Jellyfin from MediaStreams). Draft PR, waiting for MN's yes to the plan.
 - 0.8.72 beta (2026-11-17): #166 Get Proton: readable title row and build names in the overview.
 - 0.8.71 beta (2026-11-17): #164 Get Proton: full names, newest first, notes for every installed version.
 - Stable is 0.8.69 (PR #160, MN's yes after own test); beta is 0.8.70

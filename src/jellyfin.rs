@@ -403,7 +403,7 @@ pub fn sign_out() {
 // ---------- the lists ----------
 
 /// What a list asks the server for.
-const FIELDS: &str = "PrimaryImageAspectRatio,ParentId,SeriesPrimaryImage,MediaSourceCount";
+const FIELDS: &str = "PrimaryImageAspectRatio,ParentId,SeriesPrimaryImage,MediaSourceCount,MediaStreams";
 
 fn list_query(account: &Account, extra: &[(&str, String)]) -> String {
     let mut pairs = vec![
@@ -868,7 +868,33 @@ pub fn item(i: &Value) -> Option<Value> {
         "picture": wide,
         "poster": poster,
         "seriesPicture": series_picture,
+        "hdr": hdr_label(i),
     }))
+}
+
+/// The video's dynamic range as the lists show it on the picture: "DV"
+/// (Dolby Vision), "HDR10+", "HDR" (HDR10, HLG), or "" (SDR, or not a
+/// video). From the first video stream's VideoRangeType (Jellyfin 10.9),
+/// else its VideoRange (MN, 2026-11-19: "geht das auch bei jelly").
+pub fn hdr_label(item: &Value) -> &'static str {
+    let Some(video) = item
+        .get("MediaStreams")
+        .and_then(Value::as_array)
+        .and_then(|a| a.iter().find(|m| m.get("Type").and_then(Value::as_str) == Some("Video")))
+    else {
+        return "";
+    };
+    let kind = video.get("VideoRangeType").and_then(Value::as_str).unwrap_or("");
+    let range = video.get("VideoRange").and_then(Value::as_str).unwrap_or("");
+    if kind.starts_with("DOVI") {
+        "DV"
+    } else if kind == "HDR10Plus" {
+        "HDR10+"
+    } else if kind == "HDR10" || kind == "HLG" || ((kind.is_empty() || kind == "Unknown") && range == "HDR") {
+        "HDR"
+    } else {
+        ""
+    }
 }
 
 /// A list answer (`{ Items: [...] }` or `[...]`) as items.
@@ -1131,6 +1157,7 @@ mod tests {
         assert_eq!(ep["sub"], "Show · S1 E2");
         assert_eq!(ep["position"], 900.0);
         assert_eq!(ep["percent"], 25.0);
+        assert_eq!(ep["hdr"], "");
         assert_eq!(ep["playable"], true);
         assert_eq!(ep["picture"], format!("image://jellyfin/{id}/Primary/400"));
         assert_eq!(list[1]["openable"], true);
@@ -1233,5 +1260,17 @@ mod tests {
         assert!(picture(&format!("{}/Primary/240", "1".repeat(32))).unwrap().starts_with(&[0xff, 0xd8]));
         sign_out();
         assert!(load_account().is_none());
+    }
+
+    #[test]
+    fn hdr_labels() {
+        let with = |kind: &str, range: &str| json!({"MediaStreams": [{"Type": "Audio"}, {"Type": "Video", "VideoRangeType": kind, "VideoRange": range}]});
+        assert_eq!(hdr_label(&with("DOVIWithHDR10", "HDR")), "DV");
+        assert_eq!(hdr_label(&with("HDR10Plus", "HDR")), "HDR10+");
+        assert_eq!(hdr_label(&with("HDR10", "HDR")), "HDR");
+        assert_eq!(hdr_label(&with("HLG", "HDR")), "HDR");
+        assert_eq!(hdr_label(&with("", "HDR")), "HDR");
+        assert_eq!(hdr_label(&with("SDR", "SDR")), "");
+        assert_eq!(hdr_label(&json!({"Type": "Series"})), "");
     }
 }

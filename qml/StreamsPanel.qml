@@ -155,6 +155,14 @@ Panel {
     readonly property string listKind: onJelly ? "jelly"
         : onTwitch ? (twView === "categories" ? "categories" : twView === "recordings" ? "recordings" : "twitch")
         : ytView === "channels" ? "channels" : ytView === "playlists" ? "playlists" : "video"
+    /// The open YouTube list's videos: which have HDR is looked at in the
+    /// background (Streams.wantHdr; "[]" when none shows), never while a
+    /// game runs (MN, 2026-11-19).
+    readonly property string hdrIds: visible && listKind === "video" && !onTwitch && !onJelly
+        ? JSON.stringify(youtubeShown.filter((v) => !v.live && !!v.id).map((v) => v.id)) : "[]"
+    onHdrIdsChanged: Streams.wantHdr(hdrIds)
+    readonly property bool gameRunning: Games.running !== ""
+    onGameRunningChanged: Streams.setHdrPaused(gameRunning)
     readonly property var channelsShown: Streams.group ? channels.filter((c) => c.groups.indexOf(Streams.group) >= 0) : channels
     /// The search field serves the search, and narrows the history, the
     /// playlists and Twitch's categories.
@@ -234,7 +242,8 @@ Panel {
 
     property bool loadedOnce: false
     onVisibleChanged: if (visible && !loadedOnce) firstLoad()
-    Component.onCompleted: { swapList(); swapChannels(); if (visible && !loadedOnce) firstLoad() }
+    Component.onCompleted: { swapList(); swapChannels(); if (visible && !loadedOnce) firstLoad(); Streams.setHdrPaused(gameRunning); Streams.wantHdr(hdrIds) }
+    Component.onDestruction: Streams.wantHdr("[]")
     function firstLoad() {
         loadedOnce = true
         Streams.refreshAccount()
@@ -1534,6 +1543,7 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
                 source: row.modelData.picture
                 YtProgress { mark: row.mark }
+                HdrBadge { label: panel.ytHdr(row.modelData) }
                 Rectangle {
                     visible: row.modelData.duration > 0 || row.modelData.live
                     anchors.right: parent.right
@@ -1842,6 +1852,7 @@ Panel {
             picture: modelData.picture
             onClicked: panel.ytView === "playlist" ? panel.playVideo(modelData, panel.youtubeShown, index) : panel.playVideo(modelData)
             YtProgress { parent: tile.thumb; mark: tile.mark }
+            HdrBadge { parent: tile.thumb; label: panel.ytHdr(tile.modelData) }
             BookmarkButton {
                 parent: tile.thumb
                 visible: tile.hovered || (!!tile.mark && tile.mark.quick)
@@ -2028,6 +2039,7 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
                 source: row.modelData.picture
                 Progress { item: row.modelData }
+                HdrBadge { label: row.modelData.hdr || "" }
             }
             Column {
                 anchors.left: thumb.right
@@ -2066,12 +2078,14 @@ Panel {
             picture: modelData.picture
             onClicked: panel.jfOpen(modelData)
             Progress { parent: tile.thumb; item: tile.modelData }
+            HdrBadge { id: jellyHdr; parent: tile.thumb; label: tile.modelData.hdr || "" }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 parent: tile.thumb
                 visible: tile.current
                 anchors.left: parent.left
                 anchors.bottom: parent.bottom
                 anchors.margins: 6
+                anchors.leftMargin: jellyHdr.visible ? jellyHdr.width + 10 : 6
                 text: "PLAYING"
                 color: Theme.accent
                 font.family: Theme.display
@@ -2350,6 +2364,33 @@ Panel {
             color: Theme.accent
             HudIcon { anchors.centerIn: parent; name: "check"; size: 12; lineWidth: 2.6; color: "#0c0c0f" }
         }
+    }
+
+    // HDR on a video's picture (MN, 2026-11-19): bottom left, gold as the
+    // player's badge. YouTube's from Streams.hdrOf (looked at once per
+    // video), Jellyfin's from the item ("HDR", "HDR10+", "DV").
+    component HdrBadge: Rectangle {
+        property string label
+        visible: label !== ""
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.margins: 4
+        width: hdrLabel.implicitWidth + 8
+        height: hdrLabel.implicitHeight + 2
+        color: Theme.accent
+        Text {
+            id: hdrLabel
+            anchors.centerIn: parent
+            text: parent.label
+            color: "#0c0c0f"
+            font.family: Theme.display
+            font.pixelSize: 10
+            font.weight: Font.Bold
+            font.letterSpacing: 1
+        }
+    }
+    function ytHdr(video) {
+        return video && !video.live && Streams.hdrRevision >= 0 && Streams.hdrOf(video.id) === "hdr" ? "HDR" : ""
     }
 
     // The bookmark: the video into the bookmark list ("Watch later") or out.
