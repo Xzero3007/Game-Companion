@@ -50,6 +50,7 @@ mod updates_object;
 mod vdf_edit;
 mod voice;
 mod voice_object;
+mod yt_hdr;
 mod voice_overlay;
 
 fn main() {

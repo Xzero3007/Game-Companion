@@ -361,3 +361,23 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   black check reads mpv's frame buffer (the buffer itself). The bench
   (Sway pixman, no GPU, no /dev/dri) only checks shm; dmabuf only on MN's
   card.
+  0.8.78 on MN's RTX 4090: "hdr (10 bit) … dmabuf XB30", modifier
+  0x300000000606014, 1 plane, picture seen, 4K AV1 without drops.
+- HDR badges on the lists' pictures (MN, 2026-11-19: "bei allen fenster wo
+  videos angezeigt werden"; "geht das auch bei jelly"): a gold badge bottom
+  left (`HdrBadge` in StreamsPanel, the same in the video window's Up next).
+  Jellyfin: the list query asks `MediaStreams` too; the first video
+  stream's VideoRangeType gives "DV" (DOVI*), "HDR10+", "HDR" (HDR10, HLG,
+  or VideoRange HDR) as the item's `hdr` (`jellyfin::hdr_label`).
+  YouTube: no list says it, so `yt_hdr` (src/yt_hdr.rs) looks at each
+  video of the open list once (`yt-dlp --print
+  "%(formats.:.dynamic_range)l"`, any HDR*, HLG or DV), two at once on two
+  threads of their own, only while the list shows (`StreamsPanel.hdrIds` →
+  `Streams.wantHdr`, "[]" stops), none while a game runs
+  (`Games.running` → `Streams.setHdrPaused`); each yt-dlp ends with the app
+  (PR_SET_PDEATHSIG from its waiting thread), 40 s at most. Answers kept
+  for good in ~/.cache/game-companion/youtube-hdr.json (newest 5000), a
+  failed look not asked again this session; a video the player shows in
+  HDR is noted at once (`Streams.noteHdr`; SDR never: a video can play in
+  an SDR format of its own). `Streams.hdrOf(id)` with `hdrRevision` for
+  bindings. Bench: a fake yt-dlp on PATH (`demo000000N` ids).
