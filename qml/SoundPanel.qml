@@ -67,6 +67,13 @@ Panel {
         }
         return order.length > 0 ? order.map((n) => counts[n] > 1 ? n + " ×" + counts[n] : n) : ["nothing plays"]
     }
+    /// ChatMix's share for game or chat in percent (as `sound::chatmix`).
+    function mixPart(key) {
+        const m = Math.max(-100, Math.min(100, prefs.chatmix || 0))
+        if (key === "game") return m <= 0 ? 100 : 100 - m
+        if (key === "chat") return m >= 0 ? 100 : 100 + m
+        return 100
+    }
     function mic() { return prefs.mic || ({}) }
     function minLevel() { const v = mic().min_level; return v === undefined ? -50 : v }
     readonly property var micPresetHelp: ({
@@ -162,18 +169,33 @@ Panel {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - 76 - 90 - 30
                     from: -100; to: 100; stepSize: 5
+                    centre: 0
                     value: panel.prefs.chatmix || 0
                     onChanging: (v) => Sound.setChatmix(v)
                     onMoved: (v) => Sound.setChatmix(Math.abs(v) < 8 ? 0 : v)
                     Accessible.name: "ChatMix"
+                    Accessible.description: mixReadout.text
                 }
                 Small { anchors.verticalCenter: parent.verticalCenter; text: "CHAT" }
+            }
+            // How far it is from the middle (MN, 2026-11-20).
+            Text {
+                id: mixReadout
+                x: 86
+                width: parent.width - 86
+                readonly property int m: panel.prefs.chatmix || 0
+                text: m === 0 ? "Middle: game and chat as set above"
+                    : "Game " + panel.mixPart("game") + " % · Chat " + panel.mixPart("chat") + " %  ("
+                      + (m < 0 ? "toward game" : "toward chat") + ")"
+                color: m === 0 ? Theme.textSoft() : Theme.accent
+                font.family: Theme.body; font.pixelSize: 12; font.weight: Font.DemiBold
+                style: Theme.textStyle(); styleColor: Theme.shadow
             }
             Small {
                 x: 86
                 width: parent.width - 86
                 wrapMode: Text.WordWrap
-                text: "Turns the game down as you turn the chat up, and the other way. Middle: both as set above."
+                text: "Turns the game down as you turn the chat up, and the other way; heard only while both play. Double click: back to the middle."
             }
         }
 
@@ -773,6 +795,8 @@ Panel {
             x: 138
             y: 8
             value: Math.min(100, ch.c.volume)
+            // ChatMix turns game or chat down: the bar shows what is heard.
+            heard: ch.key === "game" || ch.key === "chat" ? Math.round(value * panel.mixPart(ch.key) / 100) : -1
             onStepped: (d) => Sound.setChannel(ch.key, "", "", Math.max(0, Math.min(100, ch.c.volume + d)))
             onPicked: (v) => Sound.setChannel(ch.key, "", "", v)
         }

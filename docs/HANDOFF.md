@@ -29,6 +29,7 @@ so a new session carries on from here; details of each step go to
 
 ## Now (2026-11-18)
 
+- 0.8.80 beta (2026-11-20): #182 ChatMix: centre mark, readout, double click to the middle; volume bars show what is heard.
 - 0.8.79 beta (2026-11-20): #180 HDR badges on video pictures in the YouTube and Jellyfin lists.
 - 0.8.78 beta (2026-11-18): #178 HDR video hands its frames to the compositor as buffers of its own (dmabuf, else shm, 10 bit; no egl-wayland).
 - 0.8.77 beta (2026-11-18): #176 HDR video draws through its own frame buffer (NVIDIA black picture); Twitch reloads after a fall back; HDR/SDR badge; HDR per source; bar wheel step.

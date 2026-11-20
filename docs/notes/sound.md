@@ -65,7 +65,12 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   or the app itself with `sound.on` in a scratch settings.json.
   Panel (canvas page "Sound", MIXER variant A; MN 2026-11-16):
   `qml/SoundPanel.qml` (MIXER: volume, preset and EQ in place per channel,
-  ChatMix; MIC: input, Input 1/2 = FL/FR, mapped to AUX0/AUX1 on Pro Audio,
+  ChatMix as a balance `HudSlider` (`centre: 0`: mark in the middle, gold
+  from the middle, double click back; readout "Game 85 % · Chat 100 %";
+  MN 2026-11-20: "wo die Mitte ist"); it scales the game or chat sink's
+  volume (`sound::chatmix`, `volumes`), heard only while both play, and
+  the channel meters sit before the volume, so VolumeBar's `heard` draws
+  the part ChatMix takes away faint (panel and quick row); MIC: input, Input 1/2 = FL/FR, mapped to AUX0/AUX1 on Pro Audio,
   gate, echo, voice, "Record 10 s and play back" = `Sound.hear`; APPS;
   STREAM: sends and the OBS tracks), SOUND always in the bar, a right click
   opens `qml/SoundRow.qml` (quick row under the player row, pinnable,
