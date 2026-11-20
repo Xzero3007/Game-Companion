@@ -11,6 +11,9 @@ Item {
     property int step: 5
     /// Narrower, for the player row.
     property bool compact: false
+    /// What is heard after something else turned it down (ChatMix), 0 to
+    /// 100; -1 for none. The bar past it is drawn faint.
+    property int heard: -1
     signal stepped(int delta)
     signal picked(int value)
 
@@ -37,6 +40,13 @@ Item {
                     width: parent.width * vol.value / 100
                     height: parent.height
                     color: Theme.accentFor(vol.hud)
+                    opacity: vol.heard >= 0 && vol.heard < vol.value ? 0.3 : 1
+                }
+                Rectangle {
+                    visible: vol.heard >= 0 && vol.heard < vol.value
+                    width: parent.width * Math.max(0, vol.heard) / 100
+                    height: parent.height
+                    color: Theme.accentFor(vol.hud)
                 }
             }
             Rectangle {
@@ -54,7 +64,7 @@ Item {
                 onPositionChanged: (mouse) => { if (pressed) vol.picked(at(mouse.x)) }
             }
             Accessible.role: Accessible.Slider
-            Accessible.name: "Volume " + vol.value
+            Accessible.name: "Volume " + vol.value + (vol.heard >= 0 && vol.heard < vol.value ? ", heard " + vol.heard : "")
         }
 
         StepButton { icon: "plus"; tip: "Louder"; onClicked: vol.stepped(vol.step) }

@@ -82,6 +82,12 @@ Item {
                     compact: true
                     anchors.verticalCenter: parent.verticalCenter
                     value: strip.volumeOf(modelData)
+                    // ChatMix turns game or chat down: the bar shows what is heard.
+                    heard: {
+                        const m = Math.max(-100, Math.min(100, strip.prefs.chatmix || 0))
+                        const part = modelData === "game" ? (m <= 0 ? 100 : 100 - m) : modelData === "chat" ? (m >= 0 ? 100 : 100 + m) : -1
+                        return part < 0 ? -1 : Math.round(value * part / 100)
+                    }
                     onStepped: (d) => Sound.setChannel(modelData, "", "", Math.max(0, Math.min(100, strip.volumeOf(modelData) + d)))
                     onPicked: (v) => Sound.setChannel(modelData, "", "", v)
                 }
@@ -102,6 +108,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 70
                 from: -100; to: 100; stepSize: 5
+                centre: 0
                 value: strip.prefs.chatmix || 0
                 onChanging: (v) => Sound.setChatmix(v)
                 onMoved: (v) => Sound.setChatmix(Math.abs(v) < 8 ? 0 : v)
