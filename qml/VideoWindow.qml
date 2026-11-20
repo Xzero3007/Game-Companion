@@ -878,6 +878,8 @@ Item {
     readonly property bool hdrShown: !!video.hdrState && video.hdrState.indexOf("hdr (") === 0
     /// An HDR video, whichever way it is drawn.
     readonly property bool hdrSource: !!video.sourceHdr
+    // A YouTube video shown in HDR is noted for the lists' HDR badges.
+    onHdrShownChanged: if (hdrShown && item && item.kind === "youtube" && item.id) Streams.noteHdr(item.id)
     readonly property bool hdrSurface: {
         const v = videoLoader.item
         return !!v && v.visible && (v.hdrState.indexOf("sdr") === 0 || v.hdrState.indexOf("hdr") === 0)
@@ -1762,6 +1764,26 @@ Item {
                         fillMode: Image.PreserveAspectCrop
                         sourceSize.width: 192
                         source: nextRow.v.picture || ""
+                    }
+                    // HDR, as on the lists' pictures (MN, 2026-11-19).
+                    Rectangle {
+                        visible: !nextRow.v.live && Streams.hdrRevision >= 0 && Streams.hdrOf(nextRow.v.id || "") === "hdr"
+                        anchors.left: parent.left
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 3
+                        width: nextHdr.implicitWidth + 8
+                        height: nextHdr.implicitHeight + 2
+                        color: Theme.accent
+                        Text {
+                            id: nextHdr
+                            anchors.centerIn: parent
+                            text: "HDR"
+                            color: "#0c0c0f"
+                            font.family: Theme.display
+                            font.pixelSize: 10
+                            font.weight: Font.Bold
+                            font.letterSpacing: 1
+                        }
                     }
                     Rectangle {
                         visible: nextRow.v.duration > 0

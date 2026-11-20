@@ -112,6 +112,8 @@ pub mod qobject {
         #[qproperty(bool, chat_open)]
         #[qproperty(bool, chat_write)]
         #[qproperty(bool, chat_docked)]
+        /// Goes up whenever a video's HDR became known (`hdr_of`).
+        #[qproperty(i32, hdr_revision)]
         type Streams = super::StreamsRust;
 
         /// Loads a Twitch list: "game", "following", "favourites", "live" or "search" (with `text`).
@@ -324,6 +326,20 @@ pub mod qobject {
         #[qinvokable]
         fn video_id(self: &Streams, text: &QString) -> QString;
 
+        /// Whether a YouTube video has HDR: "hdr", "sdr" or "" (not known).
+        #[qinvokable]
+        fn hdr_of(self: &Streams, id: &QString) -> QString;
+        /// The open list's video ids (JSON array): unknown ones are looked
+        /// at in the background (`yt_hdr`); "[]" when no list shows.
+        #[qinvokable]
+        fn want_hdr(self: Pin<&mut Streams>, ids: &QString);
+        /// A game runs: no looks start.
+        #[qinvokable]
+        fn set_hdr_paused(self: &Streams, on: bool);
+        /// The player showed this video in HDR.
+        #[qinvokable]
+        fn note_hdr(self: Pin<&mut Streams>, id: &QString);
+
         /// Streamlink ended with an error while it played for `slot`.
         #[qsignal]
         fn source_failed(self: Pin<&mut Streams>, slot: QString, why: QString);
@@ -374,6 +390,8 @@ pub struct StreamsRust {
     chat_open: bool,
     chat_write: bool,
     chat_docked: bool,
+    hdr_revision: i32,
+    hdr_hooked: bool,
     twitch_request: u64,
     youtube_request: u64,
     video_languages: QString,
@@ -1367,6 +1385,8 @@ impl Default for StreamsRust {
             chat_open: s.chat_open || demo.contains("chat"),
             chat_write: s.chat_write,
             chat_docked: s.chat_docked,
+            hdr_revision: 0,
+            hdr_hooked: false,
             twitch_request: 0,
             twitch_more: None,
             twitch_has_more: demo.contains("more"),
@@ -2708,6 +2728,43 @@ impl qobject::Streams {
 
     fn stop_source(&self, slot: &QString) {
         streams::streamlink_stop(&slot.to_string());
+    }
+
+    fn hdr_of(&self, id: &QString) -> QString {
+        q(&crate::yt_hdr::kind_of(&id.to_string()))
+    }
+
+    fn hook_hdr(mut self: Pin<&mut Self>) {
+        if self.rust().hdr_hooked {
+            return;
+        }
+        self.as_mut().rust_mut().hdr_hooked = true;
+        let thread = self.qt_thread();
+        crate::yt_hdr::on_change(move || {
+            let _ = thread.queue(|mut obj: Pin<&mut qobject::Streams>| {
+                let n = obj.hdr_revision().wrapping_add(1);
+                obj.as_mut().set_hdr_revision(n);
+            });
+        });
+    }
+
+    fn want_hdr(mut self: Pin<&mut Self>, ids: &QString) {
+        self.as_mut().hook_hdr();
+        let ids: Vec<String> = serde_json::from_str(&ids.to_string()).unwrap_or_default();
+        if ids.is_empty() {
+            crate::yt_hdr::stop();
+        } else {
+            crate::yt_hdr::want(&ids);
+        }
+    }
+
+    fn set_hdr_paused(&self, on: bool) {
+        crate::yt_hdr::set_paused(on);
+    }
+
+    fn note_hdr(mut self: Pin<&mut Self>, id: &QString) {
+        self.as_mut().hook_hdr();
+        crate::yt_hdr::note_hdr(&id.to_string());
     }
 
     fn video_id(&self, text: &QString) -> QString {
