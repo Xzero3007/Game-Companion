@@ -105,7 +105,10 @@ Item {
             const notches = Math.trunc(slider.wheelSum / 120)
             if (notches === 0) return
             slider.wheelSum -= notches * 120
-            const raw = Math.max(slider.from, Math.min(slider.to, slider.value + notches * slider.wheelStep))
+            // At least one of its own steps per notch: ChatMix moves in 5s, so a
+            // 1 or 2 % volume step alone would round back to where it was.
+            const step = Math.max(slider.wheelStep, slider.stepSize)
+            const raw = Math.max(slider.from, Math.min(slider.to, slider.value + notches * step))
             const v = Math.round(raw / slider.stepSize) * slider.stepSize
             slider.changing(v)
             slider.moved(v)
