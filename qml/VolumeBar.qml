@@ -1,5 +1,7 @@
 import QtQuick
+import GameCompanion
 import "theme.js" as Theme
+import "playerkeys.js" as PK
 
 // The volume as one bar: − and + change it in steps, a click or drag on the
 // bar sets it, the wheel over it steps too; the number beside it.
@@ -8,7 +10,8 @@ Item {
     /// In the player row: darkened as the user set it.
     property bool hud: false
     property int value: 0
-    property int step: 5
+    /// The central "Volume step" (Settings → Display) unless set.
+    property int step: PK.prefs(Streams.player).volume_step
     /// Narrower, for the player row.
     property bool compact: false
     /// What is heard after something else turned it down (ChatMix), 0 to
