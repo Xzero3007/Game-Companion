@@ -165,11 +165,17 @@ Item {
     }
     Connections {
         target: !win.jelly ? video : null
+        // YouTube holds the stream back for an ad: as the visionOS player,
+        // try the players without a TV one at once; later steps just wait.
+        function onHeldUntilChanged() {
+            if (video.heldUntil <= 0 || !win.item || win.item.kind !== "youtube") return
+            Companion.log("video", "youtube held back " + Math.round((video.heldUntil - Date.now()) / 1000) + " s as " + win.playerNames[win.playerStep])
+            if (win.playerStep === 0 && win.nextPlayer()) win.load(Math.max(0, video.position))
+        }
         function onStateChanged() {
             // YouTube as the visionOS player failed: once more with yt-dlp's
             // own choice of players (it may have to wait for YouTube then).
-            if (video.state === "failed" && win.item && win.item.kind === "youtube" && !win.anyPlayer) {
-                win.anyPlayer = true
+            if (video.state === "failed" && win.item && win.item.kind === "youtube" && win.nextPlayer()) {
                 win.load(win.seekable ? Math.max(0, video.position) : 0)
                 return
             }
@@ -209,7 +215,7 @@ Item {
         if (what.kind === "twitch") quality = Streams.qualityFor(what.id) || Streams.quality
         else if (!jelly) quality = Streams.quality
         tries = 0
-        anyPlayer = false
+        playerStep = 0
         segments = []
         skipped = ({})
         skipNote = ""
@@ -248,7 +254,12 @@ Item {
         // an ad for its TV players and serves their stream only once the ad
         // would have run (mpv 0.41 got 403 and stalled; MN, 0.8.36); the
         // visionOS player got none.
-        video.ytdlOptions = item.kind === "youtube" && !anyPlayer ? "extractor-args=youtube:player_client=visionos" : ""
+        // yt-dlp's own choice takes tv_samsung first, which YouTube holds
+        // back for an ad (MN, 2026-11-21: the ad wait came back), so the
+        // next step leaves the TV players out; only the last lets yt-dlp
+        // choose freely (and wait).
+        video.ytdlOptions = item.kind === "youtube" ? playerOptions[playerStep] : ""
+        if (item.kind === "youtube") Companion.log("video", "youtube as " + playerNames[playerStep])
         moved = false
         noPictureFor = 0
         video.play(src.url, src.format, start || 0)
@@ -305,8 +316,22 @@ Item {
     // still be opening (mpv opens YouTube's separate streams after it says
     // "loaded", and ffmpeg knocks again while YouTube holds them back).
     property bool moved: false
-    // YouTube: yt-dlp chooses its players itself (after visionOS failed).
-    property bool anyPlayer: false
+    // YouTube: which players yt-dlp asks as (visionOS, then any but the TV
+    // players, then its own choice); a failure or a stall moves on a step.
+    property int playerStep: 0
+    // mpv's ytdl-raw-options is a list split at commas: a value with commas
+    // goes in [ ] (unquoted, mpv refused the whole option and kept visionOS).
+    readonly property var playerOptions: [
+        "extractor-args=youtube:player_client=visionos",
+        "extractor-args=[youtube:player_client=default,-tv,-tv_samsung,-tv_simply,-tv_embedded,-tv_downgraded]",
+        ""
+    ]
+    readonly property var playerNames: ["visionos", "no TV player", "yt-dlp's choice"]
+    function nextPlayer() {
+        if (playerStep >= playerOptions.length - 1) return false
+        playerStep++
+        return true
+    }
     // YouTube serves a video only once its ad would have run; mpv waits that
     // long (it says so, video.heldUntil) and the watchdog waits with it.
     property real nowMs: 0
@@ -339,9 +364,9 @@ Item {
                 // video part didn't open (MN, 0.8.40: sound, no picture;
                 // Twitch fine). Again as the player yt-dlp chooses.
                 const tube = win.item && win.item.kind === "youtube"
-                if (tube && !win.anyPlayer && win.moved && video.drawable && !video.hasPicture) {
+                if (tube && win.playerStep < win.playerOptions.length - 1 && win.moved && video.drawable && !video.hasPicture) {
                     if (++win.noPictureFor >= 3) {
-                        win.anyPlayer = true
+                        win.nextPlayer()
                         win.load(Math.max(0, video.position))
                     }
                 } else {
@@ -370,9 +395,8 @@ Item {
         }
         tries++
         reconnecting = true
-        // A YouTube video stuck as the visionOS player: the next try lets
-        // yt-dlp choose.
-        if (item && item.kind === "youtube") anyPlayer = true
+        // A YouTube video stuck: the next try asks as the next players.
+        if (item && item.kind === "youtube") nextPlayer()
         const at = seekable ? Math.max(0, video.position) : 0
         load(at)
     }

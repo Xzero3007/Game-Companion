@@ -694,7 +694,7 @@ Panel {
                     Hint { text: "Where the bar and the panels show. Now on " + nativeWindow.screenName + "." }
 
                     Item { width: 1; height: 6 }
-                    Label { text: "Scrolling" }
+                    Label { text: "Mouse wheel" }
                     Dropdown {
                         width: parent.width
                         z: 29
@@ -704,6 +704,19 @@ Panel {
                         onChosen: (id) => Companion.saveWheelSpeed(parseInt(id))
                     }
                     Hint { text: "How far one notch of the mouse wheel moves a list." }
+                    Dropdown {
+                        width: parent.width
+                        z: 28
+                        label: "Volume step"
+                        options: [1, 2, 5, 10].map((p) => ({ id: String(p), name: p + " %" }))
+                        current: String(PK.prefs(Streams.player).volume_step)
+                        onChosen: (id) => {
+                            const p = PK.prefs(Streams.player)
+                            p.volume_step = parseInt(id)
+                            Streams.savePlayer(JSON.stringify(p))
+                        }
+                    }
+                    Hint { text: "One notch of the wheel, − / + and the player's " + PK.shown("Up") + " " + PK.shown("Down") + " keys change every volume by this much." }
 
                     Item { width: 1; height: 6 }
                     Label { text: "Panel opacity" }
@@ -1499,14 +1512,9 @@ Panel {
                             current: String(pk.prefs.seek_step)
                             onChosen: (id) => pk.save((p) => { p.seek_step = parseInt(id) })
                         }
-                        Dropdown {
+                        Hint {
                             visible: pk.prefs.keys || pk.prefs.wheel_volume
-                            width: parent.width
-                            z: 26
-                            label: "Volume step for " + PK.shown("Up") + ", " + PK.shown("Down") + " and the wheel"
-                            options: [{ id: "2", name: "2 %" }, { id: "5", name: "5 %" }, { id: "10", name: "10 %" }]
-                            current: String(pk.prefs.volume_step)
-                            onChosen: (id) => pk.save((p) => { p.volume_step = parseInt(id) })
+                            text: "Volume step (" + pk.prefs.volume_step + " %): Settings → Display, one value for every volume."
                         }
                         // Takes the next key while one is being changed.
                         Item {
@@ -1824,6 +1832,7 @@ Panel {
                 from: 0
                 to: 100
                 value: sch.p.volume
+                wheel: true
                 onMoved: (v) => { sch.store.change({ volume: Math.round(v) }); Aion2.chime(sch.p.sound === "none" ? "chime" : sch.p.sound, Math.round(v)) }
             }
             Text { style: Theme.textStyle(); styleColor: Theme.shadow

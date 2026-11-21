@@ -65,9 +65,16 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   or the app itself with `sound.on` in a scratch settings.json.
   Panel (canvas page "Sound", MIXER variant A; MN 2026-11-16):
   `qml/SoundPanel.qml` (MIXER: volume, preset and EQ in place per channel,
-  ChatMix as a balance `HudSlider` (`centre: 0`: mark in the middle, gold
-  from the middle, double click back; readout "Game 85 % · Chat 100 %";
-  MN 2026-11-20: "wo die Mitte ist"); it scales the game or chat sink's
+  ChatMix as a balance `HudSlider` (`centre: 0`: notches above and below
+  the track in the middle, gold from the middle, `snap` 8 on letting go,
+  right click or "↺ MIDDLE" back, the wheel steps it; readout "Game 85 %
+  · Chat 100 %", the quick row "G 85"/"C 70"; MN 2026-11-20/21: a line
+  across looked like a second handle, a double click picked a value);
+  every volume control takes the wheel by the central "Volume step"
+  (Settings → Display, stored as `streams.player.volume_step`, also the
+  player's keys and − / +: VolumeBar's default `step`, HudSlider's
+  `wheel`/`wheelStep`; Mic gain 1 dB a notch; other sliders no wheel, so
+  lists scroll over them); it scales the game or chat sink's
   volume (`sound::chatmix`, `volumes`), heard only while both play, and
   the channel meters sit before the volume, so VolumeBar's `heard` draws
   the part ChatMix takes away faint (panel and quick row); MIC: input, Input 1/2 = FL/FR, mapped to AUX0/AUX1 on Pro Audio,

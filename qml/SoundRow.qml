@@ -109,10 +109,23 @@ Item {
                 width: 70
                 from: -100; to: 100; stepSize: 5
                 centre: 0
+                snap: 8
+                wheel: true
                 value: strip.prefs.chatmix || 0
                 onChanging: (v) => Sound.setChatmix(v)
-                onMoved: (v) => Sound.setChatmix(Math.abs(v) < 8 ? 0 : v)
+                onMoved: (v) => Sound.setChatmix(v)
                 Accessible.name: "ChatMix: game to chat"
+                Accessible.description: mixShown.text
+            }
+            // Which one ChatMix turns down, and to how much (empty in the middle).
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow;
+                id: mixShown
+                anchors.verticalCenter: parent.verticalCenter
+                width: 40
+                readonly property int m: Math.max(-100, Math.min(100, strip.prefs.chatmix || 0))
+                text: m < 0 ? "C " + (100 + m) : m > 0 ? "G " + (100 - m) : ""
+                color: Theme.accentFor(true)
+                font.family: Theme.display; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1
             }
         }
 
