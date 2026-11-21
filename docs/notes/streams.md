@@ -40,8 +40,11 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   after 4 s, fetching a new ad wait each time). yt-dlp asks as the visionOS
   player first (`MpvVideo.ytdlOptions` → `ytdl-raw-options`
   `extractor-args=youtube:player_client=visionos`; MN's test: tv_samsung got
-  a 6 to 15 s ad, visionos none); after a failure or a stall it lets yt-dlp
-  choose (`anyPlayer`). "Stuck" names mpv's or yt-dlp's last warning
+  a 6 to 15 s ad, visionos none); after a failure, a stall or an ad wait it asks
+  as any player but the TV ones (`playerStep` 1, `default,-tv,-tv_samsung,…`;
+  yt-dlp's default takes tv_samsung first, MN 2026-11-21: the ad came back),
+  and only then lets yt-dlp choose (`playerStep` 2). The log says each
+  load's player and any ad wait (`youtube as …`, `youtube held back …`). "Stuck" names mpv's or yt-dlp's last warning
   (`MpvVideo.why`). A YouTube video that plays on with sound but no
   picture for 3 s (`MpvVideo.hasPicture`, mpv's `width`) is loaded again
   at the same spot with yt-dlp choosing the player (MN, 0.8.40: sound
