@@ -319,9 +319,11 @@ Item {
     // YouTube: which players yt-dlp asks as (visionOS, then any but the TV
     // players, then its own choice); a failure or a stall moves on a step.
     property int playerStep: 0
+    // mpv's ytdl-raw-options is a list split at commas: a value with commas
+    // goes in [ ] (unquoted, mpv refused the whole option and kept visionOS).
     readonly property var playerOptions: [
         "extractor-args=youtube:player_client=visionos",
-        "extractor-args=youtube:player_client=default,-tv,-tv_samsung,-tv_simply,-tv_embedded,-tv_downgraded",
+        "extractor-args=[youtube:player_client=default,-tv,-tv_samsung,-tv_simply,-tv_embedded,-tv_downgraded]",
         ""
     ]
     readonly property var playerNames: ["visionos", "no TV player", "yt-dlp's choice"]
