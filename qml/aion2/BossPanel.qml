@@ -124,6 +124,8 @@ Panel {
         property real value: 0
         property real step: 1
         property string shown: ""
+        /// The wheel steps it by the central volume step (volume only).
+        property bool wheel: false
         signal moved(real value)
         spacing: 8
         height: 22
@@ -132,6 +134,7 @@ Panel {
             width: 150
             anchors.verticalCenter: parent.verticalCenter
             from: parent.from; to: parent.to; stepSize: parent.step; value: parent.value
+            wheel: parent.wheel
             onMoved: (v) => parent.moved(v)
         }
         Line { anchors.verticalCenter: parent.verticalCenter; text: parent.shown; color: Theme.textSoft() }
@@ -791,7 +794,7 @@ Panel {
                     text: "Built-in: the game's lines, recorded once in English (Kokoro, Apache 2.0). Your own words: the computer's voice (speech-dispatcher), "
                         + (Aion2.systemVoice() ? "installed." : "not installed (a beep instead): sudo pacman -S speech-dispatcher espeak-ng")
                 }
-                Slider { label: "Volume"; from: 0; to: 100; value: panel.p.volume === undefined ? 70 : panel.p.volume; shown: String(Math.round(value)); onMoved: (v) => panel.brain.change("volume", Math.round(v)) }
+                Slider { label: "Volume"; wheel: true; from: 0; to: 100; value: panel.p.volume === undefined ? 70 : panel.p.volume; shown: String(Math.round(value)); onMoved: (v) => panel.brain.change("volume", Math.round(v)) }
                 Slider { label: "Speed"; from: 0.5; to: 2; step: 0.1; value: panel.p.rate || 1; shown: (value).toFixed(1) + "×"; onMoved: (v) => panel.brain.change("rate", Math.round(v * 10) / 10) }
                 Chip { text: "Test: a purple phase"; on: true; onClicked: panel.brain.test() }
             }

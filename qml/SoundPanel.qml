@@ -1,6 +1,7 @@
 import QtQuick
 import GameCompanion
 import "theme.js" as Theme
+import "playerkeys.js" as PK
 
 // The sound module (canvas page "Sound", MIXER variant A; MN 2026-11-16):
 // four channels with volume, preset and EQ plus ChatMix (MIXER), the mic
@@ -170,19 +171,24 @@ Panel {
                     width: parent.width - 76 - 90 - 30
                     from: -100; to: 100; stepSize: 5
                     centre: 0
+                    snap: 8
+                    wheel: true
                     value: panel.prefs.chatmix || 0
                     onChanging: (v) => Sound.setChatmix(v)
-                    onMoved: (v) => Sound.setChatmix(Math.abs(v) < 8 ? 0 : v)
+                    onMoved: (v) => Sound.setChatmix(v)
                     Accessible.name: "ChatMix"
                     Accessible.description: mixReadout.text
                 }
                 Small { anchors.verticalCenter: parent.verticalCenter; text: "CHAT" }
             }
-            // How far it is from the middle (MN, 2026-11-20).
+            // How far it is from the middle (MN, 2026-11-20), and back to it.
+            Row {
+                x: 86
+                height: 24
+                spacing: 10
             Text {
                 id: mixReadout
-                x: 86
-                width: parent.width - 86
+                anchors.verticalCenter: parent.verticalCenter
                 readonly property int m: panel.prefs.chatmix || 0
                 text: m === 0 ? "Middle: game and chat as set above"
                     : "Game " + panel.mixPart("game") + " % · Chat " + panel.mixPart("chat") + " %  ("
@@ -191,11 +197,20 @@ Panel {
                 font.family: Theme.body; font.pixelSize: 12; font.weight: Font.DemiBold
                 style: Theme.textStyle(); styleColor: Theme.shadow
             }
+            Chip {
+                visible: mixReadout.m !== 0
+                anchors.verticalCenter: parent.verticalCenter
+                text: "↺ MIDDLE"
+                onClicked: Sound.setChatmix(0)
+                Accessible.name: "ChatMix back to the middle"
+            }
+            }
             Small {
                 x: 86
                 width: parent.width - 86
                 wrapMode: Text.WordWrap
-                text: "Turns the game down as you turn the chat up, and the other way; heard only while both play. Double click: back to the middle."
+                text: "Turns the game down as you turn the chat up, and the other way; heard only while both play. Wheel: "
+                    + PK.prefs(Streams.player).volume_step + " % per notch · Right click or ↺ MIDDLE: back to the middle."
             }
         }
 
@@ -296,6 +311,7 @@ Panel {
                         width: parent.width
                         label: "Mic gain"
                         from: 0; to: 30; step: 1
+                        wheel: true
                         value: panel.mic().gain !== undefined ? panel.mic().gain : 12
                         unit: " dB"
                         onPicked: (v) => Sound.setMic(JSON.stringify({ gain: Math.round(v) }))
@@ -702,6 +718,8 @@ Panel {
         property real step: 1
         property real value: 0
         property string unit: ""
+        /// The wheel steps it by `step` (levels such as the mic's gain).
+        property bool wheel: false
         /// Shown while dragging, sent once let go.
         property real shown: value
         onValueChanged: shown = value
@@ -713,6 +731,8 @@ Panel {
             width: parent.width - 74 - 54
             anchors.verticalCenter: parent.verticalCenter
             from: sr.from; to: sr.to; stepSize: sr.step
+            wheel: sr.wheel
+            wheelStep: sr.step
             value: sr.shown
             onChanging: (v) => sr.shown = v
             onMoved: (v) => { sr.shown = v; sr.picked(v) }
