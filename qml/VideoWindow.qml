@@ -173,6 +173,9 @@ Item {
             if (win.playerStep === 0 && win.nextPlayer()) win.load(Math.max(0, video.position))
         }
         function onStateChanged() {
+            // YouTube's bot check: the background looks at YouTube rest.
+            if (video.state === "failed" && win.item && win.item.kind === "youtube" && (video.why || "").indexOf("not a bot") >= 0)
+                Streams.botCheck()
             // YouTube as the visionOS player failed: once more with yt-dlp's
             // own choice of players (it may have to wait for YouTube then).
             if (video.state === "failed" && win.item && win.item.kind === "youtube" && win.nextPlayer()) {

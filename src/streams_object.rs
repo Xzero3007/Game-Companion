@@ -225,6 +225,11 @@ pub mod qobject {
         #[qinvokable]
         fn forget(self: Pin<&mut Streams>);
 
+        /// The player's yt-dlp met YouTube's bot check: the background
+        /// looks rest for a while.
+        #[qinvokable]
+        fn bot_check(self: Pin<&mut Streams>);
+
         /// What a player plays: JSON `{"url","format","via"}` or `{"error"}`.
         /// Twitch goes through Streamlink when it is installed.
         #[qinvokable]
@@ -756,7 +761,7 @@ fn fetch_feeds(ids: Vec<String>, progress: impl Fn(usize, &[Value])) -> Feeds {
     }
     // Some channels' feeds answer 404 for good: yt-dlp looks at their videos
     // tab instead (slower, no dates), a few at once, at most 12 channels.
-    let tries: Vec<String> = still.iter().take(12).cloned().collect();
+    let tries: Vec<String> = if streams::youtube_paused() { Vec::new() } else { still.iter().take(12).cloned().collect() };
     let found: Vec<(String, Vec<Value>)> = std::thread::scope(|scope| {
         tries
             .chunks(3)
@@ -955,6 +960,9 @@ fn apply_lengths(videos: &mut [Value], from: &[Value]) -> bool {
 /// at each channel's videos tab (one page each, three at once, at most
 /// `limit` channels a time), stored in the feed cache. Says whether any came.
 fn fill_lengths(ids: &[String], limit: usize) -> bool {
+    if streams::youtube_paused() {
+        return false;
+    }
     let cache = read_feed_cache();
     let wanted: Vec<String> = ids.iter().filter(|id| needs_lengths(cache.get(id.as_str()))).take(limit).cloned().collect();
     if wanted.is_empty() {
@@ -1164,7 +1172,7 @@ fn dates_later(list: Vec<Value>, request: u64, thread: cxx_qt::CxxQtThread<qobje
         // Videos no feed holds any more (a channel that uploads a lot): a
         // look at each, two at once, kept for good.
         let single = videos_for_dates(&list, &all);
-        if single.is_empty() {
+        if single.is_empty() || streams::youtube_paused() {
             return;
         }
         let found: Vec<(String, String)> = single
@@ -1271,6 +1279,9 @@ fn feeds_as_of(ids: &[String], cache: &serde_json::Map<String, Value>) -> f64 {
 /// videos tab brings them, put into the list when it still shows.
 fn channel_lengths_later(channel: String, request: u64, thread: cxx_qt::CxxQtThread<qobject::Streams>) {
     std::thread::spawn(move || {
+        if streams::youtube_paused() {
+            return;
+        }
         let Ok(from) = streams::youtube_channel_range(&channel, 1, 15) else { return };
         let _ = thread.queue(move |mut obj: Pin<&mut qobject::Streams>| {
             if obj.rust().youtube_request != request {
@@ -2087,6 +2098,10 @@ impl qobject::Streams {
             for _ in 0..PICTURES_AT_ONCE {
                 let (todo, tx) = (todo.clone(), tx.clone());
                 std::thread::spawn(move || loop {
+                    // YouTube's bot check: the rest wait for another time.
+                    if streams::youtube_paused() {
+                        break;
+                    }
                     let Some(id) = todo.lock().unwrap_or_else(|p| p.into_inner()).pop() else { break };
                     pictures_asked().lock().unwrap_or_else(|p| p.into_inner()).insert(id.clone());
                     match streams::channel_picture(&id) {
@@ -2292,6 +2307,10 @@ impl qobject::Streams {
     fn forget(self: Pin<&mut Self>) {
         *subscriptions_kept().lock().unwrap_or_else(|p| p.into_inner()) = None;
         FEEDS_FORCED.store(true, Ordering::Relaxed);
+    }
+
+    fn bot_check(self: Pin<&mut Self>) {
+        streams::bot_check_seen();
     }
 
     fn save_volume(self: Pin<&mut Self>, volume: i32) {
