@@ -180,7 +180,9 @@ fn work() {
         let id = {
             let mut st = lock.lock().unwrap_or_else(|e| e.into_inner());
             loop {
-                if !st.paused {
+                // Not while a game runs, nor while YouTube's bot check rests
+                // the background looks (`streams::youtube_paused`).
+                if !st.paused && !crate::streams::youtube_paused() {
                     if let Some(id) = st.queue.pop_front() {
                         st.busy.insert(id.clone());
                         break id;
@@ -189,7 +191,9 @@ fn work() {
                 if st.unsaved > 0 && st.queue.is_empty() && st.busy.is_empty() {
                     save(&mut st);
                 }
-                st = wake.wait(st).unwrap_or_else(|e| e.into_inner());
+                // Woken by a new list, or once a minute to see whether the
+                // bot check's rest is over.
+                st = wake.wait_timeout(st, Duration::from_secs(60)).unwrap_or_else(|e| e.into_inner()).0;
             }
         };
         let answer = look(&id);
@@ -197,6 +201,11 @@ fn work() {
         st.busy.remove(&id);
         let changed = match answer {
             Some(hdr) => remember(&mut st, &id, hdr),
+            // Failed under the bot check: asked again once the rest is over.
+            None if crate::streams::youtube_paused() => {
+                st.queue.push_front(id);
+                false
+            }
             None => {
                 st.failed.insert(id);
                 false
@@ -221,7 +230,7 @@ fn look(id: &str) -> Option<bool> {
         .arg(format!("https://www.youtube.com/watch?v={id}"))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped());
     // Ends with the app (this thread waits for it, so it outlives it).
     unsafe {
         cmd.pre_exec(|| {
@@ -232,6 +241,10 @@ fn look(id: &str) -> Option<bool> {
     let child = cmd.spawn().ok()?;
     let out = crate::streams::finish(child, Duration::from_secs(40)).ok()?;
     if !out.status.success() {
+        // YouTube's bot check: every look at YouTube rests a while.
+        if crate::streams::is_bot_check(&String::from_utf8_lossy(&out.stderr)) {
+            crate::streams::bot_check_seen();
+        }
         return None;
     }
     hdr_in(&String::from_utf8_lossy(&out.stdout))

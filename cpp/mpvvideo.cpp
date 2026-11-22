@@ -231,6 +231,12 @@ void onHdrUpdate(void *ctx)
 // What helps with what yt-dlp says, where that is known.
 QString hintFor(const QString &why)
 {
+    // YouTube's bot check: it doesn't trust the connection for now; no
+    // player and no newer yt-dlp helps (MN, 2026-11-22).
+    if (why.contains(QLatin1String("not a bot"))) {
+        return QStringLiteral(" · YouTube doesn't trust this internet connection for now. It usually passes within a few hours; "
+                              "if a VPN runs, switch it off.");
+    }
     if (why.contains(QLatin1String("JavaScript"), Qt::CaseInsensitive) || why.contains(QLatin1String("challenge"), Qt::CaseInsensitive)
         || why.contains(QLatin1String("deno"), Qt::CaseInsensitive)) {
         return QStringLiteral(" · yt-dlp needs a JavaScript runtime: sudo pacman -S deno");
@@ -934,6 +940,10 @@ void MpvVideo::readEvents()
             const bool isError = line.contains(QLatin1String("ERROR:"));
             if (isError || (!hadError && (fromYtdl || !m_why.startsWith(QLatin1String("yt-dlp"))))) {
                 QString text = line.section(QStringLiteral("; please report this issue"), 0, 0).trimmed();
+                // Its long advice about cookies and a link: the hint says what helps.
+                if (text.contains(QLatin1String("not a bot"))) {
+                    text = QStringLiteral("ERROR: YouTube asks to sign in to confirm you're not a bot");
+                }
                 m_why = (fromYtdl ? QStringLiteral("yt-dlp: ") + text : text).left(240);
                 emit whyChanged();
             }
