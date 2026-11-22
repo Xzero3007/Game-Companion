@@ -44,7 +44,14 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   as any player but the TV ones (`playerStep` 1, `default,-tv,-tv_samsung,…`;
   yt-dlp's default takes tv_samsung first, MN 2026-11-21: the ad came back),
   and only then lets yt-dlp choose (`playerStep` 2). The log says each
-  load's player and any ad wait (`youtube as …`, `youtube held back …`). "Stuck" names mpv's or yt-dlp's last warning
+  load's player and any ad wait (`youtube as …`, `youtube held back …`).
+  YouTube's bot check ("Sign in to confirm you're not a bot", MN
+  2026-11-22: no video played): YouTube doesn't trust the IP, no player
+  helps. The player says so plainly (`hintFor`) and calls
+  `Streams.botCheck()`; yt-dlp runs here notice it themselves
+  (`run_with_timeout`). Then the background looks (lengths, dates, channel
+  pictures, the videos tab of 404 feeds) rest for 30 min
+  (`streams::youtube_paused`, `BOT_PAUSE`); the log says so once. "Stuck" names mpv's or yt-dlp's last warning
   (`MpvVideo.why`). A YouTube video that plays on with sound but no
   picture for 3 s (`MpvVideo.hasPicture`, mpv's `width`) is loaded again
   at the same spot with yt-dlp choosing the player (MN, 0.8.40: sound

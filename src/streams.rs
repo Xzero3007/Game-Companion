@@ -943,8 +943,41 @@ fn wait_for(next: &'static OnceLock<Mutex<Instant>>, gap: Duration) {
 }
 
 fn run_with_timeout(command: &mut Command, limit: Duration) -> Result<std::process::Output, String> {
+    let ytdlp = command.get_program() == "yt-dlp";
     let child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| e.to_string())?;
-    finish(child, limit)
+    let out = finish(child, limit)?;
+    if ytdlp && !out.status.success() && is_bot_check(&String::from_utf8_lossy(&out.stderr)) {
+        bot_check_seen();
+    }
+    Ok(out)
+}
+
+/// When YouTube last said "Sign in to confirm you're not a bot" (seconds
+/// since 1970), from yt-dlp here or from the player's yt-dlp.
+static BOT_CHECK_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// How long the background looks (lengths, dates, pictures) rest after
+/// YouTube's bot check: more requests would only keep the block (MN,
+/// 2026-11-22: no video played any more).
+pub const BOT_PAUSE: u64 = 30 * 60;
+
+pub fn is_bot_check(text: &str) -> bool {
+    text.contains("not a bot")
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+pub fn bot_check_seen() {
+    let was = BOT_CHECK_AT.swap(now_secs(), std::sync::atomic::Ordering::Relaxed);
+    if now_secs().saturating_sub(was) >= BOT_PAUSE {
+        crate::log::write("streams", "youtube bot check: background looks paused for 30 min");
+    }
+}
+
+/// Whether the background looks at YouTube rest now (its bot check).
+pub fn youtube_paused() -> bool {
+    now_secs().saturating_sub(BOT_CHECK_AT.load(std::sync::atomic::Ordering::Relaxed)) < BOT_PAUSE
 }
 
 pub(crate) fn finish(child: Child, limit: Duration) -> Result<std::process::Output, String> {
