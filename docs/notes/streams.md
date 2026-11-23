@@ -51,7 +51,21 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   `Streams.botCheck()`; yt-dlp runs here notice it themselves
   (`run_with_timeout`). Then the background looks (lengths, dates, channel
   pictures, the videos tab of 404 feeds) rest for 30 min
-  (`streams::youtube_paused`, `BOT_PAUSE`); the log says so once. "Stuck" names mpv's or yt-dlp's last warning
+  (`streams::youtube_paused`, `BOT_PAUSE`); the log says so once. A
+  check again within twice the last pause doubles it, up to 6 h
+  (`next_bot_pause`, `BOT_PAUSE_LONGEST`).
+  Robust lists (MN, 2026-11-23): views come from the feed's
+  `media:statistics` (no request); `merge_videos` keeps a stored length
+  and views when the feed's entry has none (each feed look used to wipe
+  the newest 15's lengths, and `lengths_for` kept them from being asked
+  again; the key is `lengths_seen` now so every channel is looked at once
+  more). `fill_lengths` asks one channel at a time with `LENGTH_GAP` (6 s)
+  between, newest uploads first, five channels a batch shown at once, at
+  most 40 a run; a played video's length goes in at once
+  (`Streams.learnLength`). Settings → Streams → YouTube "yt-dlp":
+  `streams::ytdlp_note` (its version and age, over 45 days says update;
+  whether a PO token provider plugin is installed, AUR
+  python-bgutil-ytdlp-pot-provider), no network. "Stuck" names mpv's or yt-dlp's last warning
   (`MpvVideo.why`). A YouTube video that plays on with sound but no
   picture for 3 s (`MpvVideo.hasPicture`, mpv's `width`) is loaded again
   at the same spot with yt-dlp choosing the player (MN, 0.8.40: sound
@@ -132,7 +146,7 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   `itemKey` when `listKey` (tab, view, arg, channel, search) is the same.
   Lengths: feeds have none, so `lengths_later` → `fill_lengths` asks yt-dlp
   for each stored channel's videos tab (15, 3 at once, 40 channels a time)
-  when its newest video changed since (`lengths_for` in the feed cache);
+  when its newest video changed since (`lengths_seen` in the feed cache);
   the channel view fills its own (`channel_lengths_later`). Dates: yt-dlp
   flat lists ask `youtubetab:approximate_date` (English time texts only),
   marked `rough`; `apply_known` takes the feed cache's exact dates and

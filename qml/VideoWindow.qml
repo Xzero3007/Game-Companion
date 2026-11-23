@@ -114,7 +114,13 @@ Item {
     // else kept in memory (every 10 s while it plays).
     function keepPosition(save) {
         if (item && item.kind === "youtube" && video.position > 0) Library.record(videoJson(), video.position, video.duration, save !== false)
+        // Its length, known now, into the stored feeds (once per video).
+        if (item && item.kind === "youtube" && video.duration > 0 && !item.live && lengthTold !== item.id) {
+            lengthTold = item.id
+            Streams.learnLength(item.id, video.duration)
+        }
     }
+    property string lengthTold: ""
     Timer {
         // Every 10 seconds while a YouTube video plays: where it is (to go on later).
         interval: 10000
