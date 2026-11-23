@@ -1147,6 +1147,13 @@ Panel {
                     }
 
                     Item { width: 1; height: 4 }
+                    Label { text: "yt-dlp" }
+                    Hint {
+                        text: Streams.ytdlpNote || "Looking at yt-dlp…"
+                        Component.onCompleted: Streams.checkYtdlp()
+                    }
+
+                    Item { width: 1; height: 4 }
                     Label { text: "In the lists" }
                     OnOff { width: parent.width; text: "Leave Shorts out"; on: parent.filters.shorts; onToggled: Streams.setHideShorts(!parent.filters.shorts) }
                     OnOff { width: parent.width; text: "Leave watched videos out"; on: parent.filters.watched; onToggled: Streams.setHideWatched(!parent.filters.watched) }
