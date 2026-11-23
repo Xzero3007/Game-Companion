@@ -391,3 +391,12 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   HDR is noted at once (`Streams.noteHdr`; SDR never: a video can play in
   an SDR format of its own). `Streams.hdrOf(id)` with `hdrRevision` for
   bindings. Bench: a fake yt-dlp on PATH (`demo000000N` ids).
+- The game's tab (Twitch and YouTube) and its purple preset bar show only
+  while a game runs (MN, 2026-11-23: Crimson Desert stood there with no game
+  running, after Bodycam, which had no preset, had not replaced it).
+  `StreamsPanel.gameless` turns a "game" view into Following / Subscriptions
+  (in `apply`, `firstLoad`, and `leaveGame` when the game ends or the panel
+  shows); a Twitch category opened from Categories then belongs to that tab.
+  `Main` `onStarted` always calls `Streams.changeGame`, with the game's name
+  where it has no Twitch category or YouTube words. `GC_DEMO=streams,ingames`
+  shows the panel with a made-up game running (Games panel closed).

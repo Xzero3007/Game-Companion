@@ -15,8 +15,8 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
    Video through libmpv (MpvQt). Then switched off in the meter by the person.
    Each game brings a preset search (the person, 2026-11-12): its Twitch
    category and YouTube search words; the Streams panel's first tab is the
-   running game's (purple tag). Until game detection, AION 2 by default and
-   changeable by hand.
+   running game's (purple tag). Only while a game runs (MN, 2026-11-23); a
+   game without its own search looks for its name.
 3. Brave Origin and Legcord (the person, 2026-11-14; plan and mockups in
    the project folder `brave-legcord-plan.md`, `mockups/brave-legcord/`):
    their real windows shown over the game by KWin scripts; bar buttons
