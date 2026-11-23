@@ -875,7 +875,7 @@ Panel {
             Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: "What the Streams panel's game tab looks for while this game runs. Empty: the built-in game's search, if it has one."
+                text: "What the Streams panel's game tab looks for while this game runs. Empty: the built-in game's search if it has one, else the game's name."
                 color: Theme.dim()
                 font.family: Theme.body
                 font.pixelSize: 12
