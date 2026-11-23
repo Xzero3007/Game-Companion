@@ -58,10 +58,14 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   `media:statistics` (no request); `merge_videos` keeps a stored length
   and views when the feed's entry has none (each feed look used to wipe
   the newest 15's lengths, and `lengths_for` kept them from being asked
-  again; the key is `lengths_seen` now so every channel is looked at once
+  again; the key is `lengths_looked` now so every channel is looked at once
   more). `fill_lengths` asks one channel at a time with `LENGTH_GAP` (6 s)
   between, newest uploads first, five channels a batch shown at once, at
-  most 40 a run; a played video's length goes in at once
+  most 300 a run (0.8.85: the videos tab's first 30, then for what it
+  lacked the streams tab's 15, where past streams and premieres are; a
+  stream live or to come is marked `live`/`upcoming` and shows LIVE or
+  UPCOMING instead of a length; the key became `lengths_looked` so every
+  channel is looked at again); a played video's length goes in at once
   (`Streams.learnLength`). Settings → Streams → YouTube "yt-dlp":
   `streams::ytdlp_note` (its version and age, over 45 days says update;
   whether a PO token provider plugin is installed, AUR
@@ -146,7 +150,7 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   `itemKey` when `listKey` (tab, view, arg, channel, search) is the same.
   Lengths: feeds have none, so `lengths_later` → `fill_lengths` asks yt-dlp
   for each stored channel's videos tab (15, 3 at once, 40 channels a time)
-  when its newest video changed since (`lengths_seen` in the feed cache);
+  when its newest video changed since (`lengths_looked` in the feed cache);
   the channel view fills its own (`channel_lengths_later`). Dates: yt-dlp
   flat lists ask `youtubetab:approximate_date` (English time texts only),
   marked `rough`; `apply_known` takes the feed cache's exact dates and
