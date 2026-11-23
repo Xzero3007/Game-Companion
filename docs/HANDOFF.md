@@ -29,6 +29,7 @@ so a new session carries on from here; details of each step go to
 
 ## Now (2026-11-18)
 
+- 0.8.83 beta (2026-11-23): #189 YouTube: views from the feeds, lengths kept and fetched one channel at a time, growing bot-check pause, yt-dlp note in Settings.
 - 0.8.82 beta (2026-11-22): #187 YouTube's bot check said plainly; background yt-dlp looks (also the HDR looks) rest for 30 min.
 - 0.8.81 beta (2026-11-21): #184 ChatMix notches and right click reset; mouse wheel on every volume, one central volume step; #185 YouTube falls back to players without a TV one before waiting for an ad.
 - 0.8.80 beta (2026-11-20): #182 ChatMix: centre mark, readout, double click to the middle; volume bars show what is heard.
