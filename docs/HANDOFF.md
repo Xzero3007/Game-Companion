@@ -29,6 +29,7 @@ so a new session carries on from here; details of each step go to
 
 ## Now (2026-11-18)
 
+- 0.8.84 beta (2026-11-23): #191 Streams shows the game's tab and preset only while a game runs; a game without its own search looks for its name.
 - 0.8.83 beta (2026-11-23): #189 YouTube: views from the feeds, lengths kept and fetched one channel at a time, growing bot-check pause, yt-dlp note in Settings.
 - 0.8.82 beta (2026-11-22): #187 YouTube's bot check said plainly; background yt-dlp looks (also the HDR looks) rest for 30 min.
 - 0.8.81 beta (2026-11-21): #184 ChatMix notches and right click reset; mouse wheel on every volume, one central volume step; #185 YouTube falls back to players without a TV one before waiting for an ad.

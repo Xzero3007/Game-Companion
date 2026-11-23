@@ -162,7 +162,21 @@ Panel {
         ? JSON.stringify(youtubeShown.filter((v) => !v.live && !!v.id).map((v) => v.id)) : "[]"
     onHdrIdsChanged: Streams.wantHdr(hdrIds)
     readonly property bool gameRunning: Games.running !== ""
-    onGameRunningChanged: Streams.setHdrPaused(gameRunning)
+    onGameRunningChanged: { Streams.setHdrPaused(gameRunning); if (!gameRunning) editingGame = false; if (visible) leaveGame() }
+    /// The game's tab and its preset show only while a game runs (MN,
+    /// 2026-11-23: the last game stood there with none running). Without one
+    /// its view gives way to Following (Twitch) or Subscriptions (YouTube).
+    function gameless(s) {
+        if (gameRunning || s.tab === "jellyfin") return s
+        const twitchGame = s.tab === "twitch" && (s.view === "game" || ((s.view === "category" || s.view === "recordings") && !s.arg))
+        if (s.view !== "game" && !twitchGame) return s
+        return Object.assign({}, s, { view: s.tab === "twitch" ? "following" : "subscriptions", arg: null })
+    }
+    function leaveGame() {
+        if (!loadedOnce) return
+        const s = stateNow()
+        if (gameless(s).view !== s.view) go(gameless(s))
+    }
     readonly property var channelsShown: Streams.group ? channels.filter((c) => c.groups.indexOf(Streams.group) >= 0) : channels
     /// The search field serves the search, and narrows the history, the
     /// playlists and Twitch's categories.
@@ -200,6 +214,7 @@ Panel {
         apply(s)
     }
     function apply(s) {
+        s = gameless(s)
         if (Streams.tab !== s.tab) Streams.chooseTab(s.tab)
         search.text = s.text || ""
         channel = s.channel || null
@@ -241,7 +256,7 @@ Panel {
     }
 
     property bool loadedOnce: false
-    onVisibleChanged: if (visible && !loadedOnce) firstLoad()
+    onVisibleChanged: if (visible) { if (!loadedOnce) firstLoad(); else leaveGame() }
     Component.onCompleted: { swapList(); swapChannels(); if (visible && !loadedOnce) firstLoad(); Streams.setHdrPaused(gameRunning); Streams.wantHdr(hdrIds) }
     Component.onDestruction: Streams.wantHdr("[]")
     function firstLoad() {
@@ -249,10 +264,12 @@ Panel {
         Streams.refreshAccount()
         if (Streams.youtubeView === "channel") Streams.loadYoutube("channels", "")
         if (Streams.youtubeView === "playlist") Streams.loadYoutube("playlists", "")
-        if (Streams.twitchView === "category" || Streams.twitchView === "recordings") Streams.loadTwitch("game", "")
-        history = [stateNow()]
+        if (Streams.twitchView === "category" || Streams.twitchView === "recordings") Streams.loadTwitch(gameRunning ? "game" : "following", "")
+        const s = gameless(stateNow())
+        history = [s]
         at = 0
-        reload()
+        if (s.view !== stateNow().view) apply(s)
+        else reload()
     }
     function reload() {
         if (onJelly) {
@@ -710,7 +727,7 @@ Panel {
 
         // The game's preset, in purple (not over one's own lists).
         Rectangle {
-            visible: !panel.onJelly && (panel.onTwitch || ["playlists", "playlist", "history"].indexOf(panel.ytView) < 0)
+            visible: panel.gameRunning && !panel.onJelly && (panel.onTwitch || ["playlists", "playlist", "history"].indexOf(panel.ytView) < 0)
             width: parent.width
             height: panel.editingGame ? gameEdit.implicitHeight + 20 : 44
             color: Qt.rgba(155 / 255, 107 / 255, 232 / 255, 0.14)
@@ -820,10 +837,10 @@ Panel {
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
             TabStrip {
                 visible: panel.onTwitch
-                ListTab { name: "game"; label: panel.game.name; purple: true; twitch: true; also: ["category"] }
+                ListTab { name: "game"; visible: panel.gameRunning; label: panel.game.name; purple: true; twitch: true; also: ["category"] }
                 ListTab { name: "following"; label: "Following"; twitch: true; count: Streams.liveNewCount }
                 ListTab { name: "favourites"; label: "Favorites"; twitch: true }
-                ListTab { name: "categories"; label: "Categories"; twitch: true }
+                ListTab { name: "categories"; label: "Categories"; twitch: true; also: panel.gameRunning ? [] : ["category"] }
                 ListTab { name: "live"; label: "All live"; twitch: true }
                 ListTab { name: "search"; label: ""; searchIcon: true; twitch: true; also: ["recordings"] }
             }
@@ -838,7 +855,7 @@ Panel {
             }
             TabStrip {
                 visible: Streams.tab === "youtube"
-                ListTab { name: "game"; label: panel.game.name; purple: true }
+                ListTab { name: "game"; visible: panel.gameRunning; label: panel.game.name; purple: true }
                 ListTab { name: "subscriptions"; label: "Subscriptions" }
                 ListTab { name: "trending"; label: "Trending" }
                 ListTab { name: "playlists"; label: "Playlists"; also: ["playlist"] }
