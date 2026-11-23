@@ -582,6 +582,8 @@ pub fn search_entries(all: &Value) -> Vec<Value> {
                 "duration": e.get("duration").and_then(Value::as_f64).unwrap_or(0.0),
                 "views": e.get("view_count").and_then(Value::as_u64).unwrap_or(0),
                 "live": e.get("live_status").and_then(Value::as_str) == Some("is_live"),
+                // A stream or premiere still to come: no length yet.
+                "upcoming": e.get("live_status").and_then(Value::as_str) == Some("is_upcoming"),
                 "short": e.get("url").and_then(Value::as_str).is_some_and(|u| u.contains("/shorts/")),
                 // yt-dlp's rough date from YouTube's "3 days ago" (English
                 // only; `approximate_date`).
@@ -1198,14 +1200,23 @@ pub fn get_direct(url: &str, limit: Duration) -> Result<Vec<u8>, String> {
 /// A YouTube channel's older videos (after its feed's 15): results `first`
 /// to `last` of its videos tab, through yt-dlp.
 pub fn youtube_channel_range(channel: &str, first: usize, last: usize) -> Result<Vec<Value>, String> {
+    youtube_channel_tab(channel, "videos", first, last)
+}
+
+/// A channel's tab ("videos", or "streams" for its live streams, past and
+/// to come), results `first` to `last`, through yt-dlp.
+pub fn youtube_channel_tab(channel: &str, tab: &str, first: usize, last: usize) -> Result<Vec<Value>, String> {
     if !valid_channel_id(channel) {
         return Err("not a YouTube channel".into());
+    }
+    if !matches!(tab, "videos" | "streams") {
+        return Err("not a channel tab".into());
     }
     let out = run_with_timeout(
         Command::new("yt-dlp")
             .args(["--ignore-config", "--no-warnings", "--flat-playlist", "--playlist-items", &format!("{}-{}", first.max(1), last.clamp(1, 600)), "--dump-single-json"])
             .args(["--extractor-args", "youtubetab:approximate_date", "--"])
-            .arg(format!("https://www.youtube.com/channel/{channel}/videos")),
+            .arg(format!("https://www.youtube.com/channel/{channel}/{tab}")),
         Duration::from_secs(40),
     )?;
     if !out.status.success() {
