@@ -984,6 +984,13 @@ fn wants_length(v: &Value) -> bool {
         && v["short"].as_bool() != Some(true)
 }
 
+/// A stored video only the streams tab can settle: no length yet, or marked
+/// live or to come (a stream's mark is cleared and its length found there
+/// once it ended; the videos tab never lists it).
+fn wants_streams_tab(v: &Value) -> bool {
+    wants_length(v) || v["live"].as_bool() == Some(true) || v["upcoming"].as_bool() == Some(true)
+}
+
 /// Puts the lengths of `from` into `videos` where they lack one (by id);
 /// says whether any came.
 fn apply_lengths(videos: &mut [Value], from: &[Value]) -> bool {
@@ -1044,7 +1051,7 @@ fn fill_lengths(ids: &[String], limit: usize) -> bool {
         for tab in ["videos", "streams"] {
             if tab == "streams" {
                 let cache = read_feed_cache();
-                let missing = cache.get(id).and_then(|e| e["videos"].as_array()).is_some_and(|vs| vs.iter().take(15).any(wants_length));
+                let missing = cache.get(id).and_then(|e| e["videos"].as_array()).is_some_and(|vs| vs.iter().take(15).any(wants_streams_tab));
                 if !missing || streams::youtube_paused() {
                     break;
                 }
@@ -2945,6 +2952,11 @@ mod tests {
         assert!(apply_lengths(&mut up, &[json!({ "id": "u", "duration": 0.0, "upcoming": true })]));
         assert_eq!(up[0]["upcoming"], true);
         assert!(!wants_length(&up[0]));
+        // Its hourly look reaches the streams tab, where its mark clears.
+        assert!(wants_streams_tab(&up[0]));
+        assert!(apply_lengths(&mut up, &[json!({ "id": "u", "duration": 3600.0, "upcoming": false })]));
+        assert_eq!(up[0]["upcoming"], false);
+        assert!(!wants_streams_tab(&up[0]));
         // Looked at an hour ago with a stream to come: again; just now: not.
         let streaming = |at: u64| json!({ "lengths_looked": "u", "lengths_at": at, "videos": [{ "id": "u", "duration": 0.0, "upcoming": true }] });
         assert!(needs_lengths(Some(&streaming(unix_now() - 3700))));
