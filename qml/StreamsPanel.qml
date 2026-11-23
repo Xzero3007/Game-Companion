@@ -1562,7 +1562,7 @@ Panel {
                 YtProgress { mark: row.mark }
                 HdrBadge { label: panel.ytHdr(row.modelData) }
                 Rectangle {
-                    visible: row.modelData.duration > 0 || row.modelData.live
+                    visible: row.modelData.duration > 0 || row.modelData.live || row.modelData.upcoming
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     anchors.margins: 4
@@ -1572,7 +1572,7 @@ Panel {
                     Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                         id: lengthText
                         anchors.centerIn: parent
-                        text: row.modelData.live ? "LIVE" : panel.clock(row.modelData.duration)
+                        text: row.modelData.live ? "LIVE" : row.modelData.upcoming ? "UPCOMING" : panel.clock(row.modelData.duration)
                         color: Theme.text()
                         font.family: Theme.body
                         font.pixelSize: 10
@@ -1881,7 +1881,7 @@ Panel {
             }
             Rectangle {
                 parent: tile.thumb
-                visible: tile.modelData.duration > 0 || tile.modelData.live
+                visible: tile.modelData.duration > 0 || tile.modelData.live || tile.modelData.upcoming
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: 4
@@ -1891,7 +1891,7 @@ Panel {
                 Text { style: Theme.textStyle(); styleColor: Theme.shadow;
                     id: tileLength
                     anchors.centerIn: parent
-                    text: tile.modelData.live ? "LIVE" : panel.clock(tile.modelData.duration)
+                    text: tile.modelData.live ? "LIVE" : tile.modelData.upcoming ? "UPCOMING" : panel.clock(tile.modelData.duration)
                     color: Theme.text()
                     font.family: Theme.body
                     font.pixelSize: 10

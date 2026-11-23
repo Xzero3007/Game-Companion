@@ -917,6 +917,12 @@ fn merge_videos(new: Vec<Value>, old: Option<&Value>) -> Vec<Value> {
                 if x["views"].as_u64().unwrap_or(0) == 0 && v["views"].as_u64().unwrap_or(0) > 0 {
                     x["views"] = v["views"].clone();
                 }
+                // Live or to come, as the last tab look found (the feed can't tell).
+                for mark in ["live", "upcoming"] {
+                    if v[mark].as_bool() == Some(true) {
+                        x[mark] = json!(true);
+                    }
+                }
             }
             None => all.push(v.clone()),
         }
@@ -955,15 +961,27 @@ fn update_feeds(ids: &[String], ask: Vec<String>, now: u64, progress: impl Fn(us
 
 /// Whether a stored channel's videos want their lengths (YouTube's feeds
 /// have none): some of its newest 15 lack one, and its newest video changed
-/// since the last look (`lengths_seen`; Shorts and past streams never get one
-/// from the videos tab, so they are not asked for again and again).
+/// since the last look (`lengths_looked`; Shorts and streams to come never get one
+/// from the tabs, so they are not asked for again and again).
 fn needs_lengths(entry: Option<&Value>) -> bool {
     let Some(videos) = entry.and_then(|e| e["videos"].as_array()) else { return false };
     let Some(newest) = videos.first() else { return false };
-    entry.is_some_and(|e| e["lengths_seen"] != newest["id"])
-        && videos.iter().take(15).any(|v| {
-            v["duration"].as_f64().unwrap_or(0.0) <= 0.0 && v["live"].as_bool() != Some(true) && v["short"].as_bool() != Some(true)
-        })
+    let Some(e) = entry else { return false };
+    let shown = || videos.iter().take(15);
+    // A stream live or to come is looked at again after an hour: once it
+    // ended, the streams tab has its length.
+    let streaming = shown().any(|v| v["live"].as_bool() == Some(true) || v["upcoming"].as_bool() == Some(true));
+    let stale = unix_now().saturating_sub(e["lengths_at"].as_u64().unwrap_or(0)) >= 3600;
+    (e["lengths_looked"] != newest["id"] && shown().any(wants_length)) || (streaming && stale)
+}
+
+/// A stored video that has no length but can have one (not a Short, not
+/// live now, not a stream still to come).
+fn wants_length(v: &Value) -> bool {
+    v["duration"].as_f64().unwrap_or(0.0) <= 0.0
+        && v["live"].as_bool() != Some(true)
+        && v["upcoming"].as_bool() != Some(true)
+        && v["short"].as_bool() != Some(true)
 }
 
 /// Puts the lengths of `from` into `videos` where they lack one (by id);
@@ -971,10 +989,19 @@ fn needs_lengths(entry: Option<&Value>) -> bool {
 fn apply_lengths(videos: &mut [Value], from: &[Value]) -> bool {
     let mut changed = false;
     for v in videos.iter_mut() {
+        let Some(f) = from.iter().find(|f| f["id"] == v["id"]) else { continue };
+        // Live now or still to come: said so on the tile, no length asked.
+        for mark in ["live", "upcoming"] {
+            let now = f[mark].as_bool() == Some(true);
+            if v[mark].as_bool().unwrap_or(false) != now {
+                v[mark] = json!(now);
+                changed = true;
+            }
+        }
         if v["duration"].as_f64().unwrap_or(0.0) > 0.0 {
             continue;
         }
-        if let Some(d) = from.iter().find(|f| f["id"] == v["id"]).and_then(|f| f["duration"].as_f64()).filter(|d| *d > 0.0) {
+        if let Some(d) = f["duration"].as_f64().filter(|d| *d > 0.0) {
             v["duration"] = json!(d);
             changed = true;
         }
@@ -1011,16 +1038,30 @@ fn fill_lengths(ids: &[String], limit: usize) -> bool {
         if n > 0 {
             std::thread::sleep(LENGTH_GAP);
         }
-        let Ok(list) = streams::youtube_channel_range(id, 1, 15) else { continue };
-        // Read again: the feeds may have been stored meanwhile.
-        let mut cache = read_feed_cache();
-        let Some(entry) = cache.get_mut(id) else { continue };
-        let newest = entry["videos"][0]["id"].clone();
-        if let Some(videos) = entry["videos"].as_array_mut() {
-            changed |= apply_lengths(videos, &list);
+        // The videos tab (30: a busy channel's feed reaches further back
+        // than 15), then, for what it lacked, the live streams tab (past
+        // streams and premieres are only there; MN, 2026-11-23).
+        for tab in ["videos", "streams"] {
+            if tab == "streams" {
+                let cache = read_feed_cache();
+                let missing = cache.get(id).and_then(|e| e["videos"].as_array()).is_some_and(|vs| vs.iter().take(15).any(wants_length));
+                if !missing || streams::youtube_paused() {
+                    break;
+                }
+                std::thread::sleep(LENGTH_GAP);
+            }
+            let Ok(list) = streams::youtube_channel_tab(id, tab, 1, if tab == "videos" { 30 } else { 15 }) else { continue };
+            // Read again: the feeds may have been stored meanwhile.
+            let mut cache = read_feed_cache();
+            let Some(entry) = cache.get_mut(id) else { continue };
+            let newest = entry["videos"][0]["id"].clone();
+            if let Some(videos) = entry["videos"].as_array_mut() {
+                changed |= apply_lengths(videos, &list);
+            }
+            entry["lengths_looked"] = newest;
+            entry["lengths_at"] = json!(unix_now());
+            write_feed_cache(&mut cache, unix_now());
         }
-        entry["lengths_seen"] = newest;
-        write_feed_cache(&mut cache, unix_now());
     }
     changed
 }
@@ -1345,8 +1386,9 @@ fn lengths_later(ids: Vec<String>, st: settings::StreamsSettings, thread: cxx_qt
         return;
     }
     std::thread::spawn(move || {
-        // Five channels a time, shown after each five, at most 40 a run.
-        for _ in 0..8 {
+        // Five channels a time, shown after each five, at most 300 a run
+        // (each with its pauses: a slow, steady trickle).
+        for _ in 0..60 {
             let changed = fill_lengths(&ids, 5);
             // Another group shows by now: its own stored videos, never these.
             if subs_shown() != ids {
@@ -2898,11 +2940,20 @@ mod tests {
     #[test]
     fn lengths_asked_once_per_newest() {
         let v = |id: &str, d: f64, short: bool| json!({ "id": id, "duration": d, "short": short, "live": false });
+        // A stream to come gets no length and says so.
+        let mut up = vec![json!({ "id": "u", "duration": 0.0 })];
+        assert!(apply_lengths(&mut up, &[json!({ "id": "u", "duration": 0.0, "upcoming": true })]));
+        assert_eq!(up[0]["upcoming"], true);
+        assert!(!wants_length(&up[0]));
+        // Looked at an hour ago with a stream to come: again; just now: not.
+        let streaming = |at: u64| json!({ "lengths_looked": "u", "lengths_at": at, "videos": [{ "id": "u", "duration": 0.0, "upcoming": true }] });
+        assert!(needs_lengths(Some(&streaming(unix_now() - 3700))));
+        assert!(!needs_lengths(Some(&streaming(unix_now()))));
         let entry = json!({ "at": 1, "videos": [v("a", 0.0, false), v("b", 300.0, false)] });
         assert!(needs_lengths(Some(&entry)));
         // Looked at since the newest came: not again.
         let mut seen = entry.clone();
-        seen["lengths_seen"] = json!("a");
+        seen["lengths_looked"] = json!("a");
         assert!(!needs_lengths(Some(&seen)));
         // Only Shorts lack a length: nothing to ask.
         let shorts = json!({ "at": 1, "videos": [v("s", 0.0, true), v("b", 300.0, false)] });
