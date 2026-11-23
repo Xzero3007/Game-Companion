@@ -1584,7 +1584,7 @@ Panel {
                 VideoByline {
                     width: parent.width
                     video: row.modelData
-                    when: panel.ago(row.modelData.published, row.modelData.rough)
+                    when: panel.seenAndWhen(row.modelData)
                     tail: row.current ? "watching" : ""
                     onOpenChannel: panel.openChannelOf(row.modelData)
                 }
@@ -1914,7 +1914,7 @@ Panel {
                 VideoByline {
                     width: parent.width
                     video: tile.modelData
-                    when: panel.ago(tile.modelData.published, tile.modelData.rough)
+                    when: panel.seenAndWhen(tile.modelData)
                     onOpenChannel: panel.openChannelOf(tile.modelData)
                 }
             }
@@ -2121,6 +2121,18 @@ Panel {
     }
 
     function viewers(n) { return Number(n || 0).toLocaleString(Qt.locale("en_US"), "f", 0) }
+    // A YouTube video's views as YouTube writes them ("12K views"); none
+    // known (0) says nothing. Then when it came out.
+    function shortViews(n) {
+        n = Number(n || 0)
+        if (n <= 0) return ""
+        const cut = (v) => (v < 10 ? Math.floor(v * 10) / 10 : Math.floor(v)).toString()
+        const num = n >= 1e9 ? cut(n / 1e9) + "B" : n >= 1e6 ? cut(n / 1e6) + "M" : n >= 1e3 ? cut(n / 1e3) + "K" : String(n)
+        return num + (n === 1 ? " view" : " views")
+    }
+    function seenAndWhen(v) {
+        return [shortViews(v.views), ago(v.published, v.rough)].filter((t) => t).join(" · ")
+    }
 
     // Twitch's categories: box art, name, viewers; a click shows its streams.
     Component {

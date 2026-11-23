@@ -849,6 +849,14 @@ pub fn parse_feed(xml: &str) -> Vec<Value> {
             let short = entry.contains("/shorts/");
             // An entry's own id where it has one (it keeps its "UC").
             let channel_id = xml_text(entry, "yt:channelId").map(full_channel_id).filter(|c| valid_channel_id(c)).unwrap_or_else(|| channel_id.clone());
+            // Its views (media:statistics), as the feed had them when asked.
+            let views = entry
+                .split("<media:statistics")
+                .nth(1)
+                .and_then(|r| r.split("views=\"").nth(1))
+                .and_then(|r| r.split('"').next())
+                .and_then(|n| n.parse::<u64>().ok())
+                .unwrap_or(0);
             Some(json!({
                 "id": id,
                 "short": short,
@@ -856,7 +864,7 @@ pub fn parse_feed(xml: &str) -> Vec<Value> {
                 "channel": channel,
                 "channelId": channel_id,
                 "duration": 0.0,
-                "views": 0,
+                "views": views,
                 "live": false,
                 "published": xml_text(entry, "published").unwrap_or(""),
                 "picture": format!("https://i.ytimg.com/vi/{id}/mqdefault.jpg"),
@@ -957,8 +965,17 @@ fn run_with_timeout(command: &mut Command, limit: Duration) -> Result<std::proce
 static BOT_CHECK_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 /// How long the background looks (lengths, dates, pictures) rest after
 /// YouTube's bot check: more requests would only keep the block (MN,
-/// 2026-11-22: no video played any more).
+/// 2026-11-22: no video played any more). A check again soon after a pause
+/// doubles it, up to `BOT_PAUSE_LONGEST`.
 pub const BOT_PAUSE: u64 = 30 * 60;
+pub const BOT_PAUSE_LONGEST: u64 = 6 * 3600;
+static BOT_PAUSE_NOW: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(BOT_PAUSE);
+
+/// The next pause after a bot check: doubled when the last check was within
+/// twice the last pause, else the first one again.
+pub fn next_bot_pause(since_last: u64, last_pause: u64) -> u64 {
+    if since_last < 2 * last_pause { (last_pause * 2).min(BOT_PAUSE_LONGEST) } else { BOT_PAUSE }
+}
 
 pub fn is_bot_check(text: &str) -> bool {
     text.contains("not a bot")
@@ -969,15 +986,91 @@ fn now_secs() -> u64 {
 }
 
 pub fn bot_check_seen() {
-    let was = BOT_CHECK_AT.swap(now_secs(), std::sync::atomic::Ordering::Relaxed);
-    if now_secs().saturating_sub(was) >= BOT_PAUSE {
-        crate::log::write("streams", "youtube bot check: background looks paused for 30 min");
+    use std::sync::atomic::Ordering::Relaxed;
+    let now = now_secs();
+    let was = BOT_CHECK_AT.swap(now, Relaxed);
+    let pause = BOT_PAUSE_NOW.load(Relaxed);
+    let since = now.saturating_sub(was);
+    // Seen again while still resting: the same pause goes on.
+    if since < pause {
+        return;
     }
+    let next = if was == 0 { BOT_PAUSE } else { next_bot_pause(since, pause) };
+    BOT_PAUSE_NOW.store(next, Relaxed);
+    crate::log::write("streams", &format!("youtube bot check: background looks paused for {} min", next / 60));
+}
+
+/// yt-dlp's version as days since 1970 ("2026.10.26", also "2026.10.26.1").
+pub fn ytdlp_version_day(version: &str) -> Option<i64> {
+    let mut parts = version.trim().split('.');
+    let y: i64 = parts.next()?.parse().ok()?;
+    let m: i64 = parts.next()?.parse().ok()?;
+    let d: i64 = parts.next()?.parse().ok()?;
+    if !(2020..3000).contains(&y) || !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+        return None;
+    }
+    // Days from civil (Howard Hinnant's algorithm).
+    let (y, m) = if m <= 2 { (y - 1, m + 9) } else { (y, m - 3) };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * m + 2) / 5 + d - 1;
+    Some(era * 146_097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719_468)
+}
+
+/// Whether a PO token provider plugin for yt-dlp is installed (bgutil's or
+/// another "getpot" one), in the places yt-dlp looks for plugins.
+fn pot_provider_installed() -> bool {
+    let mut places: Vec<PathBuf> = Vec::new();
+    if let Ok(read) = std::fs::read_dir("/usr/lib") {
+        for e in read.flatten() {
+            if e.file_name().to_string_lossy().starts_with("python3") {
+                places.push(e.path().join("site-packages"));
+            }
+        }
+    }
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        places.push(home.join(".config/yt-dlp/plugins"));
+        places.push(home.join(".yt-dlp/plugins"));
+        places.push(home.join(".local/share/yt-dlp/plugins"));
+    }
+    places.iter().filter_map(|p| std::fs::read_dir(p).ok()).flatten().flatten().any(|e| {
+        let n = e.file_name().to_string_lossy().to_lowercase();
+        n.contains("bgutil") || n.contains("getpot")
+    })
+}
+
+/// A line for Settings: yt-dlp's version and age, and whether a PO token
+/// provider is there. Nothing goes online.
+pub fn ytdlp_note() -> String {
+    let out = run_with_timeout(Command::new("yt-dlp").arg("--version"), Duration::from_secs(15));
+    let version = match out {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+        _ => return "yt-dlp is not installed: sudo pacman -S yt-dlp".into(),
+    };
+    let today = (now_secs() / 86_400) as i64;
+    let mut note = match ytdlp_version_day(&version) {
+        Some(day) => {
+            let age = (today - day).max(0);
+            if age > 45 {
+                format!("yt-dlp {version} is {age} days old. YouTube changes often; an old yt-dlp fails more: sudo pacman -Syu yt-dlp.")
+            } else {
+                format!("yt-dlp {version} ({age} days old): up to date enough.")
+            }
+        }
+        None => format!("yt-dlp {version}."),
+    };
+    note += if pot_provider_installed() {
+        " A PO token provider is installed: yt-dlp uses it by itself."
+    } else {
+        " No PO token provider: if YouTube's bot check comes often, the AUR package python-bgutil-ytdlp-pot-provider can help (it makes tokens on this computer, without an account)."
+    };
+    note
 }
 
 /// Whether the background looks at YouTube rest now (its bot check).
 pub fn youtube_paused() -> bool {
-    now_secs().saturating_sub(BOT_CHECK_AT.load(std::sync::atomic::Ordering::Relaxed)) < BOT_PAUSE
+    use std::sync::atomic::Ordering::Relaxed;
+    now_secs().saturating_sub(BOT_CHECK_AT.load(Relaxed)) < BOT_PAUSE_NOW.load(Relaxed)
 }
 
 pub(crate) fn finish(child: Child, limit: Duration) -> Result<std::process::Output, String> {
@@ -1413,6 +1506,29 @@ mod tests {
         assert!(video_date_of("1762770000 20251110").is_some_and(|d| d.starts_with("2025-11-10")));
         assert_eq!(video_date_of("NA NA"), None);
         assert_eq!(video_date_of(""), None);
+    }
+
+    #[test]
+    fn ytdlp_versions() {
+        assert_eq!(ytdlp_version_day("1970.01.01"), None);
+        assert_eq!(ytdlp_version_day("2026.10.26").zip(ytdlp_version_day("2026.11.23")).map(|(a, b)| b - a), Some(28));
+        assert!(ytdlp_version_day("2026.10.26.1\n").is_some());
+        assert_eq!(ytdlp_version_day("nightly"), None);
+    }
+
+    #[test]
+    fn bot_pauses_grow() {
+        assert_eq!(next_bot_pause(40 * 60, BOT_PAUSE), 60 * 60);
+        assert_eq!(next_bot_pause(5 * 3600, 4 * 3600), BOT_PAUSE_LONGEST);
+        assert_eq!(next_bot_pause(3 * 3600, BOT_PAUSE), BOT_PAUSE);
+    }
+
+    #[test]
+    fn feed_views() {
+        let xml = "<feed><author><name>A</name></author><entry><yt:videoId>dQw4w9WgXcQ</yt:videoId><title>T</title>\
+            <published>2026-11-14T08:00:00+00:00</published><media:group><media:community><media:starRating count=\"5\"/>\
+            <media:statistics views=\"12345\"/></media:community></media:group></entry></feed>";
+        assert_eq!(parse_feed(xml)[0]["views"], 12345);
     }
 
     #[test]
