@@ -944,8 +944,13 @@ Item {
                 local: win.jelly
                 muted: win.muted
                 audioName: "Game Companion · " + (win.jelly ? "Jellyfin" : win.slot === "twitch" ? "Twitch" : "YouTube")
-                // Per source (Settings → Streams → Videos → HDR).
-                hdr: win.keyPrefs.hdr && (win.jelly ? win.keyPrefs.hdr_jellyfin : win.slot === "twitch" ? win.keyPrefs.hdr_twitch : win.keyPrefs.hdr_youtube)
+                // Per source (Settings → Streams → Videos → HDR). Only at
+                // full opacity: the HDR surface's own opacity (the
+                // compositor's alpha modifier) wasn't honoured on MN's KWin
+                // (2026-11-25, the video stayed solid), so a see-through
+                // video is drawn by Qt, as before 0.8.75. Back at 100 %,
+                // HDR returns with the next video.
+                hdr: win.videoOpacity >= 0.995 && win.keyPrefs.hdr && (win.jelly ? win.keyPrefs.hdr_jellyfin : win.slot === "twitch" ? win.keyPrefs.hdr_twitch : win.keyPrefs.hdr_youtube)
                 onHdrStateChanged: Companion.log("video", "hdr " + hdrState + (hdrInfo ? " · " + hdrInfo : ""))
                 onHdrNote: (line) => Companion.log("video", "hdr mpv " + line)
                 onReloadNeeded: (at) => {

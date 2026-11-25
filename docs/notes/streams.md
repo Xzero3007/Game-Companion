@@ -391,6 +391,16 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   card.
   0.8.78 on MN's RTX 4090: "hdr (10 bit) … dmabuf XB30", modifier
   0x300000000606014, 1 plane, picture seen, 4K AV1 without drops.
+- See-through videos and the HDR surface (MN, 2026-11-25: "wieso geht
+  die Transparenz nicht"): on MN's KWin the HDR surface stayed solid at any
+  opacity (0.8.75 to 0.8.85; the bench's Sway honours
+  `wp_alpha_modifier_v1`, so QA's `set_multiplier` check passed). Now
+  `MpvVideo.hdr` is only on at full opacity (`VideoWindow`, the `hdr`
+  binding): below 100 % the video is Qt's again (switching while playing
+  drops the surface and reloads at the same spot), back at 100 % HDR comes
+  with the next video. Guarded by `src/qml_rules.rs` and the bench's
+  `arch-test/video-opacity.sh` (project folder: "hdr off" at 60 %, surface
+  at 100 %).
 - HDR badges on the lists' pictures (MN, 2026-11-19: "bei allen fenster wo
   videos angezeigt werden"; "geht das auch bei jelly"): a gold badge bottom
   left (`HdrBadge` in StreamsPanel, the same in the video window's Up next).

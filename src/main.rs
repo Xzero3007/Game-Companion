@@ -52,6 +52,8 @@ mod voice;
 mod voice_object;
 mod yt_hdr;
 mod voice_overlay;
+#[cfg(test)]
+mod qml_rules;
 
 fn main() {
     // The PoE 2 price check's kit in its own process (src/poe2_kit.rs).
