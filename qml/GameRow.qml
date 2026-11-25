@@ -36,6 +36,8 @@ Item {
 
     property bool lootShown: false
     property bool lootOpen: false
+    /// The farm window is on (right-click on Loot): a gold dot on the button.
+    property bool farmOn: false
     signal lootClicked
     signal lootRightClicked
 
@@ -49,6 +51,8 @@ Item {
     // PoE 2's session tracker (right-click: the session window).
     property bool sessionShown: false
     property bool sessionOpen: false
+    /// The session window is on (right-click on Session): a gold dot.
+    property bool sessionWindowOn: false
     signal sessionClicked
     signal sessionRightClicked
 
@@ -161,6 +165,7 @@ Item {
             icon: "loot"
             label: "Loot"
             active: strip.lootOpen
+            marked: strip.farmOn
             tip: strip.gameName + ": items, drops, Closet and Shugo Cards (listens only; right-click: the farm window)"
             onClicked: strip.lootClicked()
             onRightClicked: strip.lootRightClicked()
@@ -186,6 +191,7 @@ Item {
             icon: "history"
             label: "Session"
             active: strip.sessionOpen
+            marked: strip.sessionWindowOn
             tip: strip.gameName + ": this play session (from the game's log; right-click: the session window)"
             onClicked: strip.sessionClicked()
             onRightClicked: strip.sessionRightClicked()
@@ -207,8 +213,9 @@ Item {
     }
 
     // A game's button: a small icon and its name beside it; active, gold
-    // with a gold line under it. `marked`: a small gold dot (the overlay map
-    // is on).
+    // with a gold line under it. `marked`: a small gold dot, what its
+    // right-click switches is on (Map: the overlay map, Loot: the farm
+    // window, Session: the session window; MN, 2026-11-25).
     component GameButton: Item {
         id: button
         property string icon

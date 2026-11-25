@@ -29,6 +29,7 @@ so a new session carries on from here; details of each step go to
 
 ## Now (2026-11-18)
 
+- 0.8.86 beta (2026-11-25): #195 video see-through again under KWin (no HDR surface below 100 %), gold dot on LOOT and SESSION.
 - 0.8.85 beta (2026-11-23): #193 YouTube lengths from the videos and streams tabs, LIVE/UPCOMING marks, up to 300 channels a run.
 - 0.8.84 beta (2026-11-23): #191 Streams shows the game's tab and preset only while a game runs; a game without its own search looks for its name.
 - 0.8.83 beta (2026-11-23): #189 YouTube: views from the feeds, lengths kept and fetched one channel at a time, growing bot-check pause, yt-dlp note in Settings.
