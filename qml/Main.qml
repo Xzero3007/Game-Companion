@@ -378,6 +378,7 @@ Overlay {
             lootShown: (Aion2.active && root.lootInBar) || root.lootOpen || lootStore.demo
             lootOpen: root.lootOpen
             onLootClicked: root.lootOpen = root.fromRow("loot", root.lootOpen)
+            farmOn: lootStore.farmWanted && (root.lootOn("aion2.inventory") || lootStore.demo)
             onLootRightClicked: lootStore.toggleFarm()
             armoryShown: (Aion2.active && Plugins.inBar(root.plugins, "aion2.armory")) || root.armoryOpen || armoryStore.demo
             armoryOpen: root.armoryOpen
@@ -388,6 +389,7 @@ Overlay {
             sessionShown: (sessionStore.on && Plugins.inBar(root.plugins, "poe2.session")) || root.sessionOpen || sessionStore.demoOn
             sessionOpen: root.sessionOpen
             onSessionClicked: root.sessionOpen = root.fromRow("poe2-session", root.sessionOpen)
+            sessionWindowOn: sessionStore.windowWanted
             onSessionRightClicked: sessionStore.setPref("window", sessionStore.prefs.window === false)
         }
     }
