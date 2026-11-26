@@ -55,6 +55,12 @@ Panel {
         if (nativeWindow.demo.indexOf("startmenu") >= 0) startChoice.open = true
         if (nativeWindow.demo.indexOf("appsettings") >= 0) tab = "apps"
     }
+    // GC_DEMO=settings,ytsettings,mysearches: scrolled to the Trending searches.
+    Timer {
+        running: nativeWindow.demo.indexOf("mysearches") >= 0
+        interval: 300
+        onTriggered: scroller.contentY = Math.max(0, scroller.contentHeight - scroller.height)
+    }
 
     Column {
         width: parent.width
@@ -1210,7 +1216,7 @@ Panel {
                     Label { text: "Trending: search words" }
                     Repeater {
                         model: [["gaming", "Gaming"], ["europe", "Europe"], ["national", "National teams"], ["tr", "Süper Lig"], ["de", "Bundesliga"],
-                                ["en", "Premier League"], ["fr", "Ligue 1"], ["it", "Serie A"], ["es", "LaLiga"]]
+                                ["en", "Premier League"], ["fr", "Ligue 1"], ["it", "Serie A"], ["es", "LaLiga"], ["bjk", "Beşiktaş"]]
                         delegate: Row {
                             required property var modelData
                             width: parent.width
@@ -1233,6 +1239,73 @@ Panel {
                         }
                     }
                     Hint { text: "Each part asks YouTube's search (through yt-dlp) for this week's videos with these words and mixes the answers; Gaming takes this week's most watched. Enter saves a line." }
+
+                    // The person's own searches (MN, 2026-11-26): name, words, delete.
+                    Item { width: 1; height: 4 }
+                    Label { text: "Trending: my searches" }
+                    Repeater {
+                        model: JSON.parse(Streams.trendCustom)
+                        delegate: Row {
+                            id: mine
+                            required property var modelData
+                            property bool sure: false
+                            width: parent.width
+                            spacing: 8
+                            NameField {
+                                width: 110
+                                maxLength: 40
+                                placeholder: "Name"
+                                text: mine.modelData.name
+                                onAccepted: Streams.renameTrendSearch(mine.modelData.id, text)
+                            }
+                            NameField {
+                                width: parent.width - 110 - mineDelete.width - 16
+                                wrap: true
+                                maxLength: 400
+                                placeholder: "Search words, with commas"
+                                text: (mine.modelData.words || []).join(", ")
+                                onAccepted: Streams.changeTrendWords(mine.modelData.id, text)
+                            }
+                            TextButton {
+                                id: mineDelete
+                                y: 2
+                                danger: true
+                                text: mine.sure ? "Sure?" : "Delete"
+                                onClicked: mine.sure ? Streams.removeTrendSearch(mine.modelData.id) : (mine.sure = true)
+                            }
+                        }
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: 8
+                        NameField {
+                            id: newSearchName
+                            width: 110
+                            maxLength: 40
+                            placeholder: "Name"
+                            onAccepted: newSearchWords.forceActiveFocus()
+                        }
+                        NameField {
+                            id: newSearchWords
+                            width: parent.width - 110 - newSearchAdd.width - 16
+                            wrap: true
+                            maxLength: 400
+                            placeholder: "Search words, with commas"
+                            onAccepted: newSearchAdd.clicked()
+                        }
+                        TextButton {
+                            id: newSearchAdd
+                            y: 2
+                            text: "+ New search"
+                            onClicked: {
+                                if (Streams.addTrendSearch(newSearchName.text, newSearchWords.text) !== "") {
+                                    newSearchName.text = ""
+                                    newSearchWords.text = ""
+                                }
+                            }
+                        }
+                    }
+                    Hint { text: "Your own parts in Trending, searched like the ones above (this week's videos, in your video languages). Enter saves a name or a line; without words the name is the search." }
                     }
 
                     Column {

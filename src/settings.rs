@@ -296,6 +296,8 @@ pub struct StreamsSettings {
     /// (by part).
     pub trend_section: String,
     pub trend_words: BTreeMap<String, Vec<String>>,
+    /// The person's own Trending searches (MN, 2026-11-26), in their order.
+    pub trend_custom: Vec<TrendSearch>,
     /// YouTube channels' pictures by channel id, asked once each.
     pub channel_pictures: BTreeMap<String, String>,
     /// Twitch: a note when followed or favourite channels go live (asked
@@ -315,6 +317,16 @@ pub struct StreamsSettings {
     pub chat_write: bool,
     /// The chat follows the Twitch video (until it is moved by hand).
     pub chat_docked: bool,
+}
+
+/// One of the person's own Trending searches: `id` ("my1", "my2", …),
+/// the chip's name and its search words.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TrendSearch {
+    pub id: String,
+    pub name: String,
+    pub words: Vec<String>,
 }
 
 /// YouTube's search filter: sort ("relevance", "date", "views"), uploaded
@@ -366,6 +378,7 @@ impl Default for StreamsSettings {
             video_languages: crate::streams::system_languages(),
             trend_section: "gaming".into(),
             trend_words: BTreeMap::new(),
+            trend_custom: Vec::new(),
             channel_pictures: BTreeMap::new(),
             alerts: false,
             alerts_off: BTreeSet::new(),
