@@ -91,6 +91,8 @@ pub mod qobject {
         /// and each part's search words: JSON `{part: [words]}`.
         #[qproperty(QString, trend_section)]
         #[qproperty(QString, trend_words)]
+        /// The person's own Trending searches: JSON `[{"id", "name", "words"}]`.
+        #[qproperty(QString, trend_custom)]
         /// The video languages chosen: JSON `["de", …]`.
         #[qproperty(QString, video_languages)]
         /// Twitch: live notes on, and the channels left out (JSON list).
@@ -287,6 +289,15 @@ pub mod qobject {
         /// A Trending part's search words, separated by commas ("" = the default).
         #[qinvokable]
         fn change_trend_words(self: Pin<&mut Streams>, section: &QString, text: &QString);
+        /// A new own Trending search; gives its id ("" if the name is empty).
+        #[qinvokable]
+        fn add_trend_search(self: Pin<&mut Streams>, name: &QString, text: &QString) -> QString;
+        /// Renames an own Trending search.
+        #[qinvokable]
+        fn rename_trend_search(self: Pin<&mut Streams>, id: &QString, name: &QString);
+        /// Deletes an own Trending search.
+        #[qinvokable]
+        fn remove_trend_search(self: Pin<&mut Streams>, id: &QString);
         /// Takes a video language in or out ("de", "tr", …; see
         /// `streams::VIDEO_LANGUAGES`).
         #[qinvokable]
@@ -400,6 +411,7 @@ pub struct StreamsRust {
     search_filter: QString,
     trend_section: QString,
     trend_words: QString,
+    trend_custom: QString,
     alerts: bool,
     alerts_off: QString,
     live_news: QString,
@@ -483,6 +495,37 @@ fn trend_words_json(s: &settings::StreamsSettings) -> String {
         m.insert(part.into(), json!(s.trend_words.get(part).cloned().unwrap_or_else(|| streams::trend_words(part))));
     }
     Value::Object(m).to_string()
+}
+
+fn trend_custom_json(s: &settings::StreamsSettings) -> String {
+    serde_json::to_string(&s.trend_custom).unwrap_or_else(|_| "[]".into())
+}
+
+/// A Trending part that exists: a built-in one or one of the person's own.
+fn trend_part_ok(s: &settings::StreamsSettings, part: &str) -> bool {
+    streams::TREND_SECTIONS.contains(&part) || s.trend_custom.iter().any(|c| c.id == part)
+}
+
+/// A Trending part's search words: an own search's, else changed or default.
+fn trend_words_of(s: &settings::StreamsSettings, part: &str) -> Vec<String> {
+    if let Some(c) = s.trend_custom.iter().find(|c| c.id == part) {
+        return c.words.clone();
+    }
+    s.trend_words.get(part).cloned().unwrap_or_else(|| streams::trend_words(part))
+}
+
+/// Search words as typed: split at commas, at most 6 of 100 characters.
+fn parse_trend_words(text: &str) -> Vec<String> {
+    text.split(',')
+        .map(|w| w.trim().chars().filter(|c| !c.is_control()).take(100).collect::<String>())
+        .filter(|w| !w.is_empty())
+        .take(6)
+        .collect()
+}
+
+/// A search's name as typed: one line, at most 40 characters.
+fn clean_trend_name(name: &str) -> String {
+    name.trim().chars().filter(|c| !c.is_control()).take(40).collect::<String>().trim().to_string()
 }
 
 fn twitch_filter_json(s: &settings::StreamsSettings) -> String {
@@ -1487,6 +1530,7 @@ impl Default for StreamsRust {
             search_filter: q(&serde_json::to_string(&s.search).unwrap_or_default()),
             trend_section: q(&s.trend_section),
             trend_words: q(&trend_words_json(&s)),
+            trend_custom: q(&trend_custom_json(&s)),
             video_languages: q(&serde_json::to_string(&s.video_languages).unwrap_or_else(|_| "[]".into())),
             alerts: s.alerts,
             alerts_off: q(&serde_json::to_string(&s.alerts_off).unwrap_or_else(|_| "[]".into())),
@@ -1808,8 +1852,8 @@ impl qobject::Streams {
                     streams::youtube_search_range(&text, &streams::search_param(&f.sort, &f.date, &f.length), page * 30 + 1, (page + 1) * 30, lang)
                 }
                 "trending" => {
-                    let part = if streams::TREND_SECTIONS.contains(&text.as_str()) { text.clone() } else { st.trend_section.clone() };
-                    let words = st.trend_words.get(&part).cloned().unwrap_or_else(|| streams::trend_words(&part));
+                    let part = if trend_part_ok(&st, &text) { text.clone() } else { st.trend_section.clone() };
+                    let words = trend_words_of(&st, &part);
                     streams::youtube_trending_page(&part, &words, &st.video_languages, page)
                 }
                 // The feed gave the newest 15; then the videos tab, 30 at a time.
@@ -1889,7 +1933,7 @@ impl qobject::Streams {
         if matches!(view.as_str(), "game" | "subscriptions" | "channels" | "trending" | "playlists" | "history") {
             settings::change(|s| s.streams.youtube_view = view.clone());
         }
-        if view == "trending" && streams::TREND_SECTIONS.contains(&text.as_str()) {
+        if view == "trending" && settings::read(|s| trend_part_ok(&s.streams, &text)) {
             settings::change(|s| s.streams.trend_section = text.clone());
             self.as_mut().set_trend_section(q(&text));
         }
@@ -1968,8 +2012,8 @@ impl qobject::Streams {
                         Ok(list)
                     }
                     "trending" => {
-                        let part = if streams::TREND_SECTIONS.contains(&text.as_str()) { text.clone() } else { st.trend_section.clone() };
-                        let words = st.trend_words.get(&part).cloned().unwrap_or_else(|| streams::trend_words(&part));
+                        let part = if trend_part_ok(&st, &text) { text.clone() } else { st.trend_section.clone() };
+                        let words = trend_words_of(&st, &part);
                         streams::youtube_trending(&part, &words, &st.video_languages)
                     }
                     _ => {
@@ -2648,18 +2692,22 @@ impl qobject::Streams {
         self.set_video_languages(q(&j));
     }
 
-    fn change_trend_words(self: Pin<&mut Self>, section: &QString, text: &QString) {
+    fn change_trend_words(mut self: Pin<&mut Self>, section: &QString, text: &QString) {
         let section = section.to_string();
+        let words = parse_trend_words(&text.to_string());
+        if section.starts_with("my") {
+            let j = settings::change(|s| {
+                if let Some(c) = s.streams.trend_custom.iter_mut().find(|c| c.id == section) {
+                    c.words = words;
+                }
+                trend_custom_json(&s.streams)
+            });
+            self.as_mut().set_trend_custom(q(&j));
+            return;
+        }
         if !streams::TREND_SECTIONS.contains(&section.as_str()) {
             return;
         }
-        let words: Vec<String> = text
-            .to_string()
-            .split(',')
-            .map(|w| w.trim().chars().filter(|c| !c.is_control()).take(100).collect::<String>())
-            .filter(|w| !w.is_empty())
-            .take(6)
-            .collect();
         let j = settings::change(|s| {
             if words.is_empty() || words == streams::trend_words(&section) {
                 s.streams.trend_words.remove(&section);
@@ -2669,6 +2717,55 @@ impl qobject::Streams {
             trend_words_json(&s.streams)
         });
         self.set_trend_words(q(&j));
+    }
+
+    fn add_trend_search(mut self: Pin<&mut Self>, name: &QString, text: &QString) -> QString {
+        let name = clean_trend_name(&name.to_string());
+        if name.is_empty() {
+            return QString::default();
+        }
+        let words = parse_trend_words(&text.to_string());
+        let (id, j) = settings::change(|s| {
+            let list = &mut s.streams.trend_custom;
+            let n = (1..).find(|n| !list.iter().any(|c| c.id == format!("my{n}"))).unwrap_or(1);
+            let id = format!("my{n}");
+            // No words: the name is the search.
+            let words = if words.is_empty() { vec![name.clone()] } else { words };
+            list.push(settings::TrendSearch { id: id.clone(), name, words });
+            (id, trend_custom_json(&s.streams))
+        });
+        self.as_mut().set_trend_custom(q(&j));
+        q(&id)
+    }
+
+    fn rename_trend_search(mut self: Pin<&mut Self>, id: &QString, name: &QString) {
+        let (id, name) = (id.to_string(), clean_trend_name(&name.to_string()));
+        if name.is_empty() {
+            return;
+        }
+        let j = settings::change(|s| {
+            if let Some(c) = s.streams.trend_custom.iter_mut().find(|c| c.id == id) {
+                c.name = name;
+            }
+            trend_custom_json(&s.streams)
+        });
+        self.as_mut().set_trend_custom(q(&j));
+    }
+
+    fn remove_trend_search(mut self: Pin<&mut Self>, id: &QString) {
+        let id = id.to_string();
+        let (j, was_shown) = settings::change(|s| {
+            s.streams.trend_custom.retain(|c| c.id != id);
+            let was_shown = s.streams.trend_section == id;
+            if was_shown {
+                s.streams.trend_section = "gaming".into();
+            }
+            (trend_custom_json(&s.streams), was_shown)
+        });
+        self.as_mut().set_trend_custom(q(&j));
+        if was_shown {
+            self.as_mut().set_trend_section(q("gaming"));
+        }
     }
 
     fn switch_alerts(mut self: Pin<&mut Self>, on: bool) {
@@ -2915,6 +3012,19 @@ impl qobject::Streams {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn own_trending_searches() {
+        let mut st = settings::StreamsSettings::default();
+        st.trend_custom.push(settings::TrendSearch { id: "my1".into(), name: "Galatasaray".into(), words: vec!["Galatasaray maç özeti".into()] });
+        assert!(trend_part_ok(&st, "bjk") && trend_part_ok(&st, "my1") && !trend_part_ok(&st, "my2"));
+        assert_eq!(trend_words_of(&st, "my1"), vec!["Galatasaray maç özeti".to_string()]);
+        assert_eq!(trend_words_of(&st, "bjk"), streams::trend_words("bjk"));
+        assert_eq!(parse_trend_words(" a, ,b\u{7},c,d,e,f,g "), vec!["a", "b", "c", "d", "e", "f"]);
+        assert_eq!(clean_trend_name("  Beşiktaş\n "), "Beşiktaş");
+        assert_eq!(clean_trend_name(&"x".repeat(60)).len(), 40);
+        assert!(trend_custom_json(&st).contains("\"id\":\"my1\""));
+    }
 
     #[test]
     fn as_of_is_the_last_ask() {

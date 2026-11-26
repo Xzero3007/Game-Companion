@@ -725,7 +725,7 @@ pub fn youtube_search_range(text: &str, sp: &str, first: usize, last: usize, lan
 }
 
 /// The Trending tab's parts: Gaming, and Football by competition.
-pub const TREND_SECTIONS: [&str; 9] = ["gaming", "europe", "national", "tr", "de", "en", "fr", "it", "es"];
+pub const TREND_SECTIONS: [&str; 10] = ["gaming", "europe", "national", "tr", "de", "en", "fr", "it", "es", "bjk"];
 
 /// The search words each Trending part asks YouTube by default (several
 /// searches are merged).
@@ -740,6 +740,7 @@ pub fn trend_words(section: &str) -> Vec<String> {
         "fr" => &["Ligue 1 highlights"],
         "it" => &["Serie A highlights"],
         "es" => &["LaLiga highlights"],
+        "bjk" => &["Beşiktaş maç özeti", "Besiktas highlights"],
         _ => &[],
     };
     w.iter().map(|s| s.to_string()).collect()
@@ -1713,6 +1714,7 @@ mod tests {
         assert_eq!(search_param("relevance", "any", "long"), "EgQQARgC");
         assert_eq!(trend_words("tr"), vec!["Süper Lig maç özeti".to_string()]);
         assert!(trend_words("x").is_empty());
+        assert_eq!(trend_words("bjk").len(), 2);
         let a = vec![json!({"id": "1"}), json!({"id": "2"})];
         let b = vec![json!({"id": "2"}), json!({"id": "3"}), json!({"id": "4"})];
         let ids: Vec<Value> = merge_turns(vec![a, b]).into_iter().map(|v| v["id"].clone()).collect();

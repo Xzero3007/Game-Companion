@@ -924,12 +924,27 @@ Panel {
                 text: "FOOTBALL"; color: Theme.dim(); font.family: Theme.display; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.2 }
             Repeater {
                 model: [["europe", "Europe"], ["national", "National teams"], ["tr", "Süper Lig"], ["de", "Bundesliga"], ["en", "Premier League"],
-                        ["fr", "Ligue 1"], ["it", "Serie A"], ["es", "LaLiga"]]
+                        ["fr", "Ligue 1"], ["it", "Serie A"], ["es", "LaLiga"], ["bjk", "Beşiktaş"]]
                 delegate: Chip {
                     required property var modelData
                     text: modelData[1]
                     on: Streams.trendSection === modelData[0]
                     onClicked: panel.go({ tab: "youtube", view: "trending", text: modelData[0], channel: null })
+                }
+            }
+            // The person's own searches (Settings → Streams → YouTube).
+            Text { style: Theme.textStyle(); styleColor: Theme.shadow
+                visible: mySearches.count > 0
+                height: 24; verticalAlignment: Text.AlignVCenter; leftPadding: 8; rightPadding: 2
+                text: "MINE"; color: Theme.dim(); font.family: Theme.display; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.2 }
+            Repeater {
+                id: mySearches
+                model: JSON.parse(Streams.trendCustom)
+                delegate: Chip {
+                    required property var modelData
+                    text: modelData.name
+                    on: Streams.trendSection === modelData.id
+                    onClicked: panel.go({ tab: "youtube", view: "trending", text: modelData.id, channel: null })
                 }
             }
         }
