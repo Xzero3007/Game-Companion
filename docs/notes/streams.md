@@ -186,7 +186,13 @@ Moved word for word from CLAUDE.md (2026-11-16); read it before working on this 
   `streams::indian_script`; MN, 2026-11-13); search
   filters as YouTube's `sp` (protobuf, `search_param`); Trending is yt-dlp
   searches per part (`TREND_SECTIONS`, words changeable in Settings), as
-  YouTube's own trending page is gone. Video languages (`video_languages`,
+  YouTube's own trending page is gone. Beşiktaş is a fixed part (`bjk`;
+  MN, 2026-11-26); the person's own searches (`streams.trend_custom`, ids
+  `my1`, `my2`, …; `addTrendSearch`, `renameTrendSearch`,
+  `removeTrendSearch`, words through `changeTrendWords`) are added under
+  Settings → Streams → YouTube "Trending: my searches" and show as chips
+  under MINE (`trend_part_ok`, `trend_words_of`;
+  `GC_DEMO=settings,ytsettings,mysearches`). Video languages (`video_languages`,
   default the desktop's `LANG`): searches ask yt-dlp with `youtube:lang=`
   (hl; region follows the IP, yt-dlp has no `gl`), Trending once per
   language, Gaming/Europe/national with the language's word
