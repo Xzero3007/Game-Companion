@@ -2698,7 +2698,8 @@ impl qobject::Streams {
         if section.starts_with("my") {
             let j = settings::change(|s| {
                 if let Some(c) = s.streams.trend_custom.iter_mut().find(|c| c.id == section) {
-                    c.words = words;
+                    // Words cleared: the name is the search again, as when it was made.
+                    c.words = if words.is_empty() { vec![c.name.clone()] } else { words };
                 }
                 trend_custom_json(&s.streams)
             });
